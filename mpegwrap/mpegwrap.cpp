@@ -685,6 +685,7 @@ Int64 ProcessEssence(FileHandle InFile, MXFFilePtr &Out, Int64 PictureLimit /*=0
 										PartitionStart = Out->Tell();
 										PartitionPtr ThisPartition = new Partition("ClosedCompleteBodyPartition");
 										ThisPartition->SetUint("BodySID",1);
+										ThisPartition->SetValue("OperationalPattern", DataChunk(16, OPUL->GetValue())); 
 										Out->WritePartition(ThisPartition);
 									}
 								}
@@ -695,6 +696,7 @@ Int64 ProcessEssence(FileHandle InFile, MXFFilePtr &Out, Int64 PictureLimit /*=0
 										BodySize = 0;
 										PartitionPtr ThisPartition = new Partition("ClosedCompleteBodyPartition");
 										ThisPartition->SetUint("BodySID",1);
+										ThisPartition->SetValue("OperationalPattern", DataChunk(16, OPUL->GetValue())); 
 										Out->WritePartition(ThisPartition);
 									}
 									else BodySize++;
@@ -731,6 +733,31 @@ Int64 ProcessEssence(FileHandle InFile, MXFFilePtr &Out, Int64 PictureLimit /*=0
 
 //IT# 				Table->AddEntry(EditUnit, Out->Tell() - ECStart);
 //IT# 				EditUnit++;
+
+		if(BodyMode == Body_Size)
+		{
+//printf("Start=0x%08x Here=0x%08x, Size=0x%08x\n", (int)PartitionStart, (int)Out->Tell(), (int)(Out->Tell() - PartitionStart));
+			if(((Out->Tell() - PartitionStart) + (PictureEnd - PictureStart) + 20) > BodyRate)
+			{
+				PartitionStart = Out->Tell();
+				PartitionPtr ThisPartition = new Partition("ClosedCompleteBodyPartition");
+				ThisPartition->SetUint("BodySID",1);
+				ThisPartition->SetValue("OperationalPattern", DataChunk(16, OPUL->GetValue())); 
+				Out->WritePartition(ThisPartition);
+			}
+		}
+		else if(BodyMode == Body_Duration)
+		{
+			if((BodySize >= BodyRate) && ((!GOPAlign) || GOPStart))
+			{
+				BodySize = 0;
+				PartitionPtr ThisPartition = new Partition("ClosedCompleteBodyPartition");
+				ThisPartition->SetUint("BodySID",1);
+				ThisPartition->SetValue("OperationalPattern", DataChunk(16, OPUL->GetValue())); 
+				Out->WritePartition(ThisPartition);
+			}
+			else BodySize++;
+		}
 
 		WriteMPEG(InFile, Out, PictureStart, PictureStartBitOffset, FileTell(InFile)+1, 0);
 		PictureCount++;
