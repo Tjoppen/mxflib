@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.9 2004/08/18 18:39:34 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.10 2004/09/02 22:12:48 terabrit Exp $
  *
  */
 /*
@@ -376,6 +376,7 @@ std::string mxflib::SearchPath(const char *Path, const char *Filename)
 		{
 			// Copy the section until the next separator
 			strncpy(Buffer, p, sep - p);
+			Buffer[sep-p]='\0';
 
 			// Advance the pointer to the character following the separator
 			p = sep;
