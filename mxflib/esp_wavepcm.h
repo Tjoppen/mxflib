@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.3 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.4 2004/11/13 10:26:23 matt-beard Exp $
  *
  */
 /*
@@ -192,18 +192,36 @@ namespace mxflib
 		virtual Rational GetPreferredEditRate(void);
 
 		//! Get BytesPerEditUnit, if Constant
-		virtual Uint32 GetBytesPerEditUnit()
+		virtual Uint32 GetBytesPerEditUnit(Uint32 KAGSize = 1)
 		{
 			// If we haven't determined the sample sequence we do it now
 			if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
 
+			Uint32 Ret = SampleSize*ConstSamples;
+
 			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 
 			{
 				// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
-				return SampleSize*ConstSamples + 16 + 4;
+				Ret += 16 + 4;
+
+				// Adjust for whole KAGs if required
+				if(KAGSize > 1)
+				{
+					// Work out how much short of the next KAG boundary we would be
+					Uint32 Remainder = Ret % KAGSize;
+					if(Remainder) Remainder = KAGSize - Remainder;
+
+					// Round up to the start of the next KAG
+					Ret += Remainder;
+
+					// If there is not enough space to fit a filler in the remaining space an extra KAG will be required
+					if((Remainder > 0) && (Remainder < 17)) Ret++;
+				}
 			}
-			else return SampleSize*ConstSamples;
+
+			return Ret;
 		}
+
 
 		//! Get the current position in SetEditRate() sized edit units
 		virtual Position GetCurrentPosition(void);

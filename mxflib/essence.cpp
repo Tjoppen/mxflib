@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.2 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.3 2004/11/13 10:26:23 matt-beard Exp $
  *
  */
 /*
@@ -1479,6 +1479,7 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 						SampleRate->SetInt("Denominator", Ret->EditRate.Denominator);
 					}
 
+					// FIXME: This does not take into account the KAG
 					Ret->WrapOpt->BytesPerEditUnit = Ret->Parser->GetBytesPerEditUnit();
 
 					return Ret;
@@ -1539,10 +1540,7 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 	// If the previous pass for this stream left some data pending then it will already be indexed and so there
 	// is no need to index the first entry of this pass.
 	bool SparseIndex;
-	if(VBRIndex && (!Stream->HasPendingData()) 
-	   && (Stream->GetIndexType() 
-	       & (BodyStream::StreamIndexSparseFooter 
-		      | BodyStream::StreamIndexSparseFooterIsolated)))
+	if(VBRIndex && (!Stream->HasPendingData()) && (Stream->GetIndexType() & BodyStream::StreamIndexSparseFooter))
 		SparseIndex = true;
 	else
 		SparseIndex = false;
@@ -1748,7 +1746,7 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 					if((!Stream->GetEditAlign()) || Stream->GetSource()->IsEditPoint())
 					{
 						// If we are building a sparse index table...
-						if(VBRIndex && (Stream->GetIndexType() & (BodyStream::StreamIndexSparseFooter | BodyStream::StreamIndexSparseFooterIsolated)))
+						if(VBRIndex && (Stream->GetIndexType() & BodyStream::StreamIndexSparseFooter))
 						{
 							// ...force the first edit unit of the new partition to be accepted, even if provisional,
 							// and add it's edit unit to the sparse list
@@ -1877,14 +1875,12 @@ BodyStream::StateType mxflib::BodyStream::GetNextState(void)
 		// Maybe we are all done and need to go to the footer
 		if(GetEndOfStream())
 		{
-			if(StreamIndex & ( StreamIndexSparseFooter | StreamIndexSparseFooterIsolated
-				             | StreamIndexCBRFooter    | StreamIndexCBRFooterIsolated 
-							 | StreamIndexFullFooter   | StreamIndexFullFooterIsolated ))
+			if(StreamIndex & ( StreamIndexSparseFooter | StreamIndexCBRFooter | StreamIndexFullFooter ))
 			{
 				State = BodyStreamFootIndex;
 			}
 			// Check if we have any left-over sprinkles
-			else if((StreamIndex & (StreamIndexSprinkled | StreamIndexSprinkledIsolated))
+			else if((StreamIndex & StreamIndexSprinkled)
 				    && (IndexMan && (IndexMan->GetLastNewEditUnit() >= GetNextSprinkled())))
 			{
 				State = BodyStreamFootIndex;
@@ -1927,7 +1923,7 @@ BodyStream::StateType mxflib::BodyStream::GetNextState(void)
 		// Maybe we are all done and need to go to the footer
 		if(GetEndOfStream())
 		{
-			if(StreamIndex & (StreamIndexFullFooter | StreamIndexFullFooterIsolated | StreamIndexCBRFooter | StreamIndexCBRFooterIsolated ))
+			if(StreamIndex & (StreamIndexFullFooter | StreamIndexCBRFooter ))
 				State = BodyStreamFootIndex;
 			// Check if we have any left-over sprinkles
 			else if((StreamIndex & (StreamIndexSprinkled | StreamIndexSprinkledIsolated))
@@ -2006,6 +2002,10 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 		HeaderWritten = true;
 	}
 
+	// TODO: We should really make two passes through the streams, the first pass writes any CBR index tables
+	//       that are isolated and the second pass writes non-isolated index tables - this will allow the last
+	//       non-isolated table to be followed by essence if possible
+
 	// Find any streams that need a CBR index in the header
 	StreamInfoList::iterator it = StreamList.begin();
 	while(it != StreamList.end())
@@ -2013,45 +2013,59 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 		// Get a pointer to the stream
 		BodyStreamPtr &Stream = (*it)->Stream;
 
-		// Get the index type flags
-		BodyStream::IndexType Index = Stream->GetIndexType();
+		// Check the stream's state
+		BodyStream::StateType State = Stream->GetState();
 
-		// Build an index table if required in the header
-		if(Index & (BodyStream::StreamIndexCBRHeader | BodyStream::StreamIndexCBRHeaderIsolated))
+		// Only index if the stream is expecting it
+		if(State == BodyStream::BodyStreamHeadIndex)
 		{
-			// Get a pointer to the index manager
-			IndexManagerPtr &IndexMan = Stream->GetIndexManager();
+			// Get the index type flags
+			BodyStream::IndexType IndexFlags = Stream->GetIndexType();
 
-			if(IndexMan)
+			// Build an index table if required in the header
+			if(IndexFlags & (BodyStream::StreamIndexCBRHeader | BodyStream::StreamIndexCBRHeaderIsolated))
 			{
-				// Make an index table - will populate a CBR index
-				IndexTablePtr Index = IndexMan->MakeIndex();
+				// Get a pointer to the index manager
+				IndexManagerPtr &IndexMan = Stream->GetIndexManager();
 
-				// Write the index table
-				DataChunkPtr IndexChunk = new DataChunk;
-				Index->WriteIndex(*IndexChunk);
-				
-				// If we have a pending write do it now
-				if(PartitionWritePending) EndPartition();
+				if(IndexMan)
+				{
+					// Make an index table - will populate a CBR index
+					IndexTablePtr Index = IndexMan->MakeIndex();
 
-				// Work out this body SID
-				PartitionBodySID = Stream->GetBodySID();
+					// Write the index table
+					DataChunkPtr IndexChunk = new DataChunk;
+					Index->WriteIndex(*IndexChunk);
+					
+					// If we have a pending write do it now
+					if(PartitionWritePending) EndPartition();
 
-				// If we have already written the header partition this will be an isolated index
-				if(HeaderWritten) BasePartition->ChangeType("ClosedCompleteBodyPartition");
+					// Work out this body SID
+					PartitionBodySID = Stream->GetBodySID();
 
-				// Set the index SID
-				BasePartition->SetUint("IndexSID",  Stream->GetIndexSID());
+					// If we have already written the header partition this will be an isolated index
+					if(HeaderWritten) BasePartition->ChangeType("ClosedCompleteBodyPartition");
 
-				// Record the index data to write
-				PendingIndexData = IndexChunk;
+					// Set the index SID
+					BasePartition->SetUint("IndexSID",  Stream->GetIndexSID());
 
-				// Queue the write
-				PartitionWritePending = true;
+					// Record the index data to write
+					PendingIndexData = IndexChunk;
 
-				// Now the header has been written (or at least is pending)
-				HeaderWritten = true;
+					// Queue the write
+					PartitionWritePending = true;
+
+					// Now the header has been written (or at least is pending)
+					HeaderWritten = true;
+
+					// If this table is CBR set the partition done (so if we are last we will be isolated from essence by forcing a new partition)
+					if(IndexFlags & BodyStream::StreamIndexCBRHeaderIsolated) PartitionDone = true;
+					else PartitionDone = false;
+				}
 			}
+
+			// Move the stream to the next state
+			Stream->GetNextState();
 		}
 
 		it++;
@@ -2067,6 +2081,9 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 		// Queue the write
 		PartitionWritePending = true;
 	}
+
+	// Flush the partition if it is done
+	if(PartitionDone) EndPartition();
 
 	// Select the first post-header state
 	State = BodyStateHeader;
@@ -2115,6 +2132,7 @@ void mxflib::BodyWriter::EndPartition(void)
 		PendingFooter = false;
 		PendingMetadata = false;
 		PartitionDone = false;
+		PartitionBodySID = 0;
 
 		// Reset the partition size limits
 		MinPartitionFiller = 0;
@@ -2267,8 +2285,24 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 					if(BasePartition->GetUint64("HeaderByteCount") > 0) PartitionDone = true;
 			}
 
-			// If we are currently in a different BodySID we need to start a new partition
-			if(PartitionDone || ((PartitionBodySID != 0) && (PartitionBodySID != CurrentBodySID)))
+			// It's OK to continue with the current partition if:
+			//   1) The partition is not "done"
+			// AND
+			//   2) Either:
+			//       a) The partition is of our BodySID
+			//      OR 
+			//       b) The partition is of no BodySID AND the partition pack has not yet been written (so we can set BodySID)
+			//
+
+			// Work out if we should continue the partition
+			bool ContinuePartition = !PartitionDone;
+			if(ContinuePartition && (PartitionBodySID != CurrentBodySID))
+			{
+				if((PartitionBodySID != 0) || (!PartitionWritePending)) ContinuePartition = false;
+			}
+
+			// Start a new partition if we can't continue the old one
+			if(!ContinuePartition)
 			{
 				// Flush any previously pending partition
 				if(PartitionWritePending) EndPartition();
@@ -2495,10 +2529,9 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		// Note that sprinkled index tables are of interest as we have to drop any remaining sprinkle data
 		// DRAGONS: Is this an MSVC funny or can we really not do bitmaths with enums without them becoming integers?
 		IndexFlags = (BodyStream::IndexType) (IndexFlags & 
-					  (  BodyStream::StreamIndexFullFooter   | BodyStream::StreamIndexFullFooterIsolated
-					   | BodyStream::StreamIndexSparseFooter | BodyStream::StreamIndexSparseFooterIsolated
-					   | BodyStream::StreamIndexSprinkled    | BodyStream::StreamIndexSprinkledIsolated
-					   | BodyStream::StreamIndexCBRFooter    | BodyStream::StreamIndexCBRFooterIsolated));
+					  (  BodyStream::StreamIndexFullFooter  | BodyStream::StreamIndexSparseFooter
+					   | BodyStream::StreamIndexSprinkled   | BodyStream::StreamIndexSprinkledIsolated
+					   | BodyStream::StreamIndexCBRFooter ));
 
 		/* Note: The index tables will be writen in such an order as to keep the footer
 		 *       as small as possible (to allow it to be located easily).
@@ -2548,47 +2581,29 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		{
 			// Select only the CBR flags
 			// DRAGONS: Is this an MSVC funny or can we really not do bitmaths with enums without them becoming integers?
-			IndexFlags = (BodyStream::IndexType) (IndexFlags & (BodyStream::StreamIndexCBRFooter | BodyStream::StreamIndexCBRFooterIsolated));
+			IndexFlags = (BodyStream::IndexType) (IndexFlags & BodyStream::StreamIndexCBRFooter);
 
 			// Check we are supposed to be writing a CBR index table
 			ASSERT(IndexFlags);
-
-			// If we are writing an isolated footer CBR do that first (in case we are doing both!)
-			if(IndexFlags & BodyStream::StreamIndexCBRFooterIsolated) IndexFlags = BodyStream::StreamIndexCBRFooterIsolated;
 		}
 		// If the index table is VBR we need to build it
 		else
 		{
 			// First off we write any remaining sprinkles
-			if(IndexFlags & (BodyStream::StreamIndexSprinkled | BodyStream::StreamIndexSprinkledIsolated))
+			if(IndexFlags & BodyStream::StreamIndexSprinkled)
 			{
-				// Treat both left-over sprinkles the same - this means that there will only be
-				// a single isolated "last sprinkled index" if both types are requested.
-				// This is probably the most sensible way to do it as we can't add any essence
-				// to this partition to make a non-isolated version so if we obeyed both flags
-				// we would get two "isolated sprinkled index" partitions!
-				// Setting both flags now will cause woth opetions to be flagged as "done" later
-				// DRAGONS: Is this an MSVC funny or can we really not do bitmaths with enums without them becoming integers?
-				IndexFlags = (BodyStream::IndexType) (IndexFlags & (BodyStream::StreamIndexSprinkled | BodyStream::StreamIndexSprinkledIsolated));
-
 				// Add any remaining entries to make a sprinkled index table
 				Position EditUnit = IndexMan->GetLastNewEditUnit();
 				IndexMan->AddEntriesToIndex(Index, Stream->GetNextSprinkled(), EditUnit);
 			}
-			else if(IndexFlags & (BodyStream::StreamIndexFullFooter | BodyStream::StreamIndexFullFooterIsolated))
+			else if(IndexFlags & BodyStream::StreamIndexFullFooter)
 			{
-				// If we are writing an isolated full index do that first (in case we are doing both!)
-				if(IndexFlags & BodyStream::StreamIndexFullFooterIsolated) IndexFlags = BodyStream::StreamIndexFullFooterIsolated;
-
 				// Add all available edit units
 				IndexMan->GetLastNewEditUnit();
 				IndexMan->AddEntriesToIndex(Index);
 			}
-			else if(IndexFlags & (BodyStream::StreamIndexSparseFooter | BodyStream::StreamIndexSparseFooterIsolated))
+			else if(IndexFlags & BodyStream::StreamIndexSparseFooter)
 			{
-				// If we are writing an isolated sparse index do that first (in case we are doing both!)
-				if(IndexFlags & BodyStream::StreamIndexSparseFooterIsolated) IndexFlags = BodyStream::StreamIndexSparseFooterIsolated;
-
 				// Force no re-ordering in the sparse index (to prevent unsatisfied links)
 				int i;
 				for(i=0; i<Index->BaseDeltaCount; i++)
@@ -2800,6 +2815,10 @@ bool mxflib::BodyWriter::AddStream(BodyStreamPtr &Stream, Length StopAfter /*=0*
 	NewStream->Active = true;
 	NewStream->Stream = Stream;
 	NewStream->StopAfter = StopAfter;
+
+	// Set this stream to use our KAG
+	// TODO: This is probably not the best way - but is the only way to currently ensure correct CBR indexing!
+	Stream->SetKAG(KAG);
 
 	// Add at the end of the list
 	StreamList.push_back(NewStream);

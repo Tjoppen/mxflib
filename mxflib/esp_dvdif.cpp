@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.2 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.3 2004/11/13 10:26:23 matt-beard Exp $
  *
  */
 /*
@@ -295,6 +295,10 @@ void DV_DIF_EssenceSubParser::Use(Uint32 Stream, WrappingOptionPtr &UseWrapping)
 {
 	SelectedWrapping = UseWrapping;
 	SelectedEditRate = NativeEditRate;
+
+	// Select the DIF sequence size
+	if(NativeEditRate.Numerator == 25) SeqCount = 12; else SeqCount = 10;
+
 	EditRatio = 1;
 	PictureNumber = 0;
 	CurrentPos = 0;
@@ -322,6 +326,9 @@ bool DV_DIF_EssenceSubParser::SetEditRate(Rational EditRate)
 	double FloatNative = double(NativeEditRate.Numerator) / double(NativeEditRate.Denominator);
 	double FloatUse = double(EditRate.Numerator) / double(EditRate.Denominator);
 
+	// Select the DIF sequence size
+	if(FloatNative == 25) SeqCount = 12; else SeqCount = 10;
+
 	// Different representation for the same edit rate
 	// E.G. 25/1 and 50/2
 	if(FloatNative == FloatUse)
@@ -337,6 +344,9 @@ bool DV_DIF_EssenceSubParser::SetEditRate(Rational EditRate)
 	if(Ratio == floor(Ratio))
 	{
 		EditRatio = (unsigned int)(Ratio);
+
+		SeqCount *= EditRatio;
+		
 		return true;
 	}
 
@@ -446,6 +456,8 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 
 		NativeEditRate.Numerator = 30000;
 		NativeEditRate.Denominator = 1001;
+
+		SeqCount = 10;
 	}
 	else
 	{
@@ -453,6 +465,8 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 
 		NativeEditRate.Numerator = 25;
 		NativeEditRate.Denominator = 1;
+
+		SeqCount = 12;
 	}
 
 //DRAGONS: printf("Assumed interleaved...\n");
@@ -531,18 +545,18 @@ Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, U
 	if((SelectedEditRate.Denominator == NativeEditRate.Denominator) && (SelectedEditRate.Numerator = NativeEditRate.Numerator))
 	{
 		// Seek to the data position
-		Position ReadStart = DIFStart + (150 * 80 * PictureNumber);
+		Position ReadStart = DIFStart + (150 * 80 * SeqCount * PictureNumber);
 		FileSeek(InFile, ReadStart);
 
 		// Work out how many bytes to read
-		Length Ret = (Length)(Count * 150 * 80);
+		Length Ret = (Length)(Count * 150 * 80 * SeqCount);
 		PictureNumber += Count;
 
 		// If this would read beyond the end of the file stop at the end
 		if((Ret + ReadStart) > DIFEnd)
 		{
 			Ret = DIFEnd - ReadStart;
-			PictureNumber = (DIFEnd - DIFStart) / (150 * 80);
+			PictureNumber = (DIFEnd - DIFStart) / (150 * 80 * SeqCount);
 		}
 
 		// Return the number of bytes to read
@@ -551,23 +565,6 @@ Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, U
 
 	error("Non-native edit rate not yet supported\n");
 	return 0;
-}
-
-
-//! Get a byte from the current stream
-/*! \return -1 if end of file */
-int DV_DIF_EssenceSubParser::BuffGetU8(FileHandle InFile)
-{
-	if(!BuffCount)
-	{
-		BuffCount =(int) FileRead(InFile, Buffer, MPEG2_VES_BUFFERSIZE);
-		if(BuffCount == 0) return -1;
-
-		BuffPtr = Buffer;
-	}
-
-	BuffCount--;
-	return *(BuffPtr++);
 }
 
 

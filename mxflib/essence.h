@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.3 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.4 2004/11/13 10:26:24 matt-beard Exp $
  *
  */
 /*
@@ -138,7 +138,7 @@ namespace mxflib
 		//! Get BytesPerEditUnit if Constant, else 0
 		/*! \note This value may be useful even if CanIndex() returns false
 		 */
-		virtual Uint32 GetBytesPerEditUnit() { return 0; }
+		virtual Uint32 GetBytesPerEditUnit(Uint32 KAGSize = 1) { return 0; }
 
 		//! Can this stream provide indexing
 		/*! If true then SetIndex Manager can be used to set the index manager that will receive indexing data
@@ -579,7 +579,7 @@ namespace mxflib
 			//! Get BytesPerEditUnit if Constant, else 0
 			/*! \note This value may be useful even if CanIndex() returns false
 			 */
-			virtual Uint32 GetBytesPerEditUnit() { return Caller->GetBytesPerEditUnit(); }
+			virtual Uint32 GetBytesPerEditUnit(Uint32 KAGSize = 1) { return Caller->GetBytesPerEditUnit(KAGSize); }
 
 			//! Can this stream provide indexing
 			/*! If true then SetIndex Manager can be used to set the index manager that will receive indexing data
@@ -668,7 +668,7 @@ namespace mxflib
 		}
 
 		//! Get BytesPerEditUnit, if Constant
-		virtual Uint32 GetBytesPerEditUnit() { return 0; }
+		virtual Uint32 GetBytesPerEditUnit(Uint32 KAGSize = 1) { KAGSize; return 0; }
 
 		//! Get the current position in SetEditRate() sized edit units
 		/*! This is relative to the start of the stream, so the first edit unit is always 0.
@@ -1245,18 +1245,15 @@ namespace mxflib
 		{
 			StreamIndexNone = 0,									//!< No index table will be written
 			StreamIndexFullFooter = 1,								//!< A full index table will be written in the footer if possible (or an isolated partition just before the footer if another index is going to use the footer)
-			StreamIndexFullFooterIsolated = 2,						//!< A full index table will be written in an isolated partition just before the footer
-			StreamIndexSparseFooter = 8,							//!< A sparse index table will be written in the footer if possible (or an isolated partition just before the footer if another index is going to use the footer)
-			StreamIndexSparseFooterIsolated = 16,					//!< A sparse index table will be written in an isolated partition just before the footer
-			StreamIndexSprinkled = 64,								//!< A full index table will be sprinkled through the file, one chunk in each of this essence's body partitions, and one in or just before the footer
-			StreamIndexSprinkledIsolated = 128,						//!< A full index table will be sprinkled through the file, one chunk in an isolated partition following each of this essence's body partitions
-			StreamIndexCBRHeader = 256,								//!< A CBR index table will be written in the header (or an isolated partition following the header if another index table exists in the header)
-			StreamIndexCBRHeaderIsolated = 512,						//!< A CBR index table will be written in an isolated partition following the header
-			StreamIndexCBRFooter = 1024,							//!< A CBR index table will be written in the footer if possible (or an isolated partition just before the footer if another index is going to use the footer)
-			StreamIndexCBRFooterIsolated = 2048,					//!< A CBR index table will be written in an isolated partition just before the footer
-			StreamIndexCBRBody = 4096,								//!< A CBR index table will be written in each body partition for this stream
-			StreamIndexCBRIsolated = 8192,							//!< A CBR index table will be written in an isolated body partition following each partition of this stream
-			StreamIndexCBRPreIsolated = 16384						//!< A CBR index table will be written in an isolated body partition before each partition of this stream
+			StreamIndexSparseFooter = 2,							//!< A sparse index table will be written in the footer if possible (or an isolated partition just before the footer if another index is going to use the footer)
+			StreamIndexSprinkled = 4,								//!< A full index table will be sprinkled through the file, one chunk in each of this essence's body partitions, and one in or just before the footer
+			StreamIndexSprinkledIsolated = 8,						//!< A full index table will be sprinkled through the file, one chunk in an isolated partition following each of this essence's body partitions
+			StreamIndexCBRHeader = 16,								//!< A CBR index table will be written in the header (or an isolated partition following the header if another index table exists in the header)
+			StreamIndexCBRHeaderIsolated = 32,						//!< A CBR index table will be written in an isolated partition following the header
+			StreamIndexCBRFooter = 64,								//!< A CBR index table will be written in the footer if possible (or an isolated partition just before the footer if another index is going to use the footer)
+			StreamIndexCBRBody = 128,								//!< A CBR index table will be written in each body partition for this stream
+			StreamIndexCBRIsolated = 256,							//!< A CBR index table will be written in an isolated body partition following each partition of this stream
+			StreamIndexCBRPreIsolated = 512							//!< A CBR index table will be written in an isolated body partition before each partition of this stream
 		};
 
 		//! Wrapping types for streams
@@ -1355,17 +1352,6 @@ namespace mxflib
 				GCStreamID EssenceID = StreamWriter->AddEssenceElement(SubSource->GetGCEssenceType(), SubSource->GetGCElementType());
 
 				SubSource->SetStreamID(EssenceID);
-
-				// Also add to the index manager (if we have one)
-				if(IndexMan)
-				{
-					// TODO: Sort the PosTable!!
-					int StreamID = IndexMan->AddSubStream(0, SubSource->GetBytesPerEditUnit() );
-					SubSource->SetIndexManager(IndexMan, StreamID);
-
-					// TODO: Currently no support for filler indexing here - needs adding
-					StreamWriter->AddStreamIndex(EssenceID, IndexMan, StreamID, false);
-				}
 			}
 		}
 
@@ -1442,17 +1428,6 @@ namespace mxflib
 				
 				(*it)->SetStreamID(EssenceID);
 
-				// Also add to the index manager (if we have one)
-				if(IndexMan)
-				{
-					// TODO: Sort the PosTable!!
-					int StreamID = IndexMan->AddSubStream(0, (*it)->GetBytesPerEditUnit() );
-					(*it)->SetIndexManager(IndexMan, StreamID);
-
-					// TODO: Currently no support for filler indexing here - needs adding
-					Writer->AddStreamIndex(EssenceID, IndexMan, StreamID, false);
-				}
-
 				it++;
 			}
 		}
@@ -1493,6 +1468,7 @@ namespace mxflib
 		Position GetNextSprinkled(void) { return NextSprinkled; }
 
 		//! Set the KLV Alignment Grid
+		// FIXME: This will break CBR indexing if changed during writing!
 		void SetKAG(Uint32 NewKAG) { KAG = NewKAG; }
 
 		//! Get the KLV Alignment Grid
@@ -1536,13 +1512,13 @@ namespace mxflib
 				int StreamID = 0;
 				if(!IndexMan)
 				{
-					IndexMan = new IndexManager(0, (*it)->GetBytesPerEditUnit());
+					IndexMan = new IndexManager(0, (*it)->GetBytesPerEditUnit(KAG));
 					IndexMan->SetBodySID(BodySID);
 					IndexMan->SetIndexSID(IndexSID);
 					IndexMan->SetEditRate((*it)->GetEditRate());
 				}
 				else
-					StreamID = IndexMan->AddSubStream(0, (*it)->GetBytesPerEditUnit());
+					StreamID = IndexMan->AddSubStream(0, (*it)->GetBytesPerEditUnit(KAG));
 
 				// Let the stream know about this index manager
 				(*it)->SetIndexManager(IndexMan, StreamID);
@@ -1744,7 +1720,12 @@ namespace mxflib
 		bool AddStream(BodyStreamPtr &Stream, Length StopAfter = 0);
 
 		//! Set the KLV Alignment Grid
-		void SetKAG(Uint32 NewKAG) { KAG = NewKAG; }
+		void SetKAG(Uint32 NewKAG) 
+		{ 
+			// TODO: This is probably not the best way - but is the only way to currently ensure correct CBR indexing!
+			if(StreamList.size()) warning("KAG size changed after adding streams - CBR indexing may be incorrect\n");
+			KAG = NewKAG; 
+		}
 
 		//! Get the KLV Alignment Grid
 		Uint32 GetKAG(void) { return KAG; }

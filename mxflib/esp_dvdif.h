@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.2 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.3 2004/11/13 10:26:23 matt-beard Exp $
  *
  */
 /*
@@ -37,7 +37,7 @@
 
 namespace mxflib
 {
-	//! Class that handles parsing of MPEG-2 video elementary streams
+	//! Class that handles parsing of DV-DIf streams
 	class DV_DIF_EssenceSubParser : public EssenceSubParserBase
 	{
 	protected:
@@ -50,6 +50,8 @@ namespace mxflib
 
 		Position DIFStart;									//!< Byte offset of first byte of first DIF
 		Position DIFEnd;									//!< Byte offset of last byte of last DIF + 1
+
+		int SeqCount;										//!< Number of DIF sequences in a frame
 
 		// File buffering
 		// TODO: Dynamically allocate this rather that using 256K at all times!!
@@ -116,6 +118,7 @@ namespace mxflib
 		{
 			DIFStart = 0;
 			DIFEnd = 0;
+			SeqCount = 10;
 		}
 
 		//! Build a new parser of this type and return a pointer to it
@@ -148,6 +151,35 @@ namespace mxflib
 		//! Get the current edit rate
 		virtual Rational GetEditRate(void) { return SelectedEditRate; }
 
+		//! Get BytesPerEditUnit, if Constant
+		virtual Uint32 GetBytesPerEditUnit(Uint32 KAGSize = 1)
+		{
+			// FIXME: Assumes 25Mbps
+			Uint32 Ret = (150 * 80 * SeqCount);
+
+			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 
+			{
+				// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
+				Ret += 16 + 4;
+
+				// Adjust for whole KAGs if required
+				if(KAGSize > 1)
+				{
+					// Work out how much short of the next KAG boundary we would be
+					Uint32 Remainder = Ret % KAGSize;
+					if(Remainder) Remainder = KAGSize - Remainder;
+
+					// Round up to the start of the next KAG
+					Ret += Remainder;
+
+					// If there is not enough space to fit a filler in the remaining space an extra KAG will be required
+					if((Remainder > 0) && (Remainder < 17)) Ret++;
+				}
+			}
+
+			return Ret;
+		}
+
 		//! Get the current position in SetEditRate() sized edit units
 		virtual Position GetCurrentPosition(void);
 
@@ -173,9 +205,6 @@ namespace mxflib
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
 		Length ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count/*, IndexTablePtr Index = NULL*/);
-
-		//! Get a byte from the current stream
-		int BuffGetU8(FileHandle InFile);
 	};
 }
 
