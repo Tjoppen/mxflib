@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.3 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.4 2005/02/05 13:31:08 matt-beard Exp $
  *
  */
 /*
@@ -219,7 +219,7 @@ namespace mxflib
 	inline Int64 ReadI64(FileHandle Handle) { return (Int64)ReadU64(Handle); }
 
 
-	// Is a given sequence of bytes a partition pack key?
+	//! Is a given sequence of bytes a partition pack key?
 	bool IsPartitionKey(const Uint8 *Key);
 }
 
