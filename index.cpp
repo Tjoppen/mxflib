@@ -2,6 +2,8 @@
  *	\brief	Implementation of classes that handle index tables
  */
 /*
+ *	$Id: index.cpp,v 1.7 2003/11/25 18:38:16 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -202,7 +204,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 		Ptr += 3;
 
 		// Read the location of the start of the edit unit
-		Ret->Location = GetI64(Ptr);
+		Ret->Location = GetU64(Ptr);
 
 		// Set non-exact values
 		Ret->Exact = false;
@@ -238,7 +240,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 	Ptr++;
 
 	// Read the location of the start of the edit unit
-	Ret->Location = GetI64(Ptr);
+	Ret->Location = GetU64(Ptr);
 	Ptr += 8;
 
 	// Note: At this point Ptr indexes the start of the SliceOffset array
@@ -578,14 +580,14 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 
 		if(Entries.Size >= 28)
 		{
-			Ret->EntryCount = GetU32(&Entries.Data[20]);
+			Uint32 NewEntriesToAdd = GetU32(&Entries.Data[20]);
 			Uint32 EntrySize = GetU32(&Entries.Data[24]);
 			
 			if((int)EntrySize != IndexEntrySize)
 			{
 				error("IndexEntryArray items should be %d bytes, but are %d\n", IndexEntrySize, EntrySize);
 			}
-			else Ret->AddIndexEntries(Ret->EntryCount, IndexEntrySize, &Entries.Data[28]);
+			else Ret->AddIndexEntries(NewEntriesToAdd, IndexEntrySize, &Entries.Data[28]);
 		}
 	}
 
