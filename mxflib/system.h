@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.4.2.7 2004/11/05 16:50:14 matt-beard Exp $
+ *	\version $Id: system.h,v 1.4.2.8 2004/11/11 11:22:47 matt-beard Exp $
  *
  */
 /*
@@ -168,11 +168,6 @@ namespace mxflib
 		sprintf(Buffer,"%0*I64x", Digits, Val );
 		return std::string(Buffer);
 	};
-
-// FIXME: What is a sensible default for MXFDATADIR under MSVC environment?
-#ifndef MXFDATADIR
-#define MXFDATADIR "."
-#endif
 
 #define UINT64_C(c)	c			// for defining 64bit constants
 #define INT64_C(c)	c			// for defining 64bit constants
