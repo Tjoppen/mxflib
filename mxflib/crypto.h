@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.4 2004/05/26 18:01:37 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.5 2004/06/14 17:06:53 matt-beard Exp $
  *
  */
 /*
@@ -48,8 +48,8 @@ namespace mxflib
 	class Encrypt_Base : public RefCount<Encrypt_Base>
 	{
 	public:
-		Encrypt_Base();
-		virtual ~Encrypt_Base();
+		Encrypt_Base() {};
+		virtual ~Encrypt_Base() {};
 
 		//! Set an encryption key
 		/*! \return True if key is accepted
@@ -140,8 +140,8 @@ namespace mxflib
 	class Decrypt_Base : public RefCount<Decrypt_Base>
 	{
 	public:
-		Decrypt_Base();
-		virtual ~Decrypt_Base();
+		Decrypt_Base() {};
+		virtual ~Decrypt_Base() {};
 
 		//! Set a decryption key
 		/*! \return True if key is accepted
@@ -289,12 +289,14 @@ namespace mxflib
 
 		//** Construction / desctruction **//
 		KLVEObject(ULPtr ObjectUL);				//!< Construct a new KLVEObject
+		KLVEObject(KLVObjectPtr Object);		//!< Construct a KLVEObject linked to an encrypted KLVObject
 		KLVEObject(KLVObject &Object);			//!< Construct a KLVEObject linked to an encrypted KLVObject
 		virtual void Init(void);
 		virtual ~KLVEObject() {};
 
 
 		//** KLVObject interfaces **//
+		/* DRAGONS: We should prune these and fall back where possible? */
 
 		//! Set the source details when an object has been read from a file
 		virtual void SetSource(MXFFilePtr File, Position Location, Uint32 NewKLSize, Length ValueLen)
@@ -355,11 +357,21 @@ namespace mxflib
 		 */
 		virtual Length ReadData(Position Start = 0, Length Size = 0);
 
-		//! Write data from the current DataChunk to the source file
-		/*! \note The data in the chunk will be written to the specified position 
-		 *  <B>regardless of the position from where it was origanally read</b>
+		//! Write the key and length of the current DataChunk to the source file
+		/*! This function writes the entire header - not just the Key and Length
 		 */
-		virtual Length WriteData(Uint8 *Buffer, Position Start = 0, Length Size = 0);
+		virtual Uint32 WriteKL(Uint32 LenSize = 0);
+
+		//! Write the key and length of the current DataChunk to the specified file
+		/*! This function writes the entire header - not just the Key and Length
+		 */
+		virtual Uint32 WriteKL(MXFFilePtr &File, Uint32 LenSize = 0);
+
+		//! Write data from a specified buffer to the source file
+		virtual Length WriteData(const Uint8 *Buffer, Position Start = 0, Length Size = 0);
+
+		//! Write data from the a buffer to a specified source file
+		virtual Length WriteData(MXFFilePtr &File, const Uint8 *Buffer, Length Size);
 
 		//! Set a handler to supply data when a read is performed
 		/*! \note If not set it will be read from the source file (if available) or cause an error message
@@ -378,8 +390,11 @@ namespace mxflib
 		 * \return true if all loaded OK, false on error
 		 */
 		bool LoadData(void);
-
 	};
+
+	// Smart pointer to a KLVEObject (callot point to KLVObjects)
+	typedef SmartPtr<KLVEObject> KLVEObjectPtr;
+
 }
 
 
