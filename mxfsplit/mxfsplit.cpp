@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.7.2.3 2004/05/28 15:38:01 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.7.2.4 2004/07/05 14:40:37 matt-beard Exp $
  *
  */
 /*
@@ -79,71 +79,6 @@ static void DumpIndex(PartitionPtr ThisPartition);
 static void DumpBody(PartitionPtr ThisPartition);
 
 
-// ============================================================================
-//! Test GCReader handler
-// ============================================================================
-class Test_GCReadHandler : public GCReadHandler_Base
-{
-protected:
-	Uint32 OurSID;								//!< The BodySID of this essence
-
-private:
-	Test_GCReadHandler();						//!< Don't allow standard construction
-
-public:
-	//! Construct a test handler for a specified BodySID
-	Test_GCReadHandler(Uint32 BodySID) : OurSID(BodySID) {};
-
-	//! Handle a "chunk" of data that has been read from the file
-	/*! \return true if all OK, false on error 
-	 */
-	virtual bool HandleData(GCReaderPtr Caller, KLVObjectPtr Object);
-};
-
-bool Test_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
-{
-	printf("0x%08x -> %02x:0x%08x Data for Track 0x%08x, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset(), Object->GetGCTrackNumber());
-	printf("Size = 0x%08x\n", (int)Object->GetLength());
-
-	return true;
-}
-// ============================================================================
-
-
-
-// ============================================================================
-//! Test GCReader handler for filler
-// ============================================================================
-class Test_GCFillerHandler : public GCReadHandler_Base
-{
-protected:
-	Uint32 OurSID;								//!< The BodySID of this essence
-
-private:
-	Test_GCFillerHandler();						//!< Don't allow standard construction
-
-public:
-	//! Construct a filler handler for a specified BodySID
-	Test_GCFillerHandler(Uint32 BodySID) : OurSID(BodySID) {};
-
-	//! Handle a "chunk" of data that has been read from the file
-	/*! \return true if all OK, false on error 
-	 */
-	virtual bool HandleData(GCReaderPtr Caller, KLVObjectPtr Object);
-};
-
-bool Test_GCFillerHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
-{
-	printf("0x%08x -> %02x:0x%08x Filler ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset());
-	printf("Size = 0x%08x\n", (int)Object->GetLength());
-
-	return true;
-}
-// ============================================================================
-
-
-
-
 int main(int argc, char *argv[])
 {
 	printf("MXFlib File Splitter\n");
@@ -219,111 +154,9 @@ int main(int argc, char *argv[])
 	if (! TestFile->Open(argv[num_options+1], true))
 	{
 		perror(argv[num_options+1]);
-		return 1;
+		exit(1);
 	}
 
-/*	-- work in progress!! --
-	// Read the header partition pack
-	PartitionPtr HeaderPartition = TestFile->ReadPartition();
-	if(!HeaderPartition)
-	{
-		error("Could not read the Header!\n");
-		TestFile->Close();
-		return 1;
-	}
-
-	// Warn if the header is not closed
-	// TODO: Should really nip to the footer
-	if(HeaderPartition->Name().find("Closed") != std::string::npos)
-	{
-		warning("Header is Open - Not all essence may be dumped\n");
-	}
-
-	// Read the metadata from the header
-	Length Bytes = HeaderPartition->ReadMetadata();
-
-	if(!HMeta)
-	{
-		error("Could not load the Header Metadata!\n");
-		File->Close();
-		return 1;
-	}
-
-	MetadataPtr HMeta = ...
-
-	// Identify the primary package
-	PackagePtr PrimaryPackage = Metadata->GetPrimaryPackage();
-
-	if(!PrimaryPackage)
-	{
-		error("Could not locate the primary package\n");
-		File->Close();
-		return 1;
-	}
-
-	// Determine if the primary package is a file package
-	bool PrimaryIsFile = false;
-	if(PrimayPackage->GetName() != "MaterialPackage") PrimaryIsFile = true;
-
-	// Iterate through tracks on the primary package
-	MDObject::iterator it = PrimaryPackage->start();
-
-	@|@|@|@@|\\\ use Package type...
-*/
-	
-	
-	// ###
-	// ### Not the right way to scan a file for BodySIDs (should check metadata)
-	// ###
-
-	// Start at the beginning of the file
-	TestFile->Seek(0);
-	
-	BodyReaderPtr BodyParser = new BodyReader(TestFile);
-
-	// Loop until all is done...
-	for(;;)
-	{
-		if(!BodyParser->IsAtPartition())
-		{
-			BodyParser->ReSync();
-		}
-
-		// Move the main file pointer to the current body partition pack
-		TestFile->Seek(BodyParser->Tell());
-
-		// Read the partition pack
-		PartitionPtr CurrentPartition = TestFile->ReadPartition();
-		if(!CurrentPartition) break;
-
-		// Find out what BodySID
-		Uint32 BodySID = CurrentPartition->GetUint("BodySID");
-
-		printf("%s at %s BodySID 0x%04x:\n", CurrentPartition->Name().c_str(), CurrentPartition->GetSourceLocation().c_str(), BodySID); 
-
-		// Partition contains essence - see if we need to set up a new set of handlers
-		if(BodySID != 0)
-		{
-			if(!BodyParser->GetGCReader(BodySID))
-			{
-				GCReadHandlerPtr Handler = new Test_GCReadHandler(BodySID);
-				GCReadHandlerPtr FillerHandler = new Test_GCFillerHandler(BodySID);
-				BodyParser->MakeGCReader(BodySID, Handler, FillerHandler);
-			}
-		}
-
-		// Parse the file until next partition or an error
-		if (!BodyParser->ReadFromFile()) break;
-	}
-
-	TestFile->Close();
-	
-	return 0;
-}
-
-
-//#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/# OLD CODE BELOW!! #/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/#/
-#if 0
 	// Get a RIP (however possible)
 	TestFile->GetRIP();
 
@@ -396,7 +229,6 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-#endif // 0
 
 
 //! Dump an object and any physical or logical children
