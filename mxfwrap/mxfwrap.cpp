@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.18 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.19 2004/11/13 10:29:56 matt-beard Exp $
  *
  */
 /*
@@ -37,9 +37,6 @@ using namespace mxflib;
 
 using namespace std;
 
-// base library version
-const char* BaseVersion = "based on mxflib 0.5";
-
 // DMStiny
 #ifdef DMStiny
 // DMStinyIDs.h contains Company,Product,GUID, and other stuff
@@ -47,10 +44,10 @@ const char* BaseVersion = "based on mxflib 0.5";
 #include "DMStiny.h"
 #else
 // Product GUID and version text for this release
-Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xd3, 0x41, 0x86, 0xdc, 0xf0, 0x89, 0xda, 0x7f, 0xd0, 0x53 };
+Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0x8d, 0xd3, 0x41, 0x86, 0xdc, 0xf0, 0x89, 0xad, 0xef, 0xd0, 0x53 };
 string CompanyName = "freeMXF.org";
-string ProductName = "mxfwrap file wrapper - revised";
-string ProductVersion = BaseVersion;
+string ProductName = "mxfwrap file wrapper";
+string ProductVersion = "Based on " + LibraryVersion();
 #endif
 
 //! Debug flag for KLVLib
@@ -883,15 +880,18 @@ void SetStreamIndex(BodyStreamPtr &ThisStream, bool isCBR)
 	if(isCBR)
 	{
 		// If this stream is not CBR indexable don't set any flags
-		if(ThisStream->GetSource()->GetBytesPerEditUnit() != 0) return;
+		if(ThisStream->GetSource()->GetBytesPerEditUnit() == 0) return;
 
 		if(IsolatedIndex)
 		{
-			if(UseIndex) ThisStream->SetIndexType(BodyStream::StreamIndexCBRFooterIsolated);
+			if(UseIndex) ThisStream->SetIndexType( (BodyStream::IndexType) ( BodyStream::StreamIndexCBRHeaderIsolated 
+																		   | BodyStream::StreamIndexCBRFooter) );
 		}
 		else
 		{
-			if(UseIndex) ThisStream->SetIndexType(BodyStream::StreamIndexCBRFooter);
+			if(UseIndex) ThisStream->SetIndexType( (BodyStream::IndexType) ( BodyStream::StreamIndexCBRHeader 
+																		   | BodyStream::StreamIndexCBRBody 
+																		   | BodyStream::StreamIndexCBRFooter) );
 		}
 	}
 	// Set VBR indexing flags
@@ -900,17 +900,12 @@ void SetStreamIndex(BodyStreamPtr &ThisStream, bool isCBR)
 		// If this stream is not VBR indexable don't set any flags
 		if(!ThisStream->GetSource()->CanIndex()) return;
 
-		if(IsolatedIndex)
+		if(UseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexFullFooter);
+		if(SparseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSparseFooter);
+		if(SprinkledIndex) 
 		{
-			if(UseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexFullFooterIsolated);
-			if(SparseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSparseFooterIsolated);
-			if(SprinkledIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSprinkledIsolated);
-		}
-		else
-		{
-			if(UseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexFullFooter);
-			if(SparseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSparseFooter);
-			if(SprinkledIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSprinkled);
+			if(IsolatedIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSprinkledIsolated);
+			else ThisStream->AddIndexType(BodyStream::StreamIndexSprinkled);
 		}
 	}
 }
@@ -1053,14 +1048,17 @@ int Process(	int OutFileNum,
 				// Set indexing options for this stream
 				if(UseIndex || SparseIndex || SprinkledIndex)
 				{
-					if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
-					{
-						if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
-						else SetStreamIndex(Stream[iTrack], false);
-					}
+					if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
 					else
 					{
-						warning("Indexing only currently supported for frame wrapping\n");
+						if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+						{
+							SetStreamIndex(Stream[iTrack], false);
+						}
+						else
+						{
+							warning("VBR Indexing only currently supported for frame wrapping\n");
+						}
 					}
 				}
 
@@ -1102,14 +1100,17 @@ int Process(	int OutFileNum,
 			// FIXME: This needs to be done only once based on CBR or VBR nature of combined group!!
 			if(UseIndex || SparseIndex || SprinkledIndex)
 			{
-				if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
-				{
-					if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
-					else SetStreamIndex(Stream[iTrack], false);
-				}
+				if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
 				else
 				{
-					warning("Indexing only currently supported for frame wrapping\n");
+					if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+					{
+						SetStreamIndex(Stream[iTrack], false);
+					}
+					else
+					{
+						warning("VBR Indexing only currently supported for frame wrapping\n");
+					}
 				}
 			}
 
@@ -1143,14 +1144,17 @@ int Process(	int OutFileNum,
 			// Set indexing options for this stream
 			if(UseIndex || SparseIndex || SprinkledIndex)
 			{
-				if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
-				{
-					if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
-					else SetStreamIndex(Stream[iTrack], false);
-				}
+				if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
 				else
 				{
-					warning("Indexing only currently supported for frame wrapping\n");
+					if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+					{
+						SetStreamIndex(Stream[iTrack], false);
+					}
+					else
+					{
+						warning("VBR Indexing only currently supported for frame wrapping\n");
+					}
 				}
 			}
 
@@ -1295,6 +1299,7 @@ int Process(	int OutFileNum,
 	Ident->SetString("CompanyName", CompanyName);
 	Ident->SetString("ProductName", ProductName);
 	Ident->SetString("VersionString", ProductVersion);
+	Ident->SetString("ToolkitVersion", LibraryProductVersion());
 	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
 
 	// DRAGONS: -- Need to set a proper GUID per released version
@@ -1329,48 +1334,46 @@ int Process(	int OutFileNum,
 		iTrack=0;
 		while(WrapCfgList_it != WrapCfgList.end())
 		{
-			// Currently we can only index frame wrapped essence
-			if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+			// Only index it if we can
+			// Currently we can only VBR index frame wrapped essence
+			if(    ((*WrapCfgList_it)->WrapOpt->CBRIndex)
+				|| (((*WrapCfgList_it)->WrapOpt->CanIndex) && ((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)))
 			{
-				// Only index it if we can
-				if((*WrapCfgList_it)->WrapOpt->CanIndex)
+				if((!OPAtom) || (iTrack == OutFileNum))
 				{
-					if((!OPAtom) || (iTrack == OutFileNum))
+					Uint32 BodySID;				//! Body SID for this essence stream
+					Uint32 IndexSID;			//! Index SID for the index of this essence stream
+
+					// FrameGroup will use a single multi-stream index...
+					if(FrameGroup)
 					{
-						Uint32 BodySID;				//! Body SID for this essence stream
-						Uint32 IndexSID;			//! Index SID for the index of this essence stream
+						BodySID = Stream[0]->GetBodySID();
+						IndexSID = 129;
+						Stream[0]->SetIndexSID(129);
+					}
+					// ...otherwise one per stream
+					else
+					{
+						BodySID = Stream[iTrack]->GetBodySID();
+						IndexSID = iTrack + 129;
+						Stream[iTrack]->SetIndexSID(IndexSID);
+					}
 
-						// FrameGroup will use a single multi-stream index...
-						if(FrameGroup)
+					// Update IndexSID in essence container data set
+					if(ECDataSets)
+					{
+						MDObjectList::iterator ECD_it = ECDataSets->begin();
+						while(ECD_it != ECDataSets->end())
 						{
-							BodySID = Stream[0]->GetBodySID();
-							IndexSID = 129;
-							Stream[0]->SetIndexSID(129);
-						}
-						// ...otherwise one per stream
-						else
-						{
-							BodySID = Stream[iTrack]->GetBodySID();
-							IndexSID = iTrack + 129;
-							Stream[iTrack]->SetIndexSID(IndexSID);
-						}
-
-						// Update IndexSID in essence container data set
-						if(ECDataSets)
-						{
-							MDObjectList::iterator ECD_it = ECDataSets->begin();
-							while(ECD_it != ECDataSets->end())
+							if((*ECD_it)->GetLink())
 							{
-								if((*ECD_it)->GetLink())
+								if((*ECD_it)->GetLink()->GetUint("BodySID") == BodySID)
 								{
-									if((*ECD_it)->GetLink()->GetUint("BodySID") == BodySID)
-									{
-										(*ECD_it)->GetLink()->SetUint("IndexSID", IndexSID);
-										break;
-									}
+									(*ECD_it)->GetLink()->SetUint("IndexSID", IndexSID);
+									break;
 								}
-								ECD_it++;
 							}
+							ECD_it++;
 						}
 					}
 				}
