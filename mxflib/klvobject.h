@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.1.2.2 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.1.2.3 2004/05/26 18:15:52 matt-beard Exp $
  *
  */
 /*
@@ -38,6 +38,7 @@
 #include <list>
 #include <map>
 
+
 // Define some enums
 namespace mxflib
 {
@@ -59,19 +60,6 @@ namespace mxflib
 	};
 }
 
-
-namespace mxflib
-{
-	//! Structure to hold information about each stream in a GC
-	struct GCElementKind
-	{
-		bool	IsValid;					//!< true if this is a GC Element
-		Uint8	Item;						//!< Item type - byte 13
-		Uint8	Count;						//!< Element count - byte 14
-		Uint8	ElementType;				//!< Element type - byte 15
-		Uint8	Number;						//!< Element number - byte 16
-	};
-}
 
 namespace mxflib
 {
@@ -135,19 +123,27 @@ namespace mxflib
 		ULPtr TheUL;					//!< The UL for this object (if known)
 		Length ValueLength;				//!< Length of the value field
 
-//		std::string ObjectName;			//!< The name of this object (if known)
-
 		DataChunk Data;					//!< The raw data for this item (if available)
 
 		KLVReadHandlerPtr ReadHandler;	//!< A read-handler to supply data in response to read requests. If NULL data will be read from SourceFile (if available)
 
+		//## NOTE: Ensure any new properties are copied by the KLVObject --> KLVEObject copy constructor ##
+
+		//@@@ Is this another MSVC bug?  KLVEObject can't access protected KLVObject properties from KLVEObject constructor!!
+		friend class KLVEObject;
+
 	public:
 		KLVObject(ULPtr ObjectUL);
-		void Init(void);
-		~KLVObject() {};
+		virtual void Init(void);
+		virtual ~KLVObject() {};		//!< Virtual to allow sub-classing and polymorphic pointers
 
 		//! Set the source details when an object has been read from a file
-		void SetSource(MXFFilePtr File, Position Location, Uint32 NewKLSize, Length ValueLen)
+		/*! \param File The source file of this KLVObject
+		 *  \param Location The byte offset of the start of the <b>key</b> of the KLV from the start of the file
+		 *  \param NewKLSize The total length of the key and the length field
+		 *  \param ValueLen The length of the value field of the KLV
+		 */
+		virtual void SetSource(MXFFilePtr File, Position Location, Uint32 NewKLSize, Length ValueLen)
 		{
 			IsConstructed = false;
 			SourceOffset = Location;
@@ -156,7 +152,11 @@ namespace mxflib
 		}
 
 		//! Set the source details when an object is build in memory
-		void SetSource(Position Location, Uint32 NewKLSize, Length ValueLen)
+		/*! \param Location The byte offset of the start of the <b>key</b> of the KLV within the allocated memory block
+		 *  \param NewKLSize The total length of the key and the length field
+		 *  \param ValueLen The length of the value field of the KLV
+		 */
+		virtual void SetSource(Position Location, Uint32 NewKLSize, Length ValueLen)
 		{
 			IsConstructed = false;
 			SourceOffset = Location;
@@ -165,64 +165,84 @@ namespace mxflib
 		}
 
 		//! Get the object's UL
-		ULPtr GetUL(void) { return TheUL; }
+		virtual ULPtr GetUL(void) { return TheUL; }
 
 		//! Set the object's UL
-		void SetUL(ULPtr NewUL) { TheUL = NewUL; }
+		virtual void SetUL(ULPtr NewUL) { TheUL = NewUL; }
 
 		//! Get the location within the ultimate parent
-		Uint64 GetLocation(void) { return SourceOffset; }
+		virtual Uint64 GetLocation(void) { return SourceOffset; }
 
 		//! Get text that describes where this item came from
-		std::string GetSource(void);
+		virtual std::string GetSource(void);
 
 		//! Get the size of the key and length (not of the value)
-		Uint64 GetKLSize(void) { return KLSize; }
+		virtual Uint32 GetKLSize(void) { return KLSize; }
 
 		//! Get a GCElementKind structure
-		GCElementKind GetGCElementKind(void);
+		virtual GCElementKind GetGCElementKind(void) { return mxflib::GetGCElementKind(TheUL); }
 
 		//! Get the track number of this KLVObject (if it is a GC KLV, else 0)
-		Uint32 GetGCTrackNumber(void);
+		virtual Uint32 GetGCTrackNumber(void) { return mxflib::GetGCTrackNumber(TheUL); };
 
 		//! Get the position of the first byte in the DataChunk as an offset into the file
 		/*! \return -1 if the data has not been read from a file (or the offset cannot be determined) 
 		 */
-		Position GetDataBase(void) { return SourceFile ? SourceOffset : -1; };
+		virtual Position GetDataBase(void) { return SourceFile ? SourceOffset : -1; };
 
 		//! Set the position of the first byte in the DataChunk as an offset into the file
 		/*! \note This function must be used with great care as data may will be written to this location
 		 */
-		void SetDataBase(Position NewBase) { SourceOffset = NewBase; };
+		virtual void SetDataBase(Position NewBase) { SourceOffset = NewBase; };
 
 		//! Read data from the KLVObject source into the DataChunk
 		/*! If Size is zero an attempt will be made to read all available data (which may be billions of bytes!)
 		 *  \note Any previously read data in the current DataChunk will be discarded before reading the new data
 		 *	\return Number of bytes read - zero if none could be read
 		 */
-		Length ReadData(Position Start = 0, Length Size = 0);
+		virtual Length ReadData(Position Start = 0, Length Size = 0);
+
+		//! Write the key and length of the current DataChunk to the source file
+		/*! The key and length will be written to the source file as set by SetSource.
+		 *  If LenSize is zero the length will be formatted to match KLSize (if possible!)
+		 *  \note If the length will not fit in KLSize then KLSize will be updated
+		 */
+		virtual Uint32 WriteKL(Uint32 LenSize = 0);
 
 		//! Write data from the current DataChunk to the source file
 		/*! \note The data in the chunk will be written to the specified position 
 		 *  <B>regardless of the position from where it was origanally read</b>
 		 */
-		Length WriteData(Position Start = 0, Length Size = 0);
+		virtual Length WriteData(const Uint8 *Buffer, Position Start, Length Size);
+
+		//! Write data from the current DataChunk to the source file
+		/*! \note The data in the chunk will be written to the specified position 
+		 *  <B>regardless of the position from where it was origanally read</b>
+		 */
+		Length WriteData(DataChunkPtr &Buffer, Position Start = 0, Length Size = 0) 
+		{ 
+			return WriteData(Buffer->Data, Start, ((Size == 0) || (Size > (Buffer->Size - Start))) ? Buffer->Size - Start : Size); 
+		}
+
+		//! Write data from the current DataChunk to the source file
+		/*! \note The data in the chunk will be written to the specified position 
+		 *  <B>regardless of the position from where it was origanally read</b>
+		 */
+		Length WriteData(Position Start = 0, Length Size = 0)
+		{ 
+			return WriteData(Data.Data, Start, ((Size == 0) || (Size > (Data.Size - Start))) ? Data.Size - Start : Size); 
+		}
 
 		//! Set a handler to supply data when a read is performed
 		/*! \note If not set it will be read from the source file (if available) or cause an error message
 		 */
-		void SetReadHandler(KLVReadHandlerPtr Handler) { ReadHandler = Handler; }
+		virtual void SetReadHandler(KLVReadHandlerPtr Handler) { ReadHandler = Handler; }
 
 		//! Get the length of the value field
-		Length GetLength(void) { return ValueLength; }
+		virtual Length GetLength(void) { return ValueLength; }
 
 		//! Get a reference to the data chunk
-		DataChunk& GetData(void) { return Data; }
-
-	private:
-		// Some private helper functions
-		//Uint32 ReadKey(KeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key);
-		//Uint32 ReadLength(LenFormat Format, Uint32 Size, const Uint8 *Buffer, Uint32& Length);
+		virtual DataChunk& GetData(void) { return Data; }
 	};
 }
 
