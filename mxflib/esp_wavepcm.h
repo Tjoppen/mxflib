@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.1.2.1 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.1.2.2 2004/06/14 17:08:47 matt-beard Exp $
  *
  */
 /*
@@ -92,7 +92,7 @@ namespace mxflib
 			};
 
 			//! Get the next "installment" of essence data
-			/*! \ret Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+			/*! \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
 			 *	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
