@@ -54,6 +54,10 @@ AC_ARG_WITH(doxygen,
 		if test $HAVE_DOXYGEN = "false"; then
 	             AC_MSG_WARN([*** doxygen not found, docs will not be built])
 		fi
+		AC_CHECK_PROG(HAVE_DOT, dot, YES, NO)
+		if test $HAVE_DOT = "NO"; then
+	             AC_MSG_WARN([*** dot not found (part of Graphviz), class graphs will not be built])
+		fi
 	])
 AM_CONDITIONAL(HAVE_DOXYGEN, $HAVE_DOXYGEN)
 
@@ -68,6 +72,7 @@ AC_CONFIG_FILES([tests/Makefile tests/atlocal])
 
 AC_CONFIG_FILES([Makefile
                  docs/Makefile
+                 docs/doxyfile.cfg
                  mxfdump/Makefile
                  mxflib/Makefile
                  mxfsplit/Makefile
