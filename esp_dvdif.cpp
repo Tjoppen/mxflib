@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.8 2004/03/28 18:32:58 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.9 2004/03/28 19:24:03 matt-beard Exp $
  *
  */
 /*
@@ -366,7 +366,7 @@ Int64 DV_DIF_EssenceSubParser::GetCurrentPosition(void)
 	double Pos = iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator;
 	Pos /= (SelectedEditRate.Denominator * NativeEditRate.Numerator);
 	
-	return floor(Pos + 0.5);
+	return (Int64)floor(Pos + 0.5);
 }
 
 

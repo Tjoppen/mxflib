@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.7 2004/03/28 19:24:03 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.8 2004/03/28 19:26:22 matt-beard Exp $
  *
  */
 /*
@@ -273,7 +273,7 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, 
  */
 Uint64 MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*//*, IndexTablePtr Index *//*=NULL*/)
 {
-	const int BUFFERSIZE = 32768;
+	const Uint64 BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
