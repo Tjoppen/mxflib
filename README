@@ -57,6 +57,6 @@ Portability Issues
 	  GNU/Linux  - uuid_generate() via the e2fsprogs library.
 
 	A simple random number based UUID generator function is provided
-	for all other platforms, which may not meet the requirements of
-	SMPTE 330M, so you may wish to add better support for your platform
+	for all other platforms. This meets the requirements of	SMPTE 330M,
+	however you may wish to add alternative support for your platform
 	in mxflib/system.h.

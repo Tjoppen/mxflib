@@ -273,7 +273,7 @@ SOURCE=..\..\doxyfile.cfg
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mxflib.dox
+SOURCE=..\..\docs\mxflib.dox
 # End Source File
 # End Group
 # Begin Source File

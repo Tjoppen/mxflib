@@ -16,8 +16,12 @@ Source0:		mxflib-alpha-0.3.3.tar.gz
 BuildRoot:		/var/tmp/%{name}-buildroot
 
 %description
-MXFLib is a C++ library providing support for the MXF file format.
-Included wih the library are a number of simple example applications.
+MXFLib is a C++ library providing support for the MXF file format
+which is standardised as SMPTE 377M.  Included with the library
+are a number of simple example applications:
+  mxfdump
+  mxfwrap
+  mxfsplit
 
 %prep
 rm -rf $RPM_BUILD_ROOT

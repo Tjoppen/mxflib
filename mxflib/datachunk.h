@@ -1,7 +1,7 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: datachunk.h,v 1.1.2.1 2004/05/16 10:47:03 matt-beard Exp $
  *
  */
 /*
@@ -81,6 +81,7 @@ namespace mxflib
 		{
 			if(Size == NewSize) return;
 
+			// Simple truncate or resize within the existing buffer size
 			if(DataSize >= NewSize) 
 			{
 				Size = NewSize;

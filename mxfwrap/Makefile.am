@@ -4,4 +4,4 @@ bin_PROGRAMS = mxfwrap
 
 mxfwrap_SOURCES = mxfwrap.cpp
 
-LDADD = -L../mxflib -lmxf $(UUIDLIB)
+LDADD = ../mxflib/libmxf.a $(UUIDLIB)

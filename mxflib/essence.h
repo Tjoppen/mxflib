@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.1 2004/05/13 11:49:17 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.2 2004/05/16 10:47:03 matt-beard Exp $
  *
  */
 /*
@@ -37,14 +37,12 @@
 // Forward refs
 namespace mxflib
 {
-/*	//! Smart pointer to an ECWriter
-	class ECWriter;
-	typedef SmartPtr<ECWriter> ECWriterPtr;
-*/
-
 	//! Smart pointer to a GCWriter
 	class GCWriter;
 	typedef SmartPtr<GCWriter> GCWriterPtr;
+
+	class GCReader;
+	typedef SmartPtr<GCReader> GCReaderPtr;
 }
 
 
@@ -757,12 +755,17 @@ namespace mxflib
 	};
 
 	// Smart pointer for the base GCReader read handler
-	typedef GCReadHandlerPtr SmartPtr<GCReadHandler_Base>;
+	typedef SmartPtr<GCReadHandler_Base> GCReadHandlerPtr;
 
 	//! Class that reads data from an MXF file
 	class GCReader
 	{
+	protected:
+		Position CurrentFileOffset;					//!< The offset of the start of the current KLV within the file
 		Position CurrentOffset;						//!< The offset of the start of the current KLV within the data stream
+		Position NextOffset;						//!< Calculated start of next KLV - or zero if not known
+
+		bool StopNow;								//!< True if no more KLVs should be read - set by StopReading() and ReadFromFile() with SingleKLV=true
 
 	public:
 		//! Create a new GCReader, optionally with a given default item handler and filler handler
@@ -773,22 +776,23 @@ namespace mxflib
 
 		//! Set the default read handler 
 		/*! This handler receives all KLVs without a specific data handler assigned
-		 *  including KLVs that do not appear to be standard GC KLVs
+		 *  including KLVs that do not appear to be standard GC KLVs.  If not default handler
+		 *  is set KLVs with no specific handler will be discarded.
 		 */
-		void SetDefaultHandler(GCReadDataHandler DefaultHandler = NULL);
+		void SetDefaultHandler(GCReadHandlerPtr DefaultHandler = NULL);
 
 		//! Set the filler handler
 		/*! If no filler handler is set all filler KLVs are discarded
 		 *  \note Filler KLVs are <b>never</b> sent to the default handler
 		 *        unless it is also set as the filler handler
 		 */
-		void SetFillerHandler(GCReadDataHandler FillerHandler = NULL);
+		void SetFillerHandler(GCReadHandlerPtr FillerHandler = NULL);
 
 		//! Set encryption handler
 		/*! This handler will receive all encrypted KLVs and after decrypting them will
 		 *  resubmit the decrypted version for handling using function HandleData()
 		 */
-		void SetEncryptionHandler(GCReadDataHandler EncryptionHandler = NULL);
+		void SetEncryptionHandler(GCReadHandlerPtr EncryptionHandler = NULL);
 
 		//! Set data handler for a given track number
 		void SetDataHandler(Uint32 TrackNumber, GCReadHandlerPtr DataHandler = NULL);
@@ -796,7 +800,7 @@ namespace mxflib
 		//! Read from file
 		/*! All KLVs are dispatched to handlers
 		 *  Stops reading at the next partition pack unless SingleKLV is true when only one KLV is dispatched
-		 *  \return true if all went well, false if an error occured or StopReading() was called
+		 *  \return true if all went well, false end-of-file, an error occured or StopReading() was called
 		 */
 		bool ReadFromFile(MXFFilePtr File, bool SingleKLV = false);
 
@@ -805,7 +809,11 @@ namespace mxflib
 		 *  \note The offset will start at zero and increment automatically as data is read.
 		 *        If a seek is performed the offset will need to be adjusted.
 		 */
-		void SetCurrentOffset(Position NewOffset);
+		void SetCurrentOffset(Position NewOffset) 
+		{ 
+			CurrentOffset = NewOffset; 
+			NextOffset = 0; 
+		};
 
 
 		/*** Functions for use by read handlers ***/
@@ -826,8 +834,78 @@ namespace mxflib
 		//! Get the offset of the start of the current KLV within this GC stream
 		Position GetCurrentOffset(void);
 	};
+}
 
 
+// BodyReader and associated structures
+namespace mxflib
+{
+	//! BodyReader class - reads from an MXF file (reads data is "pulled" from the file)
+	class BodyReader : public RefCount<BodyReader>
+	{
+	protected:
+		bool SeekInited;						//!< True once the per SID seek system has been initialized
+		GCReadHandlerPtr GCRDefaultHandler;		//!< Default handler to use for new GCReaders
+		GCReadHandlerPtr GCRFillerHandler;		//!< Filler handler to use for new GCReaders
+
+	public:
+		//! Construct a body reader and associate it with an MXF file
+		BodyReader(MXFFilePtr File);
+
+		//! Seek to a specific point in the file
+		/*! \return New location or -1 on seek error
+		 */
+		Position Seek(Position Pos = 0);
+
+		//! Seek to a specific byte offset in a given stream
+		/*! \return New file offset or -1 on seek error
+		 */
+		Position Seek(Uint32 BodySID, Position Pos);
+
+		//! Set the default handler for all new GCReaders
+		/*! Each time a new GCReader is created this default handler will be used if no other is specified
+		 */
+		void SetDefaultHandler(GCReadHandlerPtr DefaultHandler = NULL);
+
+		//! Set the filler handler for all new GCReaders
+		/*! Each time a new GCReader is created this filler handler will be used if no other is specified
+		 */
+		void SetFillerHandler(GCReadHandlerPtr FillerHandler = NULL);
+
+		//! Set the encryption handler for all new GCReaders
+		/*! Each time a new GCReader is created this encryption handler will be used
+		 */
+		void SetEncryptionHandler(GCReadHandlerPtr EncryptionHandler = NULL);
+
+		//! Make a GCReader for the specified BodySID
+		void MakeGCReader(Uint32 BodySID, GCReadHandlerPtr DefaultHandler = NULL, GCReadHandlerPtr FillerHandler = NULL);
+
+		//! Get a pointer to the GCReader used for the specified BodySID
+		GCReaderPtr GetGCReader(Uint32 BodySID);
+
+		//! Read from file
+		/*! All KLVs are dispatched to handlers
+		 *  Stops reading at the next partition pack unless SingleKLV is true when only one KLV is dispatched
+		 *  \return true if all went well, false end-of-file, an error occured or StopReading() 
+		 *          was called on the current GCReader
+		 */
+		bool ReadFromFile(bool SingleKLV = false);
+
+
+		/*** Functions for use by read handlers ***/
+
+		//! Get the BodySID of the most recent read
+		Uint32 GetBodySID(void);
+
+
+	protected:
+		//! Initialize the per SID seek system
+		/*! To allow us to seek to byte offsets within a file we need to initialize 
+		 *  various structures - seeking is not always possible!!
+		 *  \return False if seeking could not be initialized (perhaps because the file is not seekable)
+		 */
+		bool InitSeek(void);
+	};
 }
 
 

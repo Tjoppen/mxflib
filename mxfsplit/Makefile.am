@@ -4,4 +4,4 @@ bin_PROGRAMS = mxfsplit
 
 mxfsplit_SOURCES = mxfsplit.cpp
 
-LDADD = -L../mxflib -lmxf $(UUIDLIB)
+LDADD = ../mxflib/libmxf.a $(UUIDLIB)

@@ -1,20 +1,9 @@
-Copyright (c) 2003, Matt Beard
 
-This software is provided 'as-is', without any express or implied warranty.
-In no event will the authors be held liable for any damages arising from
-the use of this software.
+The main license text has moved to the file "COPYING"
 
-Permission is granted to anyone to use this software for any purpose,
-including commercial applications, and to alter it and redistribute it
-freely, subject to the following restrictions:
+Note that each source file may be copyrighted by a subset of the full copyright holders.
 
-  1. The origin of this software must not be misrepresented; you must
-     not claim that you wrote the original software. If you use this
-     software in a product, an acknowledgment in the product
-     documentation would be appreciated but is not required.
+If you wish to claim copyright on any substantial changes you submit to the source then 
+please indicate so in the new or changed files and add your name to the end of the list
+in "COPYING".  This will cause your changes to be covered by the same license.
 
-  2. Altered source versions must be plainly marked as such, and must
-     not be misrepresented as being the original software.
-
-  3. This notice may not be removed or altered from any source
-     distribution.

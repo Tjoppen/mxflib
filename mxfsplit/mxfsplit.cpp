@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.7 2004/04/30 17:30:22 stuart_hc Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.7.2.1 2004/05/16 10:47:04 matt-beard Exp $
  *
  */
 /*
@@ -412,7 +412,7 @@ static void DumpBody( PartitionPtr ThisPartition )
 			{
 				if( !Quiet ) printf( "EXTRANEOUS Element: K=%s L=0x%s\n", 
 															anElement->GetUL()->GetString().c_str(),
-															Int64toHexString( anElement->GetSize(), 8 ).c_str() );
+															Int64toHexString( anElement->GetLength(), 8 ).c_str() );
 			}
 			else
 			{
@@ -425,7 +425,7 @@ static void DumpBody( PartitionPtr ThisPartition )
 									kind.Number );
 
 				if( !Quiet ) printf( "GC Element: L=0x%s File=%s", 
-															Int64toHexString( anElement->GetSize(), 8 ).c_str(),
+															Int64toHexString( anElement->GetLength(), 8 ).c_str(),
 															filename );
 
 				itFile = theStreams.find( filename );
@@ -458,12 +458,15 @@ static void DumpBody( PartitionPtr ThisPartition )
 
 				if( !Quiet ) printf( "\n" );
 
-				DataChunkPtr theEss = anElement->GetData();
+				// Read entire essence KLV
+				// DRAGONS: This is likely to be messy with large KLVs such as clip-wrapped essence!
+				anElement->ReadData();
+				DataChunk &theEss = anElement->GetData();
 
 				//diagnostics
 				//printf( "  writing %x bytes to %s\n", theEss->Size, (*itFile).first.c_str() );
 
-				fwrite( theEss->Data, 1, theEss->Size, (*itFile).second.file );
+				fwrite( theEss.Data, 1, theEss.Size, (*itFile).second.file );
 
 			}
 		}

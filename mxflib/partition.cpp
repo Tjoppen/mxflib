@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: partition.cpp,v 1.1.2.1 2004/05/16 10:47:03 matt-beard Exp $
  *
  */
 /*
@@ -526,7 +526,7 @@ KLVObjectPtr mxflib::Partition::NextElement()
 	_BodyLocation = _NextBodyLocation;
 
 	// skip the present Object
-  _NextBodyLocation = Skip( _NextBodyLocation );
+	_NextBodyLocation = Skip( _NextBodyLocation );
 
 	// skip any trailing KLVFill
 	_NextBodyLocation = SkipFill( _NextBodyLocation );
@@ -545,7 +545,7 @@ KLVObjectPtr mxflib::Partition::NextElement()
 		KLVObjectPtr pObj = new KLVObject(ElementUL);
 
 		Uint64 Len = PF->ReadBER();
-		pObj->SetSource(PF, PF->Tell(), Len);
+		pObj->SetSource(PF, PF->Tell(), PF->Tell() - _BodyLocation, Len);
 
 		return pObj; 
 	}
@@ -572,6 +572,10 @@ Uint64 mxflib::Partition::Skip( Uint64 start )
 	ULPtr NextUL = PF->ReadKey();
 	if(!NextUL) return 0;
 
+	// DRAGONS: This has version 1 hard coded as byte 8
+	//          Also it is not the most efficient test - probably should first check if byte 13 == 1
+	//			which will be true for all partition packs, but is false for all GC sets and packs.
+	//			Once this matches we can do the full memcmp.
 	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
 	if( memcmp(NextUL->GetValue(), DegeneratePartition, 13) == 0 )
 	{
@@ -613,12 +617,19 @@ Uint64 mxflib::Partition::SkipFill( Uint64 start )
 	ULPtr NextUL = PF->ReadKey();
 	if(!NextUL) return 0;
 
+	// DRAGONS: This has version 1 hard coded as byte 8
+	//          Also it is not the most efficient test - probably should first check if byte 13 == 1
+	//			which will be true for all partition packs, but is false for all GC sets and packs.
+	//			Once this matches we can do the full memcmp.
 	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
 	if( memcmp(NextUL->GetValue(), DegeneratePartition, 13) == 0 )
 	{
+		// DRAGONS: This test seems questionable - what if we find a new (currently undefined) partition pack?
+
 		Uint8 byte14 = (NextUL->GetValue())[13];
 		if( byte14 == 2 || byte14 == 3 || byte14 == 4 )	return 0;
-		// we've found a Partition Pack - end of Body
+		// we've found a Partition Pack - end of Body -- DRAGONS:?? Not true!!
+
 		if( byte14 == 0x11 )	return 0;
 		// we've found a RIP - end of Body
 	}

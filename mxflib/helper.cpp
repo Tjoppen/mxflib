@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2 2004/04/26 18:29:10 asuraparaju Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.1 2004/05/16 10:47:03 matt-beard Exp $
  *
  */
 /*
@@ -234,7 +234,7 @@ DataChunkPtr mxflib::Hex2DataChunk(std::string Hex)
 
 
 // Find the specified XML file by searching the MXFLIB_DATA_DIR directory
-// then the configured DATADIR path.
+// then the configured MXFDATADIR path.
 // If no matching file is found, return NULL.
 // TODO: add an mxflib namespace global for command-line/runtime use.
 char *mxflib::lookupDataFilePath(const char *filename)
@@ -261,8 +261,8 @@ char *mxflib::lookupDataFilePath(const char *filename)
 			return buf;
 	}
 
-	// Try under DATADIR compile-time macro
-	sprintf(buf, "%s%c%s", DATADIR, DIR_SEPARATOR, filename);
+	// Try under MXFDATADIR compile-time macro
+	sprintf(buf, "%s%c%s", MXFDATADIR, DIR_SEPARATOR, filename);
 
 	if (FileExists(buf))
 		return buf;
