@@ -168,6 +168,7 @@ namespace mxflib
 			EditPoint = false;
 			SelectiveIndex = false;
 		}
+		virtual ~MPEG2_VES_EssenceSubParser(){};
 
 		//! Build a new parser of this type and return a pointer to it
 		virtual EssenceSubParserBase *NewParser(void) const { return new MPEG2_VES_EssenceSubParser; }
