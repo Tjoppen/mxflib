@@ -1,42 +1,42 @@
-README for MXFLib
+README for MXFlib
 =================
 
-MXFLib is a C++ library providing support for the MXF file format.
+MXFlib is a C++ library providing support for the MXF file format.
 Included wih the library are a number of simple example applications.
 
-MXFLib is released under the zlib license.  See the file "license.txt"
+MXFlib is released under the zlib license.  See the file "license.txt"
 for full details.
 
 
 Documentation
 =============
 
-HTML documentation on the MXFLib library internals is generated using doxygen
-from the source code and released as a separate file on sourceforge such as
-mxflib-alpha0_3_1-docs.zip.  You can also build the documentation using:
-  make (GNU/Linux, Unix)        dox.bat (MS Windows)
+HTML documentation on the MXFlib library internals is generated using doxygen
+from source code (see docs/mxflib.dox).  If your installation did not come
+with the HTML documentation, you can build it if you have doxygen installed:
+  dox.bat (MS Windows)
+  make    (GNU/Linux, Unix)
 
 
 Compilation from source code
 ============================
 
-
 Building using MSVC++ under MS Windows:
   Open build/msvc/mxflib.dsw
-  Build the all project.
+  Build the "all" project.
 
 Building on GNU/Linux and Unix platforms:
   ./configure && make
 
-  If building from a CVS working copy you must run ./bootstrap.sh first
-  to generate the configure script.
+    If building directly from CVS you must run ./bootstrap.sh first to
+    generate the ./configure script.
 
 
-Testing MXFLib
+Testing MXFlib
 ==============
 
 Always run "make check" after building MXFlib which runs the testsuite.
-Please report any errors to the maintainers.
+Please report any errors to the maintainers (see AUTHORS file).
 
 A sample MXF file is provided for testing in tests/sample_wav.mxf which you
 can dump using mxfdump:
@@ -50,18 +50,13 @@ Other example usage includes:
 Portability Issues
 ==================
 
-- Your platform must have a UUID generation function
-    MS Windows provides CoCreateGuid().  On GNU/Linux the e2fsprogs library
-    provides uuid_generate().  Only these two functions are supported in
-    mxflib/system.h - if your platform provides a different function you
-    will need to add support for it in mxflib/system.h.
+- UUID generation functions
+    At present, MXFlib uses a native UUID generator on the following
+	platforms:
+	  MS Windows - CoCreateGuid()
+	  GNU/Linux  - uuid_generate() via the e2fsprogs library.
 
-- MXFLib requires an ISO C99 and ISO C++ (1998) compliant compiler (except
-  for MSVC++)
-    Solaris 7, 8 and 9 do not ship with an ISO C99 conforming freestanding
-    implementation.  Notably /usr/include/stdint.h is missing.
-
-    A quick fix is to (in the mxflib source directory):
-      sed 's/^#pragma ident.*//' /usr/include/sys/inttypes.h > stdint.h
-
-    A longer fix is to install glibc 2.3 and GCC 3.2.
+	A simple random number based UUID generator function is provided
+	for all other platforms, which may not meet the requirements of
+	SMPTE 330M, so you may wish to add better support for your platform
+	in mxflib/system.h.
