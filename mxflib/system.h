@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: system.h,v 1.2 2004/04/26 18:30:06 asuraparaju Exp $
  *
  */
 /*
@@ -46,7 +46,7 @@
 
 // Required headers for non-system specific bits
 #include <time.h>
-
+#include "config.h"
 
 /************************************************/
 /*           (Hopefully) Common types           */
@@ -166,6 +166,7 @@ namespace mxflib
 	inline bool FileEof(FileHandle file) { return eof(file) ? true : false; }
 	inline Uint64 FileTell(FileHandle file) { return _telli64(file); }
 	inline void FileClose(FileHandle file) { close(file); }
+	inline bool FileExists(const char *filename) { struct stat buf; return stat(filename, &buf) == 0; }
 #endif //MXFLIB_NO_FILE_IO
 
 
@@ -191,7 +192,15 @@ namespace mxflib
 //! Allow command-line switches to be prefixed with '/' or '-'
 #define IsCommandLineSwitchPrefix(x) ( (x == '/') || (x == '-'))
 
+#define DIR_SEPARATOR		'\\'
+
+// FIXME: What is a sensible default for DATADIR under MSVC environment?
+#ifndef DATADIR
+#define DATADIR "."
+#endif
+
 #define UINT64_C(c)	c			// for defining 64bit constants
+#define INT64_C(c)	c			// for defining 64bit constants
 
 #define ASSERT _ASSERT					//!< Debug assert
 #define strcasecmp(s1, s2) stricmp(s1, s2)
@@ -201,6 +210,9 @@ namespace mxflib
 #include <stdlib.h>
 #include <string>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace mxflib
 {
@@ -276,6 +288,7 @@ namespace mxflib
 	inline bool FileEof(FileHandle file) { return feof(file); }
 	inline Uint64 FileTell(FileHandle file) { return ftello(file); }
 	inline void FileClose(FileHandle file) { fclose(file); }
+	inline bool FileExists(const char *filename) { struct stat buf; return stat(filename, &buf) == 0; }
 #endif //MXFLIB_NO_FILE_IO
 
 
@@ -341,9 +354,19 @@ namespace mxflib
 //! Allow command-line switches to be prefixed only with '-'
 #define IsCommandLineSwitchPrefix(x) ( x == '-' )
 
+// If building with Mingw32 or Cygwin (for example), use the correct separator
+#ifdef _WIN32
+#define DIR_SEPARATOR		'\\'
+#else
+#define DIR_SEPARATOR		'/'
+#endif
+
 #ifndef UINT64_C
 #define UINT64_C(c)	c##ULL		// for defining 64bit constants
 #endif // UINT64_C
+#ifndef INT64_C
+#define INT64_C(c)	c##ULL		// for defining 64bit constants
+#endif // INT64_C
 
 #include <assert.h>
 #define ASSERT assert		// use -DNDEBUG
@@ -376,6 +399,7 @@ namespace mxflib
 	bool FileEof(FileHandle file);
 	Uint64 FileTell(FileHandle file);
 	void FileClose(FileHandle file);
+	bool FileExists(const char *filename);
 }
 #endif // MXFLIB_NO_FILE_IO
 
