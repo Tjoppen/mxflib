@@ -26,54 +26,54 @@ ClosedCompleteHeader
   IndexSID = 0
   BodyOffset = 0
   BodySID = 1
-  OperationalPattern = 06 0e 2b 34 04 01 01 01 0d 01 02 01 10 00 00 00
+  OperationalPattern = [060e2b34.0401.0101.0d010201.10000000]
   EssenceContainers
-    EssenceContainer = 06 0e 2b 34 04 01 01 03 0d 01 03 01 02 7f 01 00
-    EssenceContainer = 06 0e 2b 34 04 01 01 02 0d 01 03 01 02 06 01 00
+    EssenceContainer = [060e2b34.0401.0103.0d010301.027f0100]
+    EssenceContainer = [060e2b34.0401.0102.0d010301.02060100]
 
 Header Metadata:
   Preface
-    InstanceUID = 5d ce ec 07 72 e0 4b fd 95 de 33 15 18 9c 0c 38
+    InstanceUID = {5dceec07-72e0-4bfd-95de-3315189c0c38}
     LastModifiedDate = 2004-04-26 14:18:29.368
     Version = 258
     Identifications
-      Identification = 1b e6 28 a1 a1 47 4c 87 ad c6 6a ce 8a 93 51 b3
+      Identification = {1be628a1-a147-4c87-adc6-6ace8a9351b3}
       Identification -> Strong Reference to Identification
         Identification
           CompanyName = FreeMXF.org
           ProductName = mxfwrap file wrapper
           VersionString = Unreleased mxflib 0.3.3.1
-          ProductUID = 84 66 14 f3 27 dd de 40 86 dc e0 99 da 7f d0 52
+          ProductUID = {846614f3-27dd-de40-86dc-e099da7fd052}
           ModificationDate = 2004-04-26 14:18:29.348
-          InstanceUID = 1b e6 28 a1 a1 47 4c 87 ad c6 6a ce 8a 93 51 b3
-          ThisGenerationUID = 3f 12 ad 30 44 ea 40 e2 be 1c 1a 48 e6 0c c7 13
-      Identification = 2c f4 bc 4e 65 7f 4e 05 87 b4 4c fd aa e3 0a 2b
+          InstanceUID = {1be628a1-a147-4c87-adc6-6ace8a9351b3}
+          ThisGenerationUID = {3f12ad30-44ea-40e2-be1c-1a48e60cc713}
+      Identification = {2cf4bc4e-657f-4e05-87b4-4cfdaae30a2b}
       Identification -> Strong Reference to Identification
         Identification
           CompanyName = FreeMXF.org
           ProductName = mxfwrap file wrapper
           VersionString = Unreleased mxflib 0.3.3.1
-          ProductUID = 84 66 14 f3 27 dd de 40 86 dc e0 99 da 7f d0 52
+          ProductUID = {846614f3-27dd-de40-86dc-e099da7fd052}
           ModificationDate = 2004-04-26 14:18:29.368
-          InstanceUID = 2c f4 bc 4e 65 7f 4e 05 87 b4 4c fd aa e3 0a 2b
-          ThisGenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
+          InstanceUID = {2cf4bc4e-657f-4e05-87b4-4cfdaae30a2b}
+          ThisGenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
     EssenceContainers
-      EssenceContainer = 06 0e 2b 34 04 01 01 03 0d 01 03 01 02 7f 01 00
-      EssenceContainer = 06 0e 2b 34 04 01 01 02 0d 01 03 01 02 06 01 00
+      EssenceContainer = [060e2b34.0401.0103.0d010301.027f0100]
+      EssenceContainer = [060e2b34.0401.0102.0d010301.02060100]
     DMSchemes
-    ContentStorage = 89 8a 44 70 32 7a 40 aa 9c 41 c6 c6 3a 64 77 18
+    ContentStorage = {898a4470-327a-40aa-9c41-c6c63a647718}
     ContentStorage -> Strong Reference to ContentStorage
       ContentStorage
         Packages
-          Package = c0 7c 8b 06 0e e3 4b 75 9f fb 89 05 a4 6f da 18
+          Package = {c07c8b06-0ee3-4b75-9ffb-8905a46fda18}
           Package -> Strong Reference to MaterialPackage
             MaterialPackage
               Name = A Material Package
-              PackageUID = 06 0a 2b 34 01 01 01 05 01 01 0d 20 13 00 00 00 9a b6 5c c0 f9 54 41 20 a4 2d a5 f3 4b 6c 3d d7
+              PackageUID = [060a2b34.0101.0105.01010d20],13,00,00,00,{9ab65cc0-f954-4120-a42d-a5f34b6c3dd7}
               PackageCreationDate = 2004-04-26 14:18:29.348
               PackageModifiedDate = 2004-04-26 14:18:29.348
               Tracks
-                Track = 9e 69 d9 47 1a 63 45 d7 a3 85 c5 79 fa 48 3f cf
+                Track = {9e69d947-1a63-45d7-a385-c579fa483fcf}
                 Track -> Strong Reference to Track
                   Track
                     TrackName = Timecode Track
@@ -81,26 +81,26 @@ Header Metadata:
                     Origin = 0
                     EditRate = 5/1
                     TrackID = 1
-                    Sequence = b1 5d 1a ad 9e 13 4f 9d 89 a6 28 00 6f 0b 23 d7
+                    Sequence = {b15d1aad-9e13-4f9d-89a6-28006f0b23d7}
                     Sequence -> Strong Reference to Sequence
                       Sequence
-                        DataDefinition = 06 0e 2b 34 04 01 01 01 01 03 02 01 01 00 00 00
+                        DataDefinition = [060e2b34.0401.0101.01030201.01000000]
                         Duration = 1
                         StructuralComponents
-                          StructuralComponent = a4 5f 10 3a 63 79 45 56 b6 65 17 2d f2 f0 0e 6e
+                          StructuralComponent = {a45f103a-6379-4556-b665-172df2f00e6e}
                           StructuralComponent -> Strong Reference to TimecodeComponent
                             TimecodeComponent
                               RoundedTimecodeBase = 5
                               DropFrame = 0
                               StartTimecode = 0
                               Duration = 1
-                              InstanceUID = a4 5f 10 3a 63 79 45 56 b6 65 17 2d f2 f0 0e 6e
-                              DataDefinition = 06 0e 2b 34 04 01 01 01 01 03 02 01 01 00 00 00
-                              GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-                        InstanceUID = b1 5d 1a ad 9e 13 4f 9d 89 a6 28 00 6f 0b 23 d7
-                        GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-                    InstanceUID = 9e 69 d9 47 1a 63 45 d7 a3 85 c5 79 fa 48 3f cf
-                Track = 3a 21 3b c8 7b b9 40 bd a0 54 14 4f 38 34 e8 08
+                              InstanceUID = {a45f103a-6379-4556-b665-172df2f00e6e}
+                              DataDefinition = [060e2b34.0401.0101.01030201.01000000]
+                              GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+                        InstanceUID = {b15d1aad-9e13-4f9d-89a6-28006f0b23d7}
+                        GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+                    InstanceUID = {9e69d947-1a63-45d7-a385-c579fa483fcf}
+                Track = {3a213bc8-7bb9-40bd-a054-144f3834e808}
                 Track -> Strong Reference to Track
                   Track
                     TrackName = Sound Track
@@ -108,35 +108,35 @@ Header Metadata:
                     Origin = 0
                     EditRate = 5/1
                     TrackID = 2
-                    Sequence = bf 20 73 31 e2 c5 45 47 9b e1 1a 07 89 94 97 ef
+                    Sequence = {bf207331-e2c5-4547-9be1-1a07899497ef}
                     Sequence -> Strong Reference to Sequence
                       Sequence
-                        DataDefinition = 06 0e 2b 34 04 01 01 01 01 03 02 02 02 00 00 00
+                        DataDefinition = [060e2b34.0401.0101.01030202.02000000]
                         Duration = 1
                         StructuralComponents
-                          StructuralComponent = 9b 27 fe da 8d 2f 45 72 af 06 f6 99 b8 c8 9e b5
+                          StructuralComponent = {9b27feda-8d2f-4572-af06-f699b8c89eb5}
                           StructuralComponent -> Strong Reference to SourceClip
                             SourceClip
                               Duration = 1
-                              SourcePackageID = 06 0a 2b 34 01 01 01 01 01 01 02 20 13 00 00 00 14 5d 1e 9f 7a 3f 41 03 ad b6 24 9c 87 0d 7e c3
+                              SourcePackageID = [060a2b34.0101.0101.01010220],13,00,00,00,{145d1e9f-7a3f-4103-adb6-249c870d7ec3}
                               SourceTrackID = 2
                               StartPosition = 0
-                              InstanceUID = 9b 27 fe da 8d 2f 45 72 af 06 f6 99 b8 c8 9e b5
-                              DataDefinition = 06 0e 2b 34 04 01 01 01 01 03 02 02 02 00 00 00
-                              GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-                        InstanceUID = bf 20 73 31 e2 c5 45 47 9b e1 1a 07 89 94 97 ef
-                        GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-                    InstanceUID = 3a 21 3b c8 7b b9 40 bd a0 54 14 4f 38 34 e8 08
-              InstanceUID = c0 7c 8b 06 0e e3 4b 75 9f fb 89 05 a4 6f da 18
-          Package = 08 7c 01 83 be de 4f 1e 8b 1e 16 33 6e 35 c4 5e
+                              InstanceUID = {9b27feda-8d2f-4572-af06-f699b8c89eb5}
+                              DataDefinition = [060e2b34.0401.0101.01030202.02000000]
+                              GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+                        InstanceUID = {bf207331-e2c5-4547-9be1-1a07899497ef}
+                        GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+                    InstanceUID = {3a213bc8-7bb9-40bd-a054-144f3834e808}
+              InstanceUID = {c07c8b06-0ee3-4b75-9ffb-8905a46fda18}
+          Package = {087c0183-bede-4f1e-8b1e-16336e35c45e}
           Package -> Strong Reference to SourcePackage
             SourcePackage
               Name = File Package: SMPTE 382M frame wrapping of wave audio
-              PackageUID = 06 0a 2b 34 01 01 01 01 01 01 02 20 13 00 00 00 14 5d 1e 9f 7a 3f 41 03 ad b6 24 9c 87 0d 7e c3
+              PackageUID = [060a2b34.0101.0101.01010220],13,00,00,00,{145d1e9f-7a3f-4103-adb6-249c870d7ec3}
               PackageCreationDate = 2004-04-26 14:18:29.348
               PackageModifiedDate = 2004-04-26 14:18:29.348
               Tracks
-                Track = f2 bf b3 60 10 b7 49 a7 af 2e c4 fa 62 19 bc 01
+                Track = {f2bfb360-10b7-49a7-af2e-c4fa6219bc01}
                 Track -> Strong Reference to Track
                   Track
                     TrackName = Timecode Track
@@ -144,26 +144,26 @@ Header Metadata:
                     Origin = 0
                     EditRate = 5/1
                     TrackID = 1
-                    Sequence = 77 b2 7d 53 cb ef 43 1c 84 bd e6 42 59 0e 92 cc
+                    Sequence = {77b27d53-cbef-431c-84bd-e642590e92cc}
                     Sequence -> Strong Reference to Sequence
                       Sequence
-                        DataDefinition = 06 0e 2b 34 04 01 01 01 01 03 02 01 01 00 00 00
+                        DataDefinition = [060e2b34.0401.0101.01030201.01000000]
                         Duration = 1
                         StructuralComponents
-                          StructuralComponent = 6d 85 87 23 b9 0e 4d 67 8d d8 e1 28 f2 4b bc f5
+                          StructuralComponent = {6d858723-b90e-4d67-8dd8-e128f24bbcf5}
                           StructuralComponent -> Strong Reference to TimecodeComponent
                             TimecodeComponent
                               RoundedTimecodeBase = 5
                               DropFrame = 0
                               StartTimecode = 18000
                               Duration = 1
-                              InstanceUID = 6d 85 87 23 b9 0e 4d 67 8d d8 e1 28 f2 4b bc f5
-                              DataDefinition = 06 0e 2b 34 04 01 01 01 01 03 02 01 01 00 00 00
-                              GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-                        InstanceUID = 77 b2 7d 53 cb ef 43 1c 84 bd e6 42 59 0e 92 cc
-                        GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-                    InstanceUID = f2 bf b3 60 10 b7 49 a7 af 2e c4 fa 62 19 bc 01
-                Track = 2a ae 1e b3 c5 a0 4d a5 b1 78 f1 eb 9a 68 f0 8c
+                              InstanceUID = {6d858723-b90e-4d67-8dd8-e128f24bbcf5}
+                              DataDefinition = [060e2b34.0401.0101.01030201.01000000]
+                              GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+                        InstanceUID = {77b27d53-cbef-431c-84bd-e642590e92cc}
+                        GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+                    InstanceUID = {f2bfb360-10b7-49a7-af2e-c4fa6219bc01}
+                Track = {2aae1eb3-c5a0-4da5-b178-f1eb9a68f08c}
                 Track -> Strong Reference to Track
                   Track
                     TrackName = Sound Track
@@ -171,27 +171,27 @@ Header Metadata:
                     Origin = 0
                     EditRate = 5/1
                     TrackID = 2
-                    Sequence = f2 67 d5 27 0f bd 45 55 a0 3e 35 52 ae 31 7c 4a
+                    Sequence = {f267d527-0fbd-4555-a03e-3552ae317c4a}
                     Sequence -> Strong Reference to Sequence
                       Sequence
-                        DataDefinition = 06 0e 2b 34 04 01 01 01 01 03 02 02 02 00 00 00
+                        DataDefinition = [060e2b34.0401.0101.01030202.02000000]
                         Duration = 1
                         StructuralComponents
-                          StructuralComponent = df 85 49 8b 72 43 4b a4 a2 4e fa ed d8 7a a0 0d
+                          StructuralComponent = {df85498b-7243-4ba4-a24e-faedd87aa00d}
                           StructuralComponent -> Strong Reference to SourceClip
                             SourceClip
                               Duration = 1
-                              SourcePackageID = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+                              SourcePackageID = [00000000.0000.0000.00000000],00,00,00,00,[00000000.0000.0000.00000000.00000000]
                               SourceTrackID = 0
                               StartPosition = 0
-                              InstanceUID = df 85 49 8b 72 43 4b a4 a2 4e fa ed d8 7a a0 0d
-                              DataDefinition = 06 0e 2b 34 04 01 01 01 01 03 02 02 02 00 00 00
-                              GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-                        InstanceUID = f2 67 d5 27 0f bd 45 55 a0 3e 35 52 ae 31 7c 4a
-                        GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-                    InstanceUID = 2a ae 1e b3 c5 a0 4d a5 b1 78 f1 eb 9a 68 f0 8c
-              InstanceUID = 08 7c 01 83 be de 4f 1e 8b 1e 16 33 6e 35 c4 5e
-              Descriptor = c4 e1 ba b5 66 8d 4f 3c b4 16 78 06 26 4d c6 e8
+                              InstanceUID = {df85498b-7243-4ba4-a24e-faedd87aa00d}
+                              DataDefinition = [060e2b34.0401.0101.01030202.02000000]
+                              GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+                        InstanceUID = {f267d527-0fbd-4555-a03e-3552ae317c4a}
+                        GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+                    InstanceUID = {2aae1eb3-c5a0-4da5-b178-f1eb9a68f08c}
+              InstanceUID = {087c0183-bede-4f1e-8b1e-16336e35c45e}
+              Descriptor = {c4e1bab5-668d-4f3c-b416-7806264dc6e8}
               Descriptor -> Strong Reference to WaveAudioDescriptor
                 WaveAudioDescriptor
                   SampleRate = 11025/1
@@ -201,24 +201,24 @@ Header Metadata:
                   QuantizationBits = 8
                   BlockAlign = 1
                   AvgBps = 11025
-                  EssenceContainer = 06 0e 2b 34 04 01 01 02 0d 01 03 01 02 06 01 00
+                  EssenceContainer = [060e2b34.0401.0102.0d010301.02060100]
                   LinkedTrackID = 2
-                  InstanceUID = c4 e1 ba b5 66 8d 4f 3c b4 16 78 06 26 4d c6 e8
+                  InstanceUID = {c4e1bab5-668d-4f3c-b416-7806264dc6e8}
                   ContainerDuration = 1
-                  GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
+                  GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
         EssenceContainerData
-          EssenceContainer = 0f 46 b4 10 8b a9 45 a2 a4 0a 17 5b 0b 62 50 f3
+          EssenceContainer = {0f46b410-8ba9-45a2-a40a-175b0b6250f3}
           EssenceContainer -> Strong Reference to EssenceContainerData
             EssenceContainerData
-              LinkedPackageUID = 06 0a 2b 34 01 01 01 01 01 01 02 20 13 00 00 00 14 5d 1e 9f 7a 3f 41 03 ad b6 24 9c 87 0d 7e c3
+              LinkedPackageUID = [060a2b34.0101.0101.01010220],13,00,00,00,{145d1e9f-7a3f-4103-adb6-249c870d7ec3}
               BodySID = 1
-              InstanceUID = 0f 46 b4 10 8b a9 45 a2 a4 0a 17 5b 0b 62 50 f3
+              InstanceUID = {0f46b410-8ba9-45a2-a40a-175b0b6250f3}
               IndexSID = 129
-              GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
-        InstanceUID = 89 8a 44 70 32 7a 40 aa 9c 41 c6 c6 3a 64 77 18
-    OperationalPattern = 06 0e 2b 34 04 01 01 01 0d 01 02 01 10 00 00 00
+              GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
+        InstanceUID = {898a4470-327a-40aa-9c41-c6c63a647718}
+    OperationalPattern = [060e2b34.0401.0101.0d010201.10000000]
     PrimaryPackage -> Weak Reference to SourcePackage
-    GenerationUID = 35 ac 10 04 0e e7 4e 21 94 bf 0d f4 e4 e5 24 14
+    GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
 
 No index table in this partition
 
@@ -235,10 +235,10 @@ CompleteFooter
   IndexSID = 129
   BodyOffset = 0
   BodySID = 0
-  OperationalPattern = 06 0e 2b 34 04 01 01 01 0d 01 02 01 10 00 00 00
+  OperationalPattern = [060e2b34.0401.0101.0d010201.10000000]
   EssenceContainers
-    EssenceContainer = 06 0e 2b 34 04 01 01 03 0d 01 03 01 02 7f 01 00
-    EssenceContainer = 06 0e 2b 34 04 01 01 02 0d 01 03 01 02 06 01 00
+    EssenceContainer = [060e2b34.0401.0103.0d010301.027f0100]
+    EssenceContainer = [060e2b34.0401.0102.0d010301.02060100]
 No header metadata in this partition
 CBR Index Table Segment (covering whole Essence Container) :
   Indexing BodySID 0x0001 from IndexSID 0x0081
@@ -258,6 +258,10 @@ CBR Index Table Segment (covering whole Essence Container) :
   EditUnit   3 for stream 0 is at 0x000019d7, Flags=00  *Exact*
   EditUnit   4 for stream 0 is at 0x00002274, Flags=00  *Exact*
   EditUnit   5 for stream 0 is at 0x00002b11, Flags=00  *Exact*
+
+Read RIP
+  BodySID 0x0001 is at 0x00000000 and is not loaded
+  BodySID 0x0000 is at 0x00004e3f and is not loaded
 
 Scanned RIP
   BodySID 0x0001 is at 0x00000000 type ClosedCompleteHeader
