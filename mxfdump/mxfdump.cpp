@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 	if (! TestFile->Open(argv[num_options+1], true))
 	{
 		perror(argv[num_options+1]);
-		exit(1);
+		return 1;
 	}
 
 	// Get a RIP (however possible)
