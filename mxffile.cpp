@@ -29,7 +29,7 @@
 
 // Required for strerror()
 #include <string.h>
-
+#include <errno.h>
 
 #include "mxflib.h"
 
@@ -421,7 +421,7 @@ Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
 	Uint64 FooterPos;
 
 	// Size of scan chunk when looking for footer key
-	static const ScanChunkSize = 4096;
+	static const unsigned int ScanChunkSize = 4096;
 
 	// If too small a scan range is given we can't scan!
 	if(MaxScan < 20) return 0;
@@ -453,7 +453,7 @@ Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
 		if(Chunk->Size != ThisScan) return 0;
 
 		unsigned char *p = Chunk->Data;
-		int i;
+		Uint64 i;
 		for(i=0; i<ThisScan; i++)
 		{
 			if(*p == 0x06)
@@ -771,20 +771,11 @@ ULPtr mxflib::MXFFile::ReadKey(void)
 {
 	ULPtr Ret;
 
-	Uint64 Location = Tell();
 	DataChunkPtr Key = Read(16);
 
 	// If we couldn't read 16-bytes then bug out (this may be valid)
 	if(Key->Size != 16) return Ret;
 
-/*
-	// Sanity check the keys
-	if((Key->Data[0] != 6) || (Key->Data[1] != 0x0e))
-	{
-		error("Invalid KLV key found at 0x%s in file \"%s\"\n", Int64toHexString(Location, 8).c_str(), Name.c_str());
-		return Ret;
-	}
-*/
 	// Build the UL
 	Ret = new UL(Key->Data);
 
@@ -830,7 +821,7 @@ void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer
 	ThisPartition->WriteObject(Buffer, UsePrimer);
 
 	Write(Buffer.Data, Buffer.Size);
-};
+}
 
 
 //! Calculate the size of a filler to align to a specified KAG
@@ -1059,7 +1050,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	}
 
 	return true;
-};
+}
 
 
 Uint32 MXFFile::MemoryWrite(Uint8 const *Data, Uint32 Size)
@@ -1096,7 +1087,7 @@ Uint32 MXFFile::MemoryRead(Uint8 *Data, Uint32 Size)
 	}
 
 	// Work out how many bytes we can read
-	int MaxBytes = Buffer->Size - (BufferCurrentPos - BufferOffset);
+	unsigned int MaxBytes = Buffer->Size - (BufferCurrentPos - BufferOffset);
 
 	// Limit our read to the max available
 	if(Size < MaxBytes) Size = MaxBytes;
