@@ -22,7 +22,7 @@
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  */
 /*
- *	$Id: system.h,v 1.14 2003/11/26 17:02:42 stuart_hc Exp $
+ *	$Id: system.h,v 1.15 2003/11/26 18:39:28 stuart_hc Exp $
  *
  *	Copyright (c) 2003, Matt Beard
  *
@@ -143,6 +143,14 @@ namespace mxflib
 	};
 
 	inline std::string Int64toHexString(Int64 Val, int Digits = 0)
+	{
+		char Buffer[32];
+		if(Digits > 30) Digits = 30;
+		sprintf(Buffer,"%0*I64x", Digits, Val );
+		return std::string(Buffer);
+	};
+
+	inline std::string Uint64toHexString(Uint64 Val, int Digits = 0)
 	{
 		char Buffer[32];
 		if(Digits > 30) Digits = 30;
