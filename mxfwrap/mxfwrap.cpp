@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.15 2004/04/28 11:26:54 terabrit Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.16 2004/04/30 17:31:25 stuart_hc Exp $
  *
  */
 /*
@@ -226,7 +226,7 @@ ULPtr OP2bUL = new UL(OP2b_Data);
 
 int main(int argc, char *argv[])
 {
-	fprintf( stderr, "MXFlib File Wrapper\n" );
+	printf("MXFlib File Wrapper\n\n");
 
 	// Build an essence parser
 	EssenceParser EssParse;
