@@ -43,18 +43,16 @@ static bool DebugMode = false;
 //! Flag for dumping entire index table
 static bool FullIndex = false;
 
+//! Flag for dumping all body partitions
+static bool FullBody = false;
+
+
 static void DumpObject(MDObjectPtr Object, std::string Prefix);
 
 
 int main(int argc, char *argv[])
 {
 	printf("Test Program for MXFLib\n");
-
-	if(argc < 2)
-	{
-		printf("\nUsage:  test [-v] [-i] <filename>\n");
-		return -1;
-	}
 
 	int num_options = 0;
 	for(int i=1; i<argc; i++)
@@ -66,11 +64,22 @@ int main(int argc, char *argv[])
 				DebugMode = true;
 			if((argv[i][1] == 'i') || (argv[i][1] == 'I'))
 				FullIndex = true;
+			if((argv[i][1] == 'b') || (argv[i][1] == 'B'))
+				FullBody = true;
 		}
 	}
 
 	LoadTypes("types.xml");
 	MDOType::LoadDict("xmldict.xml");
+
+	if(argc - num_options < 2)
+	{
+		printf("\nUsage:   test [-b] [-i] [-v] <filename>\n\n");
+		printf("Options: -b Dump body partitions (rather than just header and footer)\n");
+		printf("         -i Dump full index tables (can be lengthy)\n");
+		printf("         -v Verbose mode - shows lots of debug info\n");
+		return -1;
+	}
 
 	MXFFilePtr TestFile = new MXFFile;
 	if (! TestFile->Open(argv[num_options+1], true))
@@ -82,105 +91,115 @@ int main(int argc, char *argv[])
 	// Get a RIP (however possible)
 	TestFile->GetRIP();
 
+	int PartitionNumber = 0;
 	RIP::iterator it = TestFile->FileRIP.begin();
 	while(it != TestFile->FileRIP.end())
 	{
+		PartitionNumber++;
 		printf("\nPartition at 0x%s is for BodySID 0x%04x\n", Int64toHexString((*it).second->ByteOffset,8).c_str(), (*it).second->BodySID);
 
-		TestFile->Seek((*it).second->ByteOffset);
-		PartitionPtr ThisPartition = TestFile->ReadPartition();
-		if(ThisPartition)
+		// Only dump header and footer unless asked for all partitions
+		if(FullBody || (PartitionNumber == 1) || (PartitionNumber == TestFile->FileRIP.size()))
 		{
-			DumpObject(ThisPartition->Object,"");
-
-			if(ThisPartition->ReadMetadata() == 0)
+			TestFile->Seek((*it).second->ByteOffset);
+			PartitionPtr ThisPartition = TestFile->ReadPartition();
+			if(ThisPartition)
 			{
-				printf("No header metadata in this partition\n");
-			}
-			else
-			{
-				printf("\nHeader Metadata:\n");
-				
-				MDObjectList::iterator it2 = ThisPartition->TopLevelMetadata.begin();
-				while(it2 != ThisPartition->TopLevelMetadata.end())
+				// Don't dump the last partition unless it is a footer or we are dumping all
+				if(FullBody || (PartitionNumber != TestFile->FileRIP.size()) || (ThisPartition->Name().find("Footer") != std::string::npos))
 				{
-					DumpObject(*it2,"  ");
-					it2++;
-				}
-				printf("\n");
-			}
+					DumpObject(ThisPartition->Object,"");
 
-			// Read any index table segments!
-			MDObjectListPtr Segments = ThisPartition->ReadIndex();
-			if(Segments->empty())
-			{
-				printf("No index table in this partition\n");
-			}
-			else
-			{
-				IndexTablePtr Table = new IndexTable;
-
-				MDObjectList::iterator it = Segments->begin();
-
-				while(it != Segments->end())
-				{
-					Table->AddSegment(*it);
-				
-					// Demonstrate this new segment
-					
-					Uint32 Streams = 1;
-					MDObjectPtr DeltaEntryArray = (*it)["DeltaEntryArray"];
-					if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
+					if(ThisPartition->ReadMetadata() == 0)
 					{
-						Streams = DeltaEntryArray->size() / DeltaEntryArray->GetType()->size();
-						if(Streams == 0) Streams = 1;	// Fix for bad DeltaEntryArray
+						printf("No header metadata in this partition\n");
+					}
+					else
+					{
+						printf("\nHeader Metadata:\n");
+						
+						MDObjectList::iterator it2 = ThisPartition->TopLevelMetadata.begin();
+						while(it2 != ThisPartition->TopLevelMetadata.end())
+						{
+							DumpObject(*it2,"  ");
+							it2++;
+						}
+						printf("\n");
 					}
 
-					Position Start = (*it)->GetInt64("IndexStartPosition");
-					Length Duration = (*it)->GetInt64("IndexDuration");
-					Uint32 IndexSID = (*it)->GetUint("IndexSID");
-					Uint32 BodySID = (*it)->GetUint("BodySID");
-					
-					if(Duration == 0) printf("CBR Index Table Segment (covering whole Essence Container) :\n");
-					else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
-
-					printf("  Indexing BodySID 0x%04x from IndexSID 0x%04x\n", BodySID, IndexSID);
-
-					if(Duration < 1) Duration = 6;		// Could be CBR
-					if(!FullIndex && Duration > 35) Duration = 35;	// Don't go mad!
-
-					int i;
-					printf( "\n Bytestream Order:\n" );
-					for(i=0; i<Duration; i++)
+					// Read any index table segments!
+					MDObjectListPtr Segments = ThisPartition->ReadIndex();
+					if(Segments->empty())
 					{
-						Uint32 j;
-						for(j=0; j<Streams; j++)
+						printf("No index table in this partition\n");
+					}
+					else
+					{
+						IndexTablePtr Table = new IndexTable;
+
+						MDObjectList::iterator it = Segments->begin();
+
+						while(it != Segments->end())
 						{
-							IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
-							printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
-							printf(", Flags=%02x", Pos->Flags);
-							if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
+							Table->AddSegment(*it);
+						
+							// Demonstrate this new segment
+							
+							Uint32 Streams = 1;
+							MDObjectPtr DeltaEntryArray = (*it)["DeltaEntryArray"];
+							if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
+							{
+								Streams = DeltaEntryArray->size() / DeltaEntryArray->GetType()->size();
+								if(Streams == 0) Streams = 1;	// Fix for bad DeltaEntryArray
+							}
+
+							Position Start = (*it)->GetInt64("IndexStartPosition");
+							Length Duration = (*it)->GetInt64("IndexDuration");
+							Uint32 IndexSID = (*it)->GetUint("IndexSID");
+							Uint32 BodySID = (*it)->GetUint("BodySID");
+							
+							if(Duration == 0) printf("CBR Index Table Segment (covering whole Essence Container) :\n");
+							else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
+
+							printf("  Indexing BodySID 0x%04x from IndexSID 0x%04x\n", BodySID, IndexSID);
+
+							if(Duration < 1) Duration = 6;		// Could be CBR
+							if(!FullIndex && Duration > 35) Duration = 35;	// Don't go mad!
+
+							int i;
+							printf( "\n Bytestream Order:\n" );
+							for(i=0; i<Duration; i++)
+							{
+								Uint32 j;
+								for(j=0; j<Streams; j++)
+								{
+									IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
+									printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
+									printf(", Flags=%02x", Pos->Flags);
+									if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
+								}
+							}
+
+							printf( "\n Presentation Order:\n" );
+							for(i=0; i<Duration; i++)
+							{
+								Uint32 j;
+								for(j=0; j<Streams; j++)
+								{
+									IndexPosPtr Pos = Table->Lookup(Start + i,j);
+									printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
+									printf(", Flags=%02x", Pos->Flags);
+///									printf(", Keyframe is at 0x%s", Int64toHexString(Pos->KeyLocation,8).c_str() );
+
+									if(Pos->Exact) printf("  *Exact*\n");
+									else if(Pos->OtherPos) printf(" (Location of un-reordered position %s)\n", Int64toString(Pos->ThisPos).c_str());
+									else printf("\n");
+								}
+							}
+
+							it++;
 						}
 					}
-
-					printf( "\n Presentation Order:\n" );
-					for(i=0; i<Duration; i++)
-					{
-						Uint32 j;
-						for(j=0; j<Streams; j++)
-						{
-							IndexPosPtr Pos = Table->Lookup(Start + i,j);
-							printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
-							printf(", Flags=%02x", Pos->Flags);
-							printf(", Keyframe is at 0x%s", Int64toHexString(Pos->KeyLocation,8).c_str() );
-
-							if(Pos->Exact) printf("  *Exact*\n");
-							else if(Pos->OtherPos) printf(" (Location of un-reordered position %s)\n", Int64toString(Pos->ThisPos).c_str());
-							else printf("\n");
-						}
-					}
-
-					it++;
 				}
 			}
 		}
