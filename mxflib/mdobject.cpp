@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.2.2.7 2004/10/16 19:55:44 terabrit Exp $
+ *	\version $Id: mdobject.cpp,v 1.2.2.8 2004/10/19 17:11:12 matt-beard Exp $
  *
  */
 /*
@@ -189,6 +189,7 @@ MDObject::MDObject(std::string BaseType)
 
 		ASSERT(Type);
 
+		// TODO: Needs to have a more complete name
 		ObjectName = "Unknown"; // add " g:type=\"" + BaseType + "\"";
 	}
 
@@ -245,6 +246,7 @@ MDObject::MDObject(ULPtr BaseUL)
 	{
 		Type = MDOType::Find("Unknown");
 
+		// TODO: Needs to have a more complete name
 		ObjectName = "Unknown"; // add " g:uid=\"" + BaseUL->GetString() + "\"";
 
 		ASSERT(Type);
@@ -254,14 +256,8 @@ MDObject::MDObject(ULPtr BaseUL)
 #define ParseDark true
 		if(ParseDark)
 		{
-			const Uint8 PrefaceUL_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0D, 0x01, 0x01, 0x01, 0x01, 0x01, 0x2F, 0x00 };
-			const UL PrefaceUL = UL(PrefaceUL_Data);
-
-			static MDOTypePtr Preface = MDOType::Find( PrefaceUL );
-
-			ASSERT(Preface);
-
-			if(memcmp(Preface->GetTypeUL()->GetValue(), BaseUL->GetValue(), 6) == 0)
+			const Uint8 Set2x2[6] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53 };
+			if(memcmp(Set2x2, BaseUL->GetValue(), 6) == 0)
 			{
 				Type = MDOType::Find("DefaultObject");
 				ASSERT(Type);
@@ -330,11 +326,13 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 		if(TheUL)
 		{
 			// Tag found, but UL unknown
+			// FIXME: Needs to have a more complete name
 			ObjectName = "Unknown"; // add " g:tag=\"" + Tag2String(BaseTag) + "\" g:uid=\"" + TheUL->GetString() + "\"";
 		}
 		else
 		{
 			// Tag not found, build a blank UL
+			// FIXME: Needs to have a more complete name
 			ObjectName = "Unknown"; // add " g:tag=\"" + Tag2String(BaseTag) + "\"";
 		}
 	}
@@ -1128,7 +1126,7 @@ Uint32 MDObject::ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer,
 	// Unsupported key types!
 	case DICT_KEY_NONE:
 	case DICT_KEY_AUTO:		// DRAGONS: Should probably make this work at some point!
-//		ASSERT(0);
+		ASSERT(0);
 		Key.Resize(0);
 		return 0;
 
@@ -1204,7 +1202,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 
 					if((Length64 >> 32) != 0)
 					{
-						error("Excessive BER length field in MDObject::ReadLength()\n");
+						error("Excessive BER length field in MDObject::ReadLength() - Metadata objects are limited to 4Gb each\n");
 						Length = 0;
 						return 0;
 					}
@@ -1585,7 +1583,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 	case DICT_LEN_1_BYTE:		
 		{ 
 			Uint8 Buff;
-			PutU8((Uint32)Length, &Buff);
+			PutU8((Uint8)Length, &Buff);
 
 			Buffer.Append(1, &Buff);
 			return 1;
@@ -2520,8 +2518,14 @@ void MDOType::SAX_warning(void *user_data, const char *msg, ...)
 	// DRAGONS: How do we prevent bursting?
 	char Buffer[10240];
 	vsprintf(Buffer, msg, args);
-	warning("<!-- XML WARNING: %s -->\n", Buffer);
 
+// DRAGONS: This should end up on stderr or similar, not in any XML output file!
+//          If there is any reason to send warnings to an XML file that should be done in
+//          the implementation of wraning(), not each message.
+//	warning("<!-- XML WARNING: %s -->\n", Buffer);
+	
+	warning("XML WARNING: %s\n", Buffer);
+	
     va_end(args);
 }
 
