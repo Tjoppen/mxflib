@@ -6,13 +6,13 @@
 
 Name:			mxflib-beta
 Summary:		C++ MXF file I/O library
-Version:		0.3.3
+Version:		0.5.1
 Release:		1
 Group:			Development/Libraries/C and C++
 BuildPreReq:	e2fsprogs-devel
 License:		zlib/libpng License
 URL:			http://sourceforge.net/projects/mxflib
-Source0:		mxflib-beta-0.5.0.tar.gz
+Source0:		mxflib-beta-0.5.1.tar.gz
 BuildRoot:		/var/tmp/%{name}-buildroot
 
 %description

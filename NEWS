@@ -1,9 +1,23 @@
+
 Release Notes for mxflib version 0.5-Beta
 =========================================
 
-This version has considerably updated essence handling.
+Maintenance release - mainly updates of encrypted KLV processing
 
-Detailed documentation will be released separately...
+
+Changes since version 0.5.0-Beta
+================================
+
+* Split encryption code from mxfcrypt.cpp into separate crypto_asdcp files
+* Added HMAC calculation and checking for encrypted KLVs
+* Updated encrypted KLV key
+* Fixed possible casting problem with some 64-bit values
+* Allow KLVObject ReadHandlers to use a separate read buffer
+* Fix incorrect IndexSID value when re-writing a partition
+* Add UNUSED_PARAMETER macro
+* Remove waveheader.h from mxflib.h (it is not really an mxflib item) - only now used by mxfsplit
+* Add Partition::IsComplete and Partition::IsClosed
+* Remove extra body partition in OP-Atom when wrapping with VBR essence
 
 
 Changes since version 0.4.0-Alpha
