@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.1.2.2 2004/05/26 20:40:19 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.1.2.3 2004/06/14 18:02:43 matt-beard Exp $
  *
  */
 /*
@@ -92,7 +92,7 @@ namespace mxflib
 		}
 
 		//! Move the file pointer
-		/* \ret 0 if no error, else non-zero
+		/* \return 0 if no error, else non-zero
 		 * DRAGONS: This is where we need to insert code to handle file discontinuities
 		 *          If a file has one or more chunks mising then we can build a list of
 		 *			discontinuities based on where partition packs start compared with
@@ -109,7 +109,7 @@ namespace mxflib
 				return Position;
 			}
 
-			return mxflib::FileSeek(Handle, Position+RunInSize)-RunInSize;
+			return mxflib::FileSeek(Handle, Position+RunInSize);
 		}
 
 		int SeekEnd(void)
@@ -124,7 +124,7 @@ namespace mxflib
 				return Tell();
 			}
 
-			return mxflib::FileSeekEnd(Handle)-RunInSize;
+			return mxflib::FileSeekEnd(Handle);
 		}
 
 
@@ -292,6 +292,27 @@ namespace mxflib
 
 		//! Write 8-bit unsigned integer
 		void WriteU8(Uint8 Val) { unsigned char Buffer[1]; PutU8(Val, Buffer); FileWrite(Handle, Buffer, 1); }
+
+		//! Write 16-bit unsigned integer
+		void WriteU16(Uint16 Val) { unsigned char Buffer[2]; PutU16(Val, Buffer); FileWrite(Handle, Buffer, 2); }
+
+		//! Write 32-bit unsigned integer
+		void WriteU32(Uint32 Val) { unsigned char Buffer[4]; PutU32(Val, Buffer); FileWrite(Handle, Buffer, 4); }
+
+		//! Write 64-bit unsigned integer
+		void WriteU64(Uint64 Val) { unsigned char Buffer[8]; PutU64(Val, Buffer); FileWrite(Handle, Buffer, 8); }
+
+		//! Write 8-bit signed integer
+		void WriteI8(Int8 Val) { unsigned char Buffer[1]; PutI8(Val, Buffer); FileWrite(Handle, Buffer, 1); }
+
+		//! Write 16-bit signed integer
+		void WriteI16(Int16 Val) { unsigned char Buffer[2]; PutI16(Val, Buffer); FileWrite(Handle, Buffer, 2); }
+
+		//! Write 32-bit signed integer
+		void WriteI32(Int32 Val) { unsigned char Buffer[4]; PutI32(Val, Buffer); FileWrite(Handle, Buffer, 4); }
+
+		//! Write 64-bit signed integer
+		void WriteI64(Int64 Val) { unsigned char Buffer[8]; PutI64(Val, Buffer); FileWrite(Handle, Buffer, 8); }
 
 		//! Read 8-bit unsigned integer
 		Uint8 ReadU8(void) { unsigned char Buffer[1]; if(FileRead(Handle, Buffer, 1) == 1) return GetU8(Buffer); else return 0; }
