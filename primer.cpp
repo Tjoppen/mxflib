@@ -6,7 +6,7 @@
  *			definition
  */
 /*
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -29,4 +29,65 @@
  */
 
 #include "mxflib.h"
+
+using namespace mxflib;
+
+
+//! Read the primer from a buffer
+/*!	/ret Number of bytes read
+ */
+Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
+{
+	// Start off empty
+	clear();
+
+	if(Size < 8)
+	{
+		error("Primer too small, must be at least 8 bytes!\n");
+		return 0;
+	}
+
+	// Each entry in the primer is 18 bytes
+	Uint32 Items = (Size-8) / 18;
+
+	// Validate the size and only read whole items
+	if((Items * 18) != (Size-8))
+	{
+		error("Primer not an integer number of multiples of 18 bytes!\n");
+		Size = (Items * 18) + 8;
+	}
+
+	// Read the vector header
+	Uint32 ClaimedItems = GetU32(Buffer);
+	Uint32 ClaimedItemSize = GetU32(&Buffer[4]);
+	Buffer += 8;
+
+	if(ClaimedItemSize != 18)
+	{
+		error("Malformed vector header in Primer - each entry is 18 bytes, size in vector header is %d\n", ClaimedItemSize);
+	}
+	else
+	{
+		if(Items != ClaimedItems)
+		{
+			error("Malformed vector header in Primer - number of entries is %d, vector header claims %d\n", Items, ClaimedItems);
+		}
+	}
+
+	// Read each item
+	while(Items--)
+	{
+		Tag ThisTag = GetU16(Buffer);
+		Buffer += 2;
+
+		UL ThisUL(Buffer);
+		Buffer += 16;
+
+		// Add this new entry to the primer
+		insert(Primer::value_type(ThisTag, ThisUL));
+	}
+
+	// Return how many bytes we actually read
+	return Size;
+}
 

@@ -46,24 +46,12 @@ namespace mxflib
 
 namespace mxflib
 {
-	// Forward declare so the class can include pointers to itself
-	class MDType;
-
-	//! A smart pointer to an MDType object
-	typedef SmartPtr<MDType> MDTypePtr;
-
-	//! A list of smart pointers to MDType objects
-	typedef std::list<MDTypePtr> MDTypeList;
-}
-
-namespace mxflib
-{
 	enum MDContainerType				//!< Container types
 	{ 
 		NONE,							//!< Not a container - a simple metadata item
 		SET,							//!< A SMPTE-336M Set
 		PACK,							//!< A SMPTE-336M Pack
-		VECTOR,							//!< A vector (ordered or unordered)
+		BATCH,							//!< A Batch (ordered or unordered)
 		ARRAY							//!< An array
 	};
 	enum MDTypeClass					//!< Class of this type
@@ -82,6 +70,82 @@ namespace mxflib
 
 namespace mxflib
 {
+	//! Number/String duality object for index item in objects
+	/*! Number facet is used for arrays, String facet for compounds
+	 */
+	class MapIndex
+	{
+	public:
+		bool IsNum;
+		Uint32 Number;
+		std::string String;
+
+	public:
+//		MapIndex() { ASSERT(0); };
+		MapIndex(Uint32 Num) { IsNum = true; Number = Num; String = Int2String(Num); };
+		MapIndex(std::string Str) { IsNum = false; String = Str; };
+		MapIndex(const MapIndex& Map) 
+		{ IsNum = Map.IsNum; 
+			if(IsNum) Number = Map.Number; 
+			String = Map.String; 
+		};
+
+		bool operator<(const MapIndex& Other) const
+		{
+			if((IsNum==true) && (Other.IsNum==true)) return (Number < Other.Number);
+			if((IsNum==false) && (Other.IsNum==false)) return (String < Other.String);
+			
+			// Numbers come before strings
+			return Other.IsNum;
+		}
+
+		//! Allocator which does not change underlying type
+		MapIndex& operator=(Uint32 Num) 
+		{ 
+			if(IsNum) { Number = Num; String = Int2String(Num); } 
+			return *this;
+		};
+
+		//! Allocator which does not change underlying type
+		MapIndex& operator=(std::string Str) 
+		{ 
+			if(IsNum) 
+			{
+				Number = atoi(Str.c_str());
+				String = Int2String(Number);		// Reformat the string
+			}
+			else
+			{
+				String = Str;
+			}
+			return *this;
+		};
+
+		//! Allocator which does not change underlying type
+		MapIndex& operator=(const MapIndex& Map)
+		{ 
+			if(IsNum)
+			{
+				Number = atoi(Map.String.c_str());	// Will be zero in !Map.IsNum
+				String = Int2String(Number);		// Reformat the string
+			}
+			else
+			{
+				String = Map.String;
+			}
+			return *this;
+		};
+
+		const char *c_str() const
+		{
+			return (const char *)String.c_str();
+		}
+	};
+}
+
+
+namespace mxflib
+{
 	// Forward declare so the class can include pointers to itself
 	class MDType;
 
@@ -90,13 +154,19 @@ namespace mxflib
 
 	//! A list of smart pointers to MDType objects
 	typedef std::list<MDTypePtr> MDTypeList;
+
+	//! A list of smart pointers to MDType objects with names
+//	typedef std::pair<MDTypePtr, std::string> MDNamedType;
+//	typedef std::list<MDNamedType> MDNamedTypeList;
+
+	typedef std::map<std::string, MDTypePtr> MDTypeMap;
 }
 
 
 namespace mxflib
 {
 	//! Holds the definition of a metadata type
-	class MDType : public RefCount<MDType>
+	class MDType : public RefCount<MDType> , public MDTypeMap
 	{
 	private:
 		std::string Name;				//!< Name of this MDType
@@ -106,8 +176,9 @@ namespace mxflib
 
 	public:
 		MDTypePtr Base;					//!< Base class if this is a derived class, else NULL
-		MDTypeList Children;			//!< Types contained in this if it is a compound
-		StringList ChildrenNames;		//!< Corresponding child names if it is a compound
+//		MDTypeList Children;			//!< Types contained in this if it is a compound
+////		StringList ChildrenNames;		//!< Corresponding child names if it is a compound
+		StringList ChildOrder;			//!< Child names in order for compound types
 		int Size;						//!< The size of the item in multiples of base class items, or 0 if it is variable
 
 		//! Access function for ContainerType
@@ -168,7 +239,7 @@ namespace mxflib
 		//! Add a new compound type
 		static MDTypePtr AddCompound(std::string TypeName);
 
-		static MDTypePtr Find(const char *TypeName);
+		static MDTypePtr Find(const std::string& TypeName);
 	
 //! DRAGONS: Experimental
 MDTraits *Traits;
@@ -197,45 +268,52 @@ namespace mxflib
 		MDValuePtr operator[](int Index);
 
 		//! Child access operator that overcomes dereferencing problems with SmartPtrs
-		MDValuePtr operator[](const char *ChildName);
+		MDValuePtr operator[](const std::string ChildName);
 	};
 
 	//! A list of smart pointers to MDValue objects
 	typedef std::list<MDValuePtr> MDValueList;
+
+	//! A list of smart pointers to MDType objects with names
+//	typedef std::pair<MDValuePtr, std::string> MDNamedValue;
+//	typedef std::list<MDNamedValue> MDNamedValueList;
+
+	typedef std::map<MapIndex, MDValuePtr> MDValueMap;
 }
 
 
 namespace mxflib
 {
 	//! Metadata Object class
-	class MDValue : public RefCount<MDValue>
+	class MDValue : public RefCount<MDValue>, public MDValueMap
 	{
 	private:
 		MDTypePtr Type;
-		int Size;
-		Uint8 *Data;
+		DataChunk Data;
+//		int Size;
+//		Uint8 *Data;				// DRAGONS: This should be a DataChunk
 
 	public:
-		MDValueList Children;
+//		MDValueList Children;
 
 	public:
-		MDValue(const char *BaseType);
+		MDValue(const std::string &BaseType);
 		MDValue(MDTypePtr BaseType);
 		void Init(void);
 //		~MDValue();
 ~MDValue() {}; // ## DRAGONS: For debug ONLY!!
 
 		void AddChild(MDValuePtr Child, int Index = -1);
-		void ResizeChildren(int Index);
+		void Resize(Uint32 Index);
 
 		MDValuePtr operator[](int Index);
 		MDValuePtr Child(int Index) { return operator[](Index); };
 
 		//! Access function for child values of compound items
-		MDValuePtr operator[](const char *ChildName);
-		MDValuePtr Child(const char *ChildName) { return operator[](ChildName); };
-		
-		std::string ChildName(int Child);
+		MDValuePtr operator[](const std::string ChildName);
+		MDValuePtr Child(const std::string ChildName) { return operator[](ChildName); };
+
+//		std::string ChildName(int Child);
 
 		void SetInt(Int32 Val) { Type->Traits->SetInt(this, Val); };
 		void SetInt64(Int64 Val) { Type->Traits->SetInt64(this, Val); };
@@ -248,16 +326,51 @@ namespace mxflib
 		Uint64 GetUint64(void) { return Type->Traits->GetUint64(this); };
 		std::string GetString(void)	{ return Type->Traits->GetString(this); };
 
-		int GetSize(void) { return Size; };
-		
 		// DRAGONS: These should probably be private and give access via MDTraits
 		// to prevent users tinkering!
-		void MakeSize(int NewSize);
+		Uint32 MakeSize(Uint32 NewSize);
 
-		void SetValue(int ValSize, Uint8 *Val);
+		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, int Count=0);
 
-		// Get a pointer to the data buffer (const to prevent setting!!)
-		const Uint8* GetData(void) { return (const Uint8*) Data; };
+		//! Get a reference to the data chunk (const to prevent setting!!)
+		const DataChunk& GetData(void) { return (const DataChunk&) Data; };
+
+		//! Build a data chunk with all this items data (including child data)
+		const DataChunk PutData(void) 
+		{
+			DataChunk Ret;
+			if(size() == 0) 
+			{
+				Ret = GetData();
+			}
+			else
+			{
+				MDValue::iterator it = begin();
+				while(it != end())
+				{
+					DataChunk SubItem = (*it).second->PutData();
+					Ret.Set(SubItem.Size, SubItem.Data, Ret.Size);
+					it++;
+				}
+			}
+
+			return Ret;
+		};
+
+		//! Set data into the datachunk
+		void SetData(Uint32 MemSize, const Uint8 *Buffer) 
+		{ 
+			Data.Resize(MemSize); 
+			Data.Set(MemSize, Buffer); 
+		};
+
+		// Report the name of this item (the name of its type)
+		std::string Name(void) { ASSERT(Type); return Type->Name; };
+
+		// Type access function
+		MDTypePtr GetType(void) { return Type; };
+		MDTypePtr EffectiveType(void) { return Type->EffectiveType(); };
+		MDTypePtr EffectiveBase(void) { return Type->EffectiveBase(); };
 	};
 }
 
@@ -266,7 +379,7 @@ namespace mxflib
 namespace mxflib
 {
 inline MDValuePtr MDValuePtr::operator[](int Index) { return operator->()->operator[](Index); };
-inline MDValuePtr MDValuePtr::operator[](const char *ChildName) { return operator->()->operator[](ChildName); };
+inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) { return operator->()->operator[](ChildName); };
 }
 
 

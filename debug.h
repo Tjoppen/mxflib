@@ -11,13 +11,16 @@
 //! Define this value here, or on the compiler command line to enable debug() function
 #define MXFLIB_DEBUG
 
+namespace mxflib
+{
 #ifdef MXFLIB_DEBUG
-int debug(const char *Fmt, ...);				//!< Display a general debug message
+	void debug(const char *Fmt, ...);				//!< Display a general debug message
 #else
-int debug(const char *Fmt, ...) { return 0; };	//!< Make debug messages optimise out
+	void debug(const char *Fmt, ...) { return 0; };	//!< Make debug messages optimise out
 #endif
 
-int warning(const char *Fmt, ...);				//!< Display a warning message
-int error(const char *Fmt, ...);				//!< Display an error message
+	void warning(const char *Fmt, ...);				//!< Display a warning message
+	void error(const char *Fmt, ...);				//!< Display an error message
+}
 
 #endif MXFLIB__DEBUG_H

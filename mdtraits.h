@@ -64,6 +64,8 @@ namespace mxflib
 		virtual Uint64 GetUint64(MDValuePtr Object);
 		virtual std::string GetString(MDValuePtr Object);
 
+		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
+
 		// Give the MDValue class access to our internals to call Set/Get functions
 		friend class MDValue;
 	};
@@ -80,7 +82,12 @@ namespace mxflib
 		virtual Int64 GetInt64(MDValuePtr Object);
 		virtual Uint64 GetUint64(MDValuePtr Object);
 		virtual std::string GetString(MDValuePtr Object);
+
+		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
 	};
+
+	//! Special unsigned integer ReadValue
+	Uint32 ReadValueUint(MDValuePtr Object, const const Uint8 *Buffer, Uint32 Size, int Count=0);
 
 	class MDTraits_Int8 : public MDTraits_BasicInt
 	{
@@ -92,6 +99,8 @@ namespace mxflib
 
 	class MDTraits_Uint8 : public MDTraits_Int8
 	{
+		virtual std::string GetString(MDValuePtr Object);
+		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
 	};
 
 	class MDTraits_Int16 : public MDTraits_BasicInt
@@ -104,6 +113,8 @@ namespace mxflib
 
 	class MDTraits_Uint16 : public MDTraits_Int16
 	{
+		virtual std::string GetString(MDValuePtr Object);
+		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
 	};
 
 	class MDTraits_Int32 : public MDTraits_BasicInt
@@ -117,6 +128,7 @@ namespace mxflib
 	class MDTraits_Uint32 : public MDTraits_Int32
 	{
 		virtual std::string GetString(MDValuePtr Object);
+		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
 	};
 
 	class MDTraits_Int64 : public MDTraits
@@ -137,6 +149,7 @@ namespace mxflib
 	class MDTraits_Uint64 : public MDTraits_Int64
 	{
 		virtual std::string GetString(MDValuePtr Object);
+		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
 	};
 
 	class MDTraits_ISO7 : public MDTraits_Uint8
@@ -172,6 +185,8 @@ namespace mxflib
 		virtual Uint32 GetUint(MDValuePtr Object);
 		virtual Uint64 GetUint64(MDValuePtr Object);
 		virtual std::string GetString(MDValuePtr Object);
+
+		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
 	};
 	
 	class MDTraits_BasicStringArray : public MDTraits_BasicArray
@@ -201,42 +216,9 @@ namespace mxflib
 	protected:
 		virtual void SetString(MDValuePtr Object, std::string Val);
 		virtual std::string GetString(MDValuePtr Object);
+
+		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
 	};
-
-/*
-	void Uint8_SetInt(MDValuePtr Object, Int32 Val);
-	void Uint8_SetInt64(MDValuePtr Object, Int64 Val);
-	void Uint8_SetUint(MDValuePtr Object, Uint32 Val);
-	void Uint8_SetUint64(MDValuePtr Object, Uint64 Val);
-	void Uint8_SetString(MDValuePtr Object, std::string Val);
-	Int32 Uint8_GetInt(MDValuePtr Object);
-	Int64 Uint8_GetInt64(MDValuePtr Object);
-	Uint32 Uint8_GetUint(MDValuePtr Object);
-	Uint64 Uint8_GetUint64(MDValuePtr Object);
-	std::string Uint8_GetString(MDValuePtr Object);
-
-	void Int16_SetInt(MDValuePtr Object, Int32 Val);
-	void Int16_SetInt64(MDValuePtr Object, Int64 Val);
-	void Int16_SetUint(MDValuePtr Object, Uint32 Val);
-	void Int16_SetUint64(MDValuePtr Object, Uint64 Val);
-	void Int16_SetString(MDValuePtr Object, std::string Val);
-	Int32 Int16_GetInt(MDValuePtr Object);
-	Int64 Int16_GetInt64(MDValuePtr Object);
-	Uint32 Int16_GetUint(MDValuePtr Object);
-	Uint64 Int16_GetUint64(MDValuePtr Object);
-	std::string Int16_GetString(MDValuePtr Object);
-
-	void Uint16_SetInt(MDValuePtr Object, Int32 Val);
-	void Uint16_SetInt64(MDValuePtr Object, Int64 Val);
-	void Uint16_SetUint(MDValuePtr Object, Uint32 Val);
-	void Uint16_SetUint64(MDValuePtr Object, Uint64 Val);
-	void Uint16_SetString(MDValuePtr Object, std::string Val);
-	Int32 Uint16_GetInt(MDValuePtr Object);
-	Int64 Uint16_GetInt64(MDValuePtr Object);
-	Uint32 Uint16_GetUint(MDValuePtr Object);
-	Uint64 Uint16_GetUint64(MDValuePtr Object);
-	std::string Uint16_GetString(MDValuePtr Object);
-*/
 }
 
 #endif MXFLIB__MDTRAITS_H

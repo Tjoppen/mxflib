@@ -59,7 +59,7 @@ namespace mxflib
 									 */
 
 	public:
-		PartitionInfo(SmartPtr<Partition> Part = NULL, Position Offset = -1, Uint32 SID = 0);
+		PartitionInfo(PartitionPtr Part = NULL, Position Offset = -1, Uint32 SID = 0);
 
 		//! Comparison function to allow sorting
 		bool operator< (PartitionInfo &Other);
@@ -79,16 +79,16 @@ namespace mxflib
 	/*! Holds Random Index Pack data, either loaded from a real
 	 *	Random Index Pack in the file or built by discovering partitions.
 	 */
-	class RIP
+	class RIP : public PartitionInfoList
 	{
-	private:
+	public:
+		// DRAGONS: This should probably mutate into a "MatchedPysical" property
 		bool isGenerated;				//!< If not generated then the RIP has been read from a file
-		PartitionInfoList Partitions;	//!< Details of each partition known about
 	public:
 		RIP();
 		~RIP();
 
-		AddPartition(SmartPtr<Partition> Part = NULL, Position Offset = -1, Uint32 SID = 0);
+		AddPartition(PartitionPtr Part, Position Offset = -1, Uint32 SID = 0);
 	};
 }
 

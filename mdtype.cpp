@@ -166,11 +166,11 @@ MDTypePtr MDType::AddCompound(std::string TypeName)
 /*! /ret Pointer to the object
  *  /ret NULL if there is no type of that name
  */
-MDTypePtr MDType::Find(const char *TypeName)
+MDTypePtr MDType::Find(const std::string& TypeName)
 {
 	MDTypePtr theType;
 
-	std::map<std::string,MDTypePtr>::iterator it = NameLookup.find(std::string(TypeName));
+	std::map<std::string,MDTypePtr>::iterator it = NameLookup.find(TypeName);
 	if(it == NameLookup.end())
 	{
 		return NULL;
@@ -232,14 +232,17 @@ MDTypePtr MDType::EffectiveBase(void)
 //! MDValue named constructor
 /*! Builds a "blank" variable of a named type
 */
-MDValue::MDValue(const char *BaseType)
+MDValue::MDValue(const std::string &BaseType)
 {
 	Type = MDType::Find(BaseType);
 
 	if(!Type)
 	{
-		error("Metadata variable type \"%s\" doesn't exist\n", BaseType);
-		// DRAGONS: Must sort this!!
+		error("Metadata variable type \"%s\" doesn't exist\n", BaseType.c_str());
+
+		Type = MDType::Find("Unknown");
+
+		ASSERT(Type);
 	}
 
 	// Initialise the new variable
@@ -264,17 +267,15 @@ MDValue::MDValue(MDTypePtr BaseType)
 */
 void MDValue::Init(void)
 {
-	// Start with no value
-	Size = 0;
-	Data = NULL;
-
+	ASSERT(Type);
+	
 	// If it's a basic type build an empty one
 	if(Type->EffectiveClass() == BASIC)
 	{
 		if(Type->Size)
 		{
 			MakeSize(Type->Size);
-			memset(Data,0,Type->Size);
+			memset(Data.Data,0,Data.Size);
 		}
 	}
 
@@ -284,48 +285,43 @@ void MDValue::Init(void)
 		if(Type->Size > 0)
 		{
 			// Build blank array
-			ResizeChildren(Type->Size);
+			Resize(Type->Size);
 		}
 	}
 
 	// If it's a compound build all sub-items
 	else if(Type->EffectiveClass() == COMPOUND)
 	{
-		MDTypeList::iterator it;
-		it = Type->Children.begin();
+		MDType::iterator it;
+		it = Type->begin();
 
-		while(it != Type->Children.end())
+		while(it != Type->end())
 		{
-			// Insert a new item of the appropriate type at the end
-			Children.push_back(new MDValue((*it)));
+			// Insert a new item of the appropriate type
+			insert(MDValue::value_type((*it).first, new MDValue((*it).second)));
 			it++;
 		}
 	}
 }
 
-//! Set a variable to be a certain size in bytes
-/*!	The old data is NOT copied. This function assumes that this is a viable thing to do!
- */
-void MDValue::MakeSize(int NewSize)
-{
-	if(Size == NewSize) return;
-	
-	if(Size < NewSize)
-	{
-		if(Size) delete[] Data;
-		Data = new Uint8[NewSize];
-		
-		ASSERT(Data != NULL);
-	}
 
-	Size = NewSize;
+//! Set a variable to be a certain size in bytes
+/*!	The old data is NOT copied. 
+ *  This function assumes that this is a viable thing to do!
+ *  /ret The size of the resized item
+ */
+Uint32 MDValue::MakeSize(Uint32 NewSize)
+{
+	// Enforce fixed size if one exists for this type
+	if(Type->Size) NewSize = Type->Size;
+
+	Data.Resize(NewSize);
+	return NewSize;
 }
 
 
-//! Set a variable to be a certain size in bytes
-/*!	The old data is NOT copied. This function assumes that this is a viable thing to do!
- */
-void MDValue::SetValue(int ValSize, Uint8 *Val)
+/* //! Set the value of an object from a pre-formatted buffer
+void MDValue::SetValue(int ValSize, const Uint8 *Val)
 {
 	if(ValSize > Size)
 	{
@@ -344,7 +340,7 @@ void MDValue::SetValue(int ValSize, Uint8 *Val)
 
 	memcpy(Data, Val, ValSize);
 }
-
+*/
 
 //! Add a child to an MDValue continer
 /*! If the container is an array the index number of the new object can be
@@ -365,21 +361,21 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 		// Can only specify an index for arrays
 		ASSERT( Class == TYPEARRAY );
 
-		int Num = Children.size();
+		int Num = size();
 
 		// Replacing a current entry
-		if(Num > Index)
+		if(Num >= Index)
 		{
-			MDValueList::iterator it = Children.begin();
+			MDValue::iterator it = find(Index);
 
-			// Move to the index point
-			while(Index--) it++;
+			if(it != end())
+			{
+				// Remove any old entry, automatically deleting the object if required
+				erase(it);
+			}
 
 			// Insert the new item at this point
-			Children.insert(it, Child);
-
-			// Remove the old entry, automatically deleting the object if required
-			Children.erase(it);
+			insert(MDValue::value_type(Index, Child));
 
 			// All done for replace operation
 			return;
@@ -387,12 +383,12 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 		else
 		{
 			// Extra padding items required
-			if(Index > Num)
+			if(Index > (Num+1))
 			{
-				while(Index > Num)
+				while(Index > (Num+1))
 				{
 					// Insert a new item of the same type at the end
-					Children.push_back(new MDValue(Child->Type));
+					insert(MDValue::value_type(Num, new MDValue(Child->Type)));
 
 					Num++;
 				}
@@ -401,14 +397,14 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 	}
 
 	// Add to the list of children
-	Children.push_back(Child);
+	insert(MDValue::value_type(size(), Child));
 };
 
 
 //! Add or Remove children from an MDValue continer to make a fixed size
 /*! Probably only useful for resizing arrays.
  */
-void MDValue::ResizeChildren(int Count)
+void MDValue::Resize(Uint32 Count)
 {
 	MDTypeClass Class = Type->EffectiveClass();
 
@@ -418,35 +414,31 @@ void MDValue::ResizeChildren(int Count)
 	// simply validate the size
 	if(Type->Size) Count = Type->Size;
 
-	int Current = Children.size();
+	if(Count == 0)
+	{
+		clear();
+		return;
+	}
+
+	int Current = size();
 
 	// Extra padding items required
 	if(Current < Count)
 	{
 		while(Current < Count)
 		{
-			// Insert a new item of the appropriate type at the end
-			Children.push_back(new MDValue(Type->EffectiveBase()));
+			// Insert a new item of the appropriate type
+			insert(MDValue::value_type(Current, new MDValue(Type->EffectiveBase())));
 			Current++;
 		}
-
-		Size = Current;
 	}
 	else if (Current > Count)
 	{
-		MDValueList::iterator it = Children.begin();
-
-		// Move to the desired last item
-		while((Count) && (it != Children.end()))
-		{
-			Count--;
-			it++;
-		}
+		MDValue::iterator it = lower_bound(Count);
 
 		// Remove the old entries, automatically deleting the objects if required
-		Children.erase(it, Children.end());
-	
-		Size = Children.size();
+if(it != end()) printf("lower_bound(%d) = %s\n", Count, (*it).first.c_str());
+		if(it != end()) erase(it, end());
 	}
 }
 
@@ -459,16 +451,10 @@ MDValuePtr MDValue::operator[](int Index)
 {
 	MDValuePtr Ret = NULL;
 
-	MDValueList::iterator it = Children.begin();
-
-	while(Index--)
-	{
-		// End of list!
-		if(++it == Children.end()) return Ret;
-	}
+	MDValue::iterator it = find(Index);
 
 	// Return a smart pointer to the object
-	if(it != Children.end()) Ret = *(it);
+	if(it != end()) Ret = (*it).second;
 
 	return Ret;
 }
@@ -478,30 +464,20 @@ MDValuePtr MDValue::operator[](int Index)
 /*! DRAGONS: This doesn't work well with SmartPtrs
  *           so member function Child() is also available
 */
-MDValuePtr MDValue::operator[](const char *ChildName)
+MDValuePtr MDValue::operator[](const std::string ChildName)
 {
-	StringList::iterator it = Type->ChildrenNames.begin();
-	MDValueList::iterator it2 = Children.begin();
+	MDValuePtr Ret = NULL;
 
-	while(it != Type->ChildrenNames.end())
-	{
-		ASSERT(it2 != Children.end());
+	MDValue::iterator it = find(ChildName);
 
-		if(strcmp((*it).c_str(),ChildName) == 0)
-		{
-			// Return a smart pointer to the object
-			MDValuePtr Ret = *(it2);
-			return Ret;
-		}
-		it++;
-		it2++;
-	}
+	// Return a smart pointer to the object
+	if(it != end()) Ret = (*it).second;
 
-	return NULL;
+	return Ret;
 }
 
 
-std::string MDValue::ChildName(int Child)
+/*std::string MDValue::ChildName(int Child)
 {
 	MDTypePtr EType = Type->EffectiveType();
 
@@ -509,16 +485,26 @@ std::string MDValue::ChildName(int Child)
 	
 	if(EType->EffectiveClass() != COMPOUND) return "";
 	
-	StringList::iterator it;
-	it = EType->ChildrenNames.begin();
+	MDValue::iterator it;
+	it = begin();
 
 	while(Child--)
 	{
-		if(it != EType->ChildrenNames.end()) it++;
+		if(it != end()) it++;
 	}
 
-	if(it == EType->ChildrenNames.end()) return "";
-	return (*it);
+	if(it == end()) return "";
+	return (*it).second;
+}
+*/
+
+//! Read value from a buffer
+/*!
+ *  /ret Number of bytes read
+ */
+Uint32 MDValue::ReadValue(const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+{
+	return Type->Traits->ReadValue(this, Buffer, Size, Count);
 }
 
 

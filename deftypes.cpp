@@ -82,11 +82,11 @@ void DefineTraits(void)
 	TraitsMap.insert(TraitsMapType::value_type("Int64", new MDTraits_Int64));
 	TraitsMap.insert(TraitsMapType::value_type("Uint64", new MDTraits_Uint64));
 
-	TraitsMap.insert(TraitsMapType::value_type("ISO7Char", new MDTraits_ISO7));
-	TraitsMap.insert(TraitsMapType::value_type("UTF16Char", new MDTraits_UTF16));
+	TraitsMap.insert(TraitsMapType::value_type("ISO7", new MDTraits_ISO7));
+	TraitsMap.insert(TraitsMapType::value_type("UTF16", new MDTraits_UTF16));
 
-	TraitsMap.insert(TraitsMapType::value_type("ISO7", new MDTraits_BasicStringArray));
-	TraitsMap.insert(TraitsMapType::value_type("UTF16", new MDTraits_BasicStringArray));
+	TraitsMap.insert(TraitsMapType::value_type("ISO7String", new MDTraits_BasicStringArray));
+	TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_BasicStringArray));
 	TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
 
 	TraitsMap.insert(TraitsMapType::value_type("LabelCollection", new MDTraits_RawArrayArray));
@@ -114,6 +114,13 @@ int mxflib::LoadTypes(char *TypesFile)
 	sopSAXParseFile(&DefTypes_SAXHandler, &State, TypesFile);
 
 	// DRAGONS - we should test for an error condition!
+
+
+	// Finally ensure we have a valid "Unknown" type
+	if(!MDType::Find("Unknown"))
+	{
+		MDType::AddInterpretation("Unknown", MDType::Find("Uint8Array"));
+	}
 
 	return 0;
 }
@@ -448,8 +455,8 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 			else
 			{
 				// Add reference to sub-item type
-				State->CurrentCompound->Children.push_back(SubType);
-				State->CurrentCompound->ChildrenNames.push_back(std::string(name));
+				State->CurrentCompound->insert(MDType::value_type(std::string(name),SubType));
+				State->CurrentCompound->ChildOrder.push_back(std::string(name));
 			}
 
 			break;

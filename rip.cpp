@@ -49,25 +49,24 @@ mxflib::RIP::~RIP()
 
 
 //! Add a partition to a RIP
-mxflib::RIP::AddPartition(SmartPtr<Partition> Part	/* = NULL */,
+mxflib::RIP::AddPartition(PartitionPtr Part,
 						  Position Offset			/* = -1 */, 
 						  Uint32 SID				/* = 0 */)
 {
 	// DRAGONS: More code needed here!!
 	debug("Adding a partition to a RIP\n");
-	Partitions.push_back(new PartitionInfo(Part, Offset, SID));
+	push_back(new PartitionInfo(Part, Offset, SID));
 }
 
 
 //! PartitionInfo constructor
-mxflib::PartitionInfo::PartitionInfo(SmartPtr<Partition> Part	/* = NULL */,
+mxflib::PartitionInfo::PartitionInfo(PartitionPtr Part	/* = NULL */,
 									 Position Offset			/* = -1 */, 
 									 Uint32 SID					/* = 0 */)
 	: ThePartition(Part), ByteOffset(Offset), BodySID(SID)
 {
 	debug("Generating new PartitionInfo\n");
 }
-
 
 
 

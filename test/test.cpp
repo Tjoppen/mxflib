@@ -7,6 +7,10 @@
 using namespace mxflib;
 
 #include <stdio.h>
+#include <iostream>
+
+using namespace std;
+
 
 //! Debug flag for KLVLib
 extern "C" int Verbose = 0;
@@ -26,9 +30,97 @@ int main(int argc, char *argv[])
 				DebugMode = true;
 	}
 
-	printf("About to load dictionary \"XMLDict.xml\"\n");
 	LoadTypes("types.xml");
 	MDOType::LoadDict("XMLDict.xml");
+//	PrimerPtr OurPrimer = MDOType::MakePrimer();
+
+	MXFFile TestFile;
+	TestFile.Open(argv[1], true);
+
+	TestFile.ReadRIP();
+
+	RIP::iterator it = TestFile.FileRIP.begin();
+	while(it != TestFile.FileRIP.end())
+	{
+		printf("Partition at 0x%s is for BodySID 0x%04x\n", Int64toHexString((*it)->ByteOffset,8).c_str(), (*it)->BodySID);
+		it++;
+	}
+
+	TestFile.Close();
+
+
+	// Matt's notes for later work..
+	// NOTE: Partition pack children are the header metadata...?
+	// NOTE2: AddChild -> AddChild and ReplaceChild...?
+
+	printf("\nPress RETURN key ");
+	getchar();
+	return 0;
+}
+
+Uint8 PartPackData[] =
+{ 
+	0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x22, 0x88, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00,
+	0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+	0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x01, 0x09, 0x00,
+	0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x10, 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01,
+	0x0d, 0x01, 0x03, 0x01, 0x02, 0x01, 0x01, 0x01
+};
+
+const int PartPackDataSize = sizeof(PartPackData) / sizeof(PartPackData[0]);
+
+
+int xmain(int argc, char *argv[])
+{
+	printf("Test Program for MXFLib\n");
+
+	int i;
+	for(i=1; i<argc; i++)
+	{
+		if((argv[i][0] == '/') || (argv[i][0] == '-')) 
+			if((argv[i][1] == 'v') || (argv[i][1] == 'V'))
+				DebugMode = true;
+	}
+
+	LoadTypes("types.xml");
+	MDOType::LoadDict("XMLDict.xml");
+	PrimerPtr OurPrimer = MDOType::MakePrimer();
+
+	MDObjectPtr PartitionPack = new MDObject("ClosedHeader");
+
+	PartitionPack->ReadValue(PartPackData, PartPackDataSize);
+
+	cout << "MajorVersion       = " << PartitionPack["MajorVersion"]->GetString() << endl;
+	cout << "MinorVersion       = " << PartitionPack["MinorVersion"]->GetString() << endl;
+	cout << "KAGSize            = " << PartitionPack["KAGSize"]->GetString() << endl;
+	cout << "ThisPartition      = " << PartitionPack["ThisPartition"]->GetString() << endl;
+	cout << "PreviousPartition  = " << PartitionPack["PreviousPartition"]->GetString() << endl;
+	cout << "FooterPartition    = 0x" << hex << PartitionPack["FooterPartition"]->GetInt() << endl;
+	cout << "HeaderByteCount    = " << PartitionPack["HeaderByteCount"]->GetString() << endl;
+	cout << "IndexByteCount     = " << PartitionPack["IndexByteCount"]->GetString() << endl;
+	cout << "IndexSID           = " << PartitionPack["IndexSID"]->GetString() << endl;
+	cout << "BodyOffset         = " << PartitionPack["BodyOffset"]->GetString() << endl;
+	cout << "BodySID            = " << PartitionPack["BodySID"]->GetString() << endl;
+	cout << "OperationalPattern = " << PartitionPack["OperationalPattern"]->GetString() << endl;
+	cout << "EssenceContainers  = " << PartitionPack["EssenceContainers"]->GetString() << endl;
+
+	int Test = PartitionPack["OperationalPattern"]->Value[3]->GetInt();
+
+	cout << endl;
+	cout << "Forth byte of OP label is " << Test << endl;
+
+	MDValuePtr DV_525_25 = new MDValue("Label");
+	DV_525_25->SetString("06 0e 2b 34 4 1 1 1 d 1 3 1 2 2 40 1");
+	
+	PartitionPack["EssenceContainers"]->Value->AddChild(DV_525_25);
+
+	cout << endl;
+	cout << "New EssenceContainers = " << PartitionPack["EssenceContainers"]->GetString() << endl;
+	cout << "First Container = " << PartitionPack["EssenceContainers"]->Value[0]->GetString() << endl;
+	cout << "Second Container = " << PartitionPack["EssenceContainers"]->Value[1]->GetString() << endl;
+
 
 	MDObjectPtr Obj = new MDObject("Identification");
 
@@ -36,16 +128,30 @@ int main(int argc, char *argv[])
 
 	printf("Address of \"ModificationDate\" = 0x%08x\n", SubObj.GetPtr());
 
-	Obj->AddChild("ModificationDate");
+//	ULPtr MyUL = new UL((Uint8*)NULL);
+//	MDObjectPtr PartitionPack = new MDObject(MyUL);
+
+//	Obj->AddChild("ModificationDate");
+
+	PrimerPtr NewPrimer = new Primer;
+	Uint8 PriBuff[] = { 0x3c, 0x06, 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x02, 0x07, 0x02, 0x01, 0x10, 0x02, 0x03, 0x00, 0x00};
+	NewPrimer->ReadValue(PriBuff, 18);
+
+	Uint8 TestBuff[] = { 0x3c, 0x06, 0x00, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x00, 0x02, 0x7f, 0x40 };
+	Obj->ReadValue(TestBuff, 18, NewPrimer);
+
+/*	SubObj = new MDObject(Tag(0x3c06), NewPrimer);
+	Obj->AddChild(SubObj);
+
 	SubObj = Obj->Child("ModificationDate");
 	printf("Address of \"ModificationDate\" = 0x%08x\n", SubObj.GetPtr());
 
 	Obj["ModificationDate"]->SetString("\"1966\", \"11\", \"1\", \"12\", \"15\", \"00\", \"00\"" );
 	std::string XO = SubObj->Value->GetString();
 	printf("ModificationDate = \"%s\"\n", XO.c_str());
-	
+
 	Obj["ModificationDate"]->Value["Hours"]->SetInt(16);
-	XO = Obj->Child("ModificationDate")->Value->GetString();
+*/	std::string XO = Obj->Child("ModificationDate")->Value->GetString();
 	printf("ModificationDate = \"%s\"\n", XO.c_str());
 
 	Obj = new MDObject("Preface");
@@ -59,114 +165,34 @@ int main(int argc, char *argv[])
 	XO = Obj["DMSchemes"]->Value[1]->GetString();
 	printf("DMSchemes[1] = \"%s\"\n", XO.c_str());
 
+	Obj->AddChild("ObjectModelVersion");
+	Obj["ObjectModelVersion"]->Value->ReadValue((Uint8*)"*",1);
+	XO = Obj["ObjectModelVersion"]->Value->GetString();
+	printf("ObjectModelVersion = \"%s\"\n", XO.c_str());
+
+	Obj->AddChild("PrimaryPackage");
+	Obj["PrimaryPackage"]->Value->ReadValue((Uint8*)"*#A",3);
+	XO = Obj["PrimaryPackage"]->Value->GetString();
+	printf("PrimaryPackage = \"%s\"\n", XO.c_str());
+
+	Obj->AddChild("Identifications");
+	Obj["Identifications"]->Value->ReadValue((Uint8*)"This is a nice long string to make the IDs from",47);
+	XO = Obj["Identifications"]->Value->GetString();
+	printf("Identifications = \"%s\"\n", XO.c_str());
+	Obj["Identifications"]->SetString(XO);
+	XO = Obj["Identifications"]->Value->GetString();
+	printf("Identifications = \"%s\"\n", XO.c_str());
+
+	Obj->AddChild("LastModificationDate");
+	Obj["LastModificationDate"]->Value->ReadValue((Uint8*)"\x007\x0b5\x005\x00b\x00a\x01e\x019\x07d",8);
+	XO = Obj["LastModificationDate"]->Value->GetString();
+	printf("LastModificationDate = \"%s\"\n", XO.c_str());
 
 //	RIP TestRIP;
 //	TestRIP.AddPartition(new Partition("Part1"),45,67);
 //	TestRIP.AddPartition(new Partition("Part2"),56,67);
 //	TestRIP.AddPartition(new Partition("Part3"),67,67);
 
-
-/*	MDType::AddBasic("Int8", 1);
-	MDType::AddBasic("Uint8", 1);
-	MDType::AddBasic("Int16", 2);
-	MDType::AddBasic("Uint16", 2);
-	MDType::AddBasic("Int32", 4);
-	MDType::AddBasic("Uint32", 4);
-	
-	MDTypePtr Int8Type = MDType::Find("Int8");
-	ASSERT(Int8Type);
-
-	MDTypePtr Uint8Type = MDType::Find("Uint8");
-	ASSERT(Uint8Type);
-
-	MDTypePtr Int16Type = MDType::Find("Int16");
-	ASSERT(Int16Type);
-
-	MDTypePtr Uint16Type = MDType::Find("Uint16");
-	ASSERT(Int16Type);
-
-	MDTypePtr Int32Type = MDType::Find("Int32");
-	ASSERT(Int32Type);
-
-	MDTypePtr Uint32Type = MDType::Find("Uint32");
-	ASSERT(Uint32Type);
-
-
-
-
-
-//	MDTraits Int8_Traits(Int8_SetInt, Int8_SetInt64, Int8_SetUint, Int8_SetUint64, Int8_SetString,
-//						 Int8_GetInt, Int8_GetInt64, Int8_GetUint, Int8_GetUint64, Int8_GetString);
-
-//	MDTraits Uint8_Traits(Uint8_SetInt, Uint8_SetInt64, Uint8_SetUint, Uint8_SetUint64, Uint8_SetString,
-//						  Uint8_GetInt, Uint8_GetInt64, Uint8_GetUint, Uint8_GetUint64, Uint8_GetString);
-
-//	MDTraits Int16_Traits(Int16_SetInt, Int16_SetInt64, Int16_SetUint, Int16_SetUint64, Int16_SetString,
-//						  Int16_GetInt, Int16_GetInt64, Int16_GetUint, Int16_GetUint64, Int16_GetString);
-
-	MDTraits_Int8 Int8_Traits;
-	MDTraits_Uint8 Uint8_Traits;
-	MDTraits_Int16 Int16_Traits;
-	MDTraits_Uint16 Uint16_Traits;
-	MDTraits_Int32 Int32_Traits;
-	MDTraits_Uint32 Uint32_Traits;
-
-	MDTraits_ISO7 ISO7_Traits;
-
-	Int8Type->SetTraits(&Int8_Traits);
-	Uint8Type->SetTraits(&Uint8_Traits);
-	Int16Type->SetTraits(&Int16_Traits);
-	Uint16Type->SetTraits(&Uint16_Traits);
-	Int32Type->SetTraits(&Int32_Traits);
-	Uint32Type->SetTraits(&Uint32_Traits);
-
-	MDType::AddInterpretation("ISO7", Uint8Type);
-	MDTypePtr ISO7Type = MDType::Find("ISO7");
-	ASSERT(ISO7Type);
-	ISO7Type->SetTraits(&ISO7_Traits);
-
-	MDType::AddInterpretation("UTF16", Uint16Type);
-	MDTypePtr UTF16Type = MDType::Find("UTF16");
-	ASSERT(UTF16Type);
-	MDTraits_UTF16 UTF16_Traits;
-	UTF16Type->SetTraits(&UTF16_Traits);
-
-	MDType::AddArray("Uint8Array", Uint8Type);
-	MDTypePtr Uint8ArrayType = MDType::Find("Uint8Array");
-	ASSERT(Uint8ArrayType);
-	MDTraits_BasicArray BasicArray_Traits;
-	Uint8ArrayType->SetTraits(&BasicArray_Traits);
-
-	MDType::AddArray("ISO7Array", ISO7Type);
-	MDTypePtr ISO7ArrayType = MDType::Find("ISO7Array");
-	ASSERT(ISO7ArrayType);
-	MDTraits_BasicStringArray BasicStringArray_Traits;
-	ISO7ArrayType->SetTraits(&BasicStringArray_Traits);
-
-	MDType::AddArray("UTF16Array", UTF16Type);
-	MDTypePtr UTF16ArrayType = MDType::Find("UTF16Array");
-	ASSERT(UTF16ArrayType);
-	UTF16ArrayType->SetTraits(&BasicStringArray_Traits);
-
-	MDType::AddArray("RawArray", Uint8Type);
-	MDTypePtr RawArrayType = MDType::Find("RawArray");
-	ASSERT(RawArrayType);
-	MDTraits_RawArray RawArray_Traits;
-	RawArrayType->SetTraits(&RawArray_Traits);
-
-	MDType::AddInterpretation("UL", RawArrayType, 16);
-	MDTypePtr ULType = MDType::Find("UL");
-	ASSERT(ULType);
-	RawArrayType->SetTraits(&RawArray_Traits);
-
-	MDType::AddArray("ULArray", ULType);
-	MDTypePtr ULArrayType = MDType::Find("ULArray");
-	ASSERT(ULArrayType);
-	MDTraits_RawArrayArray RawArrayArray_Traits;
-	ULArrayType->SetTraits(&RawArrayArray_Traits);
-
-	
-*/	
 	MDValuePtr Test16;
 	MDValuePtr Test32;
 
@@ -361,7 +387,19 @@ int main(int argc, char *argv[])
 	printf("0x8765432123456789 (unsigned) = 0x%I64x = %I64u\n", U64i, U64i);
 
 
+	MDValuePtr TestArray = new MDValue("Label");
+	ASSERT(TestArray);
+	TestArray->SetString("06 0e 2b 34 0 0 1 d 3 10");
+	X = TestArray->GetString();
+	printf("Label = \"%s\"\n", X.c_str());
 
+	TestArray = new MDValue("DoesNotExist");
+	ASSERT(TestArray);
+	TestArray->SetString("06 0e 2b, 34 0 0, 1 d 3, 10");
+	X = TestArray->GetString();
+	printf("DoesNotExist = \"%s\"\n", X.c_str());
+
+#if 0
 	MDValuePtr Test = new MDValue("TimeStamp");
 	Test->SetString("\"1966\", \"11\", \"1\", \"12\", \"15\", \"00\", \"00\"" );
 	X = Test->GetString();
@@ -512,7 +550,7 @@ int main(int argc, char *argv[])
 	X = TestArray->GetString();
 	printf("\nTestArray of ULs= \"%s\"\n", X.c_str());
 */
-
+#endif 0
 	printf("\nPress RETURN key ");
 	getchar();
 	return 0;
@@ -523,7 +561,7 @@ int main(int argc, char *argv[])
 #include <stdarg.h>
 
 //! Display a general debug message
-int debug(const char *Fmt, ...)
+int mxflib::debug(const char *Fmt, ...)
 {
 	if(!DebugMode) return 0;
 
@@ -539,7 +577,7 @@ int debug(const char *Fmt, ...)
 }
 
 //! Display a warning message
-int warning(const char *Fmt, ...)
+int mxflib::warning(const char *Fmt, ...)
 {
 	int ret;
 
@@ -554,7 +592,7 @@ int warning(const char *Fmt, ...)
 }
 
 //! Display an error message
-int error(const char *Fmt, ...)
+int mxflib::error(const char *Fmt, ...)
 {
 	int ret;
 

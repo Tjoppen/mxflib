@@ -107,18 +107,25 @@ namespace mxflib
 
 	inline std::string Int64toString(Int64 Val)
 	{ 
-		char Buffer[64];
+		char Buffer[32];
 		_i64toa(Val, Buffer, 10);
 		return std::string(Buffer);
 	};
 
 	inline std::string Uint64toString(Uint64 Val)
 	{ 
-		char Buffer[64];
+		char Buffer[32];
 		_ui64toa(Val, Buffer, 10);
 		return std::string(Buffer);
 	};
 
+	inline std::string Int64toHexString(Int64 Val, int Digits = 0)
+	{
+		char Buffer[32];
+		if(Digits > 30) Digits = 30;
+		sprintf(Buffer,"%0*I64x", Digits, Val );
+		return std::string(Buffer);
+	};
 }
 
 #define ASSERT _ASSERT					//!< Debug assert

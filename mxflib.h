@@ -2,7 +2,7 @@
  *	\brief	The main MXFLib header file
  */
 /*
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -38,12 +38,17 @@ namespace mxflib {}
 
 #include "types.h"
 
+#include "datachunk.h"
+
+#include "helper.h"
 #include "mdtraits.h"
 #include "mdtype.h"
 #include "deftypes.h"
 #include "mdobject.h"
 
 #include "rip.h"
+
+#include "mxffile.h"
 
 #endif MXFLIB__MXFLIB_H
 

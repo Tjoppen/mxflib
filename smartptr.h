@@ -88,13 +88,13 @@ namespace mxflib
 	{
     private:
 		int __m_counter;					//!< The actual reference count
-    
+
 	protected:
 		//! Increment the number of references
 		virtual void __IncRefCount() 
 		{
 			__m_counter++;
-			
+
 			PTRDEBUG( debug("0x%08x Increment count -> %d\n", (int)this, __m_counter); )
 		}
 
@@ -104,7 +104,7 @@ namespace mxflib
 			__m_counter--;
 
 			PTRDEBUG( debug("0x%08x Decrement count -> %d\n", (int)this, __m_counter); )
-			
+
 			if(__m_counter<=0)
 			{
 				PTRDEBUG( debug("0x%08x Destroying\n", this); )
@@ -309,6 +309,13 @@ namespace mxflib
 		{
 	        ASSERT(GetPtr()!=NULL);
 	        return GetPtr();
+	    }
+
+		//! Give const access to members of T
+		const T * operator ->() const
+		{
+	        ASSERT(GetPtr()!=NULL);
+	        return (const T*)GetPtr();
 	    }
 
 	    //! Conversion to T* (for function calls)

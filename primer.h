@@ -37,14 +37,25 @@
 
 namespace mxflib
 {
+	// Forward declare so the class can be used
+	class Primer;
+
+	//! A smart pointer to an Primer
+	typedef SmartPtr<Primer> PrimerPtr;
+
+	//! A list of smart pointers to Primer objects
+	typedef std::list<PrimerPtr> PrimerList;
+}
+
+
+namespace mxflib
+{
 	//! Holds local tag to metadata definition UL mapping
-	class Primer : public std::map<Tag, UL>
+	class Primer : public std::map<Tag, UL>, public RefCount<Primer>
 	{
 	public:
+		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size);
 	};
-
-	//! A smart pointer to a Primer object
-	typedef SmartPtr<Primer> PrimerPtr;
 }
 
 
