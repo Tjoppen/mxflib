@@ -38,6 +38,10 @@ namespace mxflib {}
 
 #include "types.h"
 
+#include "mdtraits.h"
+#include "mdtype.h"
+#include "mdobject.h"
+
 #include "rip.h"
 
 #endif MXFLIB__MXFLIB_H

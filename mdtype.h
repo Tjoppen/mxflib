@@ -34,12 +34,6 @@
 #ifndef MXFLIB__MDTYPE_H
 #define MXFLIB__MDTYPE_H
 
-// Include the KLVLib header
-extern "C"
-{
-#include "KLV.h"						//!< The KLVLib header
-}
-
 // STL Includes
 #include <string>
 #include <list>
@@ -67,53 +61,87 @@ namespace mxflib
 		VECTOR,							//!< A vector (ordered or unordered)
 		ARRAY							//!< An array
 	};
-
-	//! Holds the definition of a metadata type
-	class MDType
-	{
-	private:
-		//! The KLVLib dictionary entry
-		DictEntry *Dict;
-
-		MDContainerType ContainerType;
-
-	public:
-		MDTypePtr Base;					//!< Base class if this is a derived class, else NULL
-		MDTypeList Children;			//!< Types normally found inside this type
-
-		const DictEntry* GetDict(void) { return (const DictEntry*)Dict; };
-
-		//! Access function for ContainerType
-		const MDContainerType &GetContainerType(void) { return (const MDContainerType &)ContainerType; };
-
-	public:
-		MDType(DictEntry *RootDict);
+	enum MDTypeClass					//!< Class of this type
+	{ 
+		BASIC,							//!< A basic, indivisible, type
+		INTERPRETATION,					//!< An interpretation of another class
+		TYPEARRAY,						//!< An array of another class
+		COMPOUND,						//!< A compound type
+		SUB								//!< A sub member of a compound type
 	};
 }
 
 namespace mxflib
 {
-	//! Holds metadata dictionary definitions and manages the dictionary
-	class MDDict
+	// Forward declare so the class can include pointers to itself
+	class MDType;
+
+	//! A smart pointer to an MDType object
+	typedef SmartPtr<MDType> MDTypePtr;
+
+	//! A list of smart pointers to MDType objects
+	typedef std::list<MDTypePtr> MDTypeList;
+}
+
+
+namespace mxflib
+{
+	//! Holds the definition of a metadata type
+	class MDType
 	{
 	private:
-		DictEntry	*MainDict;			//!< The KLVLib dictionary entry of the root entry
-		MDTypeList	AllTypes;			//!< All types managed by this object
-		MDTypeList	TopTypes;			//!< The top-level types managed by this object
-
-		//! Map for reverse lookups based on DictEntry pointer
-		std::map<DictEntry*, MDTypePtr> DictLookup;
-
-		//! Map for reverse lookups based on type name
-		std::map<std::string, MDTypePtr> NameLookup;
+		std::string Name;				//!< Name of this MDType
+		MDTypeClass Class;				//!< Class of this MDType
 
 	public:
-		MDDict(const char *DictFile);
-		~MDDict();
+		MDTypePtr Base;					//!< Base class if this is a derived class, else NULL
+		MDTypeList Children;			//!< Types contained in this if it is a compound
+		int Size;						//!< The size of the item multiples of base class items, or 0 if it is variable
+
+		//! Access function for ContainerType
+//		const MDContainerType &GetContainerType(void) { return (const MDContainerType &)ContainerType; };
 
 	private:
-		//! Add a KLVLib DictEntry definition to the managed types
-		AddDict(DictEntry *Dict, MDType *Parent = NULL);
+		//!	Construct a basic MDType
+		/*! This constructor is private so the ONLY way to create
+		 *	new MDOTypes from outside this class is via AddBasic() etc.
+		*/
+		MDType(std::string TypeName, MDTypeClass TypeClass)
+			: Name(TypeName) , Class(TypeClass) {};
+
+		//! Add a sub to a compound type
+		void AddSub(std::string SubName, MDTypePtr SubType);
+
+
+	//** Static Dictionary Handling data and functions **
+	//***************************************************
+	private:
+		static MDTypeList Types;		//!< All types managed by this object
+
+		//! Map for reverse lookups based on type name
+		static std::map<std::string, MDTypePtr> NameLookup;
+
+	public:
+		//! Add a new basic type
+		static void AddBasic(std::string TypeName, int TypeSize);
+
+		//! Add a new interpretation type
+		static void AddInterpretation(std::string TypeName, MDTypePtr BaseType);
+
+		//! Add a new array type
+		static void AddArray(std::string TypeName, MDTypePtr BaseType, int ArraySize = 0);
+
+		//! Add a new compound type
+		static void AddCompound(std::string TypeName);
+
+		static MDTypePtr Find(const char *TypeName);
+	
+//! DRAGONS: Experimental
+MDTraits Traits;
+void SetTraits(MDTraits &Tr) { Traits = Tr; };
+
+		/* Allow MDValue class to view internals of this class */
+		friend class MDValue;
 	};
 }
 
@@ -121,57 +149,107 @@ namespace mxflib
 namespace mxflib
 {
 	// Forward declare so the class can include pointers to itself
-	class MDObject;
+	class MDValue;
 
-	//! A smart pointer to an MDObject object
-	typedef SmartPtr<MDObject> MDObjectPtr;
+	//! A smart pointer to an MDValue object
+	typedef SmartPtr<MDValue> MDValuePtr;
 
-	//! A list of smart pointers to MDObject objects
-	typedef std::list<MDObjectPtr> MDObjectList;
+	//! A list of smart pointers to MDValue objects
+	typedef std::list<MDValuePtr> MDValueList;
 }
 
 
 namespace mxflib
 {
 	//! Metadata Object class
-	class MDObject
+	class MDValue
 	{
 	private:
 		MDType *Type;
 		int Size;
 		Uint8 *Data;
 
-		MDObjectList Children;
+		MDValueList Children;
 
 	public:
-		MDObject(char *BaseType);
-		MDObject(MDType *BaseType);
-		~MDObject();
+		MDValue(const char *BaseType);
+		MDValue(MDType *BaseType);
+		void Init(void);
+//		~MDValue();
+~MDValue() {}; // ## DRAGONS: For debug ONLY!!
 
-		void AddChild(MDObject *Child);
+		//! Access function for child values of compound items
+		MDValue &Child(const char *ChildName);
 
-		void SetInt8(Int8 Val) { ASSERT(Size==1); if(Size==1) PutI8(Val, Data); };
-		void SetUint8(Uint8 Val) { ASSERT(Size==1); if(Size==1) PutU8(Val, Data); };
-		void SetInt16(Int16 Val) { ASSERT(Size==2); if(Size==2) PutI16(Val, Data); };
-		void SetUint16(Uint16 Val) { ASSERT(Size==2); if(Size==2) PutU16(Val, Data); };
-		void SetInt32(Int32 Val) { ASSERT(Size==4); if(Size==4) PutI32(Val, Data); };
-		void SetUint32(Uint32 Val) { ASSERT(Size==4); if(Size==4) PutU32(Val, Data); };
-		void SetInt64(Int64 Val) { ASSERT(Size==8); if(Size==8) PutI64(Val, Data); };
-		void SetUint64(Uint64 Val) { ASSERT(Size==8); if(Size==8) PutU64(Val, Data); };
+//--		virtual void Set(Int32 Val);		//!< Normal signed integer set function
+//--		virtual void Set(Int64 Val);		//!< 64-bit signed integer set function
+//--		virtual void Set(Uint32 Val);		//!< Normal unsigned integer set function
+//--		virtual void Set(Uint64 Val);		//!< 64-bit unsigned integer set function
+//--		virtual void Set(std::string Val);	//!< Set value from a string
+
+//--		virtual Int32 GetInt(void);
+//--		virtual Int64 GetInt64(void);
+//--		virtual Uint32 GetUint(void);
+//--		virtual Uint64 GetUint64(void);
+
+		void SetInt(Int32 Val) { Type->Traits.SetInt(this, Val); };
+		void SetInt64(Int64 Val) { Type->Traits.SetInt64(this, Val); };
+		void SetUint(Uint32 Val) { Type->Traits.SetUint(this, Val); };
+		void SetUint64(Uint64 Val) { Type->Traits.SetUint64(this, Val); };
+		void SetString(std::string Val)	{ Type->Traits.SetString(this, Val); };
+		Int32 GetInt(void) { return Type->Traits.GetInt(this); };
+		Int64 GetInt64(void) { return Type->Traits.GetInt64(this); };
+		Uint32 GetUint(void) { return Type->Traits.GetUint(this); };
+		Uint64 Gint64(void) { return Type->Traits.GetUint64(this); };
+		std::string GetString(void)	{ return Type->Traits.GetString(this); };
+
+//		static MDValuePtr Build(MDType *BaseType);
+
+		int GetSize(void) { return Size; };
 		
-		Int8 GetInt8(void) { ASSERT(Size==1); return (Size==1) ? GetI8(Data) : 0; };
-		Uint8 GetUint8(void) { ASSERT(Size==1); return (Size==1) ? GetU8(Data) : 0; };
-		Int16 GetInt16(void) { ASSERT(Size==2); return (Size==2) ? GetI16(Data) : 0; };
-		Uint16 GetUint16(void) { ASSERT(Size==2); return (Size==2) ? GetU16(Data) : 0; };
-		Int32 GetInt32(void) { ASSERT(Size==4); return (Size==4) ? GetI32(Data) : 0; };
-		Uint32 GetUint32(void) { ASSERT(Size==4); return (Size==4) ? GetU32(Data) : 0; };
-		Int64 GetInt64(void) { ASSERT(Size==8); return (Size==8) ? GetI64(Data) : 0; };
-		Uint64 GetUint64(void) { ASSERT(Size==8); return (Size==8) ? GetU64(Data) : 0; };
+		// DRAGONS: These should probably be private and give access via MDTraits
+		// to prevent users tinkering!
+		void MakeSize(int NewSize);
 
-		void SetData(int ValSize, Uint8 *Val);
+		void SetValue(int ValSize, Uint8 *Val);
+
+		// Get a pointer to the data buffer (const to prevent setting!!)
+		const Uint8* GetData(void) { return (const Uint8*) Data; };
 	};
 }
 
+/*
+AddBasic("Uint8", 1);
+AddInterpretation("ISO7", INTERP, "Uint8");
+AddArray("ISO7String", ARRAY, "ISO7");
+AddArray("LangCode", ARRAY, "ISO7", 4);
+AddCompound("DateTime", COMPOUND);
+DateTime.AddSub("Year", "Uint16");
+*/
+
+//void mxflib::MDValue::Set(std::string Val)
+//{
+//}
+
+namespace mxflib
+{
+	class MDValue_Int8 : public MDValue
+	{
+	public:
+//--		virtual void Set(Int32 Val) {printf("Int8!"); };
+//--		virtual void Set(Int64 Val) { Set( (Int32)(Val) ); };
+//--		virtual void Set(Uint32 Val) { Set( (Int32)(Val) ); };
+//--		virtual void Set(Uint64 Val) { Set( (Int32)(Val) ); };
+//--		virtual void Set(std::string Val);	//!< Set value from a string
+
+//--		virtual Int32 GetInt(void);
+//--		virtual Int64 GetInt64(void) { return (Int64)GetInt(); };
+//--		virtual Uint32 GetUint(void) { return (Uint32)GetInt(); };
+//--		virtual Uint64 GetUint64(void) { return (Uint64)GetInt(); };
+
+////		virtual std::string GetString(void);
+	};
+}
 
 #endif MXFLIB__MDTYPE_H
 
