@@ -1,9 +1,10 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
+ *
+ *	\version $Id: helper.cpp,v 1.7 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: helper.cpp,v 1.6 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -46,7 +47,7 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 									 UINT64_C(0xffff000000000000), UINT64_C(0xff00000000000000), 0 };
 	if(Size > 9)
 	{
-		error("Maximum BER size is 9 bytes, however %d bytes specified in call to WriteBER()\n", Size);
+		error("Maximum BER size is 9 bytes, however %d bytes specified in call to MakeBER()\n", Size);
 		Size = 9;
 	}
 
@@ -55,7 +56,7 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 	{
 		if(Length & Masks[Size-1])
 		{
-			error("BER size specified in call to WriteBER() is %d, however length 0x%s will not fit in that size\n",
+			error("BER size specified in call to MakeBER() is %d, however length 0x%s will not fit in that size\n",
 				  Size, Int64toHexString(Length, 8).c_str());
 
 			// Force a new size to be chosen
@@ -91,6 +92,48 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 }
 
 
+//! Encode a Uint64 as a BER OID subid (7 bits per byte)
+//! length > 0: length is maximum length of subid
+//! length == 0: as long as necessary
+//! length < 0: -length is EXACT length of subid
+//! returns number of bytes UNUSED (-ve is error)
+int mxflib::EncodeOID( Uint8* presult, Uint64 subid, int length )
+{
+	Uint8 rev[10];			// intermediate result (reverse byte order)
+	Uint8 *prev = rev;
+	int count = 0;			// bytes required to represent
+
+	do
+	{
+		*prev++ = (subid & 0x7f) | 0x80; // set msb of every byte
+		subid >>= 7;
+		count++;
+	}
+	while( subid );
+
+	rev[0] &= 0x7f; // clear msb of least significant byte
+
+	if( length>0 && count<=length )
+	{
+		do *presult++ = *--prev; while( --count );		// copy result
+		return length-count;
+	}
+	else if( length<0 )
+	{
+		int cm = count - (-length);
+		if( cm<0 ) return cm;							// error
+		while( cm-- ) *presult++ = 0x80;				// pad 
+		do *presult++ = *--prev; while( --count );		// copy result
+		return 0;										// i.e. none unused
+	}
+	else // any length
+	{
+		do *presult++ = *--prev; while( --count );		// copy result
+		return 0;
+	}
+}
+
+
 //! Build a new UMID
 UMIDPtr mxflib::MakeUMID(int Type)
 {
@@ -99,6 +142,9 @@ UMIDPtr mxflib::MakeUMID(int Type)
 
 	// Set the non-varying base of the UMID
 	memcpy(Buffer, UMIDBase, 10);
+
+	// Correct to v5 dictionary for new (330M-2003) types
+	if( Type > 4 ) Buffer[7] = 5;
 
 	// Set the type
 	Buffer[10] = Type;
@@ -133,3 +179,55 @@ DataChunkPtr mxflib::FileReadChunk(FileHandle InFile, Uint64 Size)
 	return Ret;
 }
 
+
+//! Set a data chunk from a hex string
+DataChunkPtr Hex2DataChunk(std::string Hex)
+{
+	// Build the result chunk
+	DataChunkPtr Ret = new DataChunk();
+	
+	// Use a granularity of 16 as most hex strings are likely to be 16 or 32 bytes
+	// DRAGONS: We may want to revise this later
+	Ret->SetGranularity(16);
+
+	// Index the hex string
+	char const *p = Hex.c_str();
+
+	int Size = 0;
+	int Value = -1;
+
+	// During this loop Value = -1 when no digits of a number are mid-process
+	// This stops a double space being regarded as a small zero in between two spaces
+	// It also stops a trailing zero being appended to the data if the last character
+	// before the terminating byte is not a hex digit.
+	do
+	{
+		int digit;
+		if(*p >= '0' && *p <='9') digit = (*p) - '0';
+		else if(*p >= 'a' && *p <= 'f') digit = (*p) - 'a' + 10;
+		else if(*p >= 'A' && *p <= 'F') digit = (*p) - 'A' + 10;
+		else if(Value == -1)
+		{
+			// Skip second or subsiquent non-digit
+			continue;
+		}
+		else 
+		{
+			Size++;
+			Ret->Resize(Size);
+			Ret->Data[Size-1] = Value;
+
+			Value = -1;
+			continue;
+		}
+
+		if(Value == -1) Value = 0; else Value <<=4;
+		Value += digit;
+
+	// Note that the loop test is done in this way to force
+	// a final cycle of the loop with *p == 0 to allow the last
+	// number to be processed
+	} while(*(p++));
+
+	return Ret;
+}

@@ -41,7 +41,7 @@ RSC=rc.exe
 # PROP Intermediate_Dir "Release"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /I "..\.." /I "..\..\..\klvlib" /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
+# ADD CPP /nologo /W3 /GX /O2 /I "..\.." /I "..\..\..\klvlib" /I "..\mxflib" /I "..\klvlib" /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
 # ADD RSC /l 0x809 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -161,6 +161,14 @@ SOURCE=..\..\debug.h
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\deftypes.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\endian.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\esp_dvdif.h
 # End Source File
 # Begin Source File
@@ -174,6 +182,10 @@ SOURCE=..\..\esp_wavepcm.h
 # Begin Source File
 
 SOURCE=..\..\essence.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\forward.h
 # End Source File
 # Begin Source File
 
@@ -205,23 +217,11 @@ SOURCE=..\..\metadata.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\endian.h
-# End Source File
-# Begin Source File
-
 SOURCE=..\..\mxffile.h
 # End Source File
 # Begin Source File
 
 SOURCE=..\..\mxflib.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\system.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\types.h
 # End Source File
 # Begin Source File
 
@@ -238,6 +238,14 @@ SOURCE=..\..\rip.h
 # Begin Source File
 
 SOURCE=..\..\smartptr.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\system.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\types.h
 # End Source File
 # End Group
 # Begin Group "Documentation"

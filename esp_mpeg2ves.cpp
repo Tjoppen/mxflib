@@ -1,9 +1,10 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
+ *
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.5 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: esp_mpeg2ves.cpp,v 1.4 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -131,6 +132,8 @@ WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandl
 	FrameWrap->GCElementType = 0x05;					// Frame wrapped picture elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = false;						// Can only use the correct edit rate
+	FrameWrap->CanIndex = true;							// We can index this essence
+	FrameWrap->CBRIndex = false;						// This essence uses VBR indexing
 	FrameWrap->BERSize = 0;								// No BER size forcing
 
 	// Build a WrappingOption for clip wrapping
@@ -145,6 +148,8 @@ WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandl
 	ClipWrap->GCElementType = 0x06;						// Clip wrapped picture elemenet
 	ClipWrap->ThisWrapType = WrappingOption::Clip;		// Clip wrapping
 	ClipWrap->CanSlave = true;							// Can use non-native edit rate (clip wrap only!)
+	ClipWrap->CanIndex = true;							// We can index this essence
+	ClipWrap->CBRIndex = false;							// This essence uses VBR indexing
 	ClipWrap->BERSize = 0;								// No BER size forcing
 
 	// Add the two wrapping options
@@ -213,6 +218,28 @@ bool MPEG2_VES_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
 }
 
 
+//! Get the current position in SetEditRate() sized edit units
+/*! \return 0 if position not known
+ */
+Int64 MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
+{
+	if((SelectedEditRate.Numerator == NativeEditRate.Numerator) && (SelectedEditRate.Denominator == NativeEditRate.Denominator))
+	{
+		return PictureNumber;
+	}
+
+	if((SelectedEditRate.Denominator == 0) || (NativeEditRate.Denominator || 0)) return 0;
+
+	// Correct the position
+	Int64 iPictureNumber = PictureNumber;		// A wonderful Microsoft omission means we can only convert Int64 -> double, not Uint64
+
+	double Pos = iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator;
+	Pos /= (SelectedEditRate.Denominator * NativeEditRate.Numerator);
+	
+	return floor(Pos + 0.5);
+}
+
+
 //! Read a number of wrapping items from the specified stream and return them in a data chunk
 /*! If frame or line mapping is used the parameter Count is used to
  *	determine how many items are read. In frame wrapping it is in
@@ -220,10 +247,10 @@ bool MPEG2_VES_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
  *  not be the frame rate of this essence
  *	\note This is going to take a lot of memory in clip wrapping! 
  */
-DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/) 
+DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/ /*, IndexTablePtr Index *//*=NULL*/) 
 { 
 	// Scan the stream and find out how many bytes to read
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count, Index);
+	Uint64 Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
 
 	// Make a datachunk with enough space
 	DataChunkPtr Ret = new DataChunk;
@@ -233,7 +260,7 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, 
 	FileRead(InFile, Ret->Data, Bytes);
 
 	return Ret; 
-}
+};
 
 
 //! Write a number of wrapping items from the specified stream to an MXF file
@@ -244,13 +271,13 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, 
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Uint64 MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/)
+Uint64 MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*//*, IndexTablePtr Index *//*=NULL*/)
 {
-	const unsigned int BUFFERSIZE = 32768;
+	const int BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count, Index);
+	Uint64 Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
 	Uint64 Ret = Bytes;
 
 	while(Bytes)
@@ -469,7 +496,7 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
  *
  *	\note PictureNumber is incremented for each picture found
  */
-Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count, IndexTablePtr Index /*=NULL*/)
+Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count /*, IndexTablePtr Index *//*=NULL*/)
 { 
 	Uint64 CurrentStart = CurrentPos;
 
@@ -513,65 +540,45 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 					int PictureData = (BuffGetU8(InFile) << 8) | BuffGetU8(InFile);
 					CurrentPos += 2;
 
-					bool DoIndex;
-					
-					// Only do indexing if we have an index table
-					if(Index) DoIndex = true; else DoIndex = false;
-
-					// If in GOPIndex mode only index the start of each GOP
-					if((DoIndex) && (GOPIndex) && (GOPOffset != 0)) DoIndex = false;
-
-					// If in single-shot mode only index when primed
-					if((DoIndex) && (SingleShotIndex) && (!SingleShotPrimed)) DoIndex = false;
-
-					if(DoIndex)
+					// If an index manager exists we do all calculations to keep anchor frame etc. in step
+					// even if we aren't going to add an entry this time
+					if(Manager)
 					{
-						ProvisionalIndexEntry = new IndexEntry;
-
 						int TemporalReference = PictureData >> 6;
-						ProvisionalIndexEntry->TemporalOffset = GOPOffset - TemporalReference;
 						int PictureType = (PictureData >> 3) & 0x07;
 
+						int Flags;
 						switch(PictureType)
 						{
 						case 1: default:
 							AnchorFrame = PictureNumber;
-							ProvisionalIndexEntry->Flags = 0x00;
+							Flags = 0x00;
 							break;
-						case 2: ProvisionalIndexEntry->Flags = 0x22; break;
-						case 3: ProvisionalIndexEntry->Flags = 0x33; break;
+						case 2: Flags = 0x22; break;
+						case 3: Flags = 0x33; break;
 						}
 
 
 						// Do we have a sequence header?
 						if(SeqHead)
 						{
-							ProvisionalIndexEntry->Flags |= 0x40;
+							Flags |= 0x40;
 							if(ClosedGOP) 
 							{
-								ProvisionalIndexEntry->Flags |= 0x80;
+								Flags |= 0x80;
 								EditPoint = true;
 							}
 						}
 
 						// Now we have determined if this is an anchor frame we can work out the anchor offset
-						ProvisionalIndexEntry->AnchorOffset = PictureNumber - AnchorFrame;
+						int AnchorOffset = AnchorFrame - PictureNumber;
 
-						// The actual offset will need to be filled in later when known
-						ProvisionalIndexEntry->StreamOffset = 0;
-						
-						// Store entry for later if selective indexing used, else add now
-						if(SelectiveIndex)
-						{
-							WorkingIndex = Index;
-							ProvisionalEssencePos = PictureNumber - ProvisionalIndexEntry->TemporalOffset;
-							ProvisionalIndexPos = PictureNumber;
-						}
-						else
-						{
-							Index->AddNewEntry(PictureNumber - ProvisionalIndexEntry->TemporalOffset, PictureNumber, ProvisionalIndexEntry);
-							ProvisionalIndexEntry = NULL;
-						}
+						//
+						// Offer this index table data to the index manager
+						//
+
+						Manager->OfferEditUnit(ManagedStreamID, PictureNumber, AnchorOffset, Flags);
+						Manager->OfferTemporalOffset(PictureNumber - (GOPOffset - TemporalReference), GOPOffset - TemporalReference);
 					}
 
 					GOPOffset++;
@@ -585,7 +592,6 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 					BuffGetU8(InFile);
 					if(BuffGetU8(InFile) & 0x40) ClosedGOP = true; else ClosedGOP = false;
 					CurrentPos += 4;
-//printf("NewGOP: ");
 				}
 				// Sequence header start code
 				else if(Scan == 0x000001b3)
@@ -637,199 +643,11 @@ int MPEG2_VES_EssenceSubParser::BuffGetU8(FileHandle InFile)
 /*! \return true if the option was successfully set */
 bool MPEG2_VES_EssenceSubParser::SetOption(std::string Option, Int64 Param /*=0*/ )
 {
-	if(Option == "GOPIndex")
-	{
-		if(Param == 0) GOPIndex = false; else GOPIndex = true;
-		return true;
-	}
-
-	if(Option == "SelectiveIndex")
-	{
-		if(Param == 0) SelectiveIndex = false; else SelectiveIndex = true;
-		return true;
-	}
-
-	if(Option == "SingleShotIndex")
-	{
-		if(Param == 0)
-		{
-			SingleShotIndex = false;
-		}
-		else 
-		{
-			SingleShotIndex = true;
-			SingleShotPrimed = true;
-		}
-	}
-
 	if(Option == "EditPoint") return EditPoint;
 
-	if(Option == "AddIndexEntry")
-	{
-		if(ProvisionalIndexEntry)
-		{
-			WorkingIndex->AddNewEntry(ProvisionalEssencePos, ProvisionalIndexPos, ProvisionalIndexEntry);
-			ProvisionalIndexEntry = NULL;
-			return true;
-		}
-
-		// Nothing to add so return error state
-		return false;
-	}
+	warning("MPEG2_VES_EssenceSubParser::SetOption(\"%s\", Param) not a known option\n", Option.c_str());
 
 	return false; 
 }
 
 
-#if 0
-//! Scan the essence and build an index table
-EssenceSubParserBase::IndexEntryMapPtr MPEG2_VES_EssenceSubParser::BuildIndexTable(FileHandle InFile, Uint32 Stream) 
-{
-	IndexEntryMap IndexMap;
-
-	CurrentPos = 0;
-	Int64 PicNum = 0;
-
-	ClosedGOP = false;						// Start by assuming the GOP is closed
-
-	bool Processing = true;
-
-	while(Processing)
-	{
-		Uint32 Scan = 0xffffffff;
-		FileSeek(InFile, CurrentPos);
-		BuffCount = 0;
-
-		bool FoundStart = false;			//! Set true once the start of a picture has been found
-		bool SeqHead = false;
-
-		for(;;)
-		{
-			int ThisByte = BuffGetU8(InFile);
-			if(ThisByte == -1)
-			{
-				// Force this to be the last item
-				Processing = false;
-				break;
-			}
-
-			Scan = (Scan << 8) | ThisByte;
-			CurrentPos++;
-
-			if(!FoundStart) 
-			{
-				// Picture start code!
-				if(Scan == 0x00000100)
-				{
-					FoundStart = true;
-					
-					int PictureData = (BuffGetU8(InFile) << 8) | BuffGetU8(InFile);
-					CurrentPos += 2;
-
-//printf("temporal_reference = %d, picture_coding_type = %d\n", PictureData >> 6, (PictureData >> 3) & 0x07);
-
-					IndexEntry ThisIndex;
-
-					int TemporalReference = PictureData >> 6;
-					ThisIndex.TemporalOffset = GOPOffset - TemporalReference;
-					int PictureType = (PictureData >> 3) & 0x07;
-
-					switch(PictureType)
-					{
-					case 1: default:
-						AnchorFrame = PictureNumber;
-						ThisIndex.Flags = 0x00;
-						break;
-					case 2: ThisIndex.Flags = 0x22; break;
-					case 3: ThisIndex.Flags = 0x33; break;
-					}
-
-					// Do we have a sequence header?
-					if(SeqHead)
-					{
-						ThisIndex.Flags |= 0x40;
-						if(ClosedGOP) ThisIndex.Flags |= 0x80;
-					}
-
-					// Now we have determined if this is an anchor frame we can work out the anchor offset
-					ThisIndex.AnchorOffset = PictureNumber - AnchorFrame;
-
-					// DRAGONS: Pseudo stream offset for testing
-					ThisIndex.StreamOffset = CurrentPos;
-
-					IndexMap.insert(IndexEntryMap::value_type(PicNum - ThisIndex.TemporalOffset, ThisIndex));
-
-//printf("%d: Temporal Offset = %d, AnchorOffset = %d\n", (int)PicNum, ThisIndex.TemporalOffset, ThisIndex.AnchorOffset);
-					GOPOffset++;
-				}
-				// GOP start code
-				else if(Scan == 0x000001b8)
-				{
-					GOPOffset = 0;
-					BuffGetU8(InFile);
-					BuffGetU8(InFile);
-					BuffGetU8(InFile);
-					if(BuffGetU8(InFile) & 0x40) ClosedGOP = true; else ClosedGOP = false;
-					CurrentPos += 4;
-//printf("NewGOP: ");
-				}
-				else if(Scan == 0x000001b3)
-				{
-					SeqHead = true;
-				}
-			}
-			else
-			{
-				// All signs of the start of the next picture
-				if((Scan == 0x000001b3) || (Scan == 0x000001b8) || (Scan == 0x00000100))
-				{
-					// Next scan starts at the start of this start_code
-					CurrentPos -= 4;
-					break;
-				}
-			}
-		}
-
-		PicNum++;
-	}
-
-	IndexEntryMap::iterator it = IndexMap.begin();
-//	while(it != IndexMap.end())
-//	{
-//		printf("Picture %d: TOffset=%d, AOffset=%d, Flags=0x%02x, StreamOffset=0x%08x\n",
-//			   (int)(*it).first, (*it).second.TemporalOffset, (*it).second.AnchorOffset, (*it).second.Flags, (int)(*it).second.StreamOffset);
-//
-//		it++;
-//	}
-
-	IndexEntryMapPtr ReorderedMap = new IndexEntryMap;
-	it = IndexMap.begin();
-	while(it != IndexMap.end())
-	{
-		IndexEntry NewEntry;
-		NewEntry = (*it).second;
-
-		ReorderedMap->insert(IndexEntryMap::value_type((*it).second.StreamOffset, NewEntry));
-
-		it++;
-	}
-
-	it = ReorderedMap->begin();
-	IndexEntryMap::iterator it2 = IndexMap.begin();
-	int i=0;
-	while(it != ReorderedMap->end())
-	{
-		(*it).second.TemporalOffset = (*it2).second.TemporalOffset;
-		(*it).second.AnchorOffset = (*it2).second.AnchorOffset;
-		(*it).second.Flags = (*it2).second.Flags;
-//		printf("Picture %d: TOffset=%d, AOffset=%d, Flags=0x%02x, StreamOffset=0x%08x\n",
-//			   i, (*it).second.TemporalOffset, (*it).second.AnchorOffset, (*it).second.Flags, (int)(*it).second.StreamOffset);
-
-		it++;
-		it2++;
-		i++;
-	}
-
-	return ReorderedMap;
-};
-#endif // 0

@@ -3,10 +3,11 @@
  *
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
+ *
+ *	\version $Id: mxffile.cpp,v 1.12 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: mxffile.cpp,v 1.11 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -77,9 +78,9 @@ bool mxflib::MXFFile::OpenNew(std::string FileName)
 	// Record the name
 	Name = FileName;
 
-	Handle = KLVFileOpenNew(FileName.c_str());
+	Handle = FileOpenNew(FileName.c_str());
 
-	if(!KLVFileValid(Handle)) return false;
+	if(!FileValid(Handle)) return false;
 
 	isOpen = true;
 
@@ -96,6 +97,10 @@ bool mxflib::MXFFile::OpenMemory(DataChunkPtr Buff /*=NULL*/, Uint64 Offset /*=0
 
 	// Set to be a memory file
 	isMemoryFile = true;
+	Name = "Memory File";
+
+	// No run-in currently allowed on memory files
+	RunInSize = 0;
 
 	if(Buff) Buffer = Buff;
 	else Buffer = new DataChunk();
@@ -107,6 +112,8 @@ bool mxflib::MXFFile::OpenMemory(DataChunkPtr Buff /*=NULL*/, Uint64 Offset /*=0
 
 	// Start at the start of the stream
 	BufferCurrentPos = 0;
+
+	isOpen = true;
 
 	return true;
 }
@@ -222,11 +229,45 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 		// Handle errors
 		if(Bytes == (Uint64)-1)
 		{
-			error("Error reading file \"%s\" at 0x%s- %s\n", Name.c_str(), Int64toHexString(Tell(), 8).c_str(), strerror(errno));
+			error("Error reading file \"%s\" at 0x%s - %s\n", Name.c_str(), Int64toHexString(Tell(), 8).c_str(), strerror(errno));
 			Bytes = 0;
 		}
 
 		if(Bytes != Size) Ret->Resize(Bytes);
+	}
+
+	return Ret;
+}
+
+
+//! Read data from the file into a supplied buffer
+Uint64 mxflib::MXFFile::Read(Uint8 *Buffer, Uint64 Size)
+{
+	Uint64 Ret = 0;
+
+	if(Size)
+	{
+		if(isMemoryFile)
+		{
+			if(Size > 0xffffffff)
+			{
+				error("Memory file reading is limited to 4Gb\n");
+				Size = 0xffffffff;
+			}
+
+			Ret = MemoryRead(Buffer, Size);
+		}
+		else
+		{
+			Ret = FileRead(Handle, Buffer, Size);
+		}
+
+		// Handle errors
+		if(Ret == (Uint64)-1)
+		{
+			error("Error reading file \"%s\" at 0x%s - %s\n", Name.c_str(), Int64toHexString(Tell(), 8).c_str(), strerror(errno));
+			Ret = 0;
+		}
 	}
 
 	return Ret;
@@ -265,7 +306,8 @@ bool mxflib::MXFFile::ReadRIP(void)
 	// File smaller than 20 bytes! No chance of a RIP
 	if(FileEnd < 20) return false;
 
-	Uint64 Location = Seek(FileEnd - 4);
+	Seek(FileEnd - 4);
+	Uint64 Location = Tell();
 
 	Uint32 RIPSize = ReadU32();
 
@@ -273,7 +315,8 @@ bool mxflib::MXFFile::ReadRIP(void)
 	if(RIPSize > Location) return false;
 
 	// If we have a valid RIP then RIPSize bytes from back the end of the file will be the RIP key
-	Uint64 RIPStart = Seek(FileEnd - RIPSize);
+	Seek(FileEnd - RIPSize);
+	Uint64 RIPStart = Tell();
 	DataChunkPtr RIPKey = Read(16);
 
 	// Something went wrong with the read!
@@ -476,7 +519,8 @@ Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
 				if(next == 0x0e)
 				{
 					// Locate the 0x06 in the file
-					Uint64 Location = Seek(ScanPos - (ThisScan - i));
+					Seek(ScanPos - (ThisScan - i));
+					Uint64 Location = Tell();
 					DataChunkPtr Key = Read(16);
 
 					if(Key->Size == 16)
@@ -654,7 +698,8 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 			// Skip over header
 			Uint64 NextPos = PreSkip + Skip;
-			if( Seek(NextPos) != NextPos)
+			Seek(NextPos);
+			if( Tell() != NextPos)
 			{
 				error("Unexpected end of file in partition starting at 0x%s in file \"%s\" (Trying to skip from 0x%s to 0x%s)\n",
 					  Int64toHexString(Location,8).c_str(), Name.c_str(), Int64toHexString(PreSkip,8).c_str(), Int64toHexString(NextPos,8).c_str());
@@ -712,7 +757,8 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 			Skip = ReadBER();
 			Uint64 NextPos = Tell() + Skip;
-			if( Seek(NextPos) != NextPos)
+			Seek(NextPos);
+			if( Tell() != NextPos)
 			{
 				error("Unexpected end of file in KLV starting at 0x%s in file \"%s\" (Trying to skip from 0x%s to 0x%s)\n",
 					  Int64toHexString(Location,8).c_str(), Name.c_str(), Int64toHexString(NextPos - Skip,8).c_str(), Int64toHexString(NextPos,8).c_str());
@@ -773,11 +819,20 @@ ULPtr mxflib::MXFFile::ReadKey(void)
 {
 	ULPtr Ret;
 
+	Uint64 Location = Tell();
 	DataChunkPtr Key = Read(16);
 
 	// If we couldn't read 16-bytes then bug out (this may be valid)
 	if(Key->Size != 16) return Ret;
 
+/*
+	// Sanity check the keys
+	if((Key->Data[0] != 6) || (Key->Data[1] != 0x0e))
+	{
+		error("Invalid KLV key found at 0x%s in file \"%s\"\n", Int64toHexString(Location, 8).c_str(), Name.c_str());
+		return Ret;
+	}
+*/
 	// Build the UL
 	Ret = new UL(Key->Data);
 
@@ -923,7 +978,7 @@ Uint64 MXFFile::Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize /*=0*/)
 /*! \note Partition properties are updated from the linked metadata
  *	\return true if (re-)write was successful, else false
  */
-bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer, Uint32 Padding)
+bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding)
 {
 	PrimerPtr ThisPrimer;
 	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = new Primer;
@@ -987,6 +1042,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		// Set size of header metadata (including the primer)
 		Uint64 HeaderByteCount = PrimerBuffer.Size + MetaBuffer.Size;
 
+//#printf("Initial HeaderByteCount = 0x%08x\n", (int)HeaderByteCount);
 		if(ReWrite)
 		{
 			Uint64 Pos = Tell();
@@ -1013,21 +1069,49 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 			}
 
 			HeaderByteCount += Padding;
+
+//#printf("Final (rewrite) HeaderByteCount = 0x%08x\n", (int)HeaderByteCount);
 		}
 		else
 		{
-			// If padding will be added calculate how much and add it to the header byte count
-			if((!IsFooter) || (Padding > 0))
+			// Padding follows the header if no index data
+			if((Padding > 0) && (!IndexData))
 			{
+//#printf("Padding with %d\n", (int)Padding);
 				HeaderByteCount += FillerSize(HeaderByteCount, KAGSize, Padding);
 			}
+			// Otherwise just pad to the KAG
+			else if((!IsFooter) || (IndexData))
+			{
+//#printf("KAG is %d so adding %d\n", (int)KAGSize, FillerSize(HeaderByteCount, KAGSize) );
+				HeaderByteCount += FillerSize(HeaderByteCount, KAGSize);
+			}
+//#else printf("Nothing to pad in this footer\n");
 		}
 
 		ThisPartition->SetUint64("HeaderByteCount", HeaderByteCount);
+//#printf("Final (write) HeaderByteCount = 0x%08x\n", (int)HeaderByteCount);
 	}
 	else
 	{
 		ThisPartition->SetUint64("HeaderByteCount", 0);
+	}
+
+	// Calculate the index byte size
+	if(IndexData)
+	{
+		Uint64 IndexByteCount = IndexData->Size;
+//#printf("Initial IndexByteCount = 0x%08x\n", (int)IndexByteCount);
+	
+		if( (!IsFooter) || (Padding > 0) ) IndexByteCount += FillerSize(IndexByteCount, KAGSize, Padding);
+
+		ThisPartition->SetUint64("IndexByteCount", IndexByteCount);
+//#printf("Final IndexByteCount = 0x%08x\n", (int)IndexByteCount);
+	}
+	else
+	{
+		ThisPartition->SetUint("IndexSID", 0);
+		ThisPartition->SetUint64("IndexByteCount", 0);
 	}
 
 	// Write the pack
@@ -1043,6 +1127,15 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 		// Write the other header metadata
 		Write(MetaBuffer);
+	}
+
+	if(IndexData)
+	{
+		// Align if required
+		if(KAGSize > 1) Align(KAGSize);
+
+		// Write the index data
+		Write(IndexData);
 	}
 
 	// If not a footer align to the KAG (add padding if requested even if it is a footer)
@@ -1082,7 +1175,7 @@ Uint32 MXFFile::MemoryRead(Uint8 *Data, Uint32 Size)
 		return 0;
 	}
 
-	if((BufferCurrentPos - BufferOffset) <= Buffer->Size)
+	if((BufferCurrentPos - BufferOffset) >= Buffer->Size)
 	{
 		error("Cannot currently read beyond the end of a memory file buffer\n");
 		return 0;
@@ -1092,10 +1185,13 @@ Uint32 MXFFile::MemoryRead(Uint8 *Data, Uint32 Size)
 	unsigned int MaxBytes = Buffer->Size - (BufferCurrentPos - BufferOffset);
 
 	// Limit our read to the max available
-	if(Size < MaxBytes) Size = MaxBytes;
+	if(Size > MaxBytes) Size = MaxBytes;
 
+debug("Copy %d bytes from 0x%08x to 0x%08x\n", Size, &Buffer->Data[BufferCurrentPos - BufferOffset], Data);
 	// Copy the data from the buffer
+if(Buffer->Data != 0)
 	memcpy(Data, &Buffer->Data[BufferCurrentPos - BufferOffset], Size);
+else Size = 0;
 
 	// Update the pointer
 	BufferCurrentPos += Size;
@@ -1103,3 +1199,5 @@ Uint32 MXFFile::MemoryRead(Uint8 *Data, Uint32 Size)
 	// Return the number of bytes read
 	return Size;
 }
+
+

@@ -1,9 +1,10 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
+ *
+ *	\version $Id: mxflib.h,v 1.17 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: mxflib.h,v 1.16 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -71,3 +72,4 @@ namespace mxflib {}
 #include <mxflib/esp_dvdif.h>
 
 #endif // MXFLIB__MXFLIB_H
+

@@ -1,9 +1,10 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
+ *
+ *	\version $Id: helper.h,v 1.9 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: helper.h,v 1.8 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -95,6 +96,13 @@ namespace mxflib
 //	class DataChunkPtr;
 	DataChunkPtr MakeBER(Uint64 Length, Uint32 Size = 0);
 
+	//! Encode a Uint64 as a BER OID subid (7 bits per byte)
+	//! length > 0: length is maximum length of subid
+	//! length == 0: as long as necessary
+	//! length < 0: -length is exact length of subid
+	//! returns number of bytes used
+	int EncodeOID( Uint8* presult, Uint64 subid, int length );
+
 	//! Build a new UMID
 	UMIDPtr MakeUMID(int Type);
 
@@ -125,7 +133,11 @@ namespace mxflib
 		return Ret;
 	}
 
-	// File read primitaves
+	//! Set a data chunk from a hex string
+	DataChunkPtr Hex2DataChunk(std::string Hex);
+
+
+	// File read primitives
 
 	//! Read 8-bit unsigned integer
 	inline Uint8 ReadU8(FileHandle Handle) { unsigned char Buffer[1]; if(FileRead(Handle, Buffer, 1) == 1) return GetU8(Buffer); else return 0; }

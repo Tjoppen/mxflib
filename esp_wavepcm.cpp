@@ -1,9 +1,10 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
+ *
+ *	\version $Id: esp_wavepcm.cpp,v 1.5 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: esp_wavepcm.cpp,v 1.4 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -98,6 +99,8 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	ClipWrap->GCElementType = 0x02;						// Wave clip wrapped elemenet
 	ClipWrap->ThisWrapType = WrappingOption::Clip;		// Clip wrapping
 	ClipWrap->CanSlave = true;							// Can use non-native edit rate
+	ClipWrap->CanIndex = false;							// We CANNOT index this essence
+	ClipWrap->CBRIndex = true;							// This essence uses CBR indexing
 	ClipWrap->BERSize = 0;								// No BER size forcing
 
 	// Build a WrappingOption for frame wrapping
@@ -112,6 +115,8 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	FrameWrap->GCElementType = 0x01;					// Wave frame wrapped elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = true;							// Can use non-native edit rate
+	FrameWrap->CanIndex = false;						// We CANNOT index this essence
+	FrameWrap->CBRIndex = true;							// This essence uses CBR indexing
 	FrameWrap->BERSize = 0;								// No BER size forcing
 
 	// Add the two wrapping options 
@@ -132,10 +137,11 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
  *  not be the frame rate of this essence
  *	\note This is going to take a lot of memory in clip wrapping! 
  */
-DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/)
+DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/ /*, IndexTablePtr Index */ /*=NULL*/)
 {
 	// Move to the current position
 	if(CurrentPos == 0) CurrentPos = DataStart;
+
 	FileSeek(InFile, CurrentPos);
 	
 	// Find out how many bytes to read
@@ -163,7 +169,7 @@ DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, Uint32 S
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Uint64 mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/)
+Uint64 mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/ /*, IndexTablePtr Index*/ /*=NULL*/)
 {
 	const unsigned int BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
@@ -255,7 +261,56 @@ bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 
 
 
-//! Read the sequence header at the specified position in an MPEG2 file to build an essence descriptor
+//! Get the current position in SetEditRate() sized edit units
+/*! \return 0 if position not known
+ */
+Int64 WAVE_PCM_EssenceSubParser::GetCurrentPosition(void)
+{
+	if(SampleSize == 0) return 0;
+
+	// Simple case where each edit unit has the same number of samples
+	if(ConstSamples != 0)
+	{
+		return (CurrentPos-DataStart) / (SampleSize * ConstSamples);
+	}
+
+	// Work out how many samples are in a complete sequence
+	Uint32 SeqSize = 0;
+	int i;
+	for(i=0; i < SampleSequenceSize; i++)
+	{
+		SeqSize += SampleSequence[i];
+	}
+
+	// Now work out how many complete sequences we are from the start of the essence
+	Int64 CompleteSeq = (CurrentPos-DataStart) / SampleSize * SeqSize;
+
+	// And The fractional part...
+	Int64 FracSeq = (CurrentPos-DataStart) - (CompleteSeq * SeqSize);
+
+	Int64 Ret = CompleteSeq * SeqSize;
+
+	// Count back through the sequence to see how many edit units the fractional part is
+	i = SequencePos;
+	while(FracSeq)
+	{
+		// Step back through the sequence
+		if(!i) i = SampleSequenceSize;
+		i--;
+
+		// Not a complete edit unit left
+		if(FracSeq < SampleSequence[i]) break;
+
+		Ret += SampleSequence[i];
+		FracSeq -= SampleSequence[i];
+	}
+
+	return Ret;
+}
+
+
+
+//! Read the sequence header at the specified position in a Wave file to build an essence descriptor
 /*! \note This call will modify properties SampleRate, DataStart and DataSize */
 MDObjectPtr mxflib::WAVE_PCM_EssenceSubParser::BuildWaveAudioDescriptor(FileHandle InFile, Uint64 Start /*=0*/)
 {
@@ -356,6 +411,7 @@ Uint64 mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32
 	Uint32 SamplesPerEditUnit;
 	
 	// Work out the maximum possible bytes to return
+	if(CurrentPos == 0) CurrentPos = DataStart;		// Correct the start if we need to
 	Uint64 Max = (CurrentPos - DataStart);			// Where we are in the data
 	if(Max >= DataSize) return 0;
 	Max = DataSize - Max;							// How many bytes are left

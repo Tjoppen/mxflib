@@ -5,13 +5,11 @@
  *<br><br>
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
- *<br><br>
- *	\note
- *			These classes are currently wrappers around KLVLib structures
+ *
+ *	\version $Id: mdobject.cpp,v 1.15 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: mdobject.cpp,v 1.14 2003/11/25 18:44:16 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -38,7 +36,8 @@
 
 extern "C"
 {
-#include <xmldict.h>		//!< For LoadXMLDictionary()
+#include <Endian.h>
+#include <xmldict.h>
 }
 
 using namespace mxflib;
@@ -162,7 +161,7 @@ void MDOType::DictManager::Load(const char *DictFile)
 		{
 			debug("*");
 			p = p->Parent;
-		};
+		}
 
 		debug("DictEntry: %s\n", Dict->Name);
 
@@ -304,7 +303,11 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 		{
 			MDOTypePtr Current = NameLookup[Base->FullName() + "/" + (*it)];
 
-			ASSERT(Current);
+			if(!Current)
+			{
+				error("Cannot locate child derived from base type in MDOType::AddDict() - dictionary or types dictionary may be corrupt or missing\n");
+				break;
+			}
 
 			// Add the base types children
 			NewType->insert(Current);
@@ -360,7 +363,11 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 
 			NewType->ValueType = MDType::Find("Unknown");
 
-			ASSERT(NewType->ValueType);
+			if(!NewType->ValueType)
+			{
+				error("Type \"Unknown\" is not available - has the types dictionary been loaded?\n");
+				return;
+			}
 		}
 	}
 	else
@@ -1197,6 +1204,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 					std::string FullName = (*it).second->FullName();
 					if(FullName == "IndexTableSegment/IndexEntryArray/SliceOffsetArray")
 					{
+						// DRAGONS: Does this ever get called these days?
 						// Number of entries in SliceOffsetArray is in IndexTableSegment/SliceCount
 						// Each entry is 4 bytes long
 						ValueSize = Parent->GetInt("SliceCount") * 4;
@@ -1457,7 +1465,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 			{ 
 				Length = GetU8(Buffer); 
 				return 1;
-			};
+			}
 
 			// Else we drop through to error handler
 			break;
@@ -1469,7 +1477,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 			{ 
 				Length = GetU16(Buffer); 
 				return 2;
-			};
+			}
 
 			// Else we drop through to error handler
 			break;
@@ -1481,7 +1489,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 			{ 
 				Length = GetU32(Buffer); 
 				return 4;
-			};
+			}
 
 			// Else we drop through to error handler
 			break;
@@ -1512,6 +1520,27 @@ std::string mxflib::MDObject::GetSource(void)
 
 	return std::string("memory buffer");
 }
+
+
+//! Build a data chunk with all this item's data (including child data)
+const DataChunk MDObject::PutData(PrimerPtr UsePrimer /* =NULL */) 
+{ 
+	if(Value) return Value->PutData(); 
+	
+	// DRAGONS: Pre-allocating a buffer could speed things up
+	DataChunk Ret; 
+
+	MDObjectNamedList::iterator it = begin();
+
+	while(it != end())
+	{
+		(*it).second->WriteObject(Ret, this, UsePrimer);
+		it++;
+	}
+
+	return Ret;
+}
+
 
 //! Write this object, and any strongly linked sub-objects, to a memory buffer
 /*! The object must be at the outer or top KLV level. 
@@ -1563,25 +1592,27 @@ Uint32 MDObject::WriteLinkedObjects(DataChunk &Buffer, PrimerPtr UsePrimer /*=NU
 /*! The object is appended to the buffer
  *	\return The number of bytes written
  */
+#define DEBUG_WRITEOBJECT(x)
+//#define DEBUG_WRITEOBJECT(x) x
 Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer /*=NULL*/)
 {
 	Uint32 Bytes = 0;
 
 	DictLenFormat LenFormat;
 
-//printf("WriteObject(%s) ", FullName().c_str());
-	// DRAGONS: Should we update GenerationUID here ?
-
+	DEBUG_WRITEOBJECT( debug("WriteObject(%s) ", FullName().c_str()); )
+	
 	// Write the key (and determine the length format)
 	if(!ParentObject)
 	{
-//printf("no parent\n");
+		DEBUG_WRITEOBJECT( debug("no parent\n"); )
 		Bytes += WriteKey(Buffer, DICT_KEY_AUTO, UsePrimer);
 		LenFormat = DICT_LEN_BER;
 	}
 	else
 	{
-//printf("Parent %s, ", ParentObject->FullName().c_str());
+		DEBUG_WRITEOBJECT( debug("Parent %s, ", ParentObject->FullName().c_str()); )
+		
 		const DictEntry *Dict = ParentObject->Type->GetDict();
 		ASSERT(Dict);
 
@@ -1589,7 +1620,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		if((Dict->Type == DICT_TYPE_UNIVERSAL_SET) || (Dict->Type == DICT_TYPE_LOCAL_SET))
 		{
 			Bytes = WriteKey(Buffer, Dict->KeyFormat, UsePrimer);
-//printf("Key = %s, ", Buffer.GetString().c_str());
+			DEBUG_WRITEOBJECT( debug("Key = %s, ", Buffer.GetString().c_str()); )
 		}
 
 		if((Dict->Type == DICT_TYPE_VECTOR) || (Dict->Type == DICT_TYPE_ARRAY))
@@ -1600,9 +1631,10 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		{
 			LenFormat = Dict->LenFormat;
 		}
-//printf("Dict->Type = %d, ", Dict->Type);
-//if(LenFormat == DICT_LEN_BER) printf("Length = BER\n");
-//else printf("Length = %d-byte\n", (int)LenFormat);
+		
+		DEBUG_WRITEOBJECT( debug("Dict->Type = %d, ", Dict->Type); )
+		DEBUG_WRITEOBJECT( if(LenFormat == DICT_LEN_BER) debug("Length = BER\n"); )
+		DEBUG_WRITEOBJECT( else debug("Length = %d-byte\n", (int)LenFormat); )
 	}
 
 	// The rest depends on the container type
@@ -1635,7 +1667,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 				Count++;
 			}
 			Uint32 ThisBytes = (*it).second->WriteObject(Val, this, UsePrimer);
-			Bytes += ThisBytes;
+			//Bytes += ThisBytes;
 			Size += ThisBytes;
 			
 			Subs--;
@@ -1682,11 +1714,13 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		// Append this data
 		Buffer.Append(Val);
 		Bytes += Val.Size;
-//printf("  > %s\n", Val.GetString().c_str());
+		
+		DEBUG_WRITEOBJECT( debug("  > %s\n", Val.GetString().c_str()); )
 	}
 	else if(CType == PACK)
 	{
-//printf("  *PACK*\n");
+		DEBUG_WRITEOBJECT( debug("  *PACK*\n"); )
+
 		// DRAGONS: Pre-allocating a buffer could speed things up
 		DataChunk Val;
 
@@ -1713,11 +1747,13 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		// Append this data
 		Buffer.Append(Val);
 		Bytes += Val.Size;
-//printf("  > %s\n", Val.GetString().c_str());
+		
+		DEBUG_WRITEOBJECT( debug("  > %s\n", Val.GetString().c_str()); )
 	}
 	else if(!empty())
 	{
-//printf("  *Not Empty*\n");
+		DEBUG_WRITEOBJECT( debug("  *Not Empty*\n"); )
+
 		// DRAGONS: Pre-allocating a buffer could speed things up
 		DataChunk Val;
 
@@ -1735,20 +1771,24 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		// Append this data
 		Buffer.Append(Val);
 		Bytes += Val.Size;
-//printf("  > %s\n", Val.GetString().c_str());
+
+		DEBUG_WRITEOBJECT( debug("  > %s\n", Val.GetString().c_str()); )
 	}
 	else if(Value)
 	{
-//printf("  *Value*\n");
+		DEBUG_WRITEOBJECT( debug("  *Value*\n"); )
+
 		DataChunk Val = Value->PutData();
 		Bytes += WriteLength(Buffer, Val.Size, LenFormat);
 		Buffer.Append(Val);
 		Bytes += Val.Size;
-//printf("  > %s\n", Val.GetString().c_str());
+
+		DEBUG_WRITEOBJECT( debug("  > %s\n", Val.GetString().c_str()); )
 	}
 	else
 	{
-//printf("  *Empty!*\n");
+		DEBUG_WRITEOBJECT( debug("  *Empty!*\n"); )
+
 		Bytes += WriteLength(Buffer, 0, LenFormat);
 	}
 
@@ -1841,8 +1881,6 @@ Uint32 MDObject::WriteKey(DataChunk &Buffer, DictKeyFormat Format, PrimerPtr Use
 
 	case DICT_KEY_2_BYTE:
 		{ 
-			ASSERT(UsePrimer);
-
 			if(!TheUL)
 			{
 				error("Call to WriteKey() for %s, but the UL is not known\n", FullName().c_str());

@@ -1,9 +1,10 @@
 /*! \file	esp_mpeg2ves.h
  *	\brief	Definition of class that handles parsing of MPEG-2 video elementary streams
+ *
+ *	\version $Id: esp_mpeg2ves.h,v 1.4 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: esp_mpeg2ves.h,v 1.3 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -56,26 +57,19 @@ namespace mxflib
 
 		bool ClosedGOP;										//!< True if the current GOP is flagged as closed
 
-///		IndexEntryMap IndexMap;								//!< Map of index table entries built so far
-
 		// File buffering
 		Uint8 Buffer[MPEG2_VES_BUFFERSIZE];					//!< Buffer for efficient file reading
 		int BuffCount;										//!< Count of bytes still unread in Buffer
 		Uint8 *BuffPtr;										//!< Pointer to next byte to read from Buffer
 
-		// Options
-		bool GOPIndex;										//!< True if indexing is only per GOP - first essence order frame indexed
-		bool SingleShotIndex;								//!< True if indexing in single-shot mode
-		bool SingleShotPrimed;								//!< True if in single-shot mode and primned to index the next frame (or GOP)
 		bool EditPoint;										//!< Set true each time an edit point (sequence header of a closed GOP) and false for other frames
 															/*!< \note This flag can be checked by calling SetOption("EditPoint") which will return the flag.
-															 *         Also the flag tells only if the last frame is the start of a new sequence.
+															 *         The flag tells only if the last frame is the start of a new sequence.
 															 */
 		bool SelectiveIndex;								//!< True if each index entry is stored and only added to index by a call to SetOption("AddIndexEntry");
-		IndexTablePtr WorkingIndex;							//!< Index table being used for selective indexing
-		IndexEntryPtr ProvisionalIndexEntry;				//!< Last valid index entry not yet added to index table - added by calling SetOption("AddIndexEntry");
-		Int64 ProvisionalEssencePos;						//!< Essence order position of ProvisionalIndexEntry
-		Int64 ProvisionalIndexPos;							//!< Index order position of ProvisionalIndexEntry
+//		IndexTablePtr WorkingIndex;							//!< Index table being used for selective indexing
+
+//		ReorderMap ReorderIndexMap;							//!< Reorder index for each index table
 
 	public:
 		//! Class for EssenceSource objects for parsing/sourcing MPEG-VES essence
@@ -90,8 +84,8 @@ namespace mxflib
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
-			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1, IndexTablePtr UseIndex = NULL)
-				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count, UseIndex) 
+			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
+				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
 				MPEG2_VES_EssenceSubParser *pCaller = (MPEG2_VES_EssenceSubParser*) TheCaller;
 				EssencePos = pCaller->PictureNumber;
@@ -107,7 +101,7 @@ namespace mxflib
 				CountSet = true;
 				Offset = 0;
 				MPEG2_VES_EssenceSubParser *pCaller = (MPEG2_VES_EssenceSubParser*) Caller;
-				ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount, Index);
+				ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount/*, Index*/);
 				return ByteCount;
 			};
 
@@ -124,16 +118,16 @@ namespace mxflib
 				{
 					MPEG2_VES_EssenceSubParser *pCaller = (MPEG2_VES_EssenceSubParser*) Caller;
 
-					if(!CountSet)
-					{
-						CountSet = true;
-						ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount, Index);
-						Offset = 0;
-					}
-
 					// Move to the selected position
 					pCaller->PictureNumber = EssencePos;
 					pCaller->CurrentPos = EssenceBytePos;
+
+					if(!CountSet)
+					{
+						CountSet = true;
+						ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount/*, Index*/);
+						Offset = 0;
+					}
 
 					Started = true;
 				}
@@ -145,7 +139,7 @@ namespace mxflib
 				if(Size == 0)
 				{
 					Size = ByteCount - Offset;
-					if(Size > MaxSize) Size = MaxSize;
+					if((MaxSize) && (Size > MaxSize)) Size = MaxSize;
 				}
 
 				// Read the data
@@ -164,13 +158,8 @@ namespace mxflib
 	public:
 		MPEG2_VES_EssenceSubParser()
 		{
-			GOPIndex = false;
-			SingleShotIndex = false;
-			SingleShotPrimed = false;
 			EditPoint = false;
-			SelectiveIndex = false;
 		}
-		virtual ~MPEG2_VES_EssenceSubParser(){};
 
 		//! Build a new parser of this type and return a pointer to it
 		virtual EssenceSubParserBase *NewParser(void) const { return new MPEG2_VES_EssenceSubParser; }
@@ -190,17 +179,52 @@ namespace mxflib
 		//! Set a non-native edit rate
 		virtual bool SetEditRate(Uint32 Stream, Rational EditRate);
 
+		//! Get the current position in SetEditRate() sized edit units
+		virtual Int64 GetCurrentPosition(void);
+
+		// Index table functions
+		
+		//! Set the IndexManager for this essence stream (and the stream ID if we are not the main stream)
+		/*! Also force reordering to be used */
+		virtual void SetIndexManager(IndexManagerPtr TheManager, int StreamID = 0)
+		{
+			EssenceSubParserBase::SetIndexManager(TheManager, StreamID);
+			TheManager->SetPosTableIndex(StreamID, -1);
+		}
+
+		//! Add a new index table, optionally with the specified ID
+		/*! \return The ID of the new index table, or -1 if the requested ID is not available */
+//		virtual Int32 AddNewIndex(Int32 IndexID = -1)
+//		{
+//			Int32 Ret = EssenceSubParserBase::AddNewIndex(IndexID);
+//
+//			if(Ret >= 0)
+//			{
+//				// If we added the requested index table then initialise its data
+//				IndexDataStruct NewData;
+//
+//				NewData.GOPIndex = false;
+//				NewData.SingleShotIndex = false;
+//				NewData.SingleShotPrimed = false;
+//				NewData.SelectiveIndex = false;
+//
+//				IndexData.insert(IndexDataMap::value_type(Ret, NewData));
+//			}
+//
+//			return Ret;
+//		}
+
 		//! Read a number of wrapping items from the specified stream and return them in a data chunk
-		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1, IndexTablePtr Index = NULL);
+		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1, IndexTablePtr Index = NULL)
+		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/)
 		{
-			return new ESP_EssenceSource(this, InFile, Stream, Count, Index);
+			return new ESP_EssenceSource(this, InFile, Stream, Count/*, Index*/);
 		};
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
-		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1, IndexTablePtr Index = NULL);
+		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Set a parser specific option
 		/*! \return true if the option was successfully set */
@@ -211,11 +235,13 @@ namespace mxflib
 		MDObjectPtr BuildMPEG2VideoDescriptor(FileHandle InFile, Uint64 Start = 0);
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
-		Uint64 ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count, IndexTablePtr Index = NULL);
+		Uint64 ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count/*, IndexTablePtr Index = NULL*/);
 
 		//! Get a byte from the current stream
 		int BuffGetU8(FileHandle InFile);
 	};
+
 }
+
 
 #endif // MXFLIB__ESP_MPEG2VES_H

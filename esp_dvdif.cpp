@@ -1,9 +1,10 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
+ *
+ *	\version $Id: esp_dvdif.cpp,v 1.7 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: esp_dvdif.cpp,v 1.6 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -102,7 +103,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 					)
 					{
 						error("Found a DV AVI file!!! - Code note yet implemented\n");
- 					
+					
 						FileSeek(InFile, FileTell(InFile) + ListSize);
 
 //						MDObjectPtr DescObj = BuildWaveAudioDescriptor(InFile, 0);
@@ -157,8 +158,6 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 			if ((Buffer[i * 80 + 480] & 0xe0) !=  0x80) return Ret;
 		}
 	}
-
-printf("NOTE: We have a valid DV-DIF file!\n");
 
 	// Attempt to parse the format
 	MDObjectPtr DescObj = BuildCDCIEssenceDescriptor(InFile, 0);
@@ -263,6 +262,8 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	ClipWrap->GCElementType = 0x02;						// Clip wrapped picture elemenet
 	ClipWrap->ThisWrapType = WrappingOption::Clip;		// Clip wrapping
 	ClipWrap->CanSlave = true;							// Can use non-native edit rate (clip wrap only!)
+	ClipWrap->CanIndex = true;							// We can index this essence
+	ClipWrap->CBRIndex = true;							// This essence uses CBR indexing
 	ClipWrap->BERSize = 0;								// No BER size forcing
 
 	// Build a WrappingOption for frame wrapping
@@ -277,6 +278,8 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	FrameWrap->GCElementType = 0x01;					// Frame wrapped picture elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = false;						// Can only use the correct edit rate
+	FrameWrap->CanIndex = true;							// We can index this essence
+	FrameWrap->CBRIndex = true;							// This essence uses CBR indexing
 	FrameWrap->BERSize = 0;								// No BER size forcing
 
 	// Add the two wrapping options
@@ -345,6 +348,28 @@ bool DV_DIF_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
 }
 
 
+//! Get the current position in SetEditRate() sized edit units
+/*! \return 0 if position not known
+ */
+Int64 DV_DIF_EssenceSubParser::GetCurrentPosition(void)
+{
+	if((SelectedEditRate.Numerator == NativeEditRate.Numerator) && (SelectedEditRate.Denominator == NativeEditRate.Denominator))
+	{
+		return PictureNumber;
+	}
+
+	if((SelectedEditRate.Denominator == 0) || (NativeEditRate.Denominator || 0)) return 0;
+
+	// Correct the position
+	Int64 iPictureNumber = PictureNumber;		// A wonderful Microsoft omission means we can only convert Int64 -> double, not Uint64
+
+	double Pos = iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator;
+	Pos /= (SelectedEditRate.Denominator * NativeEditRate.Numerator);
+	
+	return floor(Pos + 0.5);
+}
+
+
 //! Read a number of wrapping items from the specified stream and return them in a data chunk
 /*! If frame or line mapping is used the parameter Count is used to
  *	determine how many items are read. In frame wrapping it is in
@@ -352,14 +377,14 @@ bool DV_DIF_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
  *  not be the frame rate of this essence
  *	\note This is going to take a lot of memory in clip wrapping! 
  */
-DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/) 
+DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/ /*, IndexTablePtr Index *//*=NULL*/) 
 { 
 	// Scan the stream and find out how many bytes to read
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count, Index);
+	Uint64 Bytes = ReadInternal(InFile, Stream, Count/*, Index*/);
 
 	// Read the data
 	return FileReadChunk(InFile, Bytes);
-}
+};
 
 
 //! Write a number of wrapping items from the specified stream to an MXF file
@@ -370,13 +395,13 @@ DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uin
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Uint64 DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/)
+Uint64 DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*//*, IndexTablePtr Index*/ /*=NULL*/)
 {
 	const unsigned int BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count, Index);
+	Uint64 Bytes = ReadInternal(InFile, Stream, Count/*, Index*/);
 	Uint64 Ret = Bytes;
 
 	while(Bytes)
@@ -504,7 +529,7 @@ printf("Assumed 4:3...\n");
  *
  *  \note	Currently assumes 25Mbit
  */
-Uint64 DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count, IndexTablePtr Index /*=NULL*/)
+Uint64 DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count/*, IndexTablePtr Index *//*=NULL*/)
 {	
 	// Return anything we can find if clip wrapping
 	if((Count == 0) && (SelectedWrapping == WrappingOption::Clip)) return DIFEnd - DIFStart;
@@ -512,7 +537,7 @@ Uint64 DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, U
 	// Simple version - we are working in our native edit rate
 	if((SelectedEditRate.Denominator == NativeEditRate.Denominator) && (SelectedEditRate.Numerator = NativeEditRate.Numerator))
 	{
-printf("Reading %llu bytes at %llu:0x%08llx\n",(150 * 80 * Count), PictureNumber, (150 * 80 * PictureNumber));
+//printf("Reading %d bytes at %d:0x%08x\n",(int)(150 * 80 * Count), (int)PictureNumber, (150 * 80 * PictureNumber));
 
 		// Seek to the data position
 		FileSeek(InFile, DIFStart + (150 * 80 * PictureNumber));
@@ -548,47 +573,10 @@ int DV_DIF_EssenceSubParser::BuffGetU8(FileHandle InFile)
 /*! \return true if the option was successfully set */
 bool DV_DIF_EssenceSubParser::SetOption(std::string Option, Int64 Param /*=0*/ )
 {
-/*
-	if(Option == "GOPIndex")
-	{
-		if(Param == 0) GOPIndex = false; else GOPIndex = true;
-		return true;
-	}
+	warning("MPEG2_VES_EssenceSubParser::SetOption(\"%s\", Param) not a known option\n", Option.c_str());
 
-	if(Option == "SelectiveIndex")
-	{
-		if(Param == 0) SelectiveIndex = false; else SelectiveIndex = true;
-		return true;
-	}
-
-	if(Option == "SingleShotIndex")
-	{
-		if(Param == 0)
-		{
-			SingleShotIndex = false;
-		}
-		else 
-		{
-			SingleShotIndex = true;
-			SingleShotPrimed = true;
-		}
-	}
-
-	if(Option == "EditPoint") return EditPoint;
-
-	if(Option == "AddIndexEntry")
-	{
-		if(ProvisionalIndexEntry)
-		{
-			WorkingIndex->AddNewEntry(ProvisionalEssencePos, ProvisionalIndexPos, ProvisionalIndexEntry);
-			ProvisionalIndexEntry = NULL;
-			return true;
-		}
-
-		// Nothing to add so return error state
-		return false;
-	}
-*/
 	return false; 
 }
+
+
 

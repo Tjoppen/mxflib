@@ -1,6 +1,17 @@
 
-Release Notes for mxflib version 0.3.2-Alpha
+Release Notes for mxflib version 0.3.5-Alpha
 ============================================
+
+Changes since version 0.3.2-Alpha
+=================================
+
+* Added IndexManager class to support complex index table building
+* Added many index table options to mxfwrap
+* Moved index writing into MXFFile functions WritePartitionWithIndex()
+* Fixed problem where HeaderByteSize was wrong in the footer
+  if KAGSize > 1 and IndexByteCount > 0
+* Corrected AnchorOffset in MPEG index tables
+* Corrected Operational Pattern qualifiers in mxfwrap
 
 Changes since version 0.3.1-Alpha
 =================================

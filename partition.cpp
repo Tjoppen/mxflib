@@ -3,10 +3,11 @@
  *
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
+ *
+ *	\version $Id: partition.cpp,v 1.10 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: partition.cpp,v 1.9 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -431,8 +432,8 @@ MDObjectListPtr mxflib::Partition::ReadIndex(void)
 	if(FirstType->Name() == "KLVFill")
 	{
 		// Skip over the filler
-		Location = ParentFile->ReadBER();
-		Location += ParentFile->Tell();
+		Len = ParentFile->ReadBER();
+		Location = ParentFile->Tell() + Len;
 	}
 
 	// Move to the start of the index table segments
@@ -450,17 +451,26 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 	while(Size)
 	{
 		Uint64 Location = File->Tell();
+		Uint64 Bytes;
+
 		MDObjectPtr NewIndex = File->ReadObject(NULL);
 		if(NewIndex)
 		{
 			if((NewIndex->Name() == "IndexTableSegment") || (NewIndex->Name() == "V10IndexTableSegment"))
 			{
 				Ret->push_back(NewIndex);
+				Bytes = File->Tell() - Location;
+			}
+			else if( NewIndex->Name() == "KLVFill" )
+			{
+				// Skip over the filler
+				Bytes = File->Tell() - Location;
 			}
 			else
 			{
 				error("Expected to find an IndexTableSegment - found %s at %s\n", 
 					  NewIndex->FullName().c_str(), NewIndex->GetSourceLocation().c_str());
+				break;
 			}
 		}
 		else
@@ -469,7 +479,6 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 				   Int64toHexString(Location,8).c_str(), File->Name.c_str());
 		}
 
-		Uint64 Bytes = File->Tell() - Location;
 		if(Bytes > Size) break;
 
 		Size -= Bytes;
@@ -477,3 +486,4 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 
 	return Ret;
 }
+

@@ -2,9 +2,8 @@
  *	\brief	Basic MXF essence wrapping utility
  */
 /*
- *	$Id: mxfwrap.cpp,v 1.5 2003/11/26 17:44:58 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
+ *	Portions Copyright (c) 2003, Metaglue Corporation
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -26,13 +25,21 @@
  *	     distribution.
  */
 
-#include <stdio.h>
-#include <iostream>
-
 #include <mxflib/mxflib.h>
 
 using namespace mxflib;
+
+#include <stdio.h>
+#include <iostream>
+
 using namespace std;
+
+// Product GUID and version text for this release
+static Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x97, 0xda, 0x7f, 0xd0, 0x52 };
+static std::string ProductVersion = "Unreleased 0.3.3";
+static std::string CompanyName = "FreeMXF.org";
+static std::string ProductName = "mxfwrap";
+
 
 //! Debug flag for KLVLib
 int Verbose = 0;
@@ -41,12 +48,69 @@ int Verbose = 0;
 static bool DebugMode = false;
 
 
-// Product GUID and version text for this release
-static Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x52 };
-static std::string ProductVersion = "Unreleased 0.2";
+// Debug and error messages
+#include <stdarg.h>
 
-static bool ParseCommandLine(int &argc, char **argv);
 
+#ifdef MXFLIB_DEBUG
+//! Display a general debug message
+void mxflib::debug(const char *Fmt, ...)
+{
+	if(!DebugMode) return;
+
+	va_list args;
+
+	va_start(args, Fmt);
+	vprintf(Fmt, args);
+	va_end(args);
+}
+#endif MXFLIB_DEBUG
+
+//! Display a warning message
+void mxflib::warning(const char *Fmt, ...)
+{
+	va_list args;
+
+	va_start(args, Fmt);
+	printf("Warning: ");
+	vprintf(Fmt, args);
+	va_end(args);
+}
+
+//! Display an error message
+void mxflib::error(const char *Fmt, ...)
+{
+	va_list args;
+
+	va_start(args, Fmt);
+	printf("ERROR: ");
+	vprintf(Fmt, args);
+	va_end(args);
+}
+
+// small utility functions that shoud be somewhere else
+Int64 TCtoFrames(Uint16 FrameRate, bool DropFrame, Uint16 Hours, Uint16 Mins, Uint16 Secs, Uint16 Frames)
+{
+	Int64 f = Frames + FrameRate*( Secs + 60*( Mins + 60*Hours ) );
+
+	if( (FrameRate == 30) && DropFrame )
+	{
+		Uint16 m = Mins + 60*Hours;
+		f -= 2*( m - m/10 );
+	}
+
+	return f;
+}
+
+// non-exported forward declarations
+bool ParseCommandLine(int &argc, char **argv);
+
+int Process(	int OutFileNum,
+							MXFFilePtr Out,
+							EssenceParser::WrappingConfigList WrappingList,
+							Rational EditRate,
+							UMIDPtr *FPUMID
+					 );
 
 struct BodyWrapping
 {
@@ -58,126 +122,103 @@ struct BodyWrapping
 
 	//! The mode of body partition insertion
 	enum PartitionMode { Body_None, Body_Duration, Body_Size } BodyMode;
-	Uint32 BodyRate;				//!< The rate of body partition insertion
+
+	Uint32 BodyRate;						//!< The rate of body partition insertion
 };
 typedef std::list<BodyWrapping> BodyWrappingList;
-static Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr ThisPartition, Int64 Duration = 0);
+
+// OP Qualifier manipulators: ClearStream, SetStream, SetUniTrack, SetMultiTrack
+void ClearStream(ULPtr &theUL);
+void SetStream(ULPtr &theUL);
+void SetUniTrack(ULPtr &theUL);
+void SetMultiTrack(ULPtr &theUL);
+
+namespace
+{
+	// Options
+	char InFilenameSet[512];				//!< The set of input filenames
+	char InFilename[16][128];				//!< The list of input filenames
+	int InFileGangSize;						//!< The number of ganged files to process at a time
+	int InFileGangCount;					//!< The number of sets of ganged files to process
+	char OutFilenameSet[512];				//!< The set of output filenames
+	char OutFilename[16][128];				//!< The output filename
+	int OutFileCount;						//!< The number of files to output
+
+	FileHandle InFile[16];					//!< File handles
+	Int64 Duration[16];						//!< Duration of each ganged section of essence
+
+	bool OPAtom = false;					//!< Is OP-Atom mode being forced?
+	bool UpdateHeader= false;				//!< Is the header going to be updated after writing the footer
+	bool StreamMode = false;				//!< Wrap in stream-mode
+	bool EditAlign = false;					//!< Start new body partitions only at the start of a GOP
+	bool UseIndex	= false;				//!< Write complete index tables
+	bool SparseIndex = false;				//!< Write sparse index tables (one entry per partition)
+	bool SprinkledIndex = false;			//!< Write segmented index tables (one set per partition)
+	bool IsolatedIndex = false;				//!< Don't write essence and index in same partition
+	bool VeryIsolatedIndex = false;			//!< Don't write metadata and index in same partition
+
+	Position LastEditUnit[128];				//!< Table of last edit units written in sparse index tables (per BodySID)
 
 
-// Options
-static Uint32 KAGSize = 1;						//!< The KAG Size for this file
-static char InFilenameSet[512];				//!< The set of input filenames
-static int InFileGangSize;						//!< The number of ganged files to process at a time
-static int InFileGangCount;					//!< The number of sets of ganged files to process
-static char InFilename[16][128];				//!< The list of input filenames
-static char OutFilenameSet[512];				//!< The set of output filenames
-static char OutFilename[16][128];				//!< The output filename
-static int OutFileCount;						//!< The number of files to output
+	// DRAGONS: Temporary option!
+	bool FrameGroup = false;				//!< Group all as a frame-wrapped group (in one essence container)
 
-static bool OPAtom = false;					//!< Is OP-Atom mode being forced?
-static bool StreamMode = false;				//!< Wrap in stream-mode
-static bool EditAlign = false;					//!< Start new body partitions only at the start of a GOP
-static bool UseIndex = false;					//!< Write index tables
-static bool SparseIndex = false;				//!< Write sparse index tables (one entry per partition)
+	int IndexManCount;						//!< Number of index managers in use
+	IndexManagerPtr IndexMan[16];			//!< Index managers per indexed essence container
+	std::list<Position> SparseList[16];		//!< List of edit units to include in sparse index tables (per BodySID)
 
-// DRAGONS: Temporary option!
-static bool FrameGroup = false;				//!< Group all as a frame-wrapped group (in one essence container)
+	Rational ForceEditRate;					//!< Edit rate to try and force
 
-static Rational ForceEditRate;					//!< Edit rate to try and force
+	//! The mode of body partition insertion
+	//enum { Body_None, Body_Duration, Body_Size } 
+	BodyWrapping::PartitionMode BodyMode = BodyWrapping::Body_None;
+	Uint32 BodyRate = 0;					//!< The rate of body partition insertion
 
-//! The mode of body partition insertion
-//enum { Body_None, Body_Duration, Body_Size } 
-static BodyWrapping::PartitionMode BodyMode = BodyWrapping::Body_None;
-static Uint32 BodyRate = 0;					//!< The rate of body partition insertion
+	Uint32 HeaderPadding = 0;				//!< The (minimum) number of bytes of padding to leave in the header
 
-static Uint32 HeaderPadding = 0;				//!< The (minimum) number of bytes of padding to leave in the header
+	Uint32 KAGSize = 1;						//!< The KAG Size for this file
 
-
-// Derived options
-static ULPtr OPUL;								//!< The UL of the OP for this file
-
+	// Derived options
+	ULPtr OPUL;								//!< The UL of the OP for this file
+}
 
 
 // Operational Pattern Labels
 // ==========================
 
 // OP-Atom - #### DRAGONS: Qualifiers need work later!
-static Uint8 OPAtom_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
-static ULPtr OPAtomUL = new UL(OPAtom_Data);
+Uint8 OPAtom_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
+ULPtr OPAtomUL = new UL(OPAtom_Data);
 
 // OP1a - #### DRAGONS: Qualifiers may need work!
-static Uint8 OP1a_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x01, 0x01, 0x00 };
-static ULPtr OP1aUL = new UL(OP1a_Data);
+Uint8 OP1a_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x01, 0x01, 0x00 };
+ULPtr OP1aUL = new UL(OP1a_Data);
 
 // OP1b - #### DRAGONS: Qualifiers need work!
-static Uint8 OP1b_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x02, 0x05, 0x00 };
-static ULPtr OP1bUL = new UL(OP1b_Data);
+Uint8 OP1b_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x02, 0x05, 0x00 };
+ULPtr OP1bUL = new UL(OP1b_Data);
 
 // OP2a - #### DRAGONS: Qualifiers need work!
-static Uint8 OP2a_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x02, 0x01, 0x01, 0x00 };
-static ULPtr OP2aUL = new UL(OP2a_Data);
+Uint8 OP2a_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x02, 0x01, 0x01, 0x00 };
+ULPtr OP2aUL = new UL(OP2a_Data);
 
 // OP2b - #### DRAGONS: Qualifiers need work!
-static Uint8 OP2b_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x02, 0x02, 0x05, 0x00 };
-static ULPtr OP2bUL = new UL(OP2b_Data);
+Uint8 OP2b_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x02, 0x02, 0x05, 0x00 };
+ULPtr OP2bUL = new UL(OP2b_Data);
 
 
-
-//IT# // The index table
-//IT# IndexTablePtr Table;
-
-class ES2 : public EssenceSource
-{
-public:
-	virtual Uint64 GetEssenceDataSize(void) { return 0; };
-
-		//! Get the next "installment" of essence data
-		/*! /ret Pointer to a data chunk holding the next data or a NULL pointer when no more remains
-		 *	/note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
-		 *	/note If Size = 0 the object will decide the size of the chunk to return
-		 *	/note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
-		 */
-	virtual DataChunkPtr GetEssenceData(Uint64 Size = 0, Uint64 MaxSize = 0) { return NULL; };
-
-	virtual ~ES2() { printf("Sub destructor called\n"); };
-};
 
 
 int main(int argc, char *argv[])
 {
 	printf("Simple MXF wrapping application\n\n");
 
-/*{
-	DV_DIF_EssenceSubParser SPB;
-
-	DV_DIF_EssenceSubParser::ESP_EssenceSource *X = new DV_DIF_EssenceSubParser::ESP_EssenceSource(&SPB, 0, 0, 1);
-
-	printf("Size = %d\n", X->GetEssenceDataSize());
-
-	DataChunkPtr Data = X->GetEssenceData();
-
-	printf("Read %d bytes\n", (int)Data->Size);
-
-	Uint8 *Z = (Uint8*)X;
-
-	EssenceSource *Y = (EssenceSource*)Z;
-
-	printf("b");
-
-	delete Y;
-
-	printf("c\n");
-}*/
-
 	// Build an essence parser
 	EssenceParser EssParse;
 
 	// Load the dictionaries
 	LoadTypes("types.xml");
-	MDOType::LoadDict("xmldict.xml");
-
-//IT# 	// Clear the index table
-//IT# 	Table = new IndexTable();
+	MDOType::LoadDict("XMLDict.xml");
 
 	// Parse command line options and exit on error
 	ForceEditRate.Numerator = 0;
@@ -186,16 +227,14 @@ int main(int argc, char *argv[])
 	EssenceParser::WrappingConfigList WrappingList;
 	EssenceParser::WrappingConfigList::iterator WrappingList_it;
 
-	// File handles
-	FileHandle InFile[16];
-
 	// The edit rate for all tracks in this file
 	Rational EditRate;
 
 	// Identify the wrapping options
 	// DRAGONS: Not flexible yet
 	int i;
-	for(i=0; i<InFileGangSize; i++)
+	int InCount = InFileGangSize * InFileGangCount;
+	for(i=0; i< InCount; i++)
 	{
 		// Open the input file
 		InFile[i] = FileOpenRead(InFilename[i]);
@@ -215,7 +254,7 @@ int main(int argc, char *argv[])
 		}
 
 		EssenceParser::WrappingConfigPtr WCP;
-		if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
+		if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::WrapType::Frame);
 		else WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate);
 
 // Fixed now ? ## When PDList is deleted so is the essence parser...
@@ -265,12 +304,23 @@ int main(int argc, char *argv[])
 
 		WrappingList_it++;
 		i++;
-
-		// DRAGONS: not the right way to do file package reduction!
-		if(FrameGroup) break;
 	}
 
-	Int64 Duration = 0;
+	// Set any OP qualifiers
+	if(!OPAtom)
+	{
+		if((FrameGroup) || (WrappingList.size() == 1))
+		{
+			SetUniTrack(OPUL);
+			SetStream(OPUL);
+		}
+		else
+		{
+			SetMultiTrack(OPUL);
+			if(StreamMode) SetStream(OPUL); else ClearStream(OPUL);
+		}
+	}
+
 	int OutFileNum;
 	for(OutFileNum=0; OutFileNum < OutFileCount ; OutFileNum++)
 	{
@@ -282,463 +332,87 @@ int main(int argc, char *argv[])
 			return -5;
 		}
 
-		// Create a set of header metadata
-		MetadataPtr MData = new Metadata();
-		ASSERT(MData);
-		ASSERT(MData->Object);
+		printf( "\nProcessing output file \"%s\"\n", OutFilename[OutFileNum]);
 
-		// Set the OP label
-		// If we are writing OP-Atom we write the header as OP1a initially as another process
-		// may try to read the file before it is complete and then it will NOT be a valid OP-Atom file
-		if(OPAtom) MData->SetOP(OP1aUL); else MData->SetOP(OPUL);
-
-		// Work out the edit rate from the descriptor
-		bool DropFrame = 0;
-		Uint32 FrameRate = EditRate.Numerator;
-
-		// Use drop-frame for any non-integer frame rate
-		if(EditRate.Denominator > 1)
-		{
-			FrameRate /= EditRate.Denominator;
-			DropFrame = true;
-		}
-
-		// Build the Material Package
-		PackagePtr MaterialPackage = MData->AddMaterialPackage("Material Package");
-
-		MData->SetPrimaryPackage(MaterialPackage);		// This will be overwritten for OP-Atom
-
-		TrackPtr MPTimecodeTrack = MaterialPackage->AddTimecodeTrack(EditRate);
-		TimecodeComponentPtr MPTimecodeComponent = MPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, 0);
-
-		// Build the File Packages and all essence tracks
-		GCWriterPtr Writer[16];							//! Writers for each essence container
-		GCStreamID EssenceID[16];						//! Essence stream ID for each essence stream
-		TimecodeComponentPtr FPTimecodeComponent[16];	//! Timecode component for each file package
-		TrackPtr MPTrack[16];							//! Material Package track for each essence stream
-		TrackPtr FPTrack[16];							//! File Package track for each essence stream
-		SourceClipPtr MPClip[16];						//! Material Package SourceClip for each essence stream 
-		SourceClipPtr FPClip[16];						//! File Package SourceClip for each essence stream 
-
-		i = 0;				//  Essence container and track index
-		WrappingList_it = WrappingList.begin();
-		PackagePtr FilePackage;
-		while(WrappingList_it != WrappingList.end())
-		{
-			TrackPtr FPTimecodeTrack;
-
-			// Don't write file packages for externally reffed essence in OP-Atom
-			bool WriteFP = (!OPAtom) || (i == OutFileNum);
-
-			if(WriteFP)
-			{
-				// Set up a writer for body SID (i + 1)
-				if(FrameGroup) Writer[i] = new GCWriter(Out, 1);
-				else Writer[i] = new GCWriter(Out, i + 1);
-
-				// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
-				Writer[i]->SetKAG(KAGSize, true);
-
-				// Add an essence element
-				EssenceID[i] = Writer[i]->AddEssenceElement((*WrappingList_it)->WrapOpt->GCEssenceType, (*WrappingList_it)->WrapOpt->GCElementType);
-
-				// DRAGONS: not the right way to do file package reduction!
-				if((!FrameGroup) || (i == 0))
-				{
-					FilePackage = MData->AddFilePackage(i+1, std::string("File Package: ") + (*WrappingList_it)->WrapOpt->Description, FPUMID[i]);
-
-					FPTimecodeTrack = FilePackage->AddTimecodeTrack(EditRate);
-					FPTimecodeComponent[i] = FPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, 0);
-				}
-			}
-
-			switch((*WrappingList_it)->WrapOpt->GCEssenceType)
-			{
-			case 0x05: case 0x15:
-				MPTrack[i] = MaterialPackage->AddPictureTrack(EditRate);
-				if(WriteFP) FPTrack[i] = FilePackage->AddPictureTrack(Writer[i]->GetTrackNumber(EssenceID[i]), EditRate);
-				break;
-			case 0x06: case 0x16:
-				MPTrack[i] = MaterialPackage->AddSoundTrack(EditRate);
-				if(WriteFP) FPTrack[i] = FilePackage->AddSoundTrack(Writer[i]->GetTrackNumber(EssenceID[i]), EditRate);
-				break;
-			case 0x07: case 0x17: default:
-				MPTrack[i] = MaterialPackage->AddDataTrack(EditRate);
-				if(WriteFP) FPTrack[i] = FilePackage->AddDataTrack(Writer[i]->GetTrackNumber(EssenceID[i]), EditRate);
-				break;
-	//		case 0x18:
-	//			MPTrack[i] = MaterialPackage->AddCompoundTrack(EditRate);
-	//			if(WriteFP) FPTrack[i] = FilePackage->AddCompoundTrack(Writer[i]->GetTrackNumber(EssenceID[i]), EditRate);
-	//			break;
-			}
-
-			MPClip[i] = MPTrack[i]->AddSourceClip();
-			if(WriteFP) FPClip[i] = FPTrack[i]->AddSourceClip();
-
-			// Add the file descriptor to the file package
-			// Don't add for external refs in OP-Atom
-			if(WriteFP)
-			{
-				if(FrameGroup)
-				{
-					if(i == 0)
-					{
-						MDObjectPtr MuxDescriptor = new MDObject("MultipleDescriptor");
-						MuxDescriptor->AddChild("SampleRate")->SetInt("Numerator",(*WrappingList_it)->EssenceDescriptor["SampleRate"]->GetInt("Numerator"));
-						MuxDescriptor->AddChild("SampleRate")->SetInt("Denominator",(*WrappingList_it)->EssenceDescriptor["SampleRate"]->GetInt("Denominator"));
-						// DRAGONS: What to do about multiple descriptor container UL?
-						MuxDescriptor->AddChild("SubDescriptorUIDs");
-						FilePackage->AddChild("Descriptor")->MakeLink(MuxDescriptor);
-					}
-
-					(*WrappingList_it)->EssenceDescriptor->SetUint("LinkedTrackID", FPTrack[i]->GetUint("TrackID"));
-					
-					MDObjectPtr MuxDescriptor = FilePackage["Descriptor"]->GetLink();
-
-					MuxDescriptor["SubDescriptorUIDs"]->AddChild("SubDescriptorUID", false)->MakeLink((*WrappingList_it)->EssenceDescriptor);
-
-					MData->AddEssenceType((*WrappingList_it)->WrapOpt->WrappingUL);
-
-					// Link the MP to the FP
-					MPClip[i]->MakeLink(FPTrack[i], 0);
-				}
-				else
-				{
-					(*WrappingList_it)->EssenceDescriptor->SetUint("LinkedTrackID", FPTrack[i]->GetUint("TrackID"));
-					FilePackage->AddChild("Descriptor")->MakeLink((*WrappingList_it)->EssenceDescriptor);
-
-					MData->AddEssenceType((*WrappingList_it)->WrapOpt->WrappingUL);
-
-					// Link the MP to the FP
-					MPClip[i]->MakeLink(FPTrack[i], 0);
-				}
-			}
-			else
-			{
-				// Link the MP to the FP
-				// DRAGONS: This assumes that the linked track will be track 2
-				MPClip[i]->MakeLink(FPUMID[i], 2, 0);
-			}
-
-			WrappingList_it++;
-			i++;
-		}
-
-
-		//
-		// ** Write out the header **
-		//
-
-		PartitionPtr ThisPartition = new Partition("OpenHeader");
-		ASSERT(ThisPartition);
-		ThisPartition->SetKAG(KAGSize);			// Everything else can stay at default
-		ThisPartition->SetUint("BodySID", 1);
-
-		ThisPartition->AddMetadata(MData);
-
-		// Build an Ident set describing us and link into the metadata
-		MDObjectPtr Ident = new MDObject("Identification");
-		Ident->SetString("CompanyName", "freeMXF.org");
-		Ident->SetString("ProductName", "mxfwrap");
-		Ident->SetString("VersionString", ProductVersion);
-		UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
-
-		// DRAGONS: -- Need to set a proper GUID per released version
-		//             Non-released versions currently use a random GUID
-		//			   as they are not a stable version...
-		Ident->SetValue("ProductUID", DataChunk(16,ProductUID->GetValue()));
-
-		// Link the new Ident set with all new metadata
-		MData->UpdateGenerations(Ident);
-
-		// Write the header partition
-		Out->WritePartition(ThisPartition, HeaderPadding);
-
-
-		//
-		// ** Process Essence **
-		//
-
-		// Do all frame-wrappings first
-		BodyWrappingList WrapConfig;
-		WrappingList_it = WrappingList.begin();
-		i=0;
-		while(WrappingList_it != WrappingList.end())
-		{
-			if((*WrappingList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
-			{
-				if((!OPAtom) || (i == OutFileNum))
-				{
-					BodyWrapping BW;
-
-					BW.Writer = Writer[i];
-					BW.EssenceID = EssenceID[i];
-					BW.Config = (*WrappingList_it);
-					BW.InFile = InFile[i];
-
-					if(FrameGroup) BW.BodySID = 1;
-					else BW.BodySID = i+1;
-
-					BW.BodyMode = BodyMode;
-					BW.BodyRate = BodyRate;
-
-					WrapConfig.push_back(BW);
-				}
-			}
-
-			WrappingList_it++;
-			i++;
-		}
-
-		// Write all frame non-wrapped/clip items
-		if(!WrapConfig.empty()) Duration = WriteBody(Out, WrapConfig, ThisPartition);
-
-
-		// Non-clip-wrapped items
-		WrapConfig.clear();
-		WrappingList_it = WrappingList.begin();
-		i=0;
-		while(WrappingList_it != WrappingList.end())
-		{
-			if(    ((*WrappingList_it)->WrapOpt->ThisWrapType != WrappingOption::Frame)
-				&& ((*WrappingList_it)->WrapOpt->ThisWrapType != WrappingOption::Clip))
-			{
-				if((!OPAtom) || (i == OutFileNum))
-				{
-					BodyWrapping BW;
-
-					BW.Writer = Writer[i];
-					BW.EssenceID = EssenceID[i];
-					BW.Config = (*WrappingList_it);
-					BW.InFile = InFile[i];
-					BW.BodySID = i+1;
-
-					WrapConfig.push_back(BW);
-				}
-			}
-
-			WrappingList_it++;
-			i++;
-		}
-
-		// Write all non-wrapped/clip items
-		if(!WrapConfig.empty()) WriteBody(Out, WrapConfig, ThisPartition, Duration);
-
-
-		// Clip wrappings
-		WrapConfig.clear();
-		WrappingList_it = WrappingList.begin();
-		i=0;
-		while(WrappingList_it != WrappingList.end())
-		{
-			if(((*WrappingList_it)->WrapOpt->ThisWrapType == WrappingOption::Clip))
-			{
-				if((!OPAtom) || (i == OutFileNum))
-				{
-					BodyWrapping BW;
-
-					BW.Writer = Writer[i];
-					BW.EssenceID = EssenceID[i];
-					BW.Config = (*WrappingList_it);
-					BW.InFile = InFile[i];
-					BW.BodySID = i+1;
-
-					WrapConfig.push_back(BW);
-				}
-			}
-
-			WrappingList_it++;
-			i++;
-		}
-
-		// Write all clip wrapped items
-		if(!WrapConfig.empty()) WriteBody(Out, WrapConfig, ThisPartition, Duration);
-
-
-		//
-		// Write out a set of index tables
-		//
-
-		DataChunk IndexChunk;
-		Uint32 IndexSID = 0;
-
-		if(UseIndex)
-		{
-			// Find all essence container data sets so we can update "IndexSID"
-			MDObjectListPtr ECDataSets;
-			MDObjectPtr Ptr = MData["ContentStorage"];
-			if(Ptr) Ptr = Ptr->GetLink();
-			if(Ptr) Ptr = Ptr["EssenceContainerData"];
-			if(Ptr) ECDataSets = Ptr->ChildList("EssenceContainer");
-
-			WrappingList_it = WrappingList.begin();
-			IndexSID = 129;
-			i = 0;
-			while(WrappingList_it != WrappingList.end())
-			{
-				if((!OPAtom) || (i == OutFileNum))
-				{
-					if(Writer[i]->Index)
-					{
-						if((Writer[i]->Index->EditUnitByteCount != 0) || (!Writer[i]->Index->SegmentMap.empty()))
-						{
-							if(IndexChunk.Size)
-							{
-								// Write the index in a partition of its own
-
-								// Work out how big the index (and associated filler) will be
-								Uint64 IndexSize = IndexChunk.Size + Out->FillerSize(IndexChunk.Size, KAGSize);
-
-								ThisPartition->ChangeType("ClosedCompleteBodyPartition");
-								ThisPartition->SetUint("BodySID", 0);
-								ThisPartition->SetUint("IndexSID",  IndexSID);
-								ThisPartition->SetUint("IndexByteCount",  IndexSize);
-
-								Out->WritePartition(ThisPartition, false);
-
-								if(KAGSize > 1) Out->Align(KAGSize);
-
-								Out->Write(IndexChunk);
-
-								if(KAGSize > 1) Out->Align(KAGSize);
-							}
-
-							Writer[i]->Index->WriteIndex(IndexChunk);
-	//@printf("Index is %d\n", IndexChunk.Size);
-
-							// Update IndexSID in essence container data set
-							if(ECDataSets)
-							{
-								MDObjectList::iterator ECD_it = ECDataSets->begin();
-								while(ECD_it != ECDataSets->end())
-								{
-									if((*ECD_it)->GetLink())
-									{
-										int BodySID;
-										if(FrameGroup) BodySID = 1; else BodySID = i + 1;
-
-										if((*ECD_it)->GetLink()->GetInt("BodySID") == BodySID)
-										{
-											(*ECD_it)->GetLink()->SetInt("IndexSID", IndexSID);
-											break;
-										}
-									}
-									ECD_it++;
-								}
-							}
-						}
-					}
-				}
-				WrappingList_it++;
-
-				// Don't increment the IndexSID for the ast partition
-				if(WrappingList_it == WrappingList.end()) break;
-
-				if(!FrameGroup) IndexSID++;
-				i++;
-			}
-		}
-
-
-		//
-		// ** Write a footer (with updated durations) **
-		//
-
-		// If we are writing OP-Atom this is the first place we can claim it
-		if(OPAtom) 
-		{
-			MData->SetOP(OPAtomUL);
-
-			// Set top-level file package correctly for OP-Atom
-			// FIXME: The following only works when wrapping a single file
-			MData->SetPrimaryPackage(FilePackage);		// This will be overwritten for OP-Atom
-		}
-
-		MData->SetTime();
-		MPTimecodeComponent->SetDuration(Duration);
-
-		i = 0;						//  Essence container index
-		WrappingList_it = WrappingList.begin();
-		while(WrappingList_it != WrappingList.end())
-		{
-			MPClip[i]->SetDuration(Duration);
-			if((!OPAtom) || (i == OutFileNum))
-			{
-				if((i==0) || (!FrameGroup)) FPTimecodeComponent[i]->SetDuration(Duration);
-				FPClip[i]->SetDuration(Duration);
-				(*WrappingList_it)->EssenceDescriptor->SetInt64("ContainerDuration",Duration);
-			}
-				
-			WrappingList_it++;
-			i++;
-		}
-
-		// Update the generation UIDs in the metadata to reflect the changes
-		MData->UpdateGenerations(Ident);
-
-		// Turn the header or body partition into a footer
-		ThisPartition->ChangeType("CompleteFooter");
-
-		if(IndexChunk.Size)
-		{
-			// Work out how big the index (and associated filler) will be
-			Uint64 IndexSize = IndexChunk.Size + Out->FillerSize(IndexChunk.Size, KAGSize);
-			ThisPartition->SetUint("IndexSID",  IndexSID);
-			ThisPartition->SetUint("IndexByteCount",  IndexSize);
-		}
-		else
-		{
-			ThisPartition->SetUint("IndexSID", 0);
-			ThisPartition->SetUint("IndexByteCount", 0);
-		}
-
-		// Make sure any new sets are linked in
-		ThisPartition->UpdateMetadata(MData);
-
-		// Actually write the footer
-		// Note: No metadata in OP-Atom footer
-		if(OPAtom) Out->WritePartition(ThisPartition, false);
-		else Out->WritePartition(ThisPartition);
-
-		if(IndexChunk.Size)
-		{
-			if(KAGSize > 1) Out->Align(KAGSize);
-			Out->Write(IndexChunk);
-		}
-
-		// Add a RIP
-		Out->WriteRIP();
-
-		//
-		// ** Update the header ** 
-		//
-		// For generalized OPs update the value of "FooterPartition" in the header pack
-		// For OP-Atom re-write the entire header
-		//
-
-		Uint64 FooterPos = ThisPartition->GetUint64("FooterPartition");
-		Out->Seek(0);
-		if(OPAtom)
-		{
-			ThisPartition->ChangeType("ClosedCompleteHeader");
-			ThisPartition->SetUint64("FooterPartition", FooterPos);
-			ThisPartition->SetUint("IndexSID", 0);			
-			ThisPartition->SetUint64("IndexByteCount", 0);
-			Out->ReWritePartition(ThisPartition);
-		}
-		else
-		{
-			ThisPartition = Out->ReadPartition();
-			ThisPartition->SetUint64("FooterPartition", FooterPos);
-			Out->Seek(0);
-			Out->WritePartitionPack(ThisPartition);
-		}
+		int rc = Process( OutFileNum, Out, WrappingList, EditRate, FPUMID );
 
 		// Close the file - all done!
 		Out->Close();
 	}
 
+	if( DebugMode ) { fprintf( stderr, "press enter to continue..."); getchar(); }
 	return 0;
+}
+
+
+// OP Qualifier manipulators: ClearStream, SetStream, SetUniTrack, SetMultiTrack
+void ClearStream(ULPtr &theUL)
+{
+	Uint8 Buffer[16];
+
+	memcpy(Buffer, theUL->GetValue(), 16);
+
+	if(Buffer[12] > 3) 
+	{
+		warning("ClearStream() called on specialized OP UL\n");
+		return;
+	}
+
+	Buffer[14] |= 0x04;
+
+	theUL->Set(Buffer);
+}
+
+void SetStream(ULPtr &theUL)
+{
+	Uint8 Buffer[16];
+
+	memcpy(Buffer, theUL->GetValue(), 16);
+
+	if(Buffer[12] > 3) 
+	{
+		warning("SetStream() called on specialized OP UL\n");
+		return;
+	}
+
+	Buffer[14] &= ~0x04;
+
+	theUL->Set(Buffer);
+}
+
+
+void SetUniTrack(ULPtr &theUL)
+{
+	Uint8 Buffer[16];
+
+	memcpy(Buffer, theUL->GetValue(), 16);
+
+	if(Buffer[12] > 3) 
+	{
+		warning("SetUniTrack() called on specialized OP UL\n");
+		return;
+	}
+
+	Buffer[14] &= ~0x08;
+
+	theUL->Set(Buffer);
+}
+
+void SetMultiTrack(ULPtr &theUL)
+{
+	Uint8 Buffer[16];
+
+	memcpy(Buffer, theUL->GetValue(), 16);
+
+	if(Buffer[12] > 3) 
+	{
+		warning("SetMultiTrack() called on specialized OP UL\n");
+		return;
+	}
+
+	Buffer[14] |= 0x08;
+
+	theUL->Set(Buffer);
 }
 
 
@@ -749,9 +423,9 @@ bool ParseCommandLine(int &argc, char **argv)
 	int i;
 	for(i=1; i<argc;)
 	{
-		if(argv[i][0] == '-')
+		if((argv[i][0] == '/') || (argv[i][0] == '-'))
 		{
-			char *p = &argv[i][1];					// The option less the '-'
+			char *p = &argv[i][1];					// The option less the '-' or '/'
 			char Opt = tolower(*p);					// The option itself (in lower case)
 			char *Val = "";							// Any value attached to the option
 			if(strlen(p) > 2) Val = &p[2];			// Only set a value if one found
@@ -781,10 +455,22 @@ bool ParseCommandLine(int &argc, char **argv)
 			else if(Opt == 'v') DebugMode = true;
 			else if(Opt == 'i')
 			{
-				UseIndex = true;
-				if(tolower(p[1]) == 'p')
+				if(tolower(p[1]) == 'i')
+				{
+					IsolatedIndex = true;
+					if(p[2] == '2') VeryIsolatedIndex = true;
+				}
+				else if(tolower(p[1]) == 'p')
 				{
 					SparseIndex = true;
+				}
+				else if(tolower(p[1]) == 's')
+				{
+					SprinkledIndex = true;
+				}
+				else
+				{
+					UseIndex = true;
 				}
 			}
 			else if(Opt == 'h') 
@@ -809,6 +495,10 @@ bool ParseCommandLine(int &argc, char **argv)
 				{
 					error("Invalid edit rate format \"%s\"\n", Val);
 				}
+			}
+			else if(Opt == 'u') 
+			{
+				UpdateHeader = true;
 			}
 			else 
 			{
@@ -844,22 +534,26 @@ bool ParseCommandLine(int &argc, char **argv)
 		printf("    -a         = Force OP-Atom\n");
 		printf("    -e         = Only start body partitions at edit points\n");
 		printf("    -f         = Frame-wrap and group in one container\n");
-		printf("    -h=<size>  = Leave at lease <size> bytes of expansion space in the header\n");
-		printf("    -i         = Write index tables\n");
+		printf("    -h=<size>  = Leave at least <size> bytes of expansion space in the header\n");
+		printf("    -i         = Write index tables (at the end of the file)\n");
 		printf("    -ip        = Write sparse index tables with one entry per partition\n");
+		printf("    -is        = Write index tables sprinkled one section per partition\n");
+		printf("    -ii        = Isolated index tables (don't share partition with essence)\n");
+		printf("    -ii2       = Isolated index tables (don't share with essence or metadata)\n");
 		printf("    -k=<size>  = Set KAG size (default=1)\n");
 		printf("   -pd=<dur>   = Body partition every <dur> frames\n");
 		printf("   -ps=<size>  = Body partition roughly every <size> bytes\n");
 		printf("                 (early rather than late)\n");
 		printf("    -r=<n>/<d> = Force edit rate (if possible)\n");
 		printf("    -s         = Interleave essence containers for streaming\n");
+		printf("    -u         = Update the header after writing footer\n\n");
 		printf("    -v         = Verbose mode\n\n");
 
 		return false;
 	}
 
-	InFileGangSize = 1;
 	InFileGangCount = 1;
+	InFileGangSize = 1;
 
 	strncpy(InFilenameSet, argv[1], 510);
 
@@ -884,9 +578,6 @@ bool ParseCommandLine(int &argc, char **argv)
 		};
 		*pd = '\0';
 		InCount++;
-
-//		// If input filename specified no extension add ".mpg"
-//		if(LastDot == NULL)	strcpy(pd, ".mpg");
 
 		// If all files progessed end scan
 		if(*ps == '\0') break;
@@ -985,8 +676,8 @@ bool ParseCommandLine(int &argc, char **argv)
 	{
 		printf("Output OP = OP-Atom\n");
 		
-		// We will need some extra space in the header
-		if(HeaderPadding == 0) HeaderPadding = 16384;
+		// We will need to update the header
+		UpdateHeader = true;
 
 		OPUL = OPAtomUL;
 
@@ -994,15 +685,17 @@ bool ParseCommandLine(int &argc, char **argv)
 		
 		if(BodyMode != BodyWrapping::Body_None) 
 		{
-			warning("Body partitions are forbidden in OP-Atom\n");
+			warning("Splitting essence across body partitions is forbidden in OP-Atom\n");
 			BodyMode = BodyWrapping::Body_None;
 		}
 
-//		warning("OP-Atom not yet fully supported\n");
+		// Force mandatory index table for OP-Atom
+		UseIndex = true;
+		IsolatedIndex = true;
 	}
 	else
 	{
-		if(InFileGangSize == 1)
+		if((FrameGroup) || (InFileGangSize == 1))
 		{
 			if(InFileGangCount == 1) { printf("Output OP = OP1a\n"); OPUL = OP1aUL; }
 			else { printf("Output OP = OP2a\n"); OPUL = OP2aUL; }
@@ -1013,7 +706,21 @@ bool ParseCommandLine(int &argc, char **argv)
 			else { printf("Output OP = OP2b\n"); OPUL = OP2bUL; }
 		}
 
-		if((InFileGangCount * InFileGangSize) > 1) error("Only OP1a currently supported\n");
+		if(InFileGangCount > 1) error("Only OP1a and OP1b currently supported\n");
+	}
+
+	if(UpdateHeader)
+	{
+		// We will need some extra space in the header
+		if(HeaderPadding == 0) HeaderPadding = 16384;
+
+		printf("An updated header will be written after writing the footer\n");
+	}
+
+	if(HeaderPadding)
+	{
+		if(UpdateHeader) printf("At least %d padding bytes will be left after the initial writing of the header\n", HeaderPadding);
+		else printf("At least %d padding bytes will be left after writing the header\n", HeaderPadding);
 	}
 
 	if(StreamMode && (InFileGangSize == 1))
@@ -1048,10 +755,22 @@ bool ParseCommandLine(int &argc, char **argv)
 			printf("Partitions will be limited to %d byte%s (if possible)\n", BodyRate, BodyRate==1 ? "" : "s");
 	}
 
-	if(UseIndex)
+	if(UseIndex) printf("Index tables will be written for each frame wrapped essence container\n");
+	if(SprinkledIndex) 
 	{
-		if(SparseIndex) printf("Sparse index tables will be written for each frame wrapped essence container\n");
-		else printf("Index tables will be written for each frame wrapped essence container\n");
+		if(UseIndex) printf("Index tables will also be sprinkled across partitions for each frame wrapped container\n");
+		else		 printf("Index tables will be sprinkled across partitions for each frame wrapped essence container\n");
+	}
+	if(SparseIndex) 
+	{
+		if(UseIndex || SprinkledIndex) printf("Sparse index tables will also be written for each frame wrapped container\n");
+		else						   printf("Sparse index tables will be written for each frame wrapped essence container\n");
+	}
+
+	if((UseIndex || SparseIndex || SprinkledIndex) && (IsolatedIndex))
+	{
+		if(VeryIsolatedIndex) printf("Index table segments will not share a partition with essence or metadata\n");
+		else printf("Index table segments will not share a partition with essence\n");
 	}
 
 	// Check for stray parameters as a space in the wrong place can otherise cause us to overwrite input files!
@@ -1065,41 +784,755 @@ bool ParseCommandLine(int &argc, char **argv)
 }
 
 
+/// CUT HERE
+
+// non-exported forward declarations
+typedef std::list<BodyWrapping> BodyWrappingList;
+Int64 WriteBody(MXFFilePtr Out, BodyWrappingList BodyWrapList, PartitionPtr ThisPartition, Int64 Duration = 0);
+
+
+int Process(	int OutFileNum,
+							MXFFilePtr Out,
+							EssenceParser::WrappingConfigList WrapCfgList,
+							Rational EditRate,
+							UMIDPtr *FPUMID 
+					 )
+
+{
+	EssenceParser::WrappingConfigList::iterator WrapCfgList_it;
+
+	int Ret = 0;
+
+	///@step Create a set of header metadata
+
+	MetadataPtr MData = new Metadata();
+	ASSERT(MData);
+	ASSERT(MData->Object);
+
+	// Set the OP label
+	// If we are writing OP-Atom we write the header as OP1a initially as another process
+	// may try to read the file before it is complete and then it will NOT be a valid OP-Atom file
+	if(OPAtom) MData->SetOP(OP1aUL); else MData->SetOP(OPUL);
+
+	// Work out the edit rate from the descriptor
+	bool DropFrame = 0;
+	Uint32 FrameRate = EditRate.Numerator;
+
+	// Use drop-frame for any non-integer frame rate
+	if(EditRate.Denominator > 1)
+	{
+		// This is an integer equivalent of FrameRate = floor((FrameRate + 0.5) / Denominator)
+		FrameRate += EditRate.Denominator - 1;
+		FrameRate /= EditRate.Denominator;
+
+		DropFrame = true;
+	}
+
+	// Build the Material Package
+	// DRAGONS: We should really try and determine the UMID type rather than cop-out!
+	UMIDPtr pUMID = MakeUMID( 0x0d ); // mixed type
+
+	PackagePtr MaterialPackage = MData->AddMaterialPackage("A Material Package", pUMID);
+
+	MData->SetPrimaryPackage(MaterialPackage);		// This will be overwritten for OP-Atom
+
+	TrackPtr MPTimecodeTrack = MaterialPackage->AddTimecodeTrack(EditRate);
+	TimecodeComponentPtr MPTimecodeComponent = MPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, 0 );
+
+	// Build the File Packages and all essence tracks
+
+	// FP UMIDs are the same for all OutFiles, so they are supplied as a parameter
+	GCWriterPtr Writer[16];							//! Writers for each essence container
+	GCStreamID EssenceID[16];						//! Essence stream ID for each essence stream
+	TimecodeComponentPtr FPTimecodeComponent[16];	//! Timecode component for each file package
+	TrackPtr MPTrack[16];							//! Material Package track for each essence stream
+	TrackPtr FPTrack[16];							//! File Package track for each essence stream
+	SourceClipPtr MPClip[16];						//! Material Package SourceClip for each essence stream 
+	SourceClipPtr FPClip[16];						//! File Package SourceClip for each essence stream 
+
+	PackagePtr FilePackage;
+
+	unsigned int PrevEssenceType = 0;
+
+	int iTrack = 0;				//  Essence container and track index
+	WrapCfgList_it = WrapCfgList.begin();
+	while(WrapCfgList_it != WrapCfgList.end())
+	{
+		TrackPtr FPTimecodeTrack;
+
+		// Write File Packages except for externally ref'ed essence in OP-Atom
+		bool WriteFP = (!OPAtom) || (iTrack == OutFileNum);
+
+		if( OPAtom )
+		{
+			if(WriteFP) // (iTrack == OutFileNum)
+			{
+				// Set up a writer for body SID (iTrack + 1)
+				Writer[iTrack] = new GCWriter(Out, iTrack + 1);
+				// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
+				Writer[iTrack]->SetKAG(KAGSize, true);
+
+				// Add an essence element
+				EssenceID[iTrack] = Writer[iTrack]->AddEssenceElement((*WrapCfgList_it)->WrapOpt->GCEssenceType, (*WrapCfgList_it)->WrapOpt->GCElementType);
+
+				FilePackage = MData->AddFilePackage(iTrack+1, std::string("File Package: ") + (*WrapCfgList_it)->WrapOpt->Description, FPUMID[iTrack]);
+
+				FPTimecodeTrack = FilePackage->AddTimecodeTrack(EditRate);
+				FPTimecodeComponent[iTrack] = FPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, TCtoFrames( FrameRate, DropFrame, 1, 0, 0, 0 ) );
+			}
+		}
+		else if( FrameGroup ) // !OPAtom
+		{
+			// if same EssenceType as previous track, construct GCWriter with non-zero StreamBase
+			if( iTrack != 0 && WrapCfgList_it != WrapCfgList.begin() 
+			&& (*WrapCfgList_it)->WrapOpt->GCEssenceType == PrevEssenceType )
+			{
+				Writer[iTrack] = new GCWriter(Out, 1, Writer[iTrack-1]->GetStreamCount());
+			}
+			else
+			{
+				// Set up a writer for body SID 1
+				Writer[iTrack] = new GCWriter(Out, 1);
+			}
+
+			// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
+			Writer[iTrack]->SetKAG(KAGSize, true);
+
+			// Add an essence element
+			EssenceID[iTrack] = Writer[iTrack]->AddEssenceElement((*WrapCfgList_it)->WrapOpt->GCEssenceType, (*WrapCfgList_it)->WrapOpt->GCElementType);
+
+			PrevEssenceType = (*WrapCfgList_it)->WrapOpt->GCEssenceType;
+
+			if( iTrack == 0 )
+			{
+				FilePackage = MData->AddFilePackage(iTrack+1, std::string("File Package: ") + (*WrapCfgList_it)->WrapOpt->Description, FPUMID[iTrack]);
+
+				FPTimecodeTrack = FilePackage->AddTimecodeTrack(EditRate);
+				FPTimecodeComponent[iTrack] = FPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, TCtoFrames( FrameRate, DropFrame, 1, 0, 0, 0 ) );
+			}
+		}
+		else // !OPAtom, !FrameGroup
+		{
+			// Set up a writer for body SID (iTrack + 1)
+			Writer[iTrack] = new GCWriter(Out, iTrack + 1);
+			// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
+			Writer[iTrack]->SetKAG(KAGSize, true);
+
+			// Add an essence element
+			EssenceID[iTrack] = Writer[iTrack]->AddEssenceElement((*WrapCfgList_it)->WrapOpt->GCEssenceType, (*WrapCfgList_it)->WrapOpt->GCElementType);
+
+			if( true )
+			{
+				FilePackage = MData->AddFilePackage(iTrack+1, std::string("File Package: ") + (*WrapCfgList_it)->WrapOpt->Description, FPUMID[iTrack]);
+
+				FPTimecodeTrack = FilePackage->AddTimecodeTrack(EditRate);
+				FPTimecodeComponent[iTrack] = FPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, TCtoFrames( FrameRate, DropFrame, 1, 0, 0, 0 ) );
+			}
+		}
+
+		// Add the appropriate Track to the Material Package
+		if(iTrack < InFileGangSize) // first gang only
+		{
+			switch((*WrapCfgList_it)->WrapOpt->GCEssenceType)
+			{
+			case 0x05: case 0x15:
+				MPTrack[iTrack] = MaterialPackage->AddPictureTrack(EditRate);
+				break;
+			case 0x06: case 0x16:
+				MPTrack[iTrack] = MaterialPackage->AddSoundTrack(EditRate);
+				break;
+			case 0x07: case 0x17: default:
+				MPTrack[iTrack] = MaterialPackage->AddDataTrack(EditRate);
+				break;
+			}
+		}
+
+		// Add the track to the file package
+		if(WriteFP) 
+		{
+			switch((*WrapCfgList_it)->WrapOpt->GCEssenceType)
+			{
+			case 0x05: case 0x15:
+				FPTrack[iTrack] = FilePackage->AddPictureTrack(Writer[iTrack]->GetTrackNumber(EssenceID[iTrack]), EditRate);
+				break;
+			case 0x06: case 0x16:
+				FPTrack[iTrack] = FilePackage->AddSoundTrack(Writer[iTrack]->GetTrackNumber(EssenceID[iTrack]), EditRate);
+				break;
+			case 0x07: case 0x17: default:
+				FPTrack[iTrack] = FilePackage->AddDataTrack(Writer[iTrack]->GetTrackNumber(EssenceID[iTrack]), EditRate);
+				break;
+			}
+		}
+
+
+		// Locate the material package track this essence is in
+		int TrackNumber = iTrack;
+		while(TrackNumber >= InFileGangSize) TrackNumber -= InFileGangSize;
+
+		// Add a single Component to this Track of the Material Package
+		MPClip[iTrack] = MPTrack[TrackNumber]->AddSourceClip();
+
+		// Add a single Component to this Track of the File Package
+		if(WriteFP) FPClip[iTrack] = FPTrack[iTrack]->AddSourceClip();
+
+		// Add the file descriptor to the file package
+		// except for externally ref'ed essence in OP-Atom
+		if( OPAtom )
+		{
+			// Write a File Descriptor only on the internally ref'ed Track 
+			if( WriteFP ) // (iTrack == OutFileNum)
+			{
+				(*WrapCfgList_it)->EssenceDescriptor->SetUint("LinkedTrackID", FPTrack[iTrack]->GetUint("TrackID"));
+				FilePackage->AddChild("Descriptor")->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+
+				MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
+
+				// Link the MP to the FP
+				MPClip[iTrack]->MakeLink(FPTrack[iTrack], 0);
+			}
+			else // (!WriteFP)
+			{
+				// Link the MP to the external FP
+				// DRAGONS: We must assume what the linked track will be... track 2
+				MPClip[iTrack]->MakeLink(FPUMID[iTrack], 2, 0);
+			}
+		}
+		else if( FrameGroup ) // !OPAtom
+		{
+			// write a MultipleDescriptor only on the first Iteration
+			if( iTrack == 0 )
+			{
+					MDObjectPtr MuxDescriptor = new MDObject("MultipleDescriptor");
+					MuxDescriptor->AddChild("SampleRate")->SetInt("Numerator",(*WrapCfgList_it)->EssenceDescriptor["SampleRate"]->GetInt("Numerator"));
+					MuxDescriptor->AddChild("SampleRate")->SetInt("Denominator",(*WrapCfgList_it)->EssenceDescriptor["SampleRate"]->GetInt("Denominator"));
+
+					MuxDescriptor->AddChild("EssenceContainer",false)->SetValue(DataChunk(16,mxflib::MDGC_Data));
+
+					MuxDescriptor->AddChild("SubDescriptorUIDs");
+					FilePackage->AddChild("Descriptor")->MakeLink(MuxDescriptor);
+			}
+			// Write a SubDescriptor
+			(*WrapCfgList_it)->EssenceDescriptor->SetUint("LinkedTrackID", FPTrack[iTrack]->GetUint("TrackID"));
+			
+			MDObjectPtr MuxDescriptor = FilePackage["Descriptor"]->GetLink();
+
+			MuxDescriptor["SubDescriptorUIDs"]->AddChild("SubDescriptorUID", false)->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+
+			MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
+
+			// Link the MP to the FP
+			MPClip[iTrack]->MakeLink(FPTrack[iTrack], 0);
+		}
+		else // !OPAtom, !FrameGroup
+		{
+			// Write a FileDescriptor
+			// DRAGONS Can we ever need a MultipleDescriptor?
+			(*WrapCfgList_it)->EssenceDescriptor->SetUint("LinkedTrackID", FPTrack[iTrack]->GetUint("TrackID"));
+			FilePackage->AddChild("Descriptor")->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+
+			MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
+
+			// Link the MP to the FP
+			MPClip[iTrack]->MakeLink(FPTrack[iTrack], 0);
+		}
+
+		WrapCfgList_it++;
+		iTrack++;
+	}
+
+
+	//
+	// ** Write out the header **
+	//
+
+	PartitionPtr ThisPartition = new Partition("OpenHeader");
+	ASSERT(ThisPartition);
+	ThisPartition->SetKAG(KAGSize);			// Everything else can stay at default
+	ThisPartition->SetUint("BodySID", 1);
+
+	ThisPartition->AddMetadata(MData);
+
+	// Build an Ident set describing us and link into the metadata
+	MDObjectPtr Ident = new MDObject("Identification");
+	Ident->SetString("CompanyName", CompanyName);
+	Ident->SetString("ProductName", ProductName);
+	Ident->SetString("VersionString", ProductVersion);
+	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
+
+	// DRAGONS: -- Need to set a proper GUID per released version
+	//             Non-released versions currently use a random GUID
+	//			   as they are not a stable version...
+	Ident->SetValue("ProductUID", DataChunk(16,ProductUID->GetValue()));
+
+	// Link the new Ident set with all new metadata
+	// Note that this is done even for OP-Atom as the 'dummy' header written first
+	// could have been read by another device. This flags that items have changed.
+	MData->UpdateGenerations(Ident);
+
+	// Write the header partition
+	Out->WritePartition(ThisPartition, HeaderPadding);
+
+
+	//
+	// ** Set up indexing **
+	//
+
+	IndexManCount = 0;
+	if(UseIndex || SparseIndex || SprinkledIndex)
+	{
+		WrapCfgList_it = WrapCfgList.begin();
+		iTrack=0;
+		int ManagerID = 0;
+		while(WrapCfgList_it != WrapCfgList.end())
+		{
+			// Currently we can only index frame wrapped essence
+			if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+			{
+				// Only index it if we can
+				if((*WrapCfgList_it)->WrapOpt->CanIndex)
+				{
+					if((!OPAtom) || (iTrack == OutFileNum))
+					{
+						// FrameGroup will use a single multi-stream index...
+						if(FrameGroup)
+						{
+							int StreamID = 0;
+							if(IndexManCount == 0)
+							{
+								IndexMan[0] = new IndexManager(0, 0);
+								IndexMan[0]->SetBodySID(1);
+								IndexMan[0]->SetIndexSID(129);
+								IndexMan[0]->SetEditRate((*WrapCfgList_it)->EditRate);
+							}
+							else StreamID = IndexMan[0]->AddSubStream(0, 0);
+printf("IndexMan[0] -> %d\n", StreamID);
+							(*WrapCfgList_it)->WrapOpt->Handler->SetIndexManager(IndexMan[0], StreamID);
+							IndexManCount = 1;
+						}
+						// ...otherwise one per stream
+						else
+						{
+							IndexMan[ManagerID] = new IndexManager(0, 0);
+							IndexMan[0]->SetBodySID(iTrack + 1);
+							IndexMan[0]->SetIndexSID(iTrack + 129);
+							IndexMan[0]->SetEditRate((*WrapCfgList_it)->EditRate);
+
+							(*WrapCfgList_it)->WrapOpt->Handler->SetIndexManager(IndexMan[ManagerID], 0);
+							IndexManCount++;
+						}
+						ManagerID++;
+					}
+				}
+			}
+
+			WrapCfgList_it++;
+			iTrack++;
+		}
+	}
+
+
+	//
+	// ** Process Essence **
+	//
+
+	// Clear all section durations
+	{
+		int i;
+		for(i=0; i<16; i++) Duration[i] = 0;
+	}
+
+	// Clear all sprinkled index starts
+	{
+		int i;
+		for(i=0; i<128; i++) LastEditUnit[i] =0;
+	}
+
+	BodyWrappingList BodyWrapList;
+
+	// Do all frame-wrappings first
+	WrapCfgList_it = WrapCfgList.begin();
+	iTrack = 0;
+	while(WrapCfgList_it != WrapCfgList.end())
+	{
+		// Calculate the section this essence is for
+		int Section = 0;
+
+		if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+		{
+			if((!OPAtom) || (iTrack == OutFileNum))
+			{
+				BodyWrapping BW;
+
+				BW.Writer = Writer[iTrack];
+				BW.EssenceID = EssenceID[iTrack];
+				BW.Config = (*WrapCfgList_it);
+				BW.InFile = InFile[iTrack];
+
+				if(FrameGroup) BW.BodySID = 1;
+				else BW.BodySID = iTrack+1;
+
+				BW.BodyMode = BodyMode;
+				BW.BodyRate = BodyRate;
+
+				BodyWrapList.push_back(BW);
+			}
+		}
+
+		WrapCfgList_it++;
+		iTrack++;
+	}
+
+	// Write all frame-wrapped items
+	if(!BodyWrapList.empty()) Duration[0] = WriteBody(Out, BodyWrapList, ThisPartition);
+
+
+	// Non-clip-wrapped items
+	BodyWrapList.clear();
+	WrapCfgList_it = WrapCfgList.begin();
+	iTrack=0;
+	while(WrapCfgList_it != WrapCfgList.end())
+	{
+		if(    ((*WrapCfgList_it)->WrapOpt->ThisWrapType != WrappingOption::Frame)
+			&& ((*WrapCfgList_it)->WrapOpt->ThisWrapType != WrappingOption::Clip))
+		{
+			if((!OPAtom) || (iTrack == OutFileNum))
+			{
+				BodyWrapping BW;
+
+				BW.Writer = Writer[iTrack];
+				BW.EssenceID = EssenceID[iTrack];
+				BW.Config = (*WrapCfgList_it);
+				BW.InFile = InFile[iTrack];
+				BW.BodySID = iTrack+1;
+
+				BodyWrapList.push_back(BW);
+			}
+		}
+
+		WrapCfgList_it++;
+		iTrack++;
+	}
+
+	// Write all non-frame- or clip-wrapped items
+	if(!BodyWrapList.empty()) 
+	{
+		if(Duration[0]) WriteBody(Out, BodyWrapList, ThisPartition, Duration[0]);
+		else Duration[0] = WriteBody(Out, BodyWrapList, ThisPartition);
+	}
+
+	// Clip wrappings
+	BodyWrapList.clear();
+	WrapCfgList_it = WrapCfgList.begin();
+	iTrack=0;
+	while(WrapCfgList_it != WrapCfgList.end())
+	{
+		if(((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Clip))
+		{
+			if((!OPAtom) || (iTrack == OutFileNum))
+			{
+				BodyWrapping BW;
+
+				BW.Writer = Writer[iTrack];
+				BW.EssenceID = EssenceID[iTrack];
+				BW.Config = (*WrapCfgList_it);
+				BW.InFile = InFile[iTrack];
+				BW.BodySID = iTrack+1;
+
+				BodyWrapList.push_back(BW);
+			}
+		}
+
+		WrapCfgList_it++;
+		iTrack++;
+	}
+
+	// Write all clip-wrapped items
+	if(!BodyWrapList.empty()) 
+	{
+		if(Duration[0]) WriteBody(Out, BodyWrapList, ThisPartition, Duration[0]);
+		else Duration[0] = WriteBody(Out, BodyWrapList, ThisPartition);
+	}
+
+
+	//
+	// Write out a set of index tables
+	//
+
+	DataChunkPtr IndexChunk = new DataChunk();
+	Uint32 IndexSID = 0;
+
+	if(UseIndex || SparseIndex || SprinkledIndex)
+	{
+		// Find all essence container data sets so we can update "IndexSID"
+		MDObjectListPtr ECDataSets;
+		MDObjectPtr Ptr = MData["ContentStorage"];
+		if(Ptr) Ptr = Ptr->GetLink();
+		if(Ptr) Ptr = Ptr["EssenceContainerData"];
+		if(Ptr) ECDataSets = Ptr->ChildList("EssenceContainer");
+
+		int iManager;
+		for(iManager=0; iManager<IndexManCount; iManager++)
+		{
+			// ** Handle leftover-sprinkles first **
+			// *************************************
+
+			if(SprinkledIndex)
+			{
+				// Make an index table containing all available entries
+				IndexTablePtr Index = IndexMan[iManager]->MakeIndex();
+
+				// Add any remaining entries
+				Position EditUnit = IndexMan[iManager]->GetLastNewEditUnit();
+				int Count = IndexMan[iManager]->AddEntriesToIndex(Index, LastEditUnit[Index->BodySID], EditUnit-1);
+
+				// Only write if there were any entries left
+				if(Count)
+				{
+					// Flush any previous index table before starting a new one
+					if(IndexChunk->Size)
+					{
+						// Write the index in a partition of its own
+
+						ThisPartition->ChangeType("ClosedCompleteBodyPartition");
+						ThisPartition->SetUint("BodySID", 0);
+						ThisPartition->SetUint("BodyOffset", 0);
+						ThisPartition->SetUint("IndexSID",  IndexSID);
+
+						Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
+					}
+
+					// Write the index table
+					Index->WriteIndex(*IndexChunk);
+					
+					// Record the IndexSID for when the index is written
+					IndexSID = Index->IndexSID;
+				}
+			}
+
+			// ** Handle full index tables next **
+			// ***********************************
+			
+			if(UseIndex)
+			{
+				// Flush any previous index table before starting a new one
+				if(IndexChunk->Size)
+				{
+					// Write the index in a partition of its own
+
+					ThisPartition->ChangeType("ClosedCompleteBodyPartition");
+					ThisPartition->SetUint("BodySID", 0);
+					ThisPartition->SetUint("BodyOffset", 0);
+					ThisPartition->SetUint("IndexSID",  IndexSID);
+
+					Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
+				}
+
+				// Make an index table containing all available entries
+				IndexTablePtr Index = IndexMan[iManager]->MakeIndex();
+				IndexMan[iManager]->AddEntriesToIndex(Index);
+
+				// Write the index table
+				Index->WriteIndex(*IndexChunk);
+				
+				// Record the IndexSID for when the index is written
+				IndexSID = Index->IndexSID;
+			}
+
+
+			// ** Handle sparse index tables next **
+			// *************************************
+			
+			if(SparseIndex)
+			{
+				// Flush any previous index table before starting a new one
+				if(IndexChunk->Size)
+				{
+					// Write the index in a partition of its own
+
+					ThisPartition->ChangeType("ClosedCompleteBodyPartition");
+					ThisPartition->SetUint("BodySID", 0);
+					ThisPartition->SetUint("BodyOffset", 0);
+					ThisPartition->SetUint("IndexSID",  IndexSID);
+
+					Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
+				}
+
+				// Make an empty index table
+				IndexTablePtr Index = IndexMan[iManager]->MakeIndex();
+
+				// Force no re-ordering in the sparse index (to prevent unsatisfied links)
+				int i;
+				for(i=0; i<Index->BaseDeltaCount; i++)
+				{
+					if(Index->BaseDeltaArray[i].PosTableIndex < 0) Index->BaseDeltaArray[i].PosTableIndex = 0;
+				}
+
+				// Add each requested entry
+				Uint32 BodySID = IndexMan[iManager]->GetBodySID();
+				ASSERT(BodySID);
+				std::list<Position>::iterator it = SparseList[BodySID-1].begin();
+				while(it != SparseList[BodySID-1].end())
+				{
+					IndexMan[iManager]->AddEntriesToIndex(true, Index, (*it), (*it));
+					it++;
+				}
+
+				// Write the index table
+				Index->WriteIndex(*IndexChunk);
+				
+				// Record the IndexSID for when the index is written
+				IndexSID = Index->IndexSID;
+			}
+
+			// Update IndexSID in essence container data set
+			if(ECDataSets)
+			{
+				MDObjectList::iterator ECD_it = ECDataSets->begin();
+				while(ECD_it != ECDataSets->end())
+				{
+					if((*ECD_it)->GetLink())
+					{
+						if((*ECD_it)->GetLink()->GetInt("BodySID") == IndexMan[iManager]->GetBodySID())
+						{
+							(*ECD_it)->GetLink()->SetInt("IndexSID", IndexMan[iManager]->GetIndexSID());
+							break;
+						}
+					}
+					ECD_it++;
+				}
+			}
+		}
+	}
+
+
+	//
+	// ** Write a footer (with updated durations) **
+	//
+
+	// Flush any previous index table before writing the footer for isolated index
+	if(VeryIsolatedIndex && (IndexChunk->Size))
+	{
+		// Write the index in a partition of its own
+
+		ThisPartition->ChangeType("ClosedCompleteBodyPartition");
+		ThisPartition->SetUint("BodySID", 0);
+		ThisPartition->SetUint("BodyOffset", 0);
+		ThisPartition->SetUint("IndexSID",  IndexSID);
+
+		Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
+
+		// Clear the index chunk
+		IndexChunk->Resize(0);
+	}
+
+	// If we are writing OP-Atom this is the first place we can claim it
+	if(OPAtom) 
+	{
+		MData->SetOP(OPAtomUL);
+
+		// Set top-level file package correctly for OP-Atom
+		// DRAGONS: This will nedd to be changed if we ever write more than one File Package for OP-Atom!
+		MData->SetPrimaryPackage(FilePackage);
+	}
+
+	MData->SetTime();
+	MPTimecodeComponent->SetDuration(Duration[0]);
+
+	iTrack = 0;						//  Essence container index
+	WrapCfgList_it = WrapCfgList.begin();
+	while(WrapCfgList_it != WrapCfgList.end())
+	{
+		MPClip[iTrack]->SetDuration(Duration[0]);
+		if((!OPAtom) || (iTrack == OutFileNum))
+		{
+			if((iTrack==0) || (!FrameGroup)) FPTimecodeComponent[iTrack]->SetDuration(Duration[0]);
+			FPClip[iTrack]->SetDuration(Duration[0]);
+			(*WrapCfgList_it)->EssenceDescriptor->SetInt64("ContainerDuration",Duration[0]);
+		}
+			
+		WrapCfgList_it++;
+		iTrack++;
+	}
+
+	// Update the generation UIDs in the metadata to reflect the changes
+	MData->UpdateGenerations(Ident);
+
+	// Turn the header or body partition into a footer
+	ThisPartition->ChangeType("CompleteFooter");
+
+	if(IndexChunk->Size)
+	{
+		ThisPartition->SetUint("IndexSID",  IndexSID);
+	}
+
+	// Make sure any new sets are linked in
+	ThisPartition->UpdateMetadata(MData);
+
+	// Actually write the footer
+	// Note: No metadata in OP-Atom footer
+	if(IndexChunk->Size)
+	{
+		if(OPAtom) Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
+		else Out->WritePartitionWithIndex(ThisPartition, IndexChunk);
+	}
+	else
+	{
+		if(OPAtom) Out->WritePartition(ThisPartition, false);
+		else Out->WritePartition(ThisPartition);
+	}
+
+	// Add a RIP (note that we have to manually KAG align as a footer can end off the KAG)
+	if(KAGSize > 1) Out->Align(KAGSize);
+	Out->WriteRIP();
+
+	//
+	// ** Update the header ** 
+	//
+	// For generalized OPs update the value of "FooterPartition" in the header pack
+	// For OP-Atom re-write the entire header
+	//
+
+	Uint64 FooterPos = ThisPartition->GetUint64("FooterPartition");
+	Out->Seek(0);
+	if(UpdateHeader)
+	{
+		ThisPartition->ChangeType("ClosedCompleteHeader");
+		ThisPartition->SetUint64("FooterPartition", FooterPos);
+		ThisPartition->SetUint("IndexSID", 0);				// DRAGONS: If we ever write index in the header this will need to change
+															// DRAGONS: What about BodySID?
+		ThisPartition->SetUint64("IndexByteCount", 0);
+		Out->ReWritePartition(ThisPartition);
+	}
+	else
+	{
+		ThisPartition = Out->ReadPartition();
+		ThisPartition->SetUint64("FooterPartition", FooterPos);
+		Out->Seek(0);
+		Out->WritePartitionPack(ThisPartition);
+	}
+
+	return Ret;
+}
+
+
+
+
+
+
 //! Write a set of essence containers
 /*! IMPLEMENTATION NOTES:
- *		Wraping more than one stream in a single container is achieved by using the same BodySID (but they must be contiguous)
- *		The current BodySID is read for ThisPartition
- *		Headermetadata is currently not repeated
+ *		Wrapping more than one stream in a single container is achieved by using the same BodySID
+ *		(but they must be contiguous)
+ *		The current BodySID is read from ThisPartition
+ *		Header metadata is currently not repeated
  *
  */
-Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr ThisPartition, Int64 Duration /*=0*/)
+Int64 WriteBody(MXFFilePtr Out, BodyWrappingList BodyWrapList, PartitionPtr ThisPartition, Int64 Duration /*=0*/)
 {
 	Int64 Ret = 0;
 
 	ThisPartition->ChangeType("ClosedCompleteBodyPartition");
 	Uint32 CurrentBodySID = ThisPartition->GetUint("BodySID");
-
-	// Enable index tables on frame wrapped essence
-	if(UseIndex)
-	{
-		BodyWrappingList::iterator WrappingList_it = WrappingList.begin();
-		int i=0;
-		while(WrappingList_it != WrappingList.end())
-		{
-			if((*WrappingList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame)
-			{
-				(*WrappingList_it).Writer->EnableIndex(0);
-				(*WrappingList_it).Writer->Index->EditRate.Numerator = (*WrappingList_it).Config->EditRate.Numerator;
-				(*WrappingList_it).Writer->Index->EditRate.Denominator = (*WrappingList_it).Config->EditRate.Denominator;
-				(*WrappingList_it).Writer->Index->IndexSID = i + 129;
-				(*WrappingList_it).Writer->Index->BodySID = i + 1;
-
-				if(SparseIndex) (*WrappingList_it).Config->WrapOpt->Handler->SetOption("SelectiveIndex", 1);
-			}
-			i++;
-			WrappingList_it++;
-		}
-	}
 
 	//! Partition size to allow maximum body partition size to be set
 	//  Start by calculating where the current partition starts
@@ -1113,31 +1546,36 @@ Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr This
 	{
 //@printf("\nOuter:");
 		int i = 0;						//  BodySID index
-		BodyWrappingList::iterator WrappingList_it = WrappingList.begin();
-		while(WrappingList_it != WrappingList.end())
+		BodyWrappingList::iterator BodyWrapList_it = BodyWrapList.begin();
+		while(BodyWrapList_it != BodyWrapList.end())
 		{
 //@printf("Inner:");
 			Int64 Dur;
-			if((*WrappingList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Clip) Dur = Duration; else Dur = 1;
+			if((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Clip) Dur = Duration; else Dur = 1;
 
-			if((*WrappingList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Clip)
+			if((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Clip)
 			{
 				// Force a single pass...
 				Done = true;
 
-				EssenceSource *Source = (*WrappingList_it).Config->WrapOpt->Handler->GetEssenceSource((*WrappingList_it).InFile, (*WrappingList_it).Config->Stream, 0, (*WrappingList_it).Writer->Index);
+				EssenceSource *Source = (*BodyWrapList_it).Config->WrapOpt->Handler->GetEssenceSource((*BodyWrapList_it).InFile, (*BodyWrapList_it).Config->Stream, 0 /*, (*BodyWrapList_it).Writer->Index*/);
 
 				// Ensure this clip is indexed in sparse mode
-				if(UseIndex && SparseIndex)
+				if((i == 0) && UseIndex && SparseIndex)
 				{
-					(*WrappingList_it).Config->WrapOpt->Handler->SetOption("AddIndexEntry");
+					// Force the first edit unit to be accepted, even if provisional, 
+					// and add it's edit unit to the sparse list for this BodySID
+					Position EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->AcceptProvisional();
+					if(EditUnit == -1) EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->GetLastNewEditUnit();
+					SparseList[(*BodyWrapList_it).BodySID-1].push_back(EditUnit);
+//printf("a: Add %d %d\n", (*BodyWrapList_it).BodySID-1, (int)EditUnit);
 				}
 
-				(*WrappingList_it).Writer->AddEssenceData((*WrappingList_it).EssenceID, Source);
+				(*BodyWrapList_it).Writer->AddEssenceData((*BodyWrapList_it).EssenceID, Source);
 			}
 			else
 			{
-				DataChunkPtr Dat = (*WrappingList_it).Config->WrapOpt->Handler->Read((*WrappingList_it).InFile, (*WrappingList_it).Config->Stream, Dur, (*WrappingList_it).Writer->Index);
+				DataChunkPtr Dat = (*BodyWrapList_it).Config->WrapOpt->Handler->Read((*BodyWrapList_it).InFile, (*BodyWrapList_it).Config->Stream, Dur/*, (*BodyWrapList_it).Writer->Index*/);
 
 				if(Dat->Size == 0)
 				{
@@ -1146,51 +1584,71 @@ Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr This
 				}
 				else Done = false;
 
-				// Ensure first frame is indexed in sparse mode
-				if(UseIndex && SparseIndex && (ThisEditUnit == 0))
+				if((i == 0) && SparseIndex && (ThisEditUnit == 0))
 				{
-					(*WrappingList_it).Config->WrapOpt->Handler->SetOption("AddIndexEntry");
+					// Force the first edit unit to be accepted, even if provisional,
+					// and add it's edit unit to the sparse list for this BodySID
+					Position EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->AcceptProvisional();
+					if(EditUnit == -1) EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->GetLastNewEditUnit();
+					SparseList[(*BodyWrapList_it).BodySID-1].push_back(EditUnit);
+//printf("b: Add %d %d\n", (*BodyWrapList_it).BodySID-1, (int)EditUnit);
 				}
 
-				(*WrappingList_it).Writer->AddEssenceData((*WrappingList_it).EssenceID, Dat);
+				(*BodyWrapList_it).Writer->AddEssenceData((*BodyWrapList_it).EssenceID, Dat);
 			}
 
 			// Only allow starting a new partition by size or duration on first essence of a set
 			if(i == 0)
 			{
-				if((*WrappingList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame)
+				if((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame)
 				{
-					if((*WrappingList_it).BodyMode == BodyWrapping::Body_Size)
+					if((*BodyWrapList_it).BodyMode == BodyWrapping::Body_Size)
 					{
-						Int64 NewPartitionSize = PartitionSize + (*WrappingList_it).Writer->CalcWriteSize();
+						Int64 NewPartitionSize = PartitionSize + (*BodyWrapList_it).Writer->CalcWriteSize();
 //@	printf("%d,",PartitionSize);
-						if((!EditAlign) || ((*WrappingList_it).Config->WrapOpt->Handler->SetOption("EditPoint")))
+						if((!EditAlign) || ((*BodyWrapList_it).Config->WrapOpt->Handler->SetOption("EditPoint")))
 						{
-							if(NewPartitionSize > (*WrappingList_it).BodyRate)
+							if(NewPartitionSize > (*BodyWrapList_it).BodyRate)
 							{
 								// Force a new partition pack by clearing CurrentBodySID
 								CurrentBodySID = 0;
 								
-								if(SparseIndex) (*WrappingList_it).Config->WrapOpt->Handler->SetOption("AddIndexEntry");
+								if(SparseIndex && (ThisEditUnit != 0))
+								{
+									// Force the first edit unit of the new partition to be accepted, even if provisional,
+									// and add it's edit unit to the sparse list for this BodySID
+									Position EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->AcceptProvisional();
+									if(EditUnit == -1) EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->GetLastNewEditUnit();
+									SparseList[(*BodyWrapList_it).BodySID-1].push_back(EditUnit);
+//printf("c: Add %d %d\n", (*BodyWrapList_it).BodySID-1, (int)EditUnit);
+								}
 //@	printf("##\n");
 							}
 						}
 					}
 
-					if((*WrappingList_it).BodyMode == BodyWrapping::Body_Duration)
+					if((*BodyWrapList_it).BodyMode == BodyWrapping::Body_Duration)
 					{
 						if(Dur) PartitionSize += Dur;
 						else PartitionSize++;			// DRAGONS: What should we do here?
 
 //@	printf("%d,",PartitionSize);
-						if((!EditAlign) || ((*WrappingList_it).Config->WrapOpt->Handler->SetOption("EditPoint")))
+						if((!EditAlign) || ((*BodyWrapList_it).Config->WrapOpt->Handler->SetOption("EditPoint")))
 						{
-							if(PartitionSize >= (*WrappingList_it).BodyRate)
+							if(PartitionSize >= (*BodyWrapList_it).BodyRate)
 							{
 								// Force a new partition pack by clearing CurrentBodySID
 								CurrentBodySID = 0;
 
-								if(SparseIndex) (*WrappingList_it).Config->WrapOpt->Handler->SetOption("AddIndexEntry");
+								if(SparseIndex && (ThisEditUnit != 0))
+								{
+									// Force the first edit unit of the new partition to be accepted, even if provisional,
+									// and add it's edit unit to the sparse list for this BodySID
+									Position EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->AcceptProvisional();
+									if(EditUnit == -1) EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->GetLastNewEditUnit();
+									SparseList[(*BodyWrapList_it).BodySID-1].push_back(EditUnit);
+//printf("d: Add %d %d\n", (*BodyWrapList_it).BodySID-1, (int)EditUnit);
+								}
 //@	printf("##\n");
 							}
 						}
@@ -1199,41 +1657,99 @@ Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr This
 			}
 
 			// Start a new partition if required
-			if(CurrentBodySID != (*WrappingList_it).BodySID)
+			if(CurrentBodySID != (*BodyWrapList_it).BodySID)
 			{
+				DataChunkPtr IndexChunk = new DataChunk();
+
+				// Perform any index table building work for a sprinkled index
+				if(SprinkledIndex)
+				{
+					IndexManagerPtr Manager = (*BodyWrapList_it).Config->WrapOpt->Handler->GetIndexManager();
+
+					if(Manager)
+					{
+						IndexTablePtr Index = Manager->MakeIndex();
+
+						if(Index)
+						{
+							Position EditUnit = Manager->GetLastNewEditUnit();
+
+							Manager->AddEntriesToIndex(Index, LastEditUnit[(*BodyWrapList_it).BodySID], EditUnit-1);
+
+							LastEditUnit[(*BodyWrapList_it).BodySID] = EditUnit;
+
+							Index->WriteIndex(*IndexChunk);
+
+							// Clear all the used entries if no longer required
+							// DRAGONS: Not implemented!
+
+							// Set the IndexSID from the index itself
+							ThisPartition->SetUint("IndexSID",  Index->IndexSID);
+						}
+					}
+				}
+
 //@printf("Body Part at 0x%08x\n", (int)Out->Tell());
-				CurrentBodySID = (*WrappingList_it).BodySID;
-				ThisPartition->SetUint("BodySID", CurrentBodySID);
-				ThisPartition->SetUint64("BodyOffset",(*WrappingList_it).Writer->GetStreamOffset());
+				CurrentBodySID = (*BodyWrapList_it).BodySID;
 				PartitionSize = 0;
 
 				Int64 Pos = Out->Tell();
-				Out->WritePartition(ThisPartition, false);
+				if(IndexChunk->Size)
+				{
+					if(IsolatedIndex)
+					{
+						ThisPartition->ChangeType("ClosedCompleteBodyPartition");
+						ThisPartition->SetUint("BodySID", 0);
+						ThisPartition->SetUint("BodyOffset", 0);
+						Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
+
+						ThisPartition->SetUint("BodySID", CurrentBodySID);
+						ThisPartition->SetUint64("BodyOffset",(*BodyWrapList_it).Writer->GetStreamOffset());
+						ThisPartition->SetUint("IndexSID",  0);
+						Out->WritePartition(ThisPartition, false);
+					}
+					else
+					{
+						ThisPartition->SetUint("BodySID", CurrentBodySID);
+						ThisPartition->SetUint64("BodyOffset",(*BodyWrapList_it).Writer->GetStreamOffset());
+						Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
+					}
+				}
+				else
+				{
+					ThisPartition->SetUint("BodySID", CurrentBodySID);
+					ThisPartition->SetUint64("BodyOffset",(*BodyWrapList_it).Writer->GetStreamOffset());
+					ThisPartition->SetUint("IndexSID",  0);
+					Out->WritePartition(ThisPartition, false);
+				}
 
 				// If partitioning by size take into account the partition pack size
 				if(BodyMode == BodyWrapping::Body_Size) PartitionSize = Out->Tell() - Pos;
 			}
 
 			// Fix index table stream offsets
-			if(UseIndex && (Dur == 1))
+			if((UseIndex || SparseIndex || SprinkledIndex) && ((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame))
 			{
-//printf("Fixing index: %d ", ThisEditUnit);
-				IndexEntryPtr Entry = (*WrappingList_it).Writer->Index->IndexEntryByEssenceOrder(ThisEditUnit);
-				if(Entry)
-				{
-//printf("Found @ 0x%08x\n", (int)(*WrappingList_it).Writer->GetStreamOffset());
-					Entry->StreamOffset = (*WrappingList_it).Writer->GetStreamOffset();
-				}
-//else printf("not\n");
+//@printf("Fixing index: %d ", ThisEditUnit);
+				(*BodyWrapList_it).Config->WrapOpt->Handler->OfferStreamOffset(ThisEditUnit, (*BodyWrapList_it).Writer->GetStreamOffset());
 			}
 
 //@printf("Frame at 0x%08x - ", (int)Out->Tell());
 			Int64 Pos = Out->Tell();
-			(*WrappingList_it).Writer->StartNewCP();
-			if((*WrappingList_it).BodyMode == BodyWrapping::Body_Size) PartitionSize += (Out->Tell() - Pos);
+			(*BodyWrapList_it).Writer->StartNewCP();
+			if((*BodyWrapList_it).BodyMode == BodyWrapping::Body_Size) PartitionSize += (Out->Tell() - Pos);
+
+			// Determine the duration of this item if it was clip-wrapped and if we don't yet know the duration
+			if(Ret == 0)
+			{
+				if((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Clip)
+				{
+					Ret = (*BodyWrapList_it).Config->WrapOpt->Handler->GetCurrentPosition();
+				}
+			}
 
 //@printf("0x%08x\n", (int)Out->Tell());
-			WrappingList_it++;
+			BodyWrapList_it++;
 			i++;
 		}
 
@@ -1244,116 +1760,14 @@ Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr This
 		Ret++;
 	}
 
-	// Perform any global index table building work
-	if(UseIndex)
-	{
-		BodyWrappingList::iterator WrappingList_it = WrappingList.begin();
-		while(WrappingList_it != WrappingList.end())
-		{
-			if((*WrappingList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame)
-			{
-				IndexTablePtr Table = (*WrappingList_it).Writer->Index;
-
-				if(Table) Table->CommitIndexEntries();
-			}
-			WrappingList_it++;
-		}
-	}
-
-#if 0
-	// Perform any global index table building work
-	if(UseIndex)
-	{
-		BodyWrappingList::iterator WrappingList_it = WrappingList.begin();
-		while(WrappingList_it != WrappingList.end())
-		{
-			if((*WrappingList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame)
-			{
-				IndexTablePtr Table = (*WrappingList_it).Writer->Index;
-
-				if(Table)
-				{
-					EssenceSubParserBase::IndexEntryMapPtr IndexMap;
-					IndexMap = (*WrappingList_it).Config->WrapOpt->Handler->BuildIndexTable((*WrappingList_it).InFile, (*WrappingList_it).Config->Stream);
-
-					if(IndexMap)
-					{
-						EssenceSubParserBase::IndexEntryMap::iterator it = IndexMap->begin();
-						Int64 Picture = 0;
-						while(it != IndexMap->end())
-						{
-							Table->Correct(Picture, (*it).second.TemporalOffset, (*it).second.AnchorOffset, (*it).second.Flags);
-							it++;
-							Picture++;
-						}
-					}
-				}
-			}
-			WrappingList_it++;
-		}
-	}
-#endif // 0
-
-/*
-	WrappingList_it = WrappingList.begin();
-	while(WrappingList_it != WrappingList.end())
-	{
-		if((*WrappingList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame)
-		{
-			int i;
-			for(i=0; i<4; i++)
-			{
-				IndexPosPtr Pos = (*WrappingList_it).Writer->Index->Lookup(i);
-				printf("EditUnit %d is at 0x%08x\n", (int)Pos->ThisPos, (int)Pos->Location);
-			}
-		}
-		WrappingList_it++;
-	}
-*/
-
-	// DRAGONS - this needs work!! It doesn't work for clip wrap!
+	// DRAGONS - The indexing needs work!!
+	//			 The entire index table is built before committing
+	//			 It doesn't index clip wrapped essence
 	return Ret;
 }
 
 
 
-// Debug and error messages
-#include <stdarg.h>
 
-#ifdef MXFLIB_DEBUG
-//! Display a general debug message
-void mxflib::debug(const char *Fmt, ...)
-{
-	if(!DebugMode) return;
-
-	va_list args;
-
-	va_start(args, Fmt);
-	vprintf(Fmt, args);
-	va_end(args);
-}
-#endif // MXFLIB_DEBUG
-
-//! Display a warning message
-void mxflib::warning(const char *Fmt, ...)
-{
-	va_list args;
-
-	va_start(args, Fmt);
-	printf("Warning: ");
-	vprintf(Fmt, args);
-	va_end(args);
-}
-
-//! Display an error message
-void mxflib::error(const char *Fmt, ...)
-{
-	va_list args;
-
-	va_start(args, Fmt);
-	printf("ERROR: ");
-	vprintf(Fmt, args);
-	va_end(args);
-}
 
 

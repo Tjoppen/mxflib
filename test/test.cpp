@@ -2,8 +2,6 @@
  *	\brief	Test program for MXFLib
  */
 /*
- *	$Id: test.cpp,v 1.17 2003/11/26 17:25:42 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -38,8 +36,10 @@ using namespace std;
 //! Debug flag for KLVLib
 int Verbose = 0;
 
-//! local Debug flag set by command-line arg
+//! MXFLib debug flag
 static bool DebugMode = false;
+
+//! Flag for dumping entire index table
 static bool FullIndex = false;
 
 static void DumpObject(MDObjectPtr Object, std::string Prefix);
@@ -137,23 +137,43 @@ int main(int argc, char *argv[])
 
 					Position Start = (*it)->GetInt64("IndexStartPosition");
 					Length Duration = (*it)->GetInt64("IndexDuration");
+					Uint32 IndexSID = (*it)->GetUint("IndexSID");
+					Uint32 BodySID = (*it)->GetUint("BodySID");
 					
 					if(Duration == 0) printf("CBR Index Table Segment (covering whole Essense Container) :\n");
 					else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
 
-					if(Duration < 1) Duration = 4;		// Could be CBR
-					if(!FullIndex && Duration > 10) Duration = 10;	// Don't go mad!
+					printf("  Indexing BodySID 0x%04x from IndexSID 0x%04x\n", BodySID, IndexSID);
+
+					if(Duration < 1) Duration = 6;						// Could be CBR
+					if(!FullIndex && (Duration > 20)) Duration = 20;	// Don't go mad!
 
 					int i;
+					printf( "\n Bytestream Order:\n" );
 					for(i=0; i<Duration; i++)
 					{
 						Uint32 j;
 						for(j=0; j<Streams; j++)
 						{
-							IndexPosPtr Pos = Table->Lookup(Start + i,j);
-							printf("  EditUnit %6lld for stream %d is at 0x%s", Start + i, j, Uint64toHexString(Pos->Location,10).c_str());
+							IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
+							printf("  EditUnit %s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
 							printf(", Flags=%02x", Pos->Flags);
 							if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
+						}
+					}
+
+					printf( "\n Presentation Order:\n" );
+					for(i=0; i<Duration; i++)
+					{
+						int j;
+						for(j=0; j<Streams; j++)
+						{
+							IndexPosPtr Pos = Table->Lookup(Start + i,j);
+							printf("  EditUnit %2d for stream %d is at 0x%s", (int)(Start + i), j, Int64toHexString(Pos->Location,8).c_str());
+							printf(", Flags=%02x", Pos->Flags);
+							if(Pos->Exact) printf("  *Exact*\n");
+							else if(Pos->OtherPos) printf(" (Location of un-reordered position %s)\n", Int64toString(Pos->ThisPos).c_str());
+							else printf("\n");
 						}
 					}
 
@@ -330,3 +350,4 @@ void mxflib::error(const char *Fmt, ...)
 	vprintf(Fmt, args);
 	va_end(args);
 }
+

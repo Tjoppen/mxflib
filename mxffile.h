@@ -3,10 +3,11 @@
  *
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
+ *
+ *	\version $Id: mxffile.h,v 1.11 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: mxffile.h,v 1.10 2003/11/25 18:47:15 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -48,7 +49,7 @@ namespace mxflib
 	//! Holds data relating to an MXF file
 	class MXFFile : public RefCount<MXFFile>
 	{
-	private:
+	protected:
 		bool isOpen;				//! True when the file is open
 		bool isMemoryFile;			//! True is the file is a "memory file"
 		KLVFile Handle;				//! File hanlde
@@ -69,10 +70,10 @@ namespace mxflib
 		MXFFile() : isOpen(false), isMemoryFile(false) {};
 		~MXFFile() { if(isOpen) Close(); };
 
-		bool Open(std::string FileName, bool ReadOnly = false );
-		bool OpenNew(std::string FileName);
-		bool OpenMemory(DataChunkPtr Buff = NULL, Uint64 Offset = 0);
-		bool Close(void);
+		virtual bool Open(std::string FileName, bool ReadOnly = false );
+		virtual bool OpenNew(std::string FileName);
+		virtual bool OpenMemory(DataChunkPtr Buff = NULL, Uint64 Offset = 0);
+		virtual bool Close(void);
 
 		bool ReadRunIn(void);
 
@@ -90,14 +91,16 @@ namespace mxflib
 			return Uint64(mxflib::FileTell(Handle))-RunInSize;
 		}
 
-		//! Move the file pointer and report its new position
-		// DRAGONS: This is where we need to insert code to handle file discontinuities
-		//          If a file has one or more chunks mising then we can build a list of
-		//			discontinuities based on where partition packs start compared with
-		//			where in the file they claim to be. This allows us to modify seeks
-		//			so that they find the data originally at that part of the file even
-		//			though they are now in a different position
-		Uint64 Seek(Uint64 Position)
+		//! Move the file pointer
+		/* \ret 0 if no error, else non-zero
+		 * DRAGONS: This is where we need to insert code to handle file discontinuities
+		 *          If a file has one or more chunks mising then we can build a list of
+		 *			discontinuities based on where partition packs start compared with
+		 *			where in the file they claim to be. This allows us to modify seeks
+		 *			so that they find the data originally at that part of the file even
+		 *			though they are now in a different position
+		 */
+		int Seek(Uint64 Position)
 		{ 
 			if(!isOpen) return 0;
 			if(isMemoryFile)
@@ -106,10 +109,10 @@ namespace mxflib
 				return Position;
 			}
 
-			return Uint64(mxflib::FileSeek(Handle, Position+RunInSize)-RunInSize);
+			return mxflib::FileSeek(Handle, Position+RunInSize)-RunInSize;
 		}
 
-		Uint64 SeekEnd(void)
+		int SeekEnd(void)
 		{ 
 			if(!isOpen) return 0;
 			if(isMemoryFile)
@@ -121,7 +124,7 @@ namespace mxflib
 				return Tell();
 			}
 
-			return Uint64(mxflib::FileSeekEnd(Handle)-RunInSize);
+			return mxflib::FileSeekEnd(Handle)-RunInSize;
 		}
 
 
@@ -141,6 +144,7 @@ namespace mxflib
 		};
 
 		DataChunkPtr Read(Uint64 Size);
+		Uint64 Read(Uint8 *Buffer, Uint64 Size);
 
 //		MDObjectPtr ReadObject(void);
 //		template<class TP, class T> TP ReadObjectBase(void) { TP x; return x; };
@@ -158,30 +162,54 @@ namespace mxflib
 		//! Write a partition pack to the file
 		void WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL);
 
-		//! Write a partition pack and associated metadata (and index table segments?)
+		//! Write a partition pack and associated metadata (no index table segments)
 		void WritePartition(PartitionPtr ThisPartition, Uint32 Padding = 0) { WritePartition(ThisPartition, true, NULL, Padding); };
 
-		//! Write a partition pack and associated metadata (and index table segments?)
+		//! Write a partition pack and associated metadata and preformatted index table segments
+		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, Uint32 Padding = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, NULL, Padding); };
+
+		//! Write a partition pack and associated metadata (no index table segments)
 		void WritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer, Uint32 Padding = 0) { WritePartition(ThisPartition, true, UsePrimer, Padding); };
 
-		//! Write a partition pack and (optionally) associated metadata (and index table segments?)
+		//! Write a partition pack and associated metadata and preformatted index table segments
+		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, UsePrimer, Padding); };
+
+		//! Write a partition pack and (optionally) associated metadata (no index table segments)
 		void WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0)
 		{
-			WritePartitionInternal(false, ThisPartition, IncludeMetadata, UsePrimer, Padding);
+			WritePartitionInternal(false, ThisPartition, IncludeMetadata, NULL, UsePrimer, Padding);
 		}
 
-		//! Re-write a partition pack and associated metadata (and index table segments?)
+		//! Write a partition pack and (optionally) associated metadata and preformatted index table segments
+		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0)
+		{
+			WritePartitionInternal(false, ThisPartition, IncludeMetadata, IndexData, UsePrimer, Padding);
+		}
+
+		//! Re-write a partition pack and associated metadata (no index table segments)
 		/*! \note Partition properties are updated from the linked metadata
 		 *	\return true if re-write was successful, else false
 		 */
-		bool ReWritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL) 
+		bool MXFFile::ReWritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL) 
 		{
-			return WritePartitionInternal(true, ThisPartition, true, UsePrimer, 0);
+			return WritePartitionInternal(true, ThisPartition, true, NULL, UsePrimer, 0);
 		}
 
-	private:
+		//! Re-write a partition pack and associated metadata and preformatted index table segments
+		/*! \note Partition properties are updated from the linked metadata
+		 *	\return true if re-write was successful, else false
+		 */
+		bool MXFFile::ReWritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer = NULL) 
+		{
+			return WritePartitionInternal(true, ThisPartition, true, IndexData, UsePrimer, 0);
+		}
+
+	protected:
 		//! Write or re-write a partition pack and associated metadata (and index table segments?)
-		bool WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer, Uint32 Padding);
+		bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding);
 
 	public:
 		//! Write the RIP
@@ -243,12 +271,20 @@ namespace mxflib
 			return FileWrite(Handle, Buffer, Size); 
 		};
 
-		//! Write the contents of a DataChunk
+		//! Write the contents of a DataChunk by reference
 		Uint64 Write(DataChunk &Data) 
 		{ 
 			if(isMemoryFile) return MemoryWrite(Data.Data, Data.Size);
 
 			return FileWrite(Handle, Data.Data, Data.Size); 
+		};
+
+		//! Write the contents of a DataChunk by SmartPtr
+		Uint64 Write(DataChunkPtr Data)
+		{ 
+			if(isMemoryFile) return MemoryWrite(Data->Data, Data->Size);
+
+			return FileWrite(Handle, Data->Data, Data->Size); 
 		};
 
 		//! Write 8-bit unsigned integer
@@ -292,10 +328,12 @@ namespace mxflib
 		Uint64 ScanRIP_FindFooter(Uint64 MaxScan);
 
 		//! Write to memory file buffer
-		Uint32 MemoryWrite(Uint8 const *Data, Uint32 Size);
+		/*! \note This can be overridden in classes derived from MXFFile to give different memory write behaviour */
+		virtual Uint32 MemoryWrite(Uint8 const *Data, Uint32 Size);
 
 		//! Read from a memory file buffer
-		Uint32 MemoryRead(Uint8 *Data, Uint32 Size);
+		/*! \note This can be overridden in classes derived from MXFFile to give different memory read behaviour */
+		virtual Uint32 MemoryRead(Uint8 *Data, Uint32 Size);
 	};
 }
 
@@ -338,3 +376,4 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 }
 
 #endif // MXFLIB__MXFFILE_H
+

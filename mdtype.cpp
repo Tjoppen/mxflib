@@ -8,10 +8,11 @@
  *			Class MDType holds info about a specific metadata type
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
+ *
+ *	\version $Id: mdtype.cpp,v 1.14 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: mdtype.cpp,v 1.13 2003/11/26 17:05:09 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -439,7 +440,6 @@ void MDValue::Resize(Uint32 Count)
 		MDValue::iterator it = lower_bound(Count);
 
 		// Remove the old entries, automatically deleting the objects if required
-if(it != end()) printf("lower_bound(%d) = %s\n", Count, (*it).first.c_str());
 		if(it != end()) erase(it, end());
 	}
 }

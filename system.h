@@ -1,29 +1,24 @@
 /*! \file	system.h
- *	\brief	Compiler and platform specific implementations
+ *	\brief	System specifics
  *
  *  Items that are <b>required</b> to be defined for each platform/compiler:
- *  - Definitions for signed and unsigned 64 bit integers (Int64 and Uint64)
+ *  - Definions for signed and unsigned 64 bit integers (Int64 and Uint64)
  *<br>
  *<br>
  *	Items that may need to be defined for each platform/compiler:
  *	- Turning warnings off
  *<br>
  *<br>
- *	Compilers currently supported:
- *	- Microsoft Visual C++ 6.x
- *	- ISO/ANSI C++ compilers (ISO/IEC 14882:1998) including:
- *		- GCC 3.2
- *		- MIPSpro C++ 7.3
- *		- Sun Forte C++ 5.4
- *		- Intel C++ 7.0
- *		- Borland C++ 5.0
+ *	Systems currently supported:
+ *	- Microsoft Visual C++
  *<br>
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
+ *
+ *	\version $Id: system.h,v 1.16 2003/12/18 17:51:56 matt-beard Exp $
+ *
  */
 /*
- *	$Id: system.h,v 1.15 2003/11/26 18:39:28 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -150,14 +145,6 @@ namespace mxflib
 		return std::string(Buffer);
 	};
 
-	inline std::string Uint64toHexString(Uint64 Val, int Digits = 0)
-	{
-		char Buffer[32];
-		if(Digits > 30) Digits = 30;
-		sprintf(Buffer,"%0*I64x", Digits, Val );
-		return std::string(Buffer);
-	};
-
 	/******** 64-bit file-I/O ********/
 
 #include <io.h>
@@ -167,8 +154,8 @@ namespace mxflib
 
 #ifndef MXFLIB_NO_FILE_IO
 	typedef int FileHandle;
-	inline int FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET); }
-	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END); }
+	inline int FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET) == -1 ? -1 : 0; }
+	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END) == -1 ? -1 : 0; }
 	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, size); }
 	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, size); }
 	inline Uint8 FileGetc(FileHandle file) { Uint8 c; FileRead(file, &c, 1); return c; }
@@ -201,23 +188,15 @@ namespace mxflib
 	}
 }
 
+//! Allow command-line switches to be prefixed with '/' or '-'
+#define IsCommandLineSwitchPrefix(x) ( (x == '/') || (x == '-'))
+
 #define UINT64_C(c)	c			// for defining 64bit constants
 
 #define ASSERT _ASSERT					//!< Debug assert
 #define strcasecmp(s1, s2) stricmp(s1, s2)
 
-#else
-//
-// For all ISO/ANSI C++ compilers on POSIX platforms.
-//
-// Tested on:
-//	GCC 3.2				i686-linux, x86_64-linux, alpha-linux, arm-linux
-//						i686-mingw32 (Win2k), i686-freebsd, powerpc-darwin
-//						sparc-solaris, mips-irix
-//	MIPSpro C++ 7.3		mips-irix
-//	Sun Forte C++ 5.4	sparc-solaris
-//	Intel C++ 7.0		i686-linux, i686-Win2k
-//	Borland C++ 5.0		i686-Win2k
+#else	/* for ISO C++ compilers */
 
 #include <stdlib.h>
 #include <string>
@@ -281,14 +260,6 @@ namespace mxflib
 		return std::string(Buffer);
 	}
 
-	inline std::string Uint64toHexString(Uint64 Val, int Digits = 0)
-	{
-		char Buffer[32];
-		if(Digits > 30) Digits = 30;
-		sprintf(Buffer,"%0*llx", Digits, Val );
-		return std::string(Buffer);
-	}
-
 	/******** 64-bit file-I/O ********/
 
 #ifndef MXFLIB_NO_FILE_IO
@@ -324,7 +295,7 @@ namespace mxflib
 	}
 
 	/******** UUID Generation ********/
-/* Requires libuuid e.g. from e2fsprogs-devel package */
+#ifdef HAVE_UUID_GENERATE
 #include <uuid/uuid.h>
 	inline void MakeUUID(Uint8 *Buffer)
 	{
@@ -332,7 +303,43 @@ namespace mxflib
 		uuid_generate(u);
 		memcpy(Buffer, &u, sizeof(u));
 	}
+#else // HAVE_UUID_GENERATE
+	inline void MakeUUID(Uint8 *Buffer)
+	{
+		static bool Inited = false;
+		if(!Inited)
+		{
+			// Attempt a reasonably random seed to prevent duplicate UUIDs
+			// The time is normally good enough as a seed, except multiple processes may run this code at the
+			// same time across all machines in use at any time.  The address of the buffer will depend on the
+			// target platform and other processes running on the same machine.  The value of clock() will
+			// depend on how much CPU time has elapsed since the program started and is shifted to reduce the
+			// chance that a system using the same granularity for this and time() will simply give the
+			// program start time. Why also include a random number in the seed? Because if someone has already
+			// seeded the generator with a decent random number this will be taken into account to prevent
+			// degrading the randomness
+			srand(((unsigned int) time(NULL)) ^ ((unsigned int)Buffer) ^ ((unsigned int)clock() << 2) ^ rand());
+			Inited = true;
+		}
+		int i;
+		for(i=0; i<16; i++)
+		{
+			Buffer[i] = (Uint8)rand();
+		}
+
+		// Set reserved bits (variant "10" = ISO/IEC 11578)
+		Buffer[8] &= 0x3f;
+		Buffer[8] |= 0x80;
+
+		// Set version bits (varsion "0100" = random or pseudo-random)
+		Buffer[7] &= 0x0f;
+		Buffer[7] |= 0x40;
+	}
+#endif
 }
+
+//! Allow command-line switches to be prefixed only with '-'
+#define IsCommandLineSwitchPrefix(x) ( x == '-' )
 
 #define UINT64_C(c)	c##ULL		// for defining 64bit constants
 

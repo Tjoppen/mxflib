@@ -1,9 +1,10 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
+ *
+ *	\version $Id: datachunk.h,v 1.8 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: datachunk.h,v 1.7 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -91,7 +92,7 @@ namespace mxflib
 			{
 //debug("AllocGran = %u, NewSize = %u, ", AllocationGranularity, NewSize);
 				// Apply allocation granularity
-				Uint32 AllocSize = (NewSize-1) / AllocationGranularity;
+				AllocSize = (NewSize-1) / AllocationGranularity;
 //debug("AllocSize = %u, ", AllocSize);
 				AllocSize = (AllocSize+1) * AllocationGranularity;
 //debug("AllocSize = %u\n", AllocSize);
@@ -194,7 +195,7 @@ namespace mxflib
 
 		bool operator!=(const DataChunk &Right) const { return !operator==(Right); };
 
-		Uint32 fread(FILE *fp, size_t Size, Uint32 Start = 0)
+/*		Uint32 fread(FILE *fp, size_t Size, Uint32 Start = 0)
 		{
 			int Ret;
 			Resize(Size);
@@ -202,7 +203,7 @@ namespace mxflib
 			Size = Ret;
 			return Ret;
 		};
-
+*/
 		std::string GetString(void)
 		{
 			std::string Ret;
@@ -233,6 +234,7 @@ namespace mxflib
 			if((!ExternalBuffer) && (Data)) delete[] Data;
 
 			Size = BuffSize;
+			Data = Buffer;
 
 			if(AllocatedSize == 0) DataSize = BuffSize;
 			else DataSize = AllocatedSize;

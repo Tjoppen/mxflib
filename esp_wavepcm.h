@@ -1,9 +1,10 @@
 /*! \file	esp_mpeg2ves.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
+ *
+ *	\version $Id: esp_wavepcm.h,v 1.4 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: esp_wavepcm.h,v 1.3 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -68,11 +69,13 @@ namespace mxflib
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
-			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1, IndexTablePtr UseIndex = NULL)
-				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count, UseIndex) 
+			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
+				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
 				WAVE_PCM_EssenceSubParser *pCaller = (WAVE_PCM_EssenceSubParser*) TheCaller;
 				EssenceBytePos = pCaller->CurrentPos;
+				if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
+
 				CountSet = false;		// Flag unknown size
 			};
 
@@ -96,11 +99,11 @@ namespace mxflib
 			 */
 			virtual DataChunkPtr GetEssenceData(Uint64 Size = 0, Uint64 MaxSize = 0)
 			{
+				WAVE_PCM_EssenceSubParser *pCaller = (WAVE_PCM_EssenceSubParser*) Caller;
+
 				// Allow us to differentiate the first call
 				if(!Started)
 				{
-					WAVE_PCM_EssenceSubParser *pCaller = (WAVE_PCM_EssenceSubParser*) Caller;
-
 					if(!CountSet)
 					{
 						CountSet = true;
@@ -109,6 +112,7 @@ namespace mxflib
 					}
 
 					// Move to the selected position
+					if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
 					pCaller->CurrentPos = EssenceBytePos;
 
 					Started = true;
@@ -121,13 +125,15 @@ namespace mxflib
 				if(Size == 0)
 				{
 					Size = ByteCount - Offset;
-					if(Size > MaxSize) Size = MaxSize;
+					if((MaxSize) && (Size > MaxSize)) Size = MaxSize;
 				}
 
 				// Read the data
 				FileSeek(File, EssenceBytePos + Offset);
 				DataChunkPtr Data = FileReadChunk(File, Size);
 
+				// Update the position
+				pCaller->CurrentPos += Data->Size;
 				Offset += Data->Size;
 
 				return Data;
@@ -146,7 +152,7 @@ namespace mxflib
 			SequencePos = 0;
 			DataStart = 0;
 			DataSize = 0;
-			CurrentPos = 0;
+//			CurrentPos = 0;		// DRAGONS: Why was this removed?
 		}
 
 		//! Build a new parser of this type and return a pointer to it
@@ -184,21 +190,30 @@ namespace mxflib
 		 */
 		virtual bool SetEditRate(Uint32 Stream, Rational EditRate)
 		{
+			SequencePos = 0;
 			return CalcWrappingSequence(EditRate);
 		}
 
+		//! Get BytesPerEditUnit, if Constant
+		virtual Uint32 GetBytesPerEditUnit()
+		{
+			return SampleSize*ConstSamples;
+		}
+
+		//! Get the current position in SetEditRate() sized edit units
+		virtual Int64 GetCurrentPosition(void);
 
 		//! Read a number of wrapping items from the specified stream and return them in a data chunk
-		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1, IndexTablePtr Index = NULL);
+		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1, IndexTablePtr Index = NULL)
+		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/)
 		{
-			return new ESP_EssenceSource(this, InFile, Stream, Count, Index);
+			return new ESP_EssenceSource(this, InFile, Stream, Count/*, Index*/);
 		};
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
-		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1, IndexTablePtr Index = NULL);
+		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 
 	protected:

@@ -69,7 +69,7 @@ PostBuild_Cmds=copy /y release\mxfwrap.exe ..\..
 # PROP Intermediate_Dir "Debug"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /I "..\.." /I "..\..\..\klvlib" /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
+# ADD CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /I "..\..\.." /I "..\..\..\klvlib" /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
 # ADD RSC /l 0x809 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -96,16 +96,6 @@ PostBuild_Cmds=copy /y debug\mxfwrap.exe ..\..
 # Begin Source File
 
 SOURCE=..\..\mxfwrap\mxfwrap.cpp
-
-!IF  "$(CFG)" == "mxfwrap - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "mxfwrap - Win32 Debug"
-
-# ADD CPP /I "..\..\.."
-# SUBTRACT CPP /I "..\.."
-
-!ENDIF 
-
 # End Source File
 # End Group
 # Begin Group "Header Files"

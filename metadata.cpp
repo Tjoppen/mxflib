@@ -3,11 +3,13 @@
  *
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
+ *
+ *	\version $Id: metadata.cpp,v 1.8 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: metadata.cpp,v 1.7 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
+ *	Portions Copyright (c) 2003, Metaglue Corporation
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -445,6 +447,44 @@ TimecodeComponentPtr Track::AddTimecodeComponent(Uint16 FPS, bool DropFrame, Int
 	return Ret;
 }
 
+//! Add a DMSegment to a track
+/*! \param EventStart The start position of this Segemnt, -1 or omitted for static or timeline */
+/*! \param Duration The duration of this SourceClip, -1 or omitted for static */
+DMSegmentPtr Track::AddDMSegment(Int64 EventStart /*=-1*/,Int64 Duration /*=-1*/)
+{
+	DMSegmentPtr Ret = new DMSegment("DMSegment");
+	if(!Ret) return Ret;
+
+	// Set the duration - or not if there is none
+	if(Duration >= 0)
+		Ret->SetInt64("Duration", Duration);
+	
+	// Add zero linked track IDs and DMFramework
+	Ret->AddChild("TrackIDs");
+	Ret->AddChild("DMFramework");
+
+	// Initially assume the SourceClip starts at the start of the referenced essence
+	if( EventStart >= 0 )
+		Ret->AddChild("EventStartPosition", 0);
+
+	// Add this SourceClip to the sequence for this track
+	MDObjectPtr Sequence = Child("Sequence")->GetLink();
+	Sequence["StructuralComponents"]->AddChild("StructuralComponent", false)->MakeLink(Ret->Object);
+
+	// Copy the data definition from the sequence
+	Ret->AddChild("DataDefinition")->ReadValue(Sequence["DataDefinition"]->PutData().Data, 16);
+
+	// Record the track as the parent of the new DMSegment
+	Ret->Parent = this;
+
+	// Update the duration in the sequence
+	if(Duration >= 0) 
+	{
+		UpdateDuration();
+	}
+
+	return Ret;
+}
 
 //! Update the duration field in the sequence for this track based on component durations
 /*! \return The duration, or -1 if unknown */
@@ -551,4 +591,44 @@ void Package::UpdateDurations(void)
 		}
 		it++;
 	}
+}
+
+//! Add a static track to the package
+/*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
+TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string TrackName /*=""*/, Uint32 TrackID /*=0*/)
+{
+	TrackPtr Ret = new Track("StaticTrack");
+	if(!Ret) return Ret;
+
+	if(TrackName.length()) Ret->SetString("TrackName", TrackName);
+	Ret->SetInt("TrackNumber", TrackNumber);
+
+	// Auto set the track ID if not supplied
+	if(TrackID == 0)
+	{
+		ASSERT(LastTrackID < 0xffffffff);
+
+		LastTrackID++;
+		TrackID = LastTrackID;
+	}
+	Ret->SetInt("TrackID", TrackID);
+
+	// Build a new sequence for this track
+	MDObjectPtr Sequence = new MDObject("Sequence");
+	ASSERT(Sequence);
+
+	// Initialise the sequence
+	Sequence->AddChild("DataDefinition")->ReadValue(DataDef->GetValue(), 16);
+	Sequence->AddChild("StructuralComponents");
+
+	// Add the sequence
+	Ret->AddChild("Sequence")->MakeLink(Sequence);
+
+	// Add this track to the package
+	Child("Tracks")->AddChild("Track", false)->MakeLink(Ret->Object);
+
+	// Record this package as the parent of the new track
+	Ret->Parent = this;
+
+	return Ret;
 }

@@ -1,9 +1,10 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
+ *
+ *	\version $Id: essence.cpp,v 1.5 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: essence.cpp,v 1.4 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -33,7 +34,7 @@ using namespace mxflib;
 
 
 //! Constructor
-GCWriter::GCWriter(MXFFilePtr File, Uint32 BodySID /*=0*/)
+GCWriter::GCWriter(MXFFilePtr File, Uint32 BodySID /*=0*/, int Base /*=0*/)
 {
 	LinkedFile = File;
 	TheBodySID = BodySID;
@@ -41,16 +42,14 @@ GCWriter::GCWriter(MXFFilePtr File, Uint32 BodySID /*=0*/)
 	StreamCount = 0;
 	StreamTableSize = 16;
 	StreamTable = new GCStreamData[16];
+	StreamBase = Base;
+
+	StreamOffset = 0;
 
 	KAGSize = 1;
 	ForceFillerBER4 = false;
 
 	NextWriteOrder = 0;
-
-	// Don't use index tables unless requested
-	UseIndex = false;
-	EditUnit = 0;
-	StreamOffset = 0;
 }
 
 
@@ -159,9 +158,9 @@ GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int El
 		}
 	}
 
-	Stream->SchemeOrCount = Count;
+	Stream->SchemeOrCount = Count+StreamBase;
 	Stream->Element = ElementType;
-	Stream->SubOrNumber = Count;
+	Stream->SubOrNumber = Count+StreamBase;
 	Stream->CountFixed = false;
 
 	bool CPCompatible = false;
@@ -283,8 +282,8 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 			}
 		}
 
-		Stream->SchemeOrCount = Count;
-		Stream->SubOrNumber = Count;	// Could use Count-1, but this is clearer
+		Stream->SchemeOrCount = Count+StreamBase;
+		Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
 		Stream->CountFixed = true;
 	}
 
@@ -350,8 +349,8 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source)
 			}
 		}
 
-		Stream->SchemeOrCount = Count;
-		Stream->SubOrNumber = Count;	// Could use Count-1, but this is clearer
+		Stream->SchemeOrCount = Count+StreamBase;
+		Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
 		Stream->CountFixed = true;
 	}
 
@@ -402,7 +401,7 @@ Uint32 GCWriter::GetTrackNumber(GCStreamID ID)
 			}
 		}
 
-		Stream->SchemeOrCount = Count;
+		Stream->SchemeOrCount = Count+StreamBase;
 		Stream->CountFixed = true;
 	}
 
@@ -414,8 +413,8 @@ Uint32 GCWriter::GetTrackNumber(GCStreamID ID)
 void GCWriter::StartNewCP(void)
 {
 	Flush();
-
-	EditUnit++;
+//
+//	EditUnit++;
 }
 
 
@@ -480,7 +479,7 @@ void GCWriter::Flush(void)
 			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
 		}
 
-		// Build index table if requested
+/*		// Build index table if requested
 		// DRAGONS: Currently only a single stream can be indexed
 		if(UseIndex)
 		{
@@ -497,6 +496,7 @@ void GCWriter::Flush(void)
 //				Index->AddIndexEntry(EditUnit,0,0,0x80,StreamOffset);
 			}
 		}
+*/
 
 		// Write the pre-formatted data and free its buffer
 		StreamOffset += LinkedFile->Write((*it).second.Buffer, (*it).second.Size);

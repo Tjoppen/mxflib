@@ -1,9 +1,10 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
+ *
+ *	\version $Id: essence.h,v 1.4 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: essence.h,v 1.3 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -50,7 +51,7 @@ namespace mxflib
 {
 	//! Abstract super-class for objects that supply large quantities of essence data
 	/*! This is used when clip-wrapping to prevent large quantities of data being loaded into memory 
-	 *	\note EssenceSource derived objects cannot use smart pointers!
+	 *	\note EssenceSource derived objects cannot be the target of a smart pointer!
 	 */
 	class EssenceSource
 	{
@@ -74,6 +75,13 @@ namespace mxflib
 
 namespace mxflib
 {
+	// Multiple Descriptor Generic Container Label
+	const Uint8 MDGC_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x03, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x7F, 0x01, 0x00 };
+}
+
+
+namespace mxflib
+{
 	//! Class that manages writing of essence containers
 	class ECWriter : public RefCount<ECWriter>
 	{
@@ -85,10 +93,10 @@ namespace mxflib
 		ECWriter(MXFFilePtr File, Uint32 BodySID = 0);
 
 		//! Add an essence container (mapping) UL to those used by this essence container
-		void AddEssenceUL(ULPtr EssenceUL){};
+		void AddEssenceUL(ULPtr EssenceUL) {};
 
 		//! Write essence data
-		void Write(Uint64 Size, const Uint8 *Data){};
+		void Write(Uint64 Size, const Uint8 *Data) {};
 	};
 }
 
@@ -125,6 +133,8 @@ namespace mxflib
 		int	StreamTableSize;				//!< Size of StreamTable
 		int	StreamCount;					//!< Number of entries in use in StreamTable
 
+		int StreamBase;						//!< Base of all stream numbers in keys
+
 		GCStreamData *StreamTable;			//!< Table of data for streams for this GC
 
 		Uint32 KAGSize;						//!< KAGSize for this Essence Container
@@ -132,16 +142,16 @@ namespace mxflib
 
 		int NextWriteOrder;					//!< The "WriteOrder" to use for the next auto "SetWriteOrder()"
 
-		bool UseIndex;						//!< True if index tables are to be calculated
-		Position EditUnit;					//!< Current edit unit, incremented each new CP
+//		bool UseIndex;						//!< True if index tables are to be calculated
+//		Position EditUnit;					//!< Current edit unit, incremented each new CP
 		Uint64 StreamOffset;				//!< Current stream offset within this essence container
 
-	public:
-		IndexTablePtr Index;				//!< Index table for this container
+//	public:
+//		IndexTablePtr Index;				//!< Index table for this container
 
 	public:
 		//! Constructor
-		GCWriter(MXFFilePtr File, Uint32 BodySID = 0);
+		GCWriter(MXFFilePtr File, Uint32 BodySID = 0, int Base = 0);
 
 		//! Set the KAG for this Essence Container
 		void SetKAG(Uint32 KAG, bool ForceBER4 = false) { KAGSize = KAG; ForceFillerBER4 = ForceBER4; };
@@ -235,13 +245,8 @@ namespace mxflib
 		//! Set the WriteOrder for the specified stream
 		void SetWriteOrder(GCStreamID ID, int WriteOrder = -1, int Type =-1);
 
-		//! Enable index table calculation
-		void EnableIndex(Int64 CurrentEditUnit = -1) 
-		{ 
-			UseIndex = true; 
-			if(EditUnit >= 0) EditUnit = CurrentEditUnit; 
-			if(!Index) Index = new IndexTable;
-		}; 
+		//! Read the count of streams
+		int GetStreamCount(void) { return StreamCount; };
 	};
 }
 
@@ -254,7 +259,7 @@ namespace mxflib
 	{
 		//! Wrapping type
 		/*! \note "None" is only for use as a default condition */
-		enum WrapType { None, Frame, Clip, Line, Other };
+		enum WrapType { None, Frame, Clip, Line, Other } ;
 
 		EssenceSubParserBase *Handler;			//!< Pointer to the object that can parse this wrapping option
 		std::string Description;				//!< Human readable description of this wrapping option (to allow user selection)
@@ -267,6 +272,7 @@ namespace mxflib
 		bool	CanIndex;						//!< True if this wrapping can be indexed by the handler
 		bool	CBRIndex;						//!< True if this wrapping will use a CBR index table
 		Uint8	BERSize;						//!< The BER length size to use for this wrapping (or 0 for any)
+		Uint32 BytesPerEditUnit;				//!< set non zero for ConstSamples
 	};
 
 	typedef SmartPtr<WrappingOption> WrappingOptionPtr;
@@ -288,19 +294,12 @@ namespace mxflib
 	//! Abstract base class for all essence parsers
 	class EssenceSubParserBase
 	{
-	public:
-//		// Structure for holding index entries to add - can only be added when the whole GOP has been parsed
-//		struct IndexEntry
-//		{
-//			int TemporalOffset;
-//			int AnchorOffset;
-//			Uint8 Flags;
-//			Uint64 StreamOffset;
-//		};
-//
-//		// Map of edit unit with index entries
-//		typedef std::map<Int64, IndexEntry> IndexEntryMap;
-//		typedef SmartPtr<IndexEntryMap> IndexEntryMapPtr;
+	protected:
+		//! The index manager in use
+		IndexManagerPtr Manager;
+
+		//! This essence stream's stream ID in the index manager
+		int	ManagedStreamID;
 
 	public:
 
@@ -319,13 +318,13 @@ namespace mxflib
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
-			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1, IndexTablePtr UseIndex = NULL)
+			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1 /*, IndexTablePtr UseIndex = NULL*/)
 			{
 				Caller = TheCaller;
 				File = InFile;
 				Stream = UseStream;
 				RequestedCount = Count;
-				Index = UseIndex;
+				/* Index = UseIndex; */
 				Started = false;
 			};
 
@@ -352,9 +351,8 @@ namespace mxflib
 				}
 				else
 				{
-					Data = Caller->Read(File, Stream, 1, Index);
+					Data = Caller->Read(File, Stream, 1 /*, Index*/);
 				}
-
 				if(Data)
 				{
 					if(Data->Size == 0) Data = NULL;
@@ -375,6 +373,9 @@ namespace mxflib
 	protected:
 
 	public:
+		//! Base destructor
+		virtual ~EssenceSubParserBase() {};
+
 		//! Build a new parser of this type and return a pointer to it
 		virtual EssenceSubParserBase *NewParser(void) const = 0;
 
@@ -416,6 +417,86 @@ namespace mxflib
 			return false;
 		}
 
+		//! Get BytesPerEditUnit, if Constant
+		virtual Uint32 GetBytesPerEditUnit() { return 0; }
+
+		//! Get the current position in SetEditRate() sized edit units
+		/*! \return 0 if position not known
+		 */
+		virtual Int64 GetCurrentPosition(void)
+		{
+			return 0;
+		}
+
+		//! Set the IndexManager for this essence stream (and the stream ID if we are not the main stream)
+		virtual void SetIndexManager(IndexManagerPtr TheManager, int StreamID = 0)
+		{
+			Manager = TheManager;
+			ManagedStreamID = StreamID;
+		}
+
+		//! Get the IndexManager for this essence stream
+		virtual IndexManagerPtr GetIndexManager(void) { return Manager; };
+
+		//! Get the IndexManager StreamID for this essence stream
+		virtual int GetIndexStreamID(void) { return ManagedStreamID; };
+
+		//! Set the stream offset for a specified edit unit into the current index manager
+		virtual void SetStreamOffset(Position EditUnit, Uint64 Offset)
+		{
+			if(Manager) Manager->SetOffset(ManagedStreamID, EditUnit, Offset);
+		}
+
+		//! Offer the stream offset for a specified edit unit to the current index manager
+		virtual bool OfferStreamOffset(Position EditUnit, Uint64 Offset)
+		{
+			if(!Manager) return false;
+			return Manager->OfferOffset(ManagedStreamID, EditUnit, Offset);
+		}
+
+		//! Instruct index manager to accept the next edit unit
+		virtual void IndexNext(void)
+		{
+			if(Manager) Manager->AcceptNext();
+		}
+
+		//! Instruct index manager to accept and log the next edit unit
+		virtual int IndexLogNext(void)
+		{
+			if(Manager) return Manager->AcceptLogNext();
+			return -1;
+		}
+
+		//! Instruct index manager to log the next edit unit
+		virtual int LogNext(void)
+		{
+			if(Manager) return Manager->LogNext();
+			return -1;
+		}
+
+		//! Read an edit unit from the index manager's log
+		virtual Position ReadLog(int LogID)
+		{
+			if(Manager) return Manager->ReadLog(LogID);
+			return -1;
+		}
+
+		//! Instruct index manager to accept provisional entry
+		/*! \return The edit unit of the entry accepted - or -1 if none available */
+		virtual Position AcceptProvisional(void)
+		{
+			if(Manager) return Manager->AcceptProvisional();
+			return -1;
+		}
+
+		//! Read the edit unit of the last entry added via the index manager (or -1 if none added)
+		Position GetLastNewEditUnit(void) 
+		{ 
+			if(Manager) return Manager->GetLastNewEditUnit();
+			return -1;
+		}
+
+
 		//! Read a number of wrapping items from the specified stream and return them in a data chunk
 		/*! If frame or line mapping is used the parameter Count is used to
 		 *	determine how many items are read. In frame wrapping it is in
@@ -423,10 +504,10 @@ namespace mxflib
 		 *  not be the frame rate of this essence
 		 *	\note This is going to take a lot of memory in clip wrapping! 
 		 */
-		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1, IndexTablePtr Index = NULL) = 0;
+		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1 /*, IndexTablePtr Index = NULL*/) = 0;
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1, IndexTablePtr Index = NULL) = 0;
+		virtual ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1 /*, IndexTablePtr Index = NULL*/) = 0;
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
 		/*! If frame or line mapping is used the parameter Count is used to
@@ -436,7 +517,7 @@ namespace mxflib
 		 *	\note This is the only safe option for clip wrapping
 		 *	\return Count of bytes transferred
 		 */
-		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1, IndexTablePtr Index = NULL) = 0;
+		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1 /*, IndexTablePtr Index = NULL*/) = 0;
 
 		//! Set a parser specific option
 		/*! \return true if the option was successfully set */
@@ -548,7 +629,7 @@ namespace mxflib
 		typedef std::list<WrappingConfigPtr> WrappingConfigList;
 
 		// DRAGONS: Currently destroys PDList to preserve the essence handler
-		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::WrapType::None)
 		{
 			WrappingConfigPtr Ret;
 
@@ -570,7 +651,7 @@ namespace mxflib
 						Ret = new WrappingConfig;
 
 						// Only accept wrappings of the specified type
-						if(ForceWrap != WrappingOption::None)
+						if(ForceWrap != WrappingOption::WrapType::None)
 						{
 							if((*it2)->ThisWrapType != ForceWrap)
 							{
@@ -590,6 +671,7 @@ namespace mxflib
 						}
 						else
 						{
+							std::string Rate = Ptr->GetString();
 							Ret->EditRate.Numerator = Ptr->GetInt("Numerator");
 							Ret->EditRate.Denominator = Ptr->GetInt("Denominator");
 						}
@@ -602,6 +684,8 @@ namespace mxflib
 						{
 							// All OK, including requested edit rate
 							
+							Ret->WrapOpt->BytesPerEditUnit = Ret->WrapOpt->Handler->GetBytesPerEditUnit();
+
 							// Remove all entries that index this handler to prevent it being deleted
 							ParserDescriptorList::iterator pdit2 = PDList->begin();
 							while(pdit2 != PDList->end())

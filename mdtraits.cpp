@@ -1,9 +1,10 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
+ *
+ *	\version $Id: mdtraits.cpp,v 1.14 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: mdtraits.cpp,v 1.13 2003/11/25 18:46:06 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -27,7 +28,6 @@
  */
 
 #include <mxflib/mxflib.h>
-
 
 // Use mxflib by default in library source
 using namespace mxflib;
@@ -65,7 +65,7 @@ Uint32 MDTraits::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, 
 	{
 		Object->SetData(ObjSize, Buffer);
 		return ObjSize;
-	};
+	}
 
 	// If the object is exactly the right size read it all in
 	if(ObjSize == FullSize)
@@ -844,21 +844,12 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 	while(it != Object->end())
 	{
 		std::string Temp;
-		char c = '\0';
-
-		try
-		{
-			c = Val.at(Index++);
-		}
-		catch(std::out_of_range)
-		{
-			// Ignore string slice errors!! - Should never happen
-		}
+		char c = Val[Index];
 
 		// Stop at a terminating NUL
-		if(c == '\0') 
+		if(c=='\0') 
 		{
-			Object->Resize(Size);
+			Object->Resize(Index);
 			break;
 		}
 
@@ -866,6 +857,7 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 		(*it).second->SetString(Temp);
 
 		it++;
+		Index++;
 	}
 }
 
@@ -939,7 +931,7 @@ void MDTraits_Raw::SetString(MDValuePtr Object, std::string Val)
 		if(Value == -1) Value = 0; else Value <<=4;
 		Value += digit;
 		p++;
-	};
+	}
 
 	Object->SetData(Object->GetData().Size, Data);
 }
@@ -1258,6 +1250,7 @@ void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
 **   TimeStamp Implementations   **
 **********************************/
 
+//! Read timestamp from ISO-8601 format string
 std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 {
 	MDValuePtr Year = Object["Year"];
@@ -1289,6 +1282,7 @@ std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 }
 
 
+//! Write timestamp to ISO-8601 format string
 void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
 {
 	MDValuePtr Year = Object["Year"];
@@ -1299,13 +1293,13 @@ void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
 	MDValuePtr Seconds = Object["Seconds"];
 	MDValuePtr msBy4 = Object["msBy4"];
 
-	Uint32 Y;
-	Uint32 M;
-	Uint32 D;
-	Uint32 H;
-	Uint32 Min;
-	Uint32 S;
-	Uint32 ms;
+	Uint32 Y = 0;
+	Uint32 M = 0;
+	Uint32 D = 0;
+	Uint32 H = 0;
+	Uint32 Min = 0;
+	Uint32 S = 0;
+	Uint32 ms = 0;
 
 	sscanf(Val.c_str(), "%d-%d-%d", &Y, &M, &D);
 	std::string::size_type Pos = Val.find("T");
@@ -1320,6 +1314,5 @@ void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
 	if(Seconds) Seconds->SetUint(S);
 	if(msBy4) msBy4->SetUint(ms / 4);
 }
-
 
 

@@ -3,10 +3,11 @@
  *
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
+ *
+ *	\version $Id: partition.h,v 1.12 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: partition.h,v 1.11 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.

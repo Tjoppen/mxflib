@@ -329,6 +329,6 @@
 		<BlockAlign detail="Sample Block alignment" use="required" type="Uint16" key="3d 0a" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 02 01 00 00 00"/>
 		<SequenceOffset detail="Zero-based ordinal frame number of first essence data within five-frame sequence" use="optional" type="Uint8" key="3d 0b" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 02 02 00 00 00"/>
 		<AvgBps detail="Average Bytes per second" use="required" type="Uint32" key="3d 09" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 03 05 00 00 00"/>
-		<PeakEnvelope detail="Peak Envelope from <LEVL> Chunk" use="optional" type="RAW" key="3d 0e" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 05 00 00 00"/>
+		<PeakEnvelope detail="Peak Envelope from &lt;LEVL> Chunk" use="optional" type="RAW" key="3d 0e" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 05 00 00 00"/>
 	</WaveAudioDescriptor>
 </MXFDictionary>

@@ -3,10 +3,11 @@
  *
  *			The implementation of these functions is an application
  *			issue so they are not contained in the MXFLib library
+ *
+ *	\version $Id: debug.h,v 1.10 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: debug.h,v 1.9 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.

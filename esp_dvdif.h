@@ -1,9 +1,10 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
+ *
+ *	\version $Id: esp_dvdif.h,v 1.3 2003/12/18 17:51:55 matt-beard Exp $
+ *
  */
 /*
- *	$Id: esp_dvdif.h,v 1.2 2003/12/04 13:55:21 stuart_hc Exp $
- *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -69,8 +70,8 @@ namespace mxflib
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
-			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1, IndexTablePtr UseIndex = NULL)
-				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count, UseIndex) 
+			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
+				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
 				DV_DIF_EssenceSubParser *pCaller = (DV_DIF_EssenceSubParser*) TheCaller;
 				EssencePos = pCaller->PictureNumber;
@@ -82,7 +83,7 @@ namespace mxflib
 			virtual Uint64 GetEssenceDataSize(void) 
 			{
 				DV_DIF_EssenceSubParser *pCaller = (DV_DIF_EssenceSubParser*) Caller;
-				return pCaller->ReadInternal(File, Stream, RequestedCount, Index);
+				return pCaller->ReadInternal(File, Stream, RequestedCount/*, Index*/);
 			};
 
 			//! Get the next "installment" of essence data
@@ -144,17 +145,20 @@ namespace mxflib
 		//! Set a non-native edit rate
 		virtual bool SetEditRate(Uint32 Stream, Rational EditRate);
 
+		//! Get the current position in SetEditRate() sized edit units
+		virtual Int64 GetCurrentPosition(void);
+
 		//! Read a number of wrapping items from the specified stream and return them in a data chunk
-		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1, IndexTablePtr Index = NULL);
+		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1, IndexTablePtr Index = NULL)
+		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/)
 		{
-			return new ESP_EssenceSource(this, InFile, Stream, Count, Index);
+			return new ESP_EssenceSource(this, InFile, Stream, Count/*, Index*/);
 		};
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
-		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1, IndexTablePtr Index = NULL);
+		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Set a parser specific option
 		/*! \return true if the option was successfully set */
@@ -165,7 +169,7 @@ namespace mxflib
 		MDObjectPtr BuildCDCIEssenceDescriptor(FileHandle InFile, Uint64 Start = 0);
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
-		Uint64 ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count, IndexTablePtr Index = NULL);
+		Uint64 ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count/*, IndexTablePtr Index = NULL*/);
 
 		//! Get a byte from the current stream
 		int BuffGetU8(FileHandle InFile);

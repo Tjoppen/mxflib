@@ -15,6 +15,30 @@ Package=<4>
 
 ###############################################################################
 
+Project: "all"=.\all.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name KLVLib
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name mxflib
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name mxfwrap
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name test
+    End Project Dependency
+}}}
+
+###############################################################################
+
 Project: "mxflib"=.\mxflib.dsp - Package Owner=<4>
 
 Package=<5>
