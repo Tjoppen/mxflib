@@ -4,10 +4,30 @@
  *			The RIP class holds Random Index Pack data, either loaded from a real
  *			Random Index Pack in the file or built by discovering partitions.
  */
+/*
+ *	Copyright (c) 2002, Matt Beard
+ *
+ *	This software is provided 'as-is', without any express or implied warranty.
+ *	In no event will the authors be held liable for any damages arising from
+ *	the use of this software.
+ *
+ *	Permission is granted to anyone to use this software for any purpose,
+ *	including commercial applications, and to alter it and redistribute it
+ *	freely, subject to the following restrictions:
+ *
+ *	  1. The origin of this software must not be misrepresented; you must
+ *	     not claim that you wrote the original software. If you use this
+ *	     software in a product, an acknowledgment in the product
+ *	     documentation would be appreciated but is not required.
+ *	
+ *	  2. Altered source versions must be plainly marked as such, and must
+ *	     not be misrepresented as being the original software.
+ *	
+ *	  3. This notice may not be removed or altered from any source
+ *	     distribution.
+ */
 #ifndef MXFLIB__RIP_H
 #define MXFLIB__RIP_H
-
-#include "mxflib.h"
 
 #include "partition.h"
 
@@ -16,34 +36,40 @@
 
 namespace mxflib
 {
-	//! Holds RIP data relating to a single partition - DRAGONS: Currently dummy data
+	//! Holds RIP data relating to a single partition
 	class PartitionInfo
 	{
 	public:
-		void *Partition;		//!< The actual partition - DRAGONS: Currently void pointer!!
-		
-		Position ByteOffset;	//!< Byte offset into the file for the start of this partition
-								/*!< Note: Version 11 of the MXF spec uses a Uint64 for this
-								 *         field but we are using a Position type here as it
-								 *         makes more sense, and allows distingushed value -1
-								 *   Note: Distinguished value -1 is used where the location
-								 *         in the file is not known
-								 */
-		
-		Uint32 BodySID;			//!< Stream ID of any essence in this partition (0 if none)
-								/*!< Note: 0 is also used if the existance of essence is
-								 *         has not yet been determined
-								 */
+		PartitionPtr ThePartition;	//!< The actual partition
+
+		Position ByteOffset;		//!< Byte offset into the file for the start of this partition
+									/*!< \note
+									 *	 Version 11 of the MXF spec uses a Uint64 for this
+									 *         field but we are using a Position type here as it
+									 *         makes more sense, and allows distingushed value -1
+									 *   
+									 *	 \note 
+									 *	 Distinguished value -1 is used where the location
+									 *         in the file is not known
+									 */
+
+		Uint32 BodySID;				//!< Stream ID of any essence in this partition (0 if none)
+									/*!< \note 0 is also used if the existance of essence is
+									 *         has not yet been determined
+									 */
 
 	public:
-		PartitionInfo(void *Part = NULL, Position Offset = -1, Uint32 SID = 0);
+		PartitionInfo(SmartPtr<Partition> Part = NULL, Position Offset = -1, Uint32 SID = 0);
 
+		//! Comparison function to allow sorting
 		bool operator< (PartitionInfo &Other);
-								//!< Comparison function to allow sorting
 	};
 
-	//! A list of PartitionInfo items
-	typedef std::list<PartitionInfo> PartitionList;
+	//! A smart pointer to a PartitionInfo object
+	typedef SmartPtr<PartitionInfo> PartitionInfoPtr;
+
+	//! A list of smart pointers to PartitionInfo objects
+	typedef std::list<PartitionInfoPtr> PartitionInfoList;
 }
 
 
@@ -56,13 +82,13 @@ namespace mxflib
 	class RIP
 	{
 	private:
-		bool			isGenerated;		//!< If not generated then the RIP has been read from a file
-		PartitionList	Partitions;			//!< Details of each partition known about
+		bool isGenerated;				//!< If not generated then the RIP has been read from a file
+		PartitionInfoList Partitions;	//!< Details of each partition known about
 	public:
 		RIP();
 		~RIP();
 
-		AddPartition(void *Part = NULL, Position Offset = -1, Uint32 SID = 0);
+		AddPartition(SmartPtr<Partition> Part = NULL, Position Offset = -1, Uint32 SID = 0);
 	};
 }
 

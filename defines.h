@@ -1,4 +1,4 @@
-/*! \file	types.h
+/*! \file	defines.h
  *	\brief	The main MXF data types
  */
 /*

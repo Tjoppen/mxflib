@@ -4,10 +4,30 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  */
+/*
+ *	Copyright (c) 2002, Matt Beard
+ *
+ *	This software is provided 'as-is', without any express or implied warranty.
+ *	In no event will the authors be held liable for any damages arising from
+ *	the use of this software.
+ *
+ *	Permission is granted to anyone to use this software for any purpose,
+ *	including commercial applications, and to alter it and redistribute it
+ *	freely, subject to the following restrictions:
+ *
+ *	  1. The origin of this software must not be misrepresented; you must
+ *	     not claim that you wrote the original software. If you use this
+ *	     software in a product, an acknowledgment in the product
+ *	     documentation would be appreciated but is not required.
+ *	
+ *	  2. Altered source versions must be plainly marked as such, and must
+ *	     not be misrepresented as being the original software.
+ *	
+ *	  3. This notice may not be removed or altered from any source
+ *	     distribution.
+ */
 #ifndef MXFLIB__PARTITION_H
 #define MXFLIB__PARTITION_H
-
-#include "mxflib.h"
 
 #include "primer.h"
 
@@ -107,18 +127,22 @@ namespace mxflib
 		// Other Properties
 		//******************
 
-		Primer *PartitionPrimer;	//!< The Primer for this partition
+		PrimerPtr PartitionPrimer;	//!< The Primer for this partition
 									/*!< Or NULL if no primer pack active (only valid
 									 *   if there is no header metadata in this partition
 									 *   OR it has not yet been written)
 									 */
-
+char *__name; //!<DRAGONS: For debug!
 	public:
-//		PartitionInfo(void *Part = NULL, Position Offset = -1, Uint32 SID = 0);
+		//! DRAGONS - dummy constructor
+		Partition(char *name) { __name = name; debug("Creating Partition \"%s\"\n",__name);};
 
-//		bool operator< (PartitionInfo &Other);
-								//!< Comparison function to allow sorting
+		//! DRAGONS - dummy destructor
+		~Partition() { debug("Destroying Partition \"%s\"\n",__name); };
 	};
+
+	//! A smart pointer to a Partition object
+	typedef SmartPtr<Partition> PartitionPtr;
 }
 
 
