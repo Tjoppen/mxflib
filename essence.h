@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.5 2004/01/06 14:24:00 terabrit Exp $
+ *	\version $Id: essence.h,v 1.6 2004/03/19 03:09:32 terabrit Exp $
  *
  */
 /*
@@ -648,8 +648,6 @@ namespace mxflib
 					WrappingOptionList::iterator it2 = WO.begin();
 					while(it2 != WO.end())
 					{
-						Ret = new WrappingConfig;
-
 						// Only accept wrappings of the specified type
 						if(ForceWrap != WrappingOption::None)
 						{
@@ -659,6 +657,8 @@ namespace mxflib
 								continue;
 							}
 						}
+
+						Ret = new WrappingConfig;
 
 						// DRAGONS: Default to the first valid option!
 						Ret->EssenceDescriptor = (*it).Descriptor;
