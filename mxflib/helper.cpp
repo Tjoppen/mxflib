@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.1 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.2 2004/05/18 18:31:40 matt-beard Exp $
  *
  */
 /*
@@ -269,3 +269,22 @@ char *mxflib::lookupDataFilePath(const char *filename)
 
 	return NULL;
 }
+
+
+// Is a given sequence of bytes a partition pack key?
+// We first check if byte 13 == 1 which will be true for all partition packs,
+// but is false for all GC sets and packs. Once this matches we can do a full memcmp.
+bool mxflib::IsPartitionKey(const Uint8 *Key)
+{
+	if(Key[12] != 1) return false
+
+	// DRAGONS: This has version 1 hard coded as byte 8
+	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
+	if( memcmp(Key, DegeneratePartition, 13) == 0 )
+	{
+		return true;
+	}
+
+	return false;
+}
+

@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.2 2004/04/26 18:29:10 asuraparaju Exp $
+ *	\version $Id: helper.h,v 1.2.2.1 2004/05/18 18:31:40 matt-beard Exp $
  *
  */
 /*
@@ -164,6 +164,10 @@ namespace mxflib
 	
 	//! Read 64-bit signed integer (casts from unsigned version)
 	inline Int64 ReadI64(FileHandle Handle) { return (Int64)ReadU64(Handle); }
+
+
+	// Is a given sequence of bytes a partition pack key?
+	bool IsPartitionKey(const Uint8 *Key);
 }
 
 #endif // MXFLIB__HELPER_H
