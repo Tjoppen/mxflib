@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.6 2004/05/28 14:52:51 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.7 2004/06/14 17:26:50 matt-beard Exp $
  *
  */
 /*
@@ -60,7 +60,7 @@ namespace mxflib
 		virtual Uint64 GetEssenceDataSize(void) = 0;
 
 		//! Get the next "installment" of essence data
-		/*! \ret Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+		/*! \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
 		 *	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
 		 *	\note If Size = 0 the object will decide the size of the chunk to return
 		 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
@@ -250,6 +250,12 @@ namespace mxflib
 			//#### Register an Encryption thingy...
 
 
+		//! Calculate how many bytes would be written if the specified object were written with WriteRaw()
+		Length CalcRawSize(KLVObjectPtr Object);
+
+		//! Write a raw KLVObject to the file - this is written immediately and not buffered in the WriteQueue
+		void WriteRaw(KLVObjectPtr Object);
+
 
 		//! Structure for items to be written
 		struct WriteBlock
@@ -356,7 +362,7 @@ namespace mxflib
 			};
 
 			//! Get the next "installment" of essence data
-			/*! \ret Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+			/*! \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
 			 *	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
