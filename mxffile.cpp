@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.13 2004/03/28 18:32:58 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.14 2004/03/28 19:32:40 matt-beard Exp $
  *
  */
 /*
@@ -818,7 +818,7 @@ ULPtr mxflib::MXFFile::ReadKey(void)
 {
 	ULPtr Ret;
 
-	Uint64 Location = Tell();
+//	Uint64 Location = Tell();
 	DataChunkPtr Key = Read(16);
 
 	// If we couldn't read 16-bytes then bug out (this may be valid)

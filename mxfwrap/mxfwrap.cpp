@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
 
 		printf( "\nProcessing output file \"%s\"\n", OutFilename[OutFileNum]);
 
-		int rc = Process( OutFileNum, Out, WrappingList, EditRate, FPUMID );
+		Process( OutFileNum, Out, WrappingList, EditRate, FPUMID );
 
 		// Close the file - all done!
 		Out->Close();
@@ -1221,8 +1221,9 @@ printf("IndexMan[0] -> %d\n", StreamID);
 	iTrack = 0;
 	while(WrapCfgList_it != WrapCfgList.end())
 	{
-		// Calculate the section this essence is for
-		int Section = 0;
+// DRAGONS: Why has this gone?
+//		// Calculate the section this essence is for
+//		int Section = 0;
 
 		if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
 		{
@@ -1459,9 +1460,9 @@ printf("IndexMan[0] -> %d\n", StreamID);
 				{
 					if((*ECD_it)->GetLink())
 					{
-						if((*ECD_it)->GetLink()->GetInt("BodySID") == IndexMan[iManager]->GetBodySID())
+						if((*ECD_it)->GetLink()->GetUint("BodySID") == IndexMan[iManager]->GetBodySID())
 						{
-							(*ECD_it)->GetLink()->SetInt("IndexSID", IndexMan[iManager]->GetIndexSID());
+							(*ECD_it)->GetLink()->SetUint("IndexSID", IndexMan[iManager]->GetIndexSID());
 							break;
 						}
 					}
