@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.1.2.4 2004/09/06 00:13:19 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.1.2.5 2004/10/10 18:39:45 terabrit Exp $
  *
  */
 /*
@@ -324,7 +324,7 @@ bool mxflib::MXFFile::ReadRIP(void)
 	if(RIPKey->Size != 16) return false;
 
 	// Do a key lookup on this key
-	MDOTypePtr KeyType = MDOType::Find(new UL(RIPKey->Data));
+	MDOTypePtr KeyType = MDOType::Find(UL(RIPKey->Data));
 
 	// If not a known key type then not a valid RIP
 	if(!KeyType) return false;
@@ -526,7 +526,7 @@ Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
 
 					if(Key->Size == 16)
 					{
-						MDOTypePtr Type = MDOType::Find(new UL(Key->Data));
+						MDOTypePtr Type = MDOType::Find(UL(Key->Data));
 						if(Type)
 						{
 							if(Type->Name().find("Footer") != std::string::npos)
@@ -996,8 +996,12 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	{
 		if(IncludeMetadata) (*it)->WriteLinkedObjects(MetaBuffer, ThisPrimer);
 
+		const Uint8 PrefaceUL_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0D, 0x01, 0x01, 0x01, 0x01, 0x01, 0x2F, 0x00 };
+		const UL PrefaceUL = UL(PrefaceUL_Data);
+
 		// Update partition pack settings from the preface (if we find one)
-		if((*it)->Name() == "Preface")
+		// if((*it)->Name() == "Preface" || (*it)->Name() == "Header" )
+		if( *(*it)->GetType()->GetTypeUL() == PrefaceUL )
 		{
 			// Update OP label
 			MDObjectPtr DstPtr = ThisPartition["OperationalPattern"];
