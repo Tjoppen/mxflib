@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.3 2004/05/18 18:30:09 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.4 2004/05/19 11:10:31 matt-beard Exp $
  *
  */
 /*
@@ -839,7 +839,7 @@ namespace mxflib
 			FileOffset = FilePos;					// Record the file location
 			StreamOffset = StreamPos;				// Record the stream location
 
-			ReadFromFile(SingleKLV);				// Then do a "continue" read
+			return ReadFromFile(SingleKLV);			// Then do a "continue" read
 		}
 
 		//! Read from file - continuing from a previous read
@@ -858,6 +858,12 @@ namespace mxflib
 		{ 
 			StreamOffset = NewOffset; 
 		};
+
+		//! Get the file offset of the next read (or the current KLV if inside ReadFromFile)
+		/*! \note This is not the correct way to access the raw KLV in the file - that should be done via the KLVObject.
+		 *        This function allows the caller to determine where the file pointer ended up after a read.
+		 */
+		Position GetFileOffset(void) { return FileOffset; }
 
 
 		/*** Functions for use by read handlers ***/
