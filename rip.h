@@ -62,7 +62,7 @@ namespace mxflib
 		PartitionInfo(PartitionPtr Part = NULL, Position Offset = -1, Uint32 SID = 0);
 
 		//! Comparison function to allow sorting
-		bool operator< (PartitionInfo &Other);
+		bool operator< (PartitionInfo &Other) {	return (ByteOffset < Other.ByteOffset); }
 	};
 
 	//! A smart pointer to a PartitionInfo object
@@ -88,7 +88,7 @@ namespace mxflib
 		RIP();
 		~RIP();
 
-		AddPartition(PartitionPtr Part, Position Offset = -1, Uint32 SID = 0);
+		void AddPartition(PartitionPtr Part, Position Offset = -1, Uint32 SID = 0);
 	};
 }
 

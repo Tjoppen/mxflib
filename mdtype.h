@@ -173,6 +173,7 @@ namespace mxflib
 		MDTypeClass Class;				//!< Class of this MDType
 		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 		MDArrayClass ArrayClass;		//!< Sub-class of array
+		MDTraits *Traits;
 
 	public:
 		MDTypePtr Base;					//!< Base class if this is a derived class, else NULL
@@ -241,9 +242,8 @@ namespace mxflib
 
 		static MDTypePtr Find(const std::string& TypeName);
 	
-//! DRAGONS: Experimental
-MDTraits *Traits;
-void SetTraits(MDTraits *Tr) { Traits = Tr; };
+		//! Set the traits for this type
+		void SetTraits(MDTraits *Tr) { Traits = Tr; };
 
 		/* Allow MDValue class to view internals of this class */
 		friend class MDValue;

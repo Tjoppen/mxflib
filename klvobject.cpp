@@ -1,5 +1,7 @@
-/*! \file	mxflib.h
- *	\brief	The main MXFLib header file
+/*! \file	klvobject.cpp
+ *	\brief	Implementation of classes that define basic KLV objects
+ *
+ *			Class KLVObject holds info about a KLV object
  */
 /*
  *	Copyright (c) 2003, Matt Beard
@@ -24,45 +26,33 @@
  *	     distribution.
  */
 
-#ifndef MXFLIB__MXFLIB_H
-#define MXFLIB__MXFLIB_H
+#include "mxflib.h"
 
-//! Namespace for all MXFLib items
-namespace mxflib {}
+using namespace mxflib;
 
-#include "system.h"
-
-#include "debug.h"
-
-#include "smartptr.h"
-
-#include "types.h"
-
-#include "helper.h"
-
-#include "datachunk.h"
-#include "mdtraits.h"
-#include "mdtype.h"
-#include "deftypes.h"
-
-// DRAGONS: Probably need a special header full of smart pointer defs!
-namespace mxflib
+//! Build a new KLVObject
+KLVObject::KLVObject(ULPtr ObjectUL)
 {
-	class MXFFile;
-
-	//! A smart pointer to an MXFFile object
-	typedef SmartPtr<MXFFile> MXFFilePtr;
+	TheUL = ObjectUL;
+	
+	Init();
 }
 
-#include "klvobject.h"
 
-#include "mdobject.h"
+//! Initialise newly built KLVObject
+void KLVObject::Init(void)
+{
+	IsConstructed = true;
+	SourceOffset = 0;
+	KLSize = 0;
+	SourceFile = NULL;
 
-#include "rip.h"
+	ObjectName = "";
+}
 
-#include "mxffile.h"
 
-#include "index.h"
-
-#endif MXFLIB__MXFLIB_H
-
+//! Get text that describes where this item came from
+std::string KLVObject::GetSource(void) 
+{ 
+	if(SourceFile) return SourceFile->Name; else return "memory buffer"; 
+}

@@ -119,8 +119,8 @@ void DefineTraits(void)
 
 
 //! Load types from the specified XML definitions
-/*! /ret 0 if all OK
- *! /ret -1 on error
+/*! \return 0 if all OK
+ *! \return -1 on error
  */
 int mxflib::LoadTypes(char *TypesFile)
 {

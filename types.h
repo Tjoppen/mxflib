@@ -128,5 +128,14 @@ namespace mxflib
 	typedef SmartPtr<UL> UUIDPtr;
 }
 
+namespace mxflib
+{
+	//! Structure for holding fractions
+	struct Rational
+	{
+		Int32 Numerator;
+		Int32 Denominator;
+	};
+}
 
 #endif MXFLIB__TYPES_H

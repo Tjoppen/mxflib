@@ -241,7 +241,7 @@ namespace mxflib
 		/*!	This method is picked over __Assign(void *ptr)
 		 *	if T implements IRefCount.
 		 *	This allows some memory usage optimization
-		 *	/note
+		 *	\note
 		 *	Assigning NULL will detatch this pointer from the
 		 *	current object
 		 */
@@ -286,6 +286,8 @@ namespace mxflib
 		}
 
 		//!	Construct a smart pointer that takes its target from another smart pointer
+		/*! This constructor allows casting of smart pointers, however care must be taken because
+		    not only is a pointer being cast but both classes must be derived from IRefCount */
 		SmartPtr(const IRefCount &sp)
 		{
 			__m_refcount = NULL;
@@ -348,6 +350,9 @@ namespace mxflib
 		{
 			return GetPtr()!=sp.GetPtr();
 		}
+
+		//! Comparison function to allow sorting by indexed value
+		bool operator<(SmartPtr &Other) { return this.operator<(*Other->GetPtr()); }
 	};
 }
 

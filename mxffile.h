@@ -40,7 +40,7 @@ extern "C"
 namespace mxflib
 {
 	class MXFFile;
-	template<class TP, class T> TP MXFFile__ReadObjectBase(MXFFilePtr This);
+	template<class TP, class T> TP MXFFile__ReadObjectBase(MXFFilePtr This, PrimerPtr UsePrimer = NULL);
 }
 
 namespace mxflib
@@ -68,33 +68,71 @@ namespace mxflib
 		bool Close(void);
 
 		bool ReadRunIn(void);
+
+		// RIP Readers
+		bool ReadRIP(void);
+		bool ScanRIP(Uint64 MaxScan = 1024*1024);
 		bool BuildRIP(void);
+		bool GetRIP(Uint64 MaxScan = 1024*1024);
 
 		//! Report the position of the file pointer
-		Uint64 Tell(void) { return isOpen ? (Uint64(KLVFileTell(Handle))-RunInSize) : 0; };
+		Uint64 Tell(void) { return isOpen ? (Uint64(mxflib::FileTell(Handle))-RunInSize) : 0; };
 
 		//! Move the file pointer and report its new position
-		Uint64 Seek(Uint64 Position) { return isOpen ? (Uint64) KLVFileSeek(Handle, Position+RunInSize) : 0; };
+		// DRAGONS: This is where we need to insert code to handle file discontinuities
+		//          If a file has one or more chunks mising then we can build a list of
+		//			discontinuities based on where partition packs start compared with
+		//			where in the file they claim to be. This allows us to modify seeks
+		//			so that they find the data originally at that part of the file even
+		//			though they are now in a different position
+		Uint64 Seek(Uint64 Position) { return isOpen ? (Uint64) mxflib::FileSeek(Handle, Position+RunInSize) : 0; };
+		Uint64 SeekEnd(void) { return isOpen ? (Uint64) mxflib::FileSeekEnd(Handle) : 0; };
 
 		//! Determine if the file pointer is at the end of the file
-		bool Eof(void) { return KLVFileEof(Handle) ? true : false; };
+		bool Eof(void) { return mxflib::FileEof(Handle) ? true : false; };
 
 		DataChunkPtr Read(Uint64 Size);
 
 //		MDObjectPtr ReadObject(void);
 //		template<class TP, class T> TP ReadObjectBase(void) { TP x; return x; };
 //		template<> MDObjectPtr ReadObjectBase<MDObjectPtr, MDObject>(void) { MDObjectPtr x; return x; };
-		MDObjectPtr ReadObject(void) { return MXFFile__ReadObjectBase<MDObjectPtr, MDObject>(this); };
+		MDObjectPtr ReadObject(PrimerPtr UsePrimer = NULL) { return MXFFile__ReadObjectBase<MDObjectPtr, MDObject>(this, UsePrimer); };
 		PartitionPtr ReadPartition(void) { return MXFFile__ReadObjectBase<PartitionPtr, Partition>(this); };
 
 		ULPtr ReadKey(void);
 		Uint64 ReadBER(void);
+
+
+		//! Read 8-bit unsigned integer
+		Uint8 ReadU8(void) { unsigned char Buffer[1]; if(FileRead(Handle, Buffer, 1) == 1) return GetU8(Buffer); else return 0; }
+
+		//! Read 16-bit unsigned integer
+		Uint16 ReadU16(void) { unsigned char Buffer[2]; if(FileRead(Handle, Buffer, 2) == 2) return GetU16(Buffer); else return 0; }
+
+		//! Read 32-bit unsigned integer
+		Uint32 ReadU32(void) { unsigned char Buffer[4]; if(FileRead(Handle, Buffer, 4) == 4) return GetU32(Buffer); else return 0; }
+
+		//! Read 64-bit unsigned integer
+		Uint64 ReadU64(void) { unsigned char Buffer[8]; if(FileRead(Handle, Buffer, 8) == 8) return GetU64(Buffer); else return 0; }
+
+		//! Read 8-bit signed integer (casts from unsigned version)
+		Int8 ReadI8(void) { return (Int8)ReadU8(); }
+
+		//! Read 16-bit signed integer (casts from unsigned version)
+		Int16 ReadI16(void) { return (Int16)ReadU16(); }
+		
+		//! Read 32-bit signed integer (casts from unsigned version)
+		Int32 ReadI32(void) { return (Int32)ReadU32(); }
+		
+		//! Read 64-bit signed integer (casts from unsigned version)
+		Int64 ReadI64(void) { return (Int64)ReadU64(); }
 	};
 
 };
 
+
 // DRAGONS: MSVC: Why does this work in a header, but not in the file?
-template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFilePtr This)
+template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFilePtr This, PrimerPtr UsePrimer /*=NULL*/)
 {
 	TP Ret;
 
@@ -124,33 +162,11 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 		}
 
 		Ret->SetParent(This, Location, KLSize);
-		Ret->ReadValue(Data->Data, Data->Size);
+		Ret->ReadValue(Data->Data, Data->Size, UsePrimer);
 	}
 
 	return Ret;
 }
-/*
-template<class TP, class T> TP ReadObjectBase(void) { TP x; return X; };
-mxflib::MDObjectPtr ReadObject(void) { ReadObjectBase<mxflib::MDObjectPtr, mxflib::MDObject>(); };
-mxflib::PrimerPtr ReadPrimer(void) { ReadObjectBase<mxflib::PrimerPtr, mxflib::Primer>(); };
-
-template<class TP, class T> TP ReadObjectTest(void) { T var; return (TP) &var; };
-int* TestA(void) { return ReadObjectTest<int*, long>(); };
-//int* TestA(void) { return ReadObjectTest(); };
-
-template<class T> T* create();
-void f()
-{
-	int *p = create<int>();
-}
-
-template<class T> T* f(T);
-void g(char j) {
-   int *p = f<int>(j);   //generate the specialization f(int)
-}
-*/
-
-
 
 #endif MXFLIB__MXFFILE_H
 

@@ -93,8 +93,17 @@ namespace mxflib
 			UnmatchedRefs.clear();
 		}
 
+		//! Read a full set of header metadata from this partition's source file (including primer)
+		Uint64 ReadMetadata(void);
+
 		//! Read a full set of header metadata from a file (including primer)
 		Uint64 ReadMetadata(MXFFilePtr File, Uint64 Size);
+
+		//! Read any index table segments from this partition's source file
+		MDObjectListPtr ReadIndex(void);
+
+		//! Read any index table segments from a file
+		MDObjectListPtr ReadIndex(MXFFilePtr File, Uint64 Size);
 
 //		//! Read the partition from a buffer
 //		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size);

@@ -642,7 +642,7 @@ void MDTraits_BasicArray::SetUint64(MDValuePtr Object, Uint64 Val)
 
 
 //! Set string for basic array types
-/*! /note This will fail if one of the array items includes a comma
+/*! \note This will fail if one of the array items includes a comma
  */
 void MDTraits_BasicArray::SetString(MDValuePtr Object, std::string Val)
 {
@@ -1186,7 +1186,7 @@ void MDTraits_BasicCompound::SetString(MDValuePtr Object, std::string Val)
 
 
 //! Basic function to read a compound from a buffer
-/*! /note Count is ignored in this function
+/*! \note Count is ignored in this function
  */
 Uint32 MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
 {

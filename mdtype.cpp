@@ -163,8 +163,8 @@ MDTypePtr MDType::AddCompound(std::string TypeName)
 
 
 //! Find the MDType object that defines a named type
-/*! /ret Pointer to the object
- *  /ret NULL if there is no type of that name
+/*! \return Pointer to the object
+ *  \return NULL if there is no type of that name
  */
 MDTypePtr MDType::Find(const std::string& TypeName)
 {
@@ -183,7 +183,7 @@ MDTypePtr MDType::Find(const std::string& TypeName)
 
 
 //! Report the effective type of this type
-/*! /note Care must be taken using this function because
+/*! \note Care must be taken using this function because
  *        it is easy to end up confused and read properties
  *        from the "effective" type that should be read
  *        from the interpretation instead (such as traits)
@@ -308,7 +308,7 @@ void MDValue::Init(void)
 //! Set a variable to be a certain size in bytes
 /*!	The old data is NOT copied. 
  *  This function assumes that this is a viable thing to do!
- *  /ret The size of the resized item
+ *  \return The size of the resized item
  */
 Uint32 MDValue::MakeSize(Uint32 NewSize)
 {
@@ -500,7 +500,7 @@ MDValuePtr MDValue::operator[](const std::string ChildName)
 
 //! Read value from a buffer
 /*!
- *  /ret Number of bytes read
+ *  \return Number of bytes read
  */
 Uint32 MDValue::ReadValue(const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
 {

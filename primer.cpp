@@ -34,7 +34,7 @@ using namespace mxflib;
 
 
 //! Read the primer from a buffer
-/*!	/ret Number of bytes read
+/*!	\return Number of bytes read
  */
 Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
 {

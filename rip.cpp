@@ -49,13 +49,54 @@ mxflib::RIP::~RIP()
 
 
 //! Add a partition to a RIP
-mxflib::RIP::AddPartition(PartitionPtr Part,
+/*! This function ensures that the list of partitions is maintained in order */
+void mxflib::RIP::AddPartition(PartitionPtr Part,
 						  Position Offset			/* = -1 */, 
 						  Uint32 SID				/* = 0 */)
 {
-	// DRAGONS: More code needed here!!
 	debug("Adding a partition to a RIP\n");
-	push_back(new PartitionInfo(Part, Offset, SID));
+
+	PartitionInfoPtr NewPI = new PartitionInfo(Part, Offset, SID);
+
+	// If nothing in the list, add to the front
+	if(empty())
+	{
+		push_front(NewPI);
+		return;
+	}
+
+	// If after the last item, add to the end
+	if(NewPI->ByteOffset > (*rbegin())->ByteOffset)
+	{
+		push_back(NewPI);
+		return;
+	}
+
+	// Otherwise scan for the insert point
+	PartitionInfoList::iterator it = begin();
+	while(it != end())
+	{
+		// Replace if it is at the same location in the file
+		if(NewPI->ByteOffset == (*it)->ByteOffset)
+		{
+			it = erase(it);
+			if(it == end())
+			{
+				push_back(NewPI);
+			}
+		}
+
+		// Insert before the first higher entry
+		if(NewPI->ByteOffset < (*it)->ByteOffset)
+		{
+			insert(it, NewPI);
+			return;
+		}
+
+		it++;
+	}
+
+	// Note: Should nevr get here
 }
 
 

@@ -46,14 +46,14 @@ bool mxflib::MXFFile::Open(std::string FileName, bool ReadOnly /* = false */ )
 
 	if(ReadOnly)
 	{
-		Handle = KLVFileOpenRead(FileName.c_str());
+		Handle = FileOpenRead(FileName.c_str());
 	}
 	else
 	{
-		Handle = KLVFileOpen(FileName.c_str());
+		Handle = FileOpen(FileName.c_str());
 	}
 
-	if(!KLVFileValid(Handle)) return false;
+	if(!FileValid(Handle)) return false;
 
 	isOpen = true;
 
@@ -126,7 +126,7 @@ bool mxflib::MXFFile::ReadRunIn()
 //! Close the file
 bool mxflib::MXFFile::Close(void)
 {
-	if(isOpen) KLVFileClose(Handle);
+	if(isOpen) FileClose(Handle);
 
 	isOpen = false;
 
@@ -141,7 +141,7 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 
 	if(Size)
 	{
-		Uint64 Bytes = KLVFileRead(Handle, Ret->Data, Size);
+		Uint64 Bytes = FileRead(Handle, Ret->Data, Size);
 
 		// Handle errors
 		if(Bytes == (Uint64)-1)
@@ -156,79 +156,264 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 	return Ret;
 }
 
-
-/*
-//! Read an MDObject from the current position
-MDObjectPtr mxflib::MXFFile::ReadObject(void)
+//! Get a RIP for the open MXF
+/*! The RIP is read using ReadRIP() if possible.
+ *  Otherwise it is Scanned using ScanRIP().
+ *	If that fails it is built the hard way using BuildRIP().
+ */
+bool mxflib::MXFFile::GetRIP(Uint64 MaxScan /* = 1024*1024 */ )
 {
-	MDObjectPtr Ret;
-
-	Uint64 Location = Tell();
-	ULPtr Key = ReadKey();
-
-	// If we couldn't read the key then bug out
-	if(!Key) return Ret;
-
-	// Build the object (it may come back as an "unknown")
-	Ret = new MDObject(Key);
-
-	ASSERT(Ret);
-
-	Uint64 Length = ReadBER();
-	if(Length > 0)
-	{
-		DataChunkPtr Data = Read(Length);
-
-		if(Data->Size != Length)
-		{
-			error("Not enough data in file for object %s at 0x%s\n", Ret->Name().c_str(), Int64toHexString(Location,8).c_str());
-		}
-
-		Ret->ReadValue(Data->Data, Data->Size);
-	}
-
-	return Ret;
+	if(ReadRIP()) return true;
+	if(ScanRIP(MaxScan)) return true;
+	return BuildRIP();
 }
-*/
 
-//! Read an MDObject from the current position
-//template<class TP, class T> TP mxflib::MXFFile::ReadObjectBase(void)
-//MDObjectPtr mxflib::MXFFile::ReadObject(void)
-/*
-template<class TP, class T> TP mxflib::MXFFile__ReadObjectBase(MXFFile *This)
-{
-	TP Ret;
 
-	Uint64 Location = This->Tell();
-	ULPtr Key = This->ReadKey();
-
-	// If we couldn't read the key then bug out
-	if(!Key) return Ret;
-
-	// Build the object (it may come back as an "unknown")
-	Ret = new T(Key);
-
-	ASSERT(Ret);
-
-	Uint64 Length = This->ReadBER();
-	if(Length > 0)
-	{
-		DataChunkPtr Data = This->Read(Length);
-
-		if(Data->Size != Length)
-		{
-			error("Not enough data in file for object %s at 0x%s\n", Ret->Name().c_str(), Int64toHexString(Location,8).c_str());
-		}
-
-		Ret->ReadValue(Data->Data, Data->Size);
-	}
-
-	return Ret;
-}
-*/
-
-//! Read all partition packs from the open MXF file
+//! Read the RIP from the end of the open MXF file
 /*! The new RIP is placed in property FileRIP
+ *  \note Partition packs will <b>not</b> be loaded. Partition pointers in the new RIP will be NULL
+ *  \note This new RIP will represent what is in the physical
+ *        file so any data in memory will not be considered
+ *  \note The current contents of FileRIP will be destroyed
+ */
+bool mxflib::MXFFile::ReadRIP(void)
+{
+	// Remove any old data
+	FileRIP.clear();
+
+	FileRIP.isGenerated = false;
+
+	Uint64 FileEnd = SeekEnd();
+
+	// File smaller than 20 bytes! No chance of a RIP
+	if(FileEnd < 20) return false;
+
+	Uint64 Location = Seek(FileEnd - 4);
+
+	Uint32 RIPSize = ReadU32();
+
+	// If the RIP size would be bigger than the file it can't be a valid RIP
+	if(RIPSize > Location) return false;
+
+	// If we have a valid RIP then RIPSize bytes back will be the RIP key
+	Uint64 RIPStart = Seek(Location - RIPSize);
+	DataChunkPtr RIPKey = Read(16);
+
+	// Something went wrong with the read!
+	if(RIPKey->Size != 16) return false;
+
+	// Do a key lookup on this key
+	MDOTypePtr KeyType = MDOType::Find(new UL(RIPKey->Data));
+
+	// If not a known key type then not a valid RIP
+	if(!KeyType) return false;
+
+	// If it is a known type, but not a RIP then exit
+	if(KeyType->Name() != "RandomIndexMetadata") return false;
+
+	// Go back and read the RIP
+	Seek(RIPStart);
+	MDObjectPtr RIPObject = ReadObject();
+
+	MDObjectPtr PartitionArray = RIPObject["PartitionArray"];
+	
+	MDObjectNamedList::iterator it = PartitionArray->begin();
+	while(it != PartitionArray->end())
+	{
+		Uint32 BodySID = (*it).second->GetUint();
+
+		it++;
+		if(it == PartitionArray->end())
+		{
+			error("Unexpected end of pack in RIP at %s", RIPObject->GetSourceLocation().c_str());
+			break;
+		}
+
+		Uint64 ByteOffset = (*it).second->GetUint64();
+		
+		debug("BodySID = 0x%04x, ByteOffset = %s\n", BodySID, Int64toString(ByteOffset).c_str());
+
+		FileRIP.AddPartition(NULL, ByteOffset, BodySID);
+
+		it++;
+	}
+
+	return true;
+}
+
+
+//! Build a RIP for the open MXF file by scanning partitions following links back from the footer
+/*! The new RIP is placed in property FileRIP
+ *  \note Each partition pack will be loaded and referenced from the new RIP
+ *  \note This new RIP will represent what is in the physical
+ *        file so any data in memory will not be considered
+ *  \note The current contents of FileRIP will be destroyed
+ *
+ *  <h3>How the file is scanned</h3>
+ *  An ideal file will not need scanning because it will contain a RIP (handled by ReadRIP).
+ *  <br><br>
+ *	The next best situation is for the header to hold the location of the footer in the 
+ *	<i>FooterPartition</i> property. If this is the case the scan will happen as follows:
+ *	-# The header is read to locate the footer
+ *	-# The footer is read, and added to the RIP
+ *	-# The <i>PreviousPartition</i> property is used to locate the previous partition
+ *	-# The previous partition is read, and added to the RIP
+ *  -# If the last partition processed was not the header then goto step 3
+ *
+ *	If the header doesn't hold the location of the footer then a search is performed to
+ *  find the footer. This is somewhat optimised and is performed as follows:
+ *	- 4Kb blocks of the file are read, starting with the last 4k, to a maximum specified (default 1Mb)
+ *  - Each 4Kb block is scanned forwards (CPU optimisations work better scanning forwards) looking for bytes with the value 0x06
+ *	- Each time 0x06 is found the next byte is checked for being 0x0e
+ *	- When 0x06 0x0e is found 16 bytes are read starting at the 0x06 and a lookup is performed with MDOType::Find()
+ *  - If the lookup shows this as a footer then the search is over and steps 2-5 of the above method are used
+ *  - Otherwise the scan continues - if no footer is found within the maximum scan size then the scan is aborted
+ *
+ */
+bool mxflib::MXFFile::ScanRIP(Uint64 MaxScan /* = 1024*1024 */ )
+{
+	// Size of scan chunk when looking for footer key
+	static const ScanChunkSize = 4096;
+
+	// Remove any old data
+	FileRIP.clear();
+
+	FileRIP.isGenerated = true;
+
+	// Read the header
+	Seek(0);
+	PartitionPtr Header = ReadPartition();
+
+	// Header not found (might not be an error - the file could be empty)
+	if(!Header) return false;
+
+	Uint64 FooterPos = Header->GetInt64("FooterPartition");
+	if(FooterPos == 0)
+	{
+		// If too small a scan range is given we can't scan!
+		if(MaxScan < 20) return false;
+
+		Uint64 ScanLeft = MaxScan;			// Number of bytes left to scan
+		Uint64 FileEnd = SeekEnd();			// The file end
+		Uint64 ScanPos = FileEnd;			// Last byte of the current scan chunk
+
+		while(ScanLeft)
+		{
+			Uint64 ThisScan;				// Number of bytes to scan this time
+			
+			// Scan the number of bytes left, limited to the chunk size
+			if(ScanLeft > ScanChunkSize) ThisScan = ScanChunkSize; else ThisScan = ScanLeft;
+			
+			// Don't scan off the start of the file
+			if(ThisScan > (ScanPos+1)) ThisScan = (ScanPos+1);
+
+			// Quit if we ran out of bytes to scan
+			if(ThisScan == 0) return false;
+
+			// Read this chunk
+//printf("Scanning %d bytes at %d, file size = %d\n", int(ThisScan), int(ScanPos - ThisScan), int(FileEnd));
+			Seek(ScanPos - ThisScan);
+			DataChunkPtr Chunk = Read(ThisScan);
+//printf("Read %d bytes\n", int(Chunk->Size));
+
+			// Quit if the read failed
+			if(Chunk->Size != ThisScan) return false;
+
+			unsigned char *p = Chunk->Data;
+			int i;
+			for(i=0; i<ThisScan; i++)
+			{
+				if(*p == 0x06)
+				{
+					// Find the byte following the 0x06
+					unsigned char next;
+					if(i < (ThisScan-1)) 
+						// Next byte in the buffer
+						next = p[1]; 
+					else 
+					{
+						// Next byte is not in the buffer - read it from the file
+						Seek(ScanPos);
+						next = ReadI8();
+					}
+
+					// Matched 0x06 0x0e - could be a key...
+					if(next == 0x0e)
+					{
+						// Locate the 0x06 in the file
+						Uint64 Location = Seek(ScanPos - (ThisScan - i));
+						DataChunkPtr Key = Read(16);
+
+						if(Key->Size == 16)
+						{
+							MDOTypePtr Type = MDOType::Find(new UL(Key->Data));
+							if(Type)
+							{
+								if(Type->Name().find("Footer") != std::string::npos)
+								{
+									debug("Found %s at 0x%s\n", Type->Name().c_str(), Int64toHexString(Location, 8).c_str());
+									
+									// Flag that the footer has been found, and record its location
+									FooterPos = Location;
+									break;
+								}
+							}
+						}
+					}
+				}
+				p++;
+			}
+
+			// If we found the footer in this chunk then scan no more
+			if(FooterPos != 0) break;
+
+			// Move back through the file
+			if(ScanPos > ThisScan) ScanPos -= ThisScan; else return false;
+		}
+
+		// If the scan failed exit now
+		if(FooterPos == 0) return false;
+	}
+
+
+	// Store the footer in the RIP and loop back through all other partitions
+	Uint64 PartitionPos = FooterPos;
+	for(;;)
+	{
+		Seek(PartitionPos);
+		PartitionPtr ThisPartition = ReadPartition();
+
+		// If any partition read fails abort the scan
+		if(!ThisPartition) return false;
+
+		Uint32 BodySID = ThisPartition->GetUint("BodySID");
+
+		debug("Adding %s for BodySID 0x%04x at 0x%s\n", ThisPartition->Name().c_str(), BodySID, Int64toHexString(PartitionPos, 8).c_str());
+
+		// Add the new partition
+		FileRIP.AddPartition(ThisPartition, PartitionPos, BodySID);
+
+		// Stop once we have added the header
+		if(PartitionPos == 0) break;
+
+		Uint64 NewPos = ThisPartition->GetUint64("PreviousPartition");
+		if(NewPos >= PartitionPos)
+		{
+			error("%s/PreviousPartition in partition pack at %s is 0x%s, but this cannot be the location of the previous partition\n", 
+				  ThisPartition->FullName().c_str(), ThisPartition->GetSourceLocation().c_str(), Int64toHexString(NewPos,8).c_str());
+			return false;
+		}
+
+		PartitionPos = NewPos;
+	}
+
+	return true;
+}
+
+
+//! Build a RIP for the open MXF file by scanning the entire file for partitions
+/*! The new RIP is placed in property FileRIP
+ *  \note Each partition pack will be loaded and referenced from the new RIP
  *  \note This new RIP will represent what is in the physical
  *        file so any data in memory will not be considered
  *  \note The current contents of FileRIP will be destroyed
@@ -238,7 +423,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 	// Remove any old data
 	FileRIP.clear();
 
-	FileRIP.isGenerated = 0;
+	FileRIP.isGenerated = true;
 
 	Seek(0);
 
@@ -453,207 +638,6 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 	return true;
 }
-
-/*
-#############################
-	ULPtr FirstKey = ReadKey();
-
-	// If we couldn't read a key then there are no partitions
-	// Note that this is not stricty an error - the file could be empty!
-	if(!FirstKey) return true;
-
-	// Locate a closed header type for key compares
-	MDOTypePtr BaseHeader = MDOType::Find("ClosedHeader");
-
-	if(!BaseHeader)
-	{
-		error("Cannot find \"ClosedHeader\" in current dictionary\n");
-		return false;
-	}
-
-	// Identify the key we have found and build a partition object for it
-	PartitionPtr ThisPartition = new Partition(FirstKey);
-
-	if(!ThisPartition || !(ThisPartition->GetType()->GetDict()))
-	{
-		error("First KLV in file \"%s\" is not a known type\n", Name.c_str());
-		return false;
-	}
-
-	if(!(ThisPartition->GetType()->GetDict()->Base)
-		|| ( strcmp(ThisPartition->GetType()->GetDict()->Base->Name, "PartitionMetadata") != 0) )
-	{
-		error("First KLV in file \"%s\" is not a known partition type\n", Name.c_str());
-		return false;
-	}
-
-//printf("Found %s at 0x%08x\n", ThisPartition->GetType()->GetDict()->Name, (Uint32)Location);
-	while(!Eof())
-	{
-		Uint64 DataLen = ReadBER();
-		DataChunkPtr Value = Read(DataLen);
-		if(Value->Size != DataLen)
-		{
-			error("Incomplete KLV in file \"%s\" at 0x%s\n", Name.c_str(), Int64toHexString(Tell(),8).c_str());
-			return false;
-		}
-
-		// Read the value into the partition object
-		ThisPartition->ReadValue(Value->Data, DataLen);
-
-		Uint32 BodySID = 0;
-		MDObjectPtr Ptr = ThisPartition["BodySID"];
-		if(Ptr) BodySID = Ptr->Value->GetInt();
-
-		FileRIP.AddPartition(ThisPartition, Location, BodySID);
-
-		Uint64 Skip = 0;
-
-		// Work out how far to skip ahead
-		Ptr = ThisPartition["HeaderByteCount"];
-		if(Ptr) Skip = Ptr->Value->GetInt64();
-		Ptr = ThisPartition["IndexByteCount"];
-		if(Ptr) Skip += Ptr->Value->GetInt64();
-
-		// Check for version 10 HeaderByteCount bug //
-		// Some version 10 code does not count the leading filler into account
-		// So we check to see if the header is claimed to be an integer number of KAGs
-		// and that there is a leading filler to take us to the start of the next KAG
-		// In this case we seem to be in an eVTR bug situation...
-		
-		Uint16 Ver = 0;
-		Ptr = ThisPartition["MinorVersion"];
-		Ver = Ptr->Value->GetUint();
-		if(Ver == 1)
-		{
-			Uint32 KAGSize = 0;
-			Ptr = ThisPartition["KAGSize"];
-			if(Ptr) KAGSize = Ptr->GetInt();
-
-			Uint64 HeaderByteCount = 0;
-			Ptr = ThisPartition["HeaderByteCount"];
-			if(Ptr) HeaderByteCount = Ptr->GetInt();
-
-			if((KAGSize > 16) && (HeaderByteCount > 0))
-			{
-				Uint64 Pos = Tell();
-				Uint64 U = HeaderByteCount / KAGSize;
-				if((U * KAGSize) == HeaderByteCount)
-				{
-					MDObjectPtr First = ReadObject();
-					if(!First)
-					{
-						Seek(Pos);
-					}
-					else if(First->Name() == "KLVFill")
-					{
-						U = Tell() / KAGSize;
-						if( (U * KAGSize) == Tell() )
-						{
-							warning("HeaderByteCount does not include the leading filler\n");
-						}
-						else
-						{
-							Seek(Pos);
-						}
-					}
-				}
-			}
-		}
-
-		// Skip over header
-		Uint64 PreSkip = Tell();
-		Uint64 NextPos = PreSkip + Skip;
-		if( Seek(NextPos) != NextPos)
-		{
-			error("Unexpected end of file in partition starting at 0x%s in file \"%s\"\n",
-				  Int64toHexString(Location,8).c_str(), Name.c_str());
-			return false;
-		}
-
-		// Flag that this is the first read after the skip
-		// so we can validate the skip
-		bool FirstRead = true;
-
-		// Now scan until the next partition
-		DataChunkPtr Key;
-		for(;;)
-		{
-			// We don't use ReadKey() here to allow us to diagnose wrong byte counts in the partition pack
-			Location = Tell();
-			Key = Read(16);
-
-			if(Key->Size == 0) break;
-			if(Key->Size != 16)
-			{
-				error("Incomplete KLV in file \"%s\" at 0x%s\n", Name.c_str(), Int64toHexString(Tell(),8).c_str());
-				return false;
-			}
-
-			// Validate the key read after performing a skip
-			if(FirstRead)
-			{
-				FirstRead = false;
-				if((Key->Data[0] != 6) || (Key->Data[1] != 0x0e))
-				{
-					error("Byte counts in partition pack ending at 0x%s in file \"%s\" are not valid\n", Int64toHexString(PreSkip,8).c_str(), Name.c_str());
-					
-					// Move back to end of partition pack and scan through the header
-					Seek(PreSkip);
-					continue;
-				}
-			}
-			else
-			{
-				if((Key->Data[0] != 6) || (Key->Data[1] != 0x0e))
-				{
-					error("Invalid KLV key found at 0x%s in file \"%s\"\n", Int64toHexString(Tell(), 8).c_str(), Name.c_str());
-					return false;
-				}
-			}
-
-			// Identify what we have found
-			MDOTypePtr ThisType = MDOType::Find(new UL(Key->Data));
-
-			// Only check for this being a partition pack if we know the type
-			if(ThisType)
-			{
-				const DictEntry *Dict = ThisType->GetDict();
-//printf("Found %s at 0x%08x\n", Dict->Name, (Uint32)Location);
-				if(Dict && Dict->Base)
-				{
-					if(strcmp(Dict->Base->Name, "PartitionMetadata") == 0)
-					{
-						break;
-					}
-				}
-			}
-//else printf("Found %s at 0x%08x\n", UL(Key->Data).GetString().c_str(), (Uint32)Location);
-
-			Skip = ReadBER();
-			Uint64 NextPos = Tell() + Skip;
-			if( Seek(NextPos) != NextPos)
-			{
-				error("Unexpected end of file in KLV starting at 0x%s in file \"%s\"\n",
-					  Int64toHexString(Location,8).c_str(), Name.c_str());
-				return false;
-			}
-			
-			if(Eof()) break;
-		}
-
-		// Check if we found anything
-		if(Key->Size == 0) break;
-		if(Eof()) break;
-
-		// By this point we have found a partition pack - loop back to add it
-		continue;
-	}
-
-	return true;
-}
-*/
-
 
 //! Read a BER length from the open file
 Uint64 mxflib::MXFFile::ReadBER(void)

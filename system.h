@@ -126,6 +126,25 @@ namespace mxflib
 		sprintf(Buffer,"%0*I64x", Digits, Val );
 		return std::string(Buffer);
 	};
+
+	/******** 64-bit file-I/O ********/
+#include <io.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
+	typedef int FileHandle;
+	inline Uint64 FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET); }
+	inline Uint64 FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END); }
+	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, size); }
+	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, size); }
+	inline FileHandle FileOpen(const char *filename) { return open(filename, _O_BINARY | _O_RDWR ); }
+	inline FileHandle FileOpenRead(const char *filename) { return open(filename, _O_BINARY | _O_RDONLY ); }
+	inline FileHandle FileOpenNew(const char *filename) { return open(filename, _O_BINARY | _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE); }
+	inline bool FileValid(FileHandle file) { return (file >= 0); }
+	inline bool FileEof(FileHandle file) { return eof(file) ? true : false; }
+	inline Uint64 FileTell(FileHandle file) { return _telli64(file); }
+	inline void FileClose(FileHandle file) { close(file); }
+
 }
 
 #define ASSERT _ASSERT					//!< Debug assert

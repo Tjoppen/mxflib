@@ -195,8 +195,8 @@ PrimerPtr MDOType::DictManager::MakePrimer(void)
 
 
 //! Convert KLVLib "DictType" enum to text string of type name
-/*! /ret Pointer to a string constant
- *  /ret "" if the DictType is not known or is a container (e.g. a pack)
+/*! \return Pointer to a string constant
+ *  \return "" if the DictType is not known or is a container (e.g. a pack)
  */
 char *DictType2Text(DictType Type)
 {
@@ -259,7 +259,6 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 	if(ParentType)
 	{
 		ParentType->insert(NewType);
-//		ParentType->ChildrenNames.push_back(Dict->Name);
 	}
 
 	// Build base name for any children
@@ -274,7 +273,6 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 		
 		// Add child names to name lookup
 		StringList::iterator it = Base->ChildOrder.begin();
-//		StringList::iterator itn = NewType->ChildrenNames.begin();
 		while(it != Base->ChildOrder.end())
 		{
 			MDOTypePtr Current = NameLookup[Base->FullName() + "/" + (*it)];
@@ -286,7 +284,6 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 
 			NameLookup[NewType->FullName() + "/" + (*it)] = Current;
 			it++;
-//			itn++;
 		}
 	}
 
@@ -317,16 +314,6 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 		else
 		{
 			Type = "";
-
-			DictEntryList *ChildList = Dict->Children;
-			while(ChildList != NULL)
-			{
-				// Rinse and repeat!
-				AddDict(ChildList->Link, NewType);
-
-				// Iterate through the list
-				ChildList = ChildList->Next;
-			}
 		}
 	}
 	else
@@ -442,8 +429,8 @@ MDOType::MDOType(DictEntry *RootDict) : Dict(RootDict), Parent(NULL)
 
 
 //! Find the MDOType object that defines a named type
-/*! /ret Pointer to the object
- *  /ret NULL if there is no type of that name
+/*! \return Pointer to the object
+ *  \return NULL if there is no type of that name
  */
 MDOTypePtr MDOType::Find(std::string BaseType)
 {
@@ -462,8 +449,8 @@ MDOTypePtr MDOType::Find(std::string BaseType)
 
 
 //! Find the MDOType object that defines a type with a specified UL
-/*! /ret Pointer to the object
- *  /ret NULL if there is no type with that UL
+/*! \return Pointer to the object
+ *  \return NULL if there is no type with that UL
  */
 MDOTypePtr MDOType::Find(ULPtr BaseUL)
 {
@@ -482,8 +469,8 @@ MDOTypePtr MDOType::Find(ULPtr BaseUL)
 
 //! Find the MDOType object that defines a type with a specified Tag
 /*! The tag is looked up in the supplied primer
- *  /ret Pointer to the object
- *  /ret NULL if there is no type with that UL
+ *  \return Pointer to the object
+ *  \return NULL if there is no type with that UL
  */
 MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 {
@@ -699,17 +686,11 @@ void MDObject::Init(void)
 				}
 				else
 				{
-					Children.push_back(new MDObject(Current));
-					// Copy all the names
-					ChildrenNames.push_back((*it));
+					insert(new MDObject(Current));
 				}
 
 				it++;
 			}
-
-//			// Copy all the names
-//			ChildrenNames = Type->ChildrenNames;
-
 		}
 		break;
 
@@ -738,14 +719,14 @@ void MDObject::Init(void)
 //! Add an empty named child to an MDObject continer and return a pointer to it
 /*! If a child of this name already exists a pointer to that child is returned
  *  but the value is not changed.
- *  /ret NULL if it is not a valid child to add to this type of container
- *	/note If you want to add an child that is non-standard (i.e. not listed
+ *  \return NULL if it is not a valid child to add to this type of container
+ *	\note If you want to add an child that is non-standard (i.e. not listed
  *        as a child in the container's MDOType then you must build the child
  *        then add it with AddChild(MDObjectPtr)
- *  /note If you want to add a second child of the same name to an object
+ *  \note If you want to add a second child of the same name to an object
  *        you must build the child and then add it with AddChild(MDObjectPtr)
  */
-MDObjectPtr MDObject::AddChild(const char *ChildName)
+MDObjectPtr MDObject::AddChild(std::string ChildName)
 {
 	// Try and find an existing child
 	MDObjectPtr Ret = Child(ChildName);
@@ -753,18 +734,15 @@ MDObjectPtr MDObject::AddChild(const char *ChildName)
 	// Only add a new one if we didn't find it
 	if(!Ret)
 	{
-//		StringList::iterator it = Type->ChildrenNames.begin();
-
 		// Find the child definition
 		MDOType::iterator it = Type->find(ChildName);
 
 		// Return NULL if not found
 		if(it == Type->end()) return Ret;
 
-		// Insert a new item of the correct type at the end
+		// Insert a new item of the correct type
 		MDObjectPtr Ret = new MDObject((*it).second);
-		Children.push_back(Ret);
-		ChildrenNames.push_back((*it).first);
+		insert(Ret);
 	}
 
 	// Return smart pointer to the new object
@@ -773,9 +751,9 @@ MDObjectPtr MDObject::AddChild(const char *ChildName)
 
 
 //! Add a given MDObject to an MDObject continer
-/*! /ret pointer to the object added (for compatibility with other ADDChild funcs)
- *  /ret NULL if there was an error
- *  /note If there is already a child of this type it is removed
+/*! \return pointer to the object added (for compatibility with other ADDChild funcs)
+ *  \return NULL if there was an error
+ *  \note If there is already a child of this type it is removed
  */
 MDObjectPtr MDObject::AddChild(MDObjectPtr ChildObject, bool Replace /* = false */)
 {
@@ -783,36 +761,28 @@ MDObjectPtr MDObject::AddChild(MDObjectPtr ChildObject, bool Replace /* = false 
 	if (Replace) RemoveChild(ChildObject->Type);
 
 	// Insert the new item at the end
-	Children.push_back(ChildObject);
-	ChildrenNames.push_back(ChildObject->Type->GetDict()->Name);
+	insert(ChildObject);
 
 	return ChildObject;
 }
 
 
 //! Remove any children with a specified name from an MDObject continer
-void MDObject::RemoveChild(const char *ChildName)
+void MDObject::RemoveChild(std::string ChildName)
 {
-	StringList::iterator it = ChildrenNames.begin();
-	MDObjectList::iterator it2 = Children.begin();
-
-	while(it != ChildrenNames.end())
+	MDObjectNamedList::iterator it = begin();
+	while(it != end())
 	{
-		ASSERT(it2 != Children.end());
-
-		if(strcmp((*it).c_str(),ChildName) == 0)
+		if((*it).first == ChildName)
 		{
-			ChildrenNames.erase(it);
-			Children.erase(it2);
+			erase(it);
 
 			// Restart the scan - DRAGONS: Not very efficient
-			it = ChildrenNames.begin();
-			it2 = Children.begin();
+			it = begin();
 		}
 		else
 		{
 			it++;
-			it2++;
 		}
 	}
 }
@@ -821,26 +791,21 @@ void MDObject::RemoveChild(const char *ChildName)
 //! Remove any children of a specified type from an MDObject continer
 void MDObject::RemoveChild(MDOTypePtr ChildType)
 {
-	StringList::iterator it = ChildrenNames.begin();
-	MDObjectList::iterator it2 = Children.begin();
-
-	while(it2 != Children.end())
+	// Note that we cannot rely on removing by name as names are changeable
+	
+	MDObjectNamedList::iterator it = begin();
+	while(it != end())
 	{
-		ASSERT(it != ChildrenNames.end());
-
-		if((*it2)->Type == ChildType)
+		if((*it).second->Type == ChildType)
 		{
-			ChildrenNames.erase(it);
-			Children.erase(it2);
+			erase(it);
 
 			// Restart the scan - DRAGONS: Not very efficient
-			it = ChildrenNames.begin();
-			it2 = Children.begin();
+			it = begin();
 		}
 		else
 		{
 			it++;
-			it2++;
 		}
 	}
 }
@@ -851,44 +816,20 @@ void MDObject::RemoveChild(MDOTypePtr ChildType)
  */
 void MDObject::RemoveChild(MDObjectPtr ChildObject)
 {
-	StringList::iterator it = ChildrenNames.begin();
-	MDObjectList::iterator it2 = Children.begin();
-
-	while(it2 != Children.end())
+	MDObjectNamedList::iterator it = begin();
+	while(it != end())
 	{
-		ASSERT(it != ChildrenNames.end());
-
-		if((*it2) == ChildObject)
+		if((*it).second == ChildObject)
 		{
-			ChildrenNames.erase(it);
-			Children.erase(it2);
+			erase(it);
 			return;
 		}
 		else
 		{
 			it++;
-			it2++;
 		}
 	}
 }
-
-
-//#//! Remove children from an MDObject continer
-//#/*! Remove all but the first "Index" children. 
-//# *! Probably only useful for resizing arrays.
-//# */
-//#void MDObject::TrimChildren(int Index)
-//#{
-//#	ASSERT( Type->GetContainerType() != NONE );
-//#	
-//#	MDObjectList::iterator it = Children.begin();
-//#
-//#	// Move to the index point
-//#	while(Index--) it++;
-//#
-//#	// Remove the old entries, automatically deleting the objects if required
-//#	Children.erase(it, Children.end());
-//#}
 
 
 //! MDObject destructor
@@ -900,57 +841,6 @@ MDObject::~MDObject()
 }
 
 
-//#//!	Set the value of a metadata object from a "variable sized" chunk
-//#/*! "variable sized" simply means that it has a size and a pointer
-//# *	as opposed to the fixed size integer data types
-//# *
-//# *	DRAGONS: If a data item is "shrunk" then grows again it may be
-//# *           re-allocated when this is not required...
-//# */
-//#void MDObject::SetData(int ValSize, Uint8 *Val)
-//#{
-//#	// Can only set the value of an individual item
-//#	ASSERT(Type->GetContainerType() == NONE);
-//#
-//#	// Ignore containers in release mode
-//#	if(Type->GetContainerType() != NONE) return;
-//#
-//#	// Make sure we don't make the item bigger than allowed
-//#	int MaxSize = Type->GetDict()->maxLength;
-//#	
-//#	// Enforce the size limit
-//#	if(ValSize > MaxSize) ValSize = MaxSize;
-//#
-//#	// Reallocate the data if it won't fit
-//#	if(Size < ValSize)
-//#	{
-//#		if(Size) delete[] Data;
-//#		Data = new Uint8[ValSize];
-//#	}
-//#
-//#	// Set the new data
-//#	Size = ValSize;
-//#	memcpy(Data, Val, ValSize);
-//#}
-
-
-//#//! Access array member within an MDObject array
-//#/*! DRAGONS: This doesn't work well with SmartPtrs
-//# *           so member function Child() is also available
-//#*/
-//#MDObjectPtr MDObject::operator[](int Index)
-//#{
-//#	MDObjectList::iterator it = Children.begin();
-//#
-//#	while(Index--)
-//#	{
-//#		// End of list!
-//#		if(it == Children.end()) return NULL;
-//#	}
-//#
-//#	// Return a smart pointer to the object
-//#	return *(it);
-//#}
 
 //! Access named sub-item within a compound MDObject
 /*! If the child does not exist in this item then NULL is returned
@@ -959,23 +849,16 @@ MDObject::~MDObject()
  *  DRAGONS: This doesn't work well with SmartPtrs
  *           so member function Child() is also available
 */
-MDObjectPtr MDObject::operator[](const char *ChildName)
+MDObjectPtr MDObject::operator[](std::string ChildName)
 {
-	StringList::iterator it = ChildrenNames.begin();
-	MDObjectList::iterator it2 = Children.begin();
-
-	while(it != ChildrenNames.end())
+	MDObjectNamedList::iterator it = begin();
+	while(it != end())
 	{
-		ASSERT(it2 != Children.end());
-
-		if(strcmp((*it).c_str(),ChildName) == 0)
+		if((*it).first == ChildName)
 		{
-			// Return a smart pointer to the object
-			MDObjectPtr Ret = *(it2);
-			return Ret;
+			return (*it).second;
 		}
 		it++;
-		it2++;
 	}
 
 	return NULL;
@@ -991,20 +874,57 @@ MDObjectPtr MDObject::operator[](const char *ChildName)
 */
 MDObjectPtr MDObject::operator[](MDOTypePtr ChildType)
 {
-	MDObjectList::iterator it = Children.begin();
-
-	while(it != Children.end())
+	MDObjectNamedList::iterator it = begin();
+	while(it != end())
 	{
-		if((*it)->Type == ChildType)
+		if((*it).second->Type == ChildType)
 		{
-			// Return a smart pointer to the object
-			MDObjectPtr Ret = *(it);
-			return Ret;
+			return (*it).second;
 		}
 		it++;
 	}
 
 	return NULL;
+}
+
+
+//! Find all sub-items within a compound MDObject of a named type
+MDObjectListPtr MDObject::ChildList(std::string ChildName)
+{
+	MDObjectListPtr Ret = new MDObjectList;
+	MDObjectNamedList::iterator it = begin();
+
+	while(it != end())
+	{
+		if((*it).first == ChildName)
+		{
+			// Add this object to the list
+			Ret->push_back((*it).second);
+		}
+		it++;
+	}
+
+	return Ret;
+}
+
+
+//! Find all sub-items within a compound MDObject of a named type
+MDObjectListPtr MDObject::ChildList(MDOTypePtr ChildType)
+{
+	MDObjectListPtr Ret = new MDObjectList;
+	MDObjectNamedList::iterator it = begin();
+
+	while(it != end())
+	{
+		if((*it).second->Type == ChildType)
+		{
+			// Add this object to the list
+			Ret->push_back((*it).second);
+		}
+		it++;
+	}
+
+	return Ret;
 }
 
 
@@ -1014,11 +934,13 @@ MDObjectPtr MDObject::operator[](MDOTypePtr ChildType)
  *
  *  DRAGONS: This function is bloated and should be split up
  *
- *  /ret Number of bytes read
+ *  \return Number of bytes read
  */
 Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer /*=NULL*/)
 {
 	Uint32 Bytes = 0;
+	Uint32 Count = 0;
+	Uint32 ItemSize = 0;
 
 	switch(Type->GetContainerType())
 	{
@@ -1029,10 +951,10 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 		{
 			ASSERT(Size >= 8);
 
-			Uint32 Count = GetU32(Buffer);
+			Count = GetU32(Buffer);
 			Buffer += 4;
 
-			Uint32 ItemSize = GetU32(Buffer);
+			ItemSize = GetU32(Buffer);
 			Buffer += 4;
 
 			if(Size <= 8) Size = 0; else Size -= 8;
@@ -1045,10 +967,8 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				if(Size < (ItemSize*Count))	Count = Size / ItemSize;
 			}
 
-//			return 8 + Value->ReadValue(Buffer, ItemSize, Count);
-
 			Bytes = 8;
-			Size = ItemSize * Count;
+			Size = ItemSize;
 		}
 		// Fall through and process as an array
 
@@ -1061,28 +981,58 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			}
 
 			// Start with no children
-			Children.clear();
+			clear();
 
-			MDOType::iterator it = Type->begin();
-			while(Size)
+			// Find the first (or only) child type
+			StringList::iterator it = Type->ChildOrder.begin();
+			MDOType::iterator it2 = Type->find(*it);
+			ASSERT(it2 != Type->end());
+			MDOTypePtr ChildType = (*it2).second;
+			ASSERT(ChildType);
+
+			int ChildCount = Type->size();
+			while(Size || Count)
 			{
-				MDObjectPtr NewItem = new MDObject((*it).second);
-				Uint32 ThisBytes = NewItem->ReadValue(Buffer, Size);
+				MDObjectPtr NewItem = new MDObject(ChildType);
+
+				ASSERT(NewItem);
 
 				NewItem->Parent = this;
 				NewItem->ParentOffset = Bytes;
 				NewItem->KLSize = 0;
 
+				Uint32 ThisBytes = NewItem->ReadValue(Buffer, Size);
+
 				Bytes += ThisBytes;
 				Buffer += ThisBytes;
 				if(ThisBytes > Size) Size = 0; else Size -= ThisBytes;
-				Children.push_back(NewItem);
+				insert(NewItem);
 
-				it++;
-				if(it == Type->end()) it = Type->begin();
+
+				bool ItemStart = true;
+
+				// If this array has multiple children, get the next type
+				if(ChildCount > 1)
+				{
+					it++;
+					
+					if(it == Type->ChildOrder.end()) it = Type->ChildOrder.begin(); 
+					else ItemStart = false;
+					
+					it2 = Type->find(*it);
+					ASSERT(it2 != Type->end());
+					ChildType = (*it2).second;
+					ASSERT(ChildType);
+				}
+
+				// If processing a batch, set up for the next item
+				if(ItemStart && (Count != 0)) 
+				{
+					if(--Count) Size = ItemSize; else break;
+				}
 			}
 
-			if(it != Type->begin())
+			if((ChildCount > 1) && (it != Type->ChildOrder.begin()))
 			{
 				error("Multiple %s at 0x%s in %s does not contain an integer number of sub-items\n", 
 					  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
@@ -1096,23 +1046,47 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			debug("Reading pack at 0x%s\n", Int64toHexString(GetLocation(), 8).c_str());
 
 			Uint32 Bytes = 0;
-			MDObjectList::iterator it = Children.begin();
+			MDObjectNamedList::iterator it = begin();
 			if(Size) for(;;)
 			{
 				// If we are already at the end of the list, we have too many bytes!
-				if(it == Children.end()) 
+				if(it == end()) 
 				{
 					warning("Extra bytes found parsing buffer in MDObject::ReadValue()\n");
 					break;
 				}
 
-				Uint32 ThisBytes = (*it)->ReadValue(Buffer, Size);
+				(*it).second->Parent = this;
+				(*it).second->ParentOffset = Bytes;
+				(*it).second->KLSize = 0;
 
-				(*it)->Parent = this;
-				(*it)->ParentOffset = Bytes;
-				(*it)->KLSize = 0;
+				// DRAGONS: Array length calculation fudge!
+				// If an array exists in a pack there is no easy way to determine the size 
+				// of the array unless it is the last item in the pack.  Unfortunately there
+				// are some cases where MXF packs have arrays that are not the last entry
+				// This section deals with each in turn (Nasty!!)
 
-				debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it)->GetLocation(), 8).c_str(), (*it)->Name().c_str(), (*it)->GetString().c_str());
+				Uint32 ValueSize = Size;
+				if((*it).second->Type->GetContainerType() == ARRAY)
+				{
+					std::string FullName = (*it).second->FullName();
+					if(FullName == "IndexTableSegment/IndexEntryArray/SliceOffsetArray")
+					{
+						// Number of entries in SliceOffsetArray is in IndexTableSegment/SliceCount
+						// Each entry is 4 bytes long
+						ValueSize = Parent->GetInt("SliceCount") * 4;
+					}
+					else if(FullName == "RandomIndexMetadata/PartitionArray")
+					{
+						// RandomIndexMetadata/PartitionArray is followed by a Uint32
+						if(ValueSize >4) ValueSize = ValueSize - 4; else ValueSize = 0;
+					}
+				}
+
+				Uint32 ThisBytes = (*it).second->ReadValue(Buffer, ValueSize);
+
+				debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
+					  (*it).first.c_str(), (*it).second->GetString().c_str());
 
 				Bytes += ThisBytes;
 
@@ -1124,7 +1098,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				Size -= ThisBytes;
 			}
 
-			if(it != Children.end())
+			if(it != end())
 			{
 				warning("Not enough bytes in buffer for %s at 0x%s in %s\n", 
 					    FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
@@ -1140,8 +1114,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			Uint32 Bytes = 0;
 
 			// Start with an empty list
-			Children.clear();
-			ChildrenNames.clear();
+			clear();
 
 			ASSERT(UsePrimer);
 			if(!UsePrimer)
@@ -1209,11 +1182,11 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 						return 0;
 					}
 					
-					ThisBytes = NewItem->ReadValue(Buffer, Length);
-
 					NewItem->Parent = this;
 					NewItem->ParentOffset = BytesAtItemStart;
 					NewItem->KLSize = Bytes - BytesAtItemStart;
+
+					ThisBytes = NewItem->ReadValue(Buffer, Length);
 
 					debug("  at 0x%s Set item (%s) %s = %s\n", Int64toHexString(NewItem->GetLocation(), 8).c_str(), Key.GetString().c_str(), NewItem->Name().c_str(), NewItem->GetString().c_str());
 
