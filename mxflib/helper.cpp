@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.2 2004/05/18 18:31:40 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.3 2004/05/19 11:08:23 matt-beard Exp $
  *
  */
 /*
@@ -276,7 +276,7 @@ char *mxflib::lookupDataFilePath(const char *filename)
 // but is false for all GC sets and packs. Once this matches we can do a full memcmp.
 bool mxflib::IsPartitionKey(const Uint8 *Key)
 {
-	if(Key[12] != 1) return false
+	if(Key[12] != 1) return false;
 
 	// DRAGONS: This has version 1 hard coded as byte 8
 	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
