@@ -1209,14 +1209,14 @@ Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr This
 			// Fix index table stream offsets
 			if(UseIndex && (Dur == 1))
 			{
-printf("Fixing index: %d ", ThisEditUnit);
+//printf("Fixing index: %d ", ThisEditUnit);
 				IndexEntryPtr Entry = (*WrappingList_it).Writer->Index->IndexEntryByEssenceOrder(ThisEditUnit);
 				if(Entry)
 				{
-printf("Found @ 0x%08x\n", (int)(*WrappingList_it).Writer->GetStreamOffset());
+//printf("Found @ 0x%08x\n", (int)(*WrappingList_it).Writer->GetStreamOffset());
 					Entry->StreamOffset = (*WrappingList_it).Writer->GetStreamOffset();
 				}
-else printf("not\n");
+//else printf("not\n");
 			}
 
 //@printf("Frame at 0x%08x - ", (int)Out->Tell());

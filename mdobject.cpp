@@ -44,7 +44,7 @@ PrimerPtr MDOType::DictManager::StaticPrimer;
 
 // Map used to convert KLVLib "DictType" enum to text string of type name
 typedef std::map<DictType, char *> KLVLib_XLateType;
-static KLVLib_XLateType KLVLib_XLate;
+KLVLib_XLateType KLVLib_XLate;
 
 
 //! Initialise the table used to convert KLVLib "DictType" enum to text string of type name
@@ -89,7 +89,7 @@ void InitDictType2Text(void)
 char *DictType2Text(DictType Type)
 {
 	KLVLib_XLateType::iterator it = KLVLib_XLate.find(Type);
-	
+
 	if(it == KLVLib_XLate.end()) return "";
 
 	return (*it).second;
@@ -101,6 +101,9 @@ char *DictType2Text(DictType Type)
 */
 void MDOType::DictManager::Load(const char *DictFile)
 {
+	// Initialise the map that converts KLVLib dictionary type enums to type names
+	InitDictType2Text();
+
 	// Build an entry for all unknown types
 	// Note that we malloc it because KLVLib will "free" it later
 	DictEntry *Unknown = (DictEntry*)malloc(sizeof(DictEntry));
@@ -111,7 +114,7 @@ void MDOType::DictManager::Load(const char *DictFile)
 		error("Out of memory\n");
 		return;
 	}
-	
+
 	InitialiseDictEntry(Unknown);
 
 	Unknown->Name = (char *)malloc(8);
@@ -218,9 +221,6 @@ void MDOType::DictManager::Load(const char *DictFile)
 
 	// Build a static primer (for use in index tables)
 	StaticPrimer = MakePrimer();
-
-	// Initialise the map that converts KLVLib dictionary type enums to type names
-	InitDictType2Text();
 }
 
 
