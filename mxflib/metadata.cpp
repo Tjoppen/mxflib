@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.1.2.6 2004/11/09 15:15:41 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.1.2.7 2004/11/11 09:14:38 matt-beard Exp $
  *
  */
 /*
@@ -862,11 +862,17 @@ MetadataPtr Metadata::Parse(MDObjectPtr BaseObject)
 	MDObject::iterator it = PackageList->begin();
 	while(it != PackageList->end())
 	{
-		// Parse this package
-		PackagePtr ThisPackage = Package::Parse((*it).second);
+		// Follow the link
+		MDObjectPtr LinkedPackage = (*it).second->GetLink();
+		
+		if(LinkedPackage)
+		{
+			// Parse this package
+			PackagePtr ThisPackage = Package::Parse(LinkedPackage);
 
-		// Add it to the list of packages for this metadata
-		if(ThisPackage) Ret->Packages.push_back(ThisPackage);
+			// Add it to the list of packages for this metadata
+			if(ThisPackage) Ret->Packages.push_back(ThisPackage);
+		}
 
 		it++;
 	}
@@ -903,20 +909,26 @@ PackagePtr Package::Parse(MDObjectPtr BaseObject)
 	MDObject::iterator it = TrackList->begin();
 	while(it != TrackList->end())
 	{
-		// Parse this track
-		TrackPtr ThisTrack = Track::Parse((*it).second);
-
-		if(ThisTrack) 
+		// Follow the link
+		MDObjectPtr LinkedTrack = (*it).second->GetLink();
+		
+		if(LinkedTrack)
 		{
-			// Set the track's parent pointer
-			ThisTrack->SetParent(Ret);
+			// Parse this track
+			TrackPtr ThisTrack = Track::Parse(LinkedTrack);
 
-			// Get the ID of this track and update LastTrackID if required
-			Uint32 ThisID = ThisTrack->GetUint("TrackID");
-			if(ThisID > Ret->LastTrackID) Ret->LastTrackID = ThisID;
+			if(ThisTrack) 
+			{
+				// Set the track's parent pointer
+				ThisTrack->SetParent(Ret);
 
-			// Add it to the list of tracks for this package
-			Ret->Tracks.push_back(ThisTrack);
+				// Get the ID of this track and update LastTrackID if required
+				Uint32 ThisID = ThisTrack->GetUint("TrackID");
+				if(ThisID > Ret->LastTrackID) Ret->LastTrackID = ThisID;
+
+				// Add it to the list of tracks for this package
+				Ret->Tracks.push_back(ThisTrack);
+			}
 		}
 
 		it++;
@@ -959,20 +971,26 @@ TrackPtr Track::Parse(MDObjectPtr BaseObject)
 	MDObject::iterator it = ComponentList->begin();
 	while(it != ComponentList->end())
 	{
-		ComponentPtr ThisComponent;
-
-		// Parse all the known component types
-		if((*it).second->IsA("SourceClip")) ThisComponent = SourceClip::Parse((*it).second);
-		else if((*it).second->IsA("TimecodeComponent")) ThisComponent = TimecodeComponent::Parse((*it).second);
-		else if((*it).second->IsA("DMSegment")) ThisComponent = DMSegment::Parse((*it).second);
-
-		if(ThisComponent)
+		// Follow the link
+		MDObjectPtr LinkedComponent = (*it).second->GetLink();
+		
+		if(LinkedComponent)
 		{
-			// Set the component's parent pointer
-			ThisComponent->SetParent(Ret);
+			ComponentPtr ThisComponent;
 
-			// Add it to the list of components for this track
-			Ret->Components.push_back(ThisComponent);
+			// Parse all the known component types
+			if(LinkedComponent->IsA("SourceClip")) ThisComponent = SourceClip::Parse(LinkedComponent);
+			else if(LinkedComponent->IsA("TimecodeComponent")) ThisComponent = TimecodeComponent::Parse(LinkedComponent);
+			else if(LinkedComponent->IsA("DMSegment")) ThisComponent = DMSegment::Parse(LinkedComponent);
+
+			if(ThisComponent)
+			{
+				// Set the component's parent pointer
+				ThisComponent->SetParent(Ret);
+
+				// Add it to the list of components for this track
+				Ret->Components.push_back(ThisComponent);
+			}
 		}
 
 		it++;
