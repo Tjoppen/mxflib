@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.5 2004/05/26 18:07:32 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.6 2004/05/28 14:52:51 matt-beard Exp $
  *
  */
 /*
@@ -615,35 +615,11 @@ namespace mxflib
 		EssenceParserList EPList;
 
 	public:
-		// Build an essence parser with all known sub-parsers
+		//! Build an essence parser with all known sub-parsers
 		EssenceParser();
 
-
-		// Build a list of parsers with their descriptors for a given essence file
-		ParserDescriptorListPtr IdentifyEssence(FileHandle InFile)
-		{
-			ParserDescriptorListPtr Ret = new ParserDescriptorList;
-		
-			EssenceParserList::iterator it = EPList.begin();
-			while(it != EPList.end())
-			{
-				EssenceSubParserBase *EP = (*it)->NewParser();
-				EssenceStreamDescriptorList DescList = EP->IdentifyEssence(InFile);
-				
-				if(DescList.empty())
-				{
-					delete EP;
-				}
-				else
-				{
-					Ret->push_back(ParserDescriptorPair(EP, DescList));
-				}
-
-				it++;
-			}
-
-			return Ret;
-		}
+		//! Build a list of parsers with their descriptors for a given essence file
+		ParserDescriptorListPtr IdentifyEssence(FileHandle InFile);
 
 		class WrappingConfig : public RefCount<WrappingConfig>
 		{
@@ -656,91 +632,11 @@ namespace mxflib
 		typedef SmartPtr<WrappingConfig> WrappingConfigPtr;
 		typedef std::list<WrappingConfigPtr> WrappingConfigList;
 
-		// DRAGONS: Currently destroys PDList to preserve the essence handler
-		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
-		{
-			WrappingConfigPtr Ret;
-
-			// No options!
-			if(PDList->empty()) return Ret;
-
-			// Identify the wrapping options for each descriptor
-			ParserDescriptorList::iterator pdit = PDList->begin();
-			while(pdit != PDList->end())
-			{
-				EssenceStreamDescriptorList::iterator it = (*pdit).second.begin();
-				while(it != (*pdit).second.end())
-				{
-					WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, (*it));
-
-					WrappingOptionList::iterator it2 = WO.begin();
-					while(it2 != WO.end())
-					{
-						// Only accept wrappings of the specified type
-						if(ForceWrap != WrappingOption::None)
-						{
-							if((*it2)->ThisWrapType != ForceWrap)
-							{
-								it2++;
-								continue;
-							}
-						}
-
-						Ret = new WrappingConfig;
-
-						// DRAGONS: Default to the first valid option!
-						Ret->EssenceDescriptor = (*it).Descriptor;
-						MDObjectPtr Ptr = Ret->EssenceDescriptor["SampleRate"];
-
-						if((!Ptr) || (ForceEditRate.Numerator != 0))
-						{
-							Ret->EditRate.Numerator = ForceEditRate.Numerator;
-							Ret->EditRate.Denominator = ForceEditRate.Denominator;
-						}
-						else
-						{
-							std::string Rate = Ptr->GetString();
-							Ret->EditRate.Numerator = Ptr->GetInt("Numerator");
-							Ret->EditRate.Denominator = Ptr->GetInt("Denominator");
-						}
-
-						Ret->WrapOpt = (*it2);
-						Ret->Stream = (*it).ID;
-
-						Ret->WrapOpt->Handler->Use(Ret->Stream, Ret->WrapOpt);
-						if( Ret->WrapOpt->Handler->SetEditRate(0, Ret->EditRate) )
-						{
-							// All OK, including requested edit rate
-							
-							Ret->WrapOpt->BytesPerEditUnit = Ret->WrapOpt->Handler->GetBytesPerEditUnit();
-
-							// Remove all entries that index this handler to prevent it being deleted
-							ParserDescriptorList::iterator pdit2 = PDList->begin();
-							while(pdit2 != PDList->end())
-							{
-								if((*pdit2).first == Ret->WrapOpt->Handler)
-								{
-									pdit2 = PDList->erase(pdit2);
-								}
-							}
-
-							return Ret;
-						}
-
-						// We failed to match - scrub the part made config
-						Ret = NULL;
-
-						it2++;
-					}
-					it++;
-				}
-				pdit++;
-			}
-
-			return Ret;
-		}
+		//! Select the best wrapping option
+		/*! DRAGONS: Currently destroys PDList to preserve the essence handler
+		 */
+		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
 	};
-
 }
 
 
@@ -754,7 +650,7 @@ namespace mxflib
 	{
 	public:
 		//! Base destructor
-		virtual ~GCReadHandler_Base();
+		virtual ~GCReadHandler_Base() {};
 
 		//! Handle a "chunk" of data that has been read from the file
 		/*! \return true if all OK, false on error 
@@ -766,7 +662,7 @@ namespace mxflib
 	typedef SmartPtr<GCReadHandler_Base> GCReadHandlerPtr;
 
 	//! Class that reads data from an MXF file
-	class GCReader
+	class GCReader : public RefCount<GCReader>
 	{
 	protected:
 		MXFFilePtr File;								//!< File from which to read
@@ -926,6 +822,9 @@ namespace mxflib
 		 */
 		Position Seek(Position Pos = 0);
 
+		//! Tell the current file location
+		Position Tell(void) { return CurrentPos; };
+
 		//! Seek to a specific byte offset in a given stream
 		/*! \return New file offset or -1 on seek error
 		 */
@@ -976,7 +875,7 @@ namespace mxflib
 		/*! Searches for the next partition pack and moves file pointer to that point
 		 *  \return false if an error (or EOF found)
 		 */
-		bool Resync();
+		bool ReSync();
 
 		//! Are we currently at the start of a partition pack?
 		bool IsAtPartition(void);
@@ -999,6 +898,9 @@ namespace mxflib
 		 */
 		bool InitSeek(void);
 	};
+
+	//! Smart pointer to a BodyReader
+	typedef SmartPtr<BodyReader> BodyReaderPtr;
 }
 
 

@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.1.2.4 2004/05/26 18:07:32 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.1.2.5 2004/05/28 14:52:51 matt-beard Exp $
  *
  */
 /*
@@ -733,6 +733,13 @@ EssenceParser::EssenceParser()
 GCReader::GCReader( MXFFilePtr File, GCReadHandlerPtr DefaultHandler /*=NULL*/, GCReadHandlerPtr FillerHandler /*=NULL*/ )
 	: File(File), DefaultHandler(DefaultHandler), FillerHandler(FillerHandler)
 {
+	FileOffset = 0;
+
+	StopNow = false;
+	StopCalled = false;
+	PushBackRequested = false;
+
+	StreamOffset = 0;
 }
 
 
@@ -781,6 +788,9 @@ bool GCReader::ReadFromFile(bool SingleKLV /*=false*/)
 
 		// Abort if the handler errored
 		if(!Ret) return false;
+
+		// Seek to the next KLV
+		File->Seek(FileOffset);
 
 	} while(!StopNow);
 
@@ -995,26 +1005,34 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 		File->Seek(CurrentPos);
 
 		PartitionPtr NewPartition;				// Pointer to the new partition pack
-		do
+		for(;;)
 		{
 			// Use resync to locate the next partition pack
 			// TODO: We could allow reinitializing within a partition if we can validate the offsets
 			//       This would involve knowledge of the partition pack for this partition which could
 			//       be found by a valid RIP or by scanning backwards from the current location
-			if(!Resync()) return false;
+			if(!ReSync()) return false;
 
 			// Read the partition pack to establish offsets and BodySID
 			NewPartition = File->ReadPartition();
 			if(!NewPartition) return false;
 
-			CurrentBodySID = NewPartition["BodySID"]->GetUint();
+			CurrentBodySID = NewPartition->GetUint("BodySID");
 			if(CurrentBodySID != 0) Reader = GetGCReader(CurrentBodySID);
 		
-		// Loop until we find a partition with essence data and for which we have a GCReader
-		} while(!Reader);
+			// All done when we have found a supported BodySID
+			if(Reader) break;
+
+			// Skip non-supported essence
+			// We first index the start of the essence data, then the loop causes a re-sync
+			// TODO: Add faster skipping of unwanted body partitions if we have enough RIP data...
+			NewPartition->SeekEssence();
+			CurrentPos = File->Tell();
+			AtPartition = false;
+		}
 
 		// Set the stream offset
-		Position StreamOffset = NewPartition["BodyOffset"]->GetUint64();
+		Position StreamOffset = NewPartition->GetUint64("BodyOffset");
 		
 		// Index the start of the essence data
 		NewPartition->SeekEssence();
@@ -1034,6 +1052,7 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 	}
 
 	CurrentPos = Reader->GetFileOffset();
+	AtPartition = false;						// We don't KNOW we are at a partition pack now
 
 	// If the read failed (or was stopped) reinitialize next time around
 	if(Ret) NewPos = true;
@@ -1041,7 +1060,7 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 	{
 		// Also reinitialize next time if we are at the end of this partition
 		File->Seek(CurrentPos);
-		if( IsAtPartition()) NewPos = true;
+		if(IsAtPartition()) NewPos = true;
 	}
 
 	return Ret;
@@ -1052,10 +1071,14 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 /*! Searches for the next partition pack and moves file pointer to that point
  *  \return false if an error (or EOF found)
  */
-bool BodyReader::Resync()
+bool BodyReader::ReSync()
 {
 	// Do we actually need to resync?
-	if(IsAtPartition()) return true;
+	if(IsAtPartition())
+	{
+		File->Seek(CurrentPos);
+		return true;
+	}
 
 	// Loop around until we have re-synced
 	for(;;)
@@ -1074,6 +1097,7 @@ bool BodyReader::Resync()
 			// It seems to be a key - is it a partition pack key? If so we are bac in sync
 			if(IsPartitionKey(Key))
 			{
+				File->Seek(CurrentPos);
 				AtPartition= true;
 				NewPos = true;							// Force read to be reinitialized
 				return true;
@@ -1110,6 +1134,7 @@ bool BodyReader::Resync()
 				{
 					if(IsPartitionKey(p))
 					{
+						File->Seek(CurrentPos);
 						CurrentPos += i;				// Move pointer to new partition pack
 						NewPos = true;					// Force read to be reinitialized
 						AtPartition= true;
@@ -1176,10 +1201,124 @@ Uint32 mxflib::GetGCTrackNumber(ULPtr TheUL)
 	// is set and so is the same for all GC keys and different in the majority of non-CG keys
 	if( ( TheUL->GetValue()[10] == DegenerateGCLabel[10] ) && (memcmp(TheUL->GetValue(), DegenerateGCLabel, 12) == 0) )
 	{
-		return (Uint32(TheUL->GetValue()[12]) << 24) || (Uint32(TheUL->GetValue()[13]) << 16) 
-			|| (Uint32(TheUL->GetValue()[14]) << 8) || Uint32(TheUL->GetValue()[15]);
+		return (Uint32(TheUL->GetValue()[12]) << 24) | (Uint32(TheUL->GetValue()[13]) << 16) 
+			 | (Uint32(TheUL->GetValue()[14]) << 8) | Uint32(TheUL->GetValue()[15]);
 	}
 	else
 		return 0;
 }
 
+
+
+//! Build a list of parsers with their descriptors for a given essence file
+ParserDescriptorListPtr EssenceParser::IdentifyEssence(FileHandle InFile)
+{
+	ParserDescriptorListPtr Ret = new ParserDescriptorList;
+
+	EssenceParserList::iterator it = EPList.begin();
+	while(it != EPList.end())
+	{
+		EssenceSubParserBase *EP = (*it)->NewParser();
+		EssenceStreamDescriptorList DescList = EP->IdentifyEssence(InFile);
+		
+		if(DescList.empty())
+		{
+			delete EP;
+		}
+		else
+		{
+			Ret->push_back(ParserDescriptorPair(EP, DescList));
+		}
+
+		it++;
+	}
+
+	return Ret;
+}
+
+
+//! Select the best wrapping option
+/*! DRAGONS: Currently destroys PDList to preserve the essence handler
+ */
+EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+{
+	WrappingConfigPtr Ret;
+
+	// No options!
+	if(PDList->empty()) return Ret;
+
+	// Identify the wrapping options for each descriptor
+	ParserDescriptorList::iterator pdit = PDList->begin();
+	while(pdit != PDList->end())
+	{
+		EssenceStreamDescriptorList::iterator it = (*pdit).second.begin();
+		while(it != (*pdit).second.end())
+		{
+			WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, (*it));
+
+			WrappingOptionList::iterator it2 = WO.begin();
+			while(it2 != WO.end())
+			{
+				// Only accept wrappings of the specified type
+				if(ForceWrap != WrappingOption::None)
+				{
+					if((*it2)->ThisWrapType != ForceWrap)
+					{
+						it2++;
+						continue;
+					}
+				}
+
+				Ret = new WrappingConfig;
+
+				// DRAGONS: Default to the first valid option!
+				Ret->EssenceDescriptor = (*it).Descriptor;
+				MDObjectPtr Ptr = Ret->EssenceDescriptor["SampleRate"];
+
+				if((!Ptr) || (ForceEditRate.Numerator != 0))
+				{
+					Ret->EditRate.Numerator = ForceEditRate.Numerator;
+					Ret->EditRate.Denominator = ForceEditRate.Denominator;
+				}
+				else
+				{
+					std::string Rate = Ptr->GetString();
+					Ret->EditRate.Numerator = Ptr->GetInt("Numerator");
+					Ret->EditRate.Denominator = Ptr->GetInt("Denominator");
+				}
+
+				Ret->WrapOpt = (*it2);
+				Ret->Stream = (*it).ID;
+
+				Ret->WrapOpt->Handler->Use(Ret->Stream, Ret->WrapOpt);
+				if( Ret->WrapOpt->Handler->SetEditRate(0, Ret->EditRate) )
+				{
+					// All OK, including requested edit rate
+					
+					Ret->WrapOpt->BytesPerEditUnit = Ret->WrapOpt->Handler->GetBytesPerEditUnit();
+
+					// Remove all entries that index this handler to prevent it being deleted
+					ParserDescriptorList::iterator pdit2 = PDList->begin();
+					while(pdit2 != PDList->end())
+					{
+						if((*pdit2).first == Ret->WrapOpt->Handler)
+						{
+							pdit2 = PDList->erase(pdit2);
+						}
+					}
+
+					return Ret;
+				}
+
+				// We failed to match - scrub the part made config
+				Ret = NULL;
+
+				it2++;
+			}
+			it++;
+		}
+		pdit++;
+	}
+
+	return Ret;
+}
