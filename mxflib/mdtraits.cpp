@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.4 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.5 2004/12/06 12:00:52 matt-beard Exp $
  *
  */
 /*
@@ -1367,15 +1367,9 @@ Uint32 MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const Uint8 *Buffer,
 	StringList::iterator it = Object->EffectiveType()->ChildOrder.begin();
 	StringList::iterator itend = Object->EffectiveType()->ChildOrder.end();
 
-	while(Size)
+	// DRAGONS: Note that it is valid to have more bytes than we have read as the caller could be parsing an array of compounds
+	while(Size && (it != itend))
 	{
-		// If we are already at the end of the list, we have too many bytes!
-		if(it == itend) 
-		{
-			warning("Extra bytes found parsing buffer in MDTraits_BasicCompound::ReadValue()\n");
-			break;
-		}
-
 		MDValuePtr Value = Object[*it];
 		if(!Value)
 		{
