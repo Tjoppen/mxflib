@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.2.2.3 2004/06/14 17:52:20 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.2.2.4 2004/06/26 17:47:22 matt-beard Exp $
  *
  */
 /*
@@ -34,10 +34,13 @@
 #include <time.h>
 #include <string>
 
-// Helper macros
-#ifndef STRINGIZE
-#define STRINGIZE( x ) #x
-#endif // STRINGIZE
+/** Helper macros **/
+/*******************/
+
+// STRINGIZE_GETENV - allows getenv to be called on a macro which has no quotes
+#ifndef STRINGIZE_GETENV
+#define STRINGIZE_GETENV( x ) getenv( #x )
+#endif // STRINGIZE_GETENV
 
 
 namespace mxflib
@@ -99,10 +102,37 @@ namespace mxflib
 	}
 
 	//! Build a BER length
-	DataChunkPtr MakeBER(Uint64 Length, Uint32 Size = 0);
+	/*! \param Data		A pointer to the buffer to receive the length
+	 *	\param MazSize	The maximum length that can be written to the buffer
+	 *	\param Length	The length to be converted to BER
+	 *	\param Size		The total number of bytes to use for BER length (or 0 for auto)
+	 *	\return The number of bytes written
+	 *	\note If the size is specified it will be overridden for lengths that will not fit in Size,
+	 *        <b>providing</b> they will fit in MaxSize. However an error message will be produced.
+	 */
+	Uint32 MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size = 0);
+
+
+	//! Build a BER length
+	/*! \param Length	The length to be converted to BER
+	 *	\param Size		The total number of bytes to use for BER length (or 0 for auto)
+	 *	\note If the size is specified it will be overridden for lengths
+	 *		  that will not fit. However an error message will be produced.
+	 */
+	inline DataChunkPtr MakeBER(Uint64 Length, Uint32 Size = 0)
+	{
+		// Buffer for building BER
+		Uint8 Buff[9];
+
+		Uint32 Bytes = MakeBER(Buff, 9, Length, Size);
+
+		// Return as a DataChunk
+		return new DataChunk(Bytes, Buff);
+	}
 
 	//! Read a BER length
 	Length ReadBER(Uint8 **Data, int MaxSize);
+
 
 	//! Encode a Uint64 as a BER OID subid (7 bits per byte)
 	//! length > 0: length is maximum length of subid
