@@ -34,12 +34,20 @@ using namespace mxflib;
 
 using namespace std;
 
-// Product GUID and version text for this release
-static Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x97, 0xda, 0x7f, 0xd0, 0x52 };
-static std::string ProductVersion = "Unreleased 0.3.3";
-static std::string CompanyName = "FreeMXF.org";
-static std::string ProductName = "mxfwrap";
+// base library version
+std::string ProductVersion = "Unreleased mxflib 0.3.3.1";
 
+// DMStiny
+#ifdef DMStiny
+// DMStinyIDs.h contains Company,Product,GUID, and other stuff
+#include "DMStinyIDs.h"
+#include "DMStiny.h"
+#else
+// Product GUID and version text for this release
+Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x52 };
+std::string CompanyName = "FreeMXF.org";
+std::string ProductName = "mxfwrap file wrapper";
+#endif
 
 //! Debug flag for KLVLib
 int Verbose = 0;
@@ -136,6 +144,9 @@ void SetMultiTrack(ULPtr &theUL);
 namespace
 {
 	// Options
+	char* DMStinyDict = NULL;						//!< Set to name of DMStiny xmldict
+	char* DMStinyMaterial = NULL;				//!< Set to name of DMStiny Material instance data
+
 	char InFilenameSet[512];				//!< The set of input filenames
 	char InFilename[16][128];				//!< The list of input filenames
 	int InFileGangSize;						//!< The number of ganged files to process at a time
@@ -223,6 +234,11 @@ int main(int argc, char *argv[])
 	// Parse command line options and exit on error
 	ForceEditRate.Numerator = 0;
 	if(!ParseCommandLine(argc, argv)) return -1;
+
+#ifdef DMStiny
+	// load the DMStiny Dictionary
+	if( DMStinyDict ) MDOType::LoadDict( DMStinyDict );
+#endif
 
 	EssenceParser::WrappingConfigList WrappingList;
 	EssenceParser::WrappingConfigList::iterator WrappingList_it;
@@ -500,6 +516,27 @@ bool ParseCommandLine(int &argc, char **argv)
 			{
 				UpdateHeader = true;
 			}
+#ifdef DMStiny
+			else if(Opt == 't')
+			{
+				// DMStiny Dictionary
+				if(tolower(p[1])=='d')
+				{
+					char *name="DMStiny.xml"; // default name
+					if( p[2]=='=' )	name=p[3]; // explicit name
+					DMStinyDict = new char[ 1+strlen(name) ];
+					strcpy( DMStinyDict, name );
+				}
+				// DMStiny Material instance data
+				else if(tolower(p[1])=='m' )
+				{
+					char *name=""; // default name = none
+					if( p[2]=='=' )	name=p[3]; // explicit name
+					DMStinyMaterial = new char[ 1+strlen(name) ];
+					strcpy( DMStinyMaterial, p[3] );
+				}
+			}
+#endif
 			else 
 			{
 				error("Unknown command-line option %s\n", argv[i]);
@@ -519,7 +556,7 @@ bool ParseCommandLine(int &argc, char **argv)
 
 	if(argc < 3)
 	{
-		printf("Usage:    mxfwrap <inputfiles> <mxffile>\n\n");
+		printf("Usage:    mxfwrap [options] <inputfiles> <mxffile>\n\n");
 
 		printf("Syntax for input files:\n");
 		printf("         a,b = file a followed by file b\n");
@@ -548,6 +585,13 @@ bool ParseCommandLine(int &argc, char **argv)
 		printf("    -s         = Interleave essence containers for streaming\n");
 		printf("    -u         = Update the header after writing footer\n\n");
 		printf("    -v         = Verbose mode\n\n");
+
+#ifdef DMStiny
+		printf("   -td         = Enable DMStiny with default dictionary DMStiny.xml\n");
+		printf("   -td=<name>  = Enable DMStiny with explicit dictionary\n");
+		printf("   -tm         = Enable DMStiny Material metadata\n");
+		printf("   -tm=<name>  = Enable DMStiny with explicit MAterial package instance metadata\n");
+#endif
 
 		return false;
 	}
@@ -809,6 +853,16 @@ int Process(	int OutFileNum,
 	ASSERT(MData);
 	ASSERT(MData->Object);
 
+	// Assume we are doing GC
+	ULPtr GCUL = new UL( mxflib::MDGC_Data );
+	MData->AddEssenceType( GCUL );
+
+	// DMStiny
+	#ifdef DMStiny
+		// DMStinyIDs.h contains const char DMStinyFrameworkName = "name";
+		if( DMStinyDict )	MData->AddDMScheme( MDOType::Find(DMStinyFrameworkName)->GetUL() );
+	#endif
+
 	// Set the OP label
 	// If we are writing OP-Atom we write the header as OP1a initially as another process
 	// may try to read the file before it is complete and then it will NOT be a valid OP-Atom file
@@ -832,9 +886,22 @@ int Process(	int OutFileNum,
 	// DRAGONS: We should really try and determine the UMID type rather than cop-out!
 	UMIDPtr pUMID = MakeUMID( 0x0d ); // mixed type
 
+	// DMStiny
+	#ifdef DMStiny
+		// DMStiny::AdjustMaterialUMID() conforms to any special material numbering scheme
+		if( DMStinyMaterial )	AdjustMaterialUMID( pUMID );
+	#endif
+
 	PackagePtr MaterialPackage = MData->AddMaterialPackage("A Material Package", pUMID);
 
 	MData->SetPrimaryPackage(MaterialPackage);		// This will be overwritten for OP-Atom
+
+	// DMStiny
+	#ifdef DMStiny
+		// DMStiny::AddDMStiny() creates a DM track and populates it with DMSegments
+		if( DMStinyMaterial )	AddDMStiny( MaterialPackage, DMStinyMaterial );
+	#endif
+
 
 	TrackPtr MPTimecodeTrack = MaterialPackage->AddTimecodeTrack(EditRate);
 	TimecodeComponentPtr MPTimecodeComponent = MPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, 0 );
@@ -1099,12 +1166,12 @@ int Process(	int OutFileNum,
 							int StreamID = 0;
 							if(IndexManCount == 0)
 							{
-								IndexMan[0] = new IndexManager(0, 0);
+								IndexMan[0] = new IndexManager(0, (*WrapCfgList_it)->WrapOpt->BytesPerEditUnit );
 								IndexMan[0]->SetBodySID(1);
 								IndexMan[0]->SetIndexSID(129);
 								IndexMan[0]->SetEditRate((*WrapCfgList_it)->EditRate);
 							}
-							else StreamID = IndexMan[0]->AddSubStream(0, 0);
+							else StreamID = IndexMan[0]->AddSubStream(0, (*WrapCfgList_it)->WrapOpt->BytesPerEditUnit );
 printf("IndexMan[0] -> %d\n", StreamID);
 							(*WrapCfgList_it)->WrapOpt->Handler->SetIndexManager(IndexMan[0], StreamID);
 							IndexManCount = 1;
@@ -1112,7 +1179,7 @@ printf("IndexMan[0] -> %d\n", StreamID);
 						// ...otherwise one per stream
 						else
 						{
-							IndexMan[ManagerID] = new IndexManager(0, 0);
+							IndexMan[ManagerID] = new IndexManager(0, (*WrapCfgList_it)->WrapOpt->BytesPerEditUnit );
 							IndexMan[0]->SetBodySID(iTrack + 1);
 							IndexMan[0]->SetIndexSID(iTrack + 129);
 							IndexMan[0]->SetEditRate((*WrapCfgList_it)->EditRate);
