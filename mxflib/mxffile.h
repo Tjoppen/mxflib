@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.3 2004/11/15 14:44:30 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.4 2004/12/18 20:40:36 matt-beard Exp $
  *
  */
 /*
@@ -79,9 +79,15 @@ namespace mxflib
 
 		// RIP Readers
 		bool ReadRIP(void);
-		bool ScanRIP(Uint64 MaxScan = 1024*1024);
+		bool ScanRIP(Length MaxScan = 1024*1024);
 		bool BuildRIP(void);
-		bool GetRIP(Uint64 MaxScan = 1024*1024);
+		bool GetRIP(Length MaxScan = 1024*1024);
+
+		
+		//! Locate and read a partition containing closed header metadata
+		/*! \ret NULL if none found
+		 */
+		PartitionPtr ReadMasterPartition(Length MaxScan = 1024*1024);
 
 		//! Report the position of the file pointer
 		Uint64 Tell(void) 
@@ -233,10 +239,9 @@ namespace mxflib
 				// Calculate the pack length
 				RIPObject->SetUint("Length", 16 + 4 + (FileRIP.size() * 12) + 4);
 
-				DataChunk Buffer;
-				RIPObject->WriteObject(Buffer);
+				DataChunkPtr Buffer = RIPObject->WriteObject();
 
-				Write(Buffer.Data, Buffer.Size);
+				Write(Buffer->Data, Buffer->Size);
 			}
 		}
 
@@ -342,7 +347,7 @@ namespace mxflib
 		}
 
 	protected:
-		Uint64 ScanRIP_FindFooter(Uint64 MaxScan);
+		Uint64 ScanRIP_FindFooter(Length MaxScan);
 
 		//! Write to memory file buffer
 		/*! \note This can be overridden in classes derived from MXFFile to give different memory write behaviour */

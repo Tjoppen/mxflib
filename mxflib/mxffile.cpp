@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.3 2004/11/13 13:03:22 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.4 2004/12/18 20:40:35 matt-beard Exp $
  *
  */
 /*
@@ -281,7 +281,7 @@ Uint64 mxflib::MXFFile::Read(Uint8 *Buffer, Uint64 Size)
  *  Otherwise it is Scanned using ScanRIP().
  *	If that fails it is built the hard way using BuildRIP().
  */
-bool mxflib::MXFFile::GetRIP(Uint64 MaxScan /* = 1024*1024 */ )
+bool mxflib::MXFFile::GetRIP(Length MaxScan /* = 1024*1024 */ )
 {
 	if(ReadRIP()) return true;
 	if(ScanRIP(MaxScan)) return true;
@@ -395,7 +395,7 @@ bool mxflib::MXFFile::ReadRIP(void)
  *  TODO: There should be some way to scan without loading every partition into memory (it could be millions!)
  *  TODO: We could read the IndexSID as we go and build an enhanced RIP or Greater-RIP
  */
-bool mxflib::MXFFile::ScanRIP(Uint64 MaxScan /* = 1024*1024 */ )
+bool mxflib::MXFFile::ScanRIP(Length MaxScan /* = 1024*1024 */ )
 {
 	// Remove any old data
 	FileRIP.clear();
@@ -466,7 +466,7 @@ bool mxflib::MXFFile::ScanRIP(Uint64 MaxScan /* = 1024*1024 */ )
 
 //! Scan for the footer
 /*! \return The location of the footer, or 0 if scan failed */
-Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
+Uint64 MXFFile::ScanRIP_FindFooter(Length MaxScan)
 {
 	Uint64 FooterPos = 0;
 
@@ -851,7 +851,6 @@ ULPtr mxflib::MXFFile::ReadKey(void)
  */
 void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer /*=NULL*/) 
 { 
-	DataChunk Buffer;
 	Int64 CurrentPosition = Tell();
 	ThisPartition->SetInt64("ThisPartition", CurrentPosition);
 
@@ -878,9 +877,9 @@ void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer
 	// own it and therefore cannot prevent changes after writing
 	FileRIP.AddPartition(NULL, CurrentPosition, ThisPartition->GetUint("BodySID"));
 
-	ThisPartition->WriteObject(Buffer, UsePrimer);
+	DataChunkPtr Buffer = ThisPartition->WriteObject(UsePrimer);
 
-	Write(Buffer.Data, Buffer.Size);
+	Write(Buffer->Data, Buffer->Size);
 }
 
 
@@ -989,8 +988,8 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	PrimerPtr ThisPrimer;
 	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = new Primer;
 
-	DataChunk PrimerBuffer;
-	DataChunk MetaBuffer;
+	DataChunkPtr PrimerBuffer = new DataChunk;
+	DataChunkPtr MetaBuffer = new DataChunk;
 
 	// Is this a footer?
 	bool IsFooter = (ThisPartition->Name().find("Footer") != std::string::npos);
@@ -1073,7 +1072,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		ThisPrimer->WritePrimer(PrimerBuffer);
 
 		// Set size of header metadata (including the primer)
-		HeaderByteCount = PrimerBuffer.Size + MetaBuffer.Size;
+		HeaderByteCount = PrimerBuffer->Size + MetaBuffer->Size;
 
 		// TODO: We need to do these calculations even if only rewriting with an index table (it could happen!)
 		if(ReWrite)
@@ -1265,3 +1264,68 @@ KLVObjectPtr MXFFile::ReadKLV(void)
 
 	return Ret;
 }
+
+
+
+//! Locate and read a partition containing closed header metadata
+/*! \ret NULL if none found
+ */
+PartitionPtr MXFFile::ReadMasterPartition(Length MaxScan /*=1024*1024*/)
+{
+	PartitionPtr Ret;
+
+	// Start by checking the header
+	Seek(0);
+
+	// Read the header
+	Ret = ReadPartition();
+	if(!Ret) return Ret;
+
+	// If the header is closed return it
+	if(Ret->IsA("ClosedCompleteHeader") || Ret->IsA("ClosedHeader")) return Ret;
+
+	/* The header is open - so we must locate the footer */
+	Position FooterPos = 0;
+
+	// First we see if the header partition tells us where the footer is
+	FooterPos = Ret->GetInt64("FooterPartition");
+
+	// If the footer position is not specified in the header we must look for it
+	if(FooterPos == 0)
+	{
+		// If we don't already have a RIP read one if we can!
+		if(FileRIP.size() < 2)
+		{
+			// If we didn't manage to read a RIP try scanning for the footer partition
+			if(!ReadRIP())
+			{
+				FooterPos = ScanRIP_FindFooter(MaxScan);
+				if(FooterPos == 0) return NULL;
+			}
+		}
+
+		// We use the RIP, but not if we successfully scanned for the footer
+		if(FooterPos == 0)
+		{
+			// Locate the last partition in the file
+			RIP::iterator it = FileRIP.end();
+			it--;
+			FooterPos = (*it).second->ByteOffset;
+		}
+	}
+
+	// Read the footer
+	Seek(FooterPos);
+	Ret = ReadPartition();
+
+	// If it is a footer, and it contains metadata, return it
+	if((Ret->IsA("CompleteFooter") || Ret->IsA("Footer")) && Ret->GetInt64("HeaderByteCount"))
+	{
+		return Ret;
+	}
+
+	// TODO: Search for any closed body metadata for files with no footer?!
+	return NULL;
+}
+
+
