@@ -54,19 +54,19 @@ namespace mxflib
 		Uint8 *Data;
 
 		//! Construct an empty data chunk
-		DataChunk() : DataSize(0), Size(0) , Data(NULL), AllocationGranularity(0), ExternalBuffer(false) {};
+		DataChunk() : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) {};
 
 		//! Construct a data chunk with a pre-allocated buffer
-		DataChunk(Uint64 BufferSize) : DataSize(0), Size(0) , Data(NULL), AllocationGranularity(0), ExternalBuffer(false) { Resize(BufferSize); };
+		DataChunk(Uint64 BufferSize) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Resize(BufferSize); };
 
 		//! Construct a data chunk with contents
-		DataChunk(Uint64 MemSize, const Uint8 *Buffer) : DataSize(0), Size(0), Data(NULL), AllocationGranularity(0), ExternalBuffer(false) { Set(MemSize, Buffer); };
+		DataChunk(Uint64 MemSize, const Uint8 *Buffer) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(MemSize, Buffer); };
 
 		//! Construct a data chunk from an identifier
-		template<int SIZE> DataChunk(const Identifier<SIZE> *ID)  : DataSize(0), Size(0) , Data(NULL), AllocationGranularity(0), ExternalBuffer(false) { Set(ID->Size(), ID->GetValue() ); };
+		template<int SIZE> DataChunk(const Identifier<SIZE> *ID)  : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(ID->Size(), ID->GetValue() ); }
 
 		//! Data chunk copy constructor
-		DataChunk(const DataChunk &Chunk) : DataSize(0), Size(0) , Data(NULL), AllocationGranularity(0), ExternalBuffer(false) { Set(Chunk.Size, Chunk.Data); };
+		DataChunk(const DataChunk &Chunk) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(Chunk.Size, Chunk.Data); };
 
 		~DataChunk() 
 		{ 
@@ -204,7 +204,7 @@ namespace mxflib
 		std::string GetString(void)
 		{
 			std::string Ret;
-			int i;
+			unsigned i;
 			for(i=0; i<Size; i++) 
 			{
 				if(i != 0) Ret += " ";
@@ -240,5 +240,4 @@ namespace mxflib
 	};
 }
 
-#endif MXFLIB__DATACHUNK_H
-
+#endif // MXFLIB__DATACHUNK_H
