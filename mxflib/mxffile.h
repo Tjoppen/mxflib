@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.1.2.3 2004/06/14 18:02:43 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.1.2.4 2004/06/26 17:44:56 matt-beard Exp $
  *
  */
 /*
@@ -106,7 +106,7 @@ namespace mxflib
 			if(isMemoryFile)
 			{
 				BufferCurrentPos = Position+RunInSize;
-				return Position;
+				return 0;
 			}
 
 			return mxflib::FileSeek(Handle, Position+RunInSize);
