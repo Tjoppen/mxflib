@@ -151,8 +151,8 @@ namespace mxflib
 
 #ifndef MXFLIB_NO_FILE_IO
 	typedef int FileHandle;
-	inline Uint64 FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET); }
-	inline Uint64 FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END); }
+	inline int FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET); }
+	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END); }
 	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, size); }
 	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, size); }
 	inline Uint8 FileGetc(FileHandle file) { Uint8 c; FileRead(file, &c, 1); return c; }
@@ -258,8 +258,8 @@ namespace mxflib
 
 #ifndef MXFLIB_NO_FILE_IO
 	typedef FILE *FileHandle;
-	inline Uint64 FileSeek(FileHandle file, Uint64 offset) { return (fseeko(file, offset, SEEK_SET) == -1) ? -1 : ftello(file); }
-	inline Uint64 FileSeekEnd(FileHandle file) { return (fseeko(file, 0, SEEK_END) == -1) ? -1 : ftello(file); }
+	inline int FileSeek(FileHandle file, Uint64 offset) { return fseeko(file, offset, SEEK_SET); }
+	inline int FileSeekEnd(FileHandle file) { return fseeko(file, 0, SEEK_END); }
 	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return fread(dest, 1, size, file); }
 	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return fwrite(source, 1, size, file); }
 	inline Uint8 FileGetc(FileHandle file) { Uint8 c; FileRead(file, &c, 1); return c; }
@@ -317,10 +317,10 @@ namespace mxflib
 //
 #ifdef MXFLIB_NO_FILE_IO
 namespace mxflib
-{
+{ 
 	typedef Uint32 FileHandle;
-	Uint64 FileSeek(FileHandle file, Uint64 offset);
-	Uint64 FileSeekEnd(FileHandle file);
+	int FileSeek(FileHandle file, Uint64 offset);
+	int FileSeekEnd(FileHandle file);
 	Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size);
 	Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size);
 	Uint8 FileGetc(FileHandle file);

@@ -100,7 +100,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 					)
 					{
 						error("Found a DV AVI file!!! - Code note yet implemented\n");
-
+ 					
 						FileSeek(InFile, FileTell(InFile) + ListSize);
 
 //						MDObjectPtr DescObj = BuildWaveAudioDescriptor(InFile, 0);
@@ -166,7 +166,8 @@ printf("NOTE: We have a valid DV-DIF file!\n");
 
 	// Check the size (assume the entire file is DIF data)
 	DIFStart = 0;
-	DIFEnd = FileSeekEnd(InFile);
+	FileSeekEnd(InFile);
+	DIFEnd = FileTell(InFile);
 
 	// Build a descriptor with a zero ID (we only support single stream files)
 	EssenceStreamDescriptor Descriptor;
