@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.3 2004/12/18 20:31:07 matt-beard Exp $
  *
  */
 /*
@@ -88,14 +88,15 @@ namespace mxflib
 		virtual ~KLVReadHandler_Base();
 
 		//! Read data from the source into the KLVObject
-		/*! \param Object KLVObject to receive the data
+		/*! \param Buffer Reference to a buffer to receive the data
+		 *  \param Object KLVObject which is requesting the data
 		 *  \param Start Offset from the start of the KLV value to start reading
 		 *  \param Size Number of bytes to read, if zero all available bytes will be read (which could be billions!)
 		 *  \return The count of bytes read (may be less than Size if less available)
 		 *  \note A call to ReadData must replace the current contents of the KLVObject's DataChunk
 		 *        with the new data - no original data should be preserved
 		 */
-		virtual Length ReadData(KLVObjectPtr Object, Position Start = 0, Length Size = 0) = 0;
+		virtual Length ReadData(DataChunk &Buffer, KLVObjectPtr Object, Position Start = 0, Length Size = 0) = 0;
 
 //		//! Read the key and length of the KLVObject
 //		virtual Int32 ReadKL(KLVObjectPtr Object) { return -1;}
@@ -306,7 +307,21 @@ namespace mxflib
 		 *           It is therefore vital that the function does not call any "virtual" KLVObject
 		 *           functions, directly or indirectly.
 		 */
-		Length Base_ReadDataFrom(Position Offset, Length Size = -1);
+		inline Length Base_ReadDataFrom(Position Offset, Length Size = -1) { return Base_ReadDataFrom(Data, Offset, Size); }
+
+		//! Base verion: Read data from a specified position in the KLV value field into the DataChunk
+		/*! \param Offset Offset from the start of the KLV value from which to start reading
+		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \return The number of bytes read
+		 *
+		 *  \note This function can write to a buffer other than the KLVObject's main buffer if required, 
+		 *        however the file pointer will be updated so care must be used when mixing reads
+		 *
+		 *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+		 *           It is therefore vital that the function does not call any "virtual" KLVObject
+		 *           functions, directly or indirectly.
+		 */
+		Length Base_ReadDataFrom(DataChunk &Buffer, Position Offset, Length Size = -1);
 
 		//! Write the key and length of the current DataChunk to the destination file
 		/*! The key and length will be written to the source file as set by SetSource.
