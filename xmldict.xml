@@ -294,7 +294,7 @@
 		<AlphaMinRef detail="Minimum value for alpha component, e.g. 16 or 64 (8 or 10 bits)" type="Uint32" minLength="4" maxLength="4" key="34 09" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0e 00 00 00" use="optional" default="0"/>
 		<ScanningDirection detail="Enumerated Scanning Direction" type="Uint8" minLength="1" maxLength="1" key="34 05" globalKey="06 0e 2b 34 01 01 01 05  04 01 04 04 01 00 00 00" use="optional"/>
 		<PixelLayout detail="Pixel Layout" type="RGBALayout" minLength="16" maxLength="16" key="34 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 06 00 00 00" use="best effort" dvalue="{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}"/>
-		<Palette detail="Palette" type="RAW" key="34 03" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 08 00 00 00" use="optional"/>
+		<Palette detail="Palette" type="DataValue" key="34 03" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 08 00 00 00" use="optional"/>
 		<PaletteLayout detail="Palette Layout" type="RGBALayout" minLength="16" maxLength="16" key="34 04" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 09 00 00 00" use="optional"/>
 	</RGBAEssenceDescriptor>
 	<GenericSoundEssenceDescriptor base="FileDescriptor" detail="Defines the Sound Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 42 00">
@@ -331,7 +331,7 @@
 		<BlockAlign detail="Sample Block alignment" use="required" type="Uint16" key="3d 0a" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 02 01 00 00 00"/>
 		<SequenceOffset detail="Zero-based ordinal frame number of first essence data within five-frame sequence" use="optional" type="Uint8" key="3d 0b" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 02 02 00 00 00"/>
 		<AvgBps detail="Average Bytes per second" use="required" type="Uint32" key="3d 09" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 03 05 00 00 00"/>
-		<PeakEnvelope detail="Peak Envelope from &lt;LEVL> Chunk" use="optional" type="RAW" key="3d 0e" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 05 00 00 00"/>
+		<PeakEnvelope detail="Peak Envelope from &lt;LEVL> Chunk" use="optional" type="Stream" key="3d 0e" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 05 00 00 00"/>
 	</WaveAudioDescriptor>
 	<!--wol Additions for DM -->
 	<DM_Framework base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00"/>

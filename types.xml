@@ -15,6 +15,7 @@
 		<Uint32 detail="32 bit unsigned integer" size="4" endian="yes"/>
 		<Uint64 detail="64 bit unsigned integer" size="8" endian="yes"/>
 	</Basic>
+	
 	<Interpretation>
 		<VersionType detail="Version number (created from major*256 + minor)" base="Uint16"/>
 		<UTF16 detail="Unicode UTF-16 coded character" base="Uint16"/>
@@ -27,7 +28,6 @@
 
 	<Multiple>
 		<UTF16String detail="Unicode UTF-16 coded string" base="UTF16" type="Array"/>
-		<!--		<UTF16Array detail="Array of Unicode UTF-16 coded strings" base="UTF16" type="Cluster"/>  -->
 		<Int32Array detail="Array of Int32" base="Int32" type="Array"/>
 		<Uint32Array detail="Array of Uint32" base="Uint32" type="Array"/>
 		<Int64Array detail="Array of Int64" base="Int64" type="Array"/>
@@ -37,17 +37,23 @@
 		<Uint32Batch detail="Batch of Uint32 values" base="Uint32" type="Batch"/>
 	</Multiple>
 
+	<Basic>
+		<RAW detail="Raw data bytes, unknown representation" size="0" endian="no"/>
+	</Basic>
+	
 	<Interpretation>
-		<RAW detail="RAW data bytes" base="Uint8Array"/>
-		<DataStream detail="Data Stream" base="Uint8Array"/>
-		<DataValue detail="Data Value" base="Uint8Array"/>
+		<Stream detail="Data mapped to AAF Stream, MXF represents using a SID" base="RAW"/>
+		<DataValue detail="Data represented as AAF varying array of UInt8" base="Uint8Array"/>
+	</Interpretation>
+	
+	<Interpretation>
 		<Identifier detail="Generic Identifier" base="Uint8Array"/>
 		<Opaque detail="Opaque Data" base="Uint8Array"/>
 		<UMID detail="SMPTE UMID" base="Identifier" size="32"/>
 		<UID detail="UID" base="Identifier"/>
-		<Label detail="SMPTE Universal Label" base="Uint8Array" size="16"/>
+		<Label detail="SMPTE Universal Label" base="Identifier" size="16"/>
 		<UUID detail="UUID" base="Identifier" size="16"/>
-		<AUID detail="AUID (byte re-ordered Identifier)" base="UUID"/>
+		<AUID detail="AUID is a Label or a swapped UUID" base="Label"/>
 		<PackageID detail="Package ID" base="UMID"/>
 		<StrongRef detail="Strong Reference" base="UUID"/>
 		<WeakRef detail="Weak Reference" base="UUID"/>
