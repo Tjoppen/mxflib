@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.2.2.6 2004/10/10 18:38:25 terabrit Exp $
+ *	\version $Id: mdobject.cpp,v 1.2.2.7 2004/10/16 19:55:44 terabrit Exp $
  *
  */
 /*
@@ -1128,7 +1128,7 @@ Uint32 MDObject::ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer,
 	// Unsupported key types!
 	case DICT_KEY_NONE:
 	case DICT_KEY_AUTO:		// DRAGONS: Should probably make this work at some point!
-		ASSERT(0);
+//		ASSERT(0);
 		Key.Resize(0);
 		return 0;
 
@@ -1209,7 +1209,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 						return 0;
 					}
 					
-					Length = Length64;
+					Length =(Uint32) Length64;
 				}
 				else
 				{
@@ -1585,7 +1585,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 	case DICT_LEN_1_BYTE:		
 		{ 
 			Uint8 Buff;
-			PutU8(Length, &Buff);
+			PutU8((Uint32)Length, &Buff);
 
 			Buffer.Append(1, &Buff);
 			return 1;
@@ -1594,7 +1594,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 	case DICT_LEN_2_BYTE:
 		{ 
 			Uint8 Buff[2];
-			PutU16(Length, Buff);
+			PutU16((Uint16)Length, Buff);
 
 			Buffer.Append(2, Buff);
 			return 2;
@@ -1603,7 +1603,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 	case DICT_LEN_4_BYTE:
 		{ 
 			Uint8 Buff[4];
-			PutU32(Length, Buff);
+			PutU32((Uint32)Length, Buff);
 
 			Buffer.Append(4, Buff);
 			return 4;

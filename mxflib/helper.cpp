@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.11 2004/10/10 18:37:16 terabrit Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.12 2004/10/16 19:55:43 terabrit Exp $
  *
  */
 /*
@@ -75,7 +75,7 @@ Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0
 		else Size = 9;
 	}
 
-	if(Size > MaxSize)
+	if(Size >(Uint32) MaxSize)
 	{
 		error("Buffer size given to MakeBER() is %d, however length 0x%s will not fit in that size\n",
 			  MaxSize, Int64toHexString(Length).c_str());
@@ -87,7 +87,7 @@ Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0
 	// Shortform encoding
 	if(Size == 1)
 	{
-		Data[0] = Length;
+		Data[0] =(Uint8) Length;
 		return 1;
 	}
 
@@ -100,7 +100,7 @@ Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0
 	// More speed efficient to write backwards as no need to locate the start
 	while(i)
 	{
-		Data[i] = Length & 0xff;
+		Data[i] = (Uint8)Length & 0xff;
 		Length >>= 8;
 		i--;
 	}
@@ -161,7 +161,7 @@ int mxflib::EncodeOID( Uint8* presult, Uint64 subid, int length )
 
 	do
 	{
-		*prev++ = (subid & 0x7f) | 0x80; // set msb of every byte
+		*prev++ = (Uint8)(subid & 0x7f) | 0x80; // set msb of every byte
 		subid >>= 7;
 		count++;
 	}
@@ -230,10 +230,10 @@ UMIDPtr mxflib::MakeUMID(int Type)
 DataChunkPtr mxflib::FileReadChunk(FileHandle InFile, Uint64 Size)
 {
 	DataChunkPtr Ret = new DataChunk;
-	Ret->Resize(Size);
+	Ret->Resize((Uint32)Size);
 
 	// Read the data (and shrink chunk to fit)
-	Ret->Resize(FileRead(InFile, Ret->Data, Size));
+	Ret->Resize((Uint32)FileRead(InFile, Ret->Data,(Uint32) Size));
 
 	return Ret;
 }

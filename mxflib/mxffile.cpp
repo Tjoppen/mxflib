@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.1.2.5 2004/10/10 18:39:45 terabrit Exp $
+ *	\version $Id: mxffile.cpp,v 1.1.2.6 2004/10/16 19:55:44 terabrit Exp $
  *
  */
 /*
@@ -166,7 +166,7 @@ bool mxflib::MXFFile::ReadRunIn()
 		// Run-in ends when a vaid MXF key is found
 		if(memcmp(BaseKey,ScanPtr,11) == 0) 
 		{
-			RunIn.Set(RunInSize, Search->Data);
+			RunIn.Set((Uint32)RunInSize, Search->Data);
 			Seek(0);
 			return true;
 		}
@@ -220,7 +220,7 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 				Size = 0xffffffff;
 			}
 
-			Bytes = MemoryRead(Ret->Data, Size);
+			Bytes = MemoryRead(Ret->Data, (Uint32)Size);
 		}
 		else
 		{
@@ -234,7 +234,7 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 			Bytes = 0;
 		}
 
-		if(Bytes != Size) Ret->Resize(Bytes);
+		if(Bytes != Size) Ret->Resize((Uint32)Bytes);
 	}
 
 	return Ret;
@@ -256,11 +256,11 @@ Uint64 mxflib::MXFFile::Read(Uint8 *Buffer, Uint64 Size)
 				Size = 0xffffffff;
 			}
 
-			Ret = MemoryRead(Buffer, Size);
+			Ret = MemoryRead(Buffer,(Uint32) Size);
 		}
 		else
 		{
-			Ret = FileRead(Handle, Buffer, Size);
+			Ret = FileRead(Handle, Buffer, (Uint32)Size);
 		}
 
 		// Handle errors
@@ -798,7 +798,7 @@ Length mxflib::MXFFile::ReadBER(void)
 	Length Ret = Len->Data[0];
 	if(Ret >= 0x80)
 	{
-		Uint32 i = Ret & 0x7f;
+		Uint32 i = (Uint32)Ret & 0x7f;
 		Len = Read(i);
 		if(Len->Size != i)
 		{
@@ -889,7 +889,7 @@ Uint32 MXFFile::FillerSize(bool ForceBER4, Uint64 FillPos, Uint32 KAGSize, Uint3
 	if(KAGSize == 0) KAGSize = 1;
 
 	// Work out how far into a KAG we are
-	Uint32 Offset = FillPos % KAGSize;
+	Uint32 Offset = (Uint32)(FillPos % KAGSize);
 
 	// Don't insert anything if we are already aligned and not padding
 	if((Offset == 0) && (MinSize == 0)) return 0;
@@ -1068,7 +1068,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 			Uint64 OldHeaderByteCount = OldPartition->GetUint64("HeaderByteCount");
 
 			// Record the required padding size to make the new partition match the old one
-			Padding = OldHeaderByteCount - HeaderByteCount;
+			Padding =(Uint32)( OldHeaderByteCount - HeaderByteCount);
 			
 			// We can't obay a MinPartitionSize request
 			MinPartitionSize = 0;
@@ -1180,7 +1180,7 @@ Uint32 MXFFile::MemoryWrite(Uint8 const *Data, Uint32 Size)
 	}
 
 	// Copy the data to the buffer
-	Buffer->Set(Size, Data, (BufferCurrentPos - BufferOffset));
+	Buffer->Set((Uint32)Size, Data, (Uint32)(BufferCurrentPos - BufferOffset));
 
 	// Update the pointer
 	BufferCurrentPos += Size;
@@ -1205,7 +1205,7 @@ Uint32 MXFFile::MemoryRead(Uint8 *Data, Uint32 Size)
 	}
 
 	// Work out how many bytes we can read
-	unsigned int MaxBytes = Buffer->Size - (BufferCurrentPos - BufferOffset);
+	unsigned int MaxBytes =(Uint32)( Buffer->Size - (Uint32)(BufferCurrentPos - BufferOffset));
 
 	// Limit our read to the max available
 	if(Size > MaxBytes) Size = MaxBytes;
