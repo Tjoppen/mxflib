@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.1.2.5 2004/05/28 14:52:51 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.1.2.6 2004/06/14 17:26:04 matt-beard Exp $
  *
  */
 /*
@@ -477,8 +477,6 @@ Uint32 GCWriter::GetTrackNumber(GCStreamID ID)
 void GCWriter::StartNewCP(void)
 {
 	Flush();
-//
-//	EditUnit++;
 }
 
 
@@ -504,6 +502,21 @@ Uint64 GCWriter::CalcWriteSize(void)
 
 		// Add the chunk size
 		Ret += (*it).second.Size;
+
+		// Add any KLVObject-buffered essence data
+		if((*it).second.KLVSource)
+		{
+			Length Size = (*it).second.KLVSource->GetLength();
+			DataChunkPtr BER = MakeBER(Size);
+			Ret += BER->Size + Size;
+		}
+		// Add any non-buffered essence data
+		else if((*it).second.Source)
+		{
+			Length Size = (*it).second.Source->GetEssenceDataSize();
+			DataChunkPtr BER = MakeBER(Size);
+			Ret += BER->Size + Size;
+		}
 
 		LastType = ThisType;
 
@@ -573,7 +586,6 @@ void GCWriter::Flush(void)
 		// Handle any non-buffered essence data
 		else if((*it).second.Source)
 		{
-
 			Uint64 Size = (*it).second.Source->GetEssenceDataSize();
 
 			// Write out the length
@@ -716,6 +728,78 @@ void GCWriter::SetWriteOrder(GCStreamID ID, int WriteOrder /*=-1*/, int Type /*=
 
 
 
+//! Calculate how many bytes would be written if the specified object were written with WriteRaw()
+Length GCWriter::CalcRawSize(KLVObjectPtr Object)
+{
+	Length Ret = 0;
+
+	// Add the size of any filler
+	if(KAGSize > 1)
+	{
+		Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+	}
+
+	// Add the chunk size
+	Ret += Object->GetKLSize() + Object->GetLength();
+
+
+	// DRAGONS: This is a bit of a fudge to cope with new partitions 
+	//          being inserted after us and that causing a filler...
+
+	// Align to the next KAG
+	if(KAGSize > 1)
+	{
+		Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+	}
+
+	return Ret;
+}
+
+
+//! Write a raw KLVObject to the file - this is written immediately and not buffered in the WriteQueue
+void GCWriter::WriteRaw(KLVObjectPtr Object)
+{
+	// Align to the next KAG
+	if(KAGSize > 1)
+	{
+		Uint64 Pos = LinkedFile->Tell();
+		StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+	}
+
+	// Write the KL
+	StreamOffset += Object->WriteKL(LinkedFile);
+
+	// Write out all the data
+	Position Offset = 0;
+	for(;;)
+	{
+		const int ReadChunkSize = 128 * 1024;
+		Length Bytes = Object->ReadData(Offset, ReadChunkSize);
+		Offset += Bytes;
+
+		// Exit when no more data left
+		if(!Bytes) break;
+
+		StreamOffset += Object->WriteData(LinkedFile);
+	}
+
+	// DRAGONS: This is a bit of a fudge to cope with new partitions 
+	//          being inserted after us and that causing a filler...
+
+	// Align to the next KAG
+	if(KAGSize > 1)
+	{
+		Uint64 Pos = LinkedFile->Tell();
+		StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+	}
+
+	return;
+}
+
+
+
+
+
 // Build an essence parser with all known sub-parsers
 EssenceParser::EssenceParser()
 {
@@ -842,7 +926,7 @@ bool GCReader::HandleData(KLVObjectPtr Object)
 	// Note that we don't bother if no handlers have been registered 
 	// because we will have to use the defualt handler whatever!
 	Uint32 TrackNumber; 
-	if(Handlers.size()) TrackNumber = Object->GetGCTrackNumber();
+	if(!Handlers.size()) TrackNumber = 0; else TrackNumber = Object->GetGCTrackNumber();
 
 	if( TrackNumber != 0 )
 	{
