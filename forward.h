@@ -28,7 +28,7 @@
 #define MXFLIB__FORWARD_H
 
 // Many of the declarations are of smart pointers
-#include "smartptr.h"
+#include <mxflib/smartptr.h>
 
 // STL includes
 #include <list>

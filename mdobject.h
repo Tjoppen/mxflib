@@ -50,7 +50,7 @@ extern "C"
 
 
 // mxflib includes
-#include "primer.h"
+#include <mxflib/primer.h>
 
 
 namespace mxflib

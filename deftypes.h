@@ -26,8 +26,8 @@
 #ifndef MXFLIB__DEFTYPES_H
 #define MXFLIB__DEFTYPES_H
 
-#include "mdtraits.h"
-#include "mdtype.h"
+#include <mxflib/mdtraits.h>
+#include <mxflib/mdtype.h>
 
 // STL Includes
 #include <string>

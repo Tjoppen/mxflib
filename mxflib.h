@@ -30,42 +30,42 @@
 //! Namespace for all MXFLib items
 namespace mxflib {}
 
-#include "mxfsystem.h"
+#include <mxflib/system.h>
 
-#include "debug.h"
+#include <mxflib/debug.h>
 
-#include "forward.h"
+#include <mxflib/forward.h>
 
-#include "mxfendian.h"
+#include <mxflib/endian.h>
 
-#include "smartptr.h"
+#include <mxflib/smartptr.h>
 
-#include "mxftypes.h"
+#include <mxflib/mxftypes.h>
 
-#include "helper.h"
+#include <mxflib/helper.h>
 
-#include "datachunk.h"
+#include <mxflib/datachunk.h>
 
-#include "mdtraits.h"
-#include "mdtype.h"
-#include "deftypes.h"
+#include <mxflib/mdtraits.h>
+#include <mxflib/mdtype.h>
+#include <mxflib/deftypes.h>
 
-#include "klvobject.h"
+#include <mxflib/klvobject.h>
 
-#include "mdobject.h"
+#include <mxflib/mdobject.h>
 
-#include "metadata.h"
+#include <mxflib/metadata.h>
 
-#include "rip.h"
+#include <mxflib/rip.h>
 
-#include "mxffile.h"
+#include <mxflib/mxffile.h>
 
-#include "index.h"
+#include <mxflib/index.h>
 
-#include "essence.h"
+#include <mxflib/essence.h>
 
-#include "esp_mpeg2ves.h"
-#include "esp_wavepcm.h"
-#include "esp_dvdif.h"
+#include <mxflib/esp_mpeg2ves.h>
+#include <mxflib/esp_wavepcm.h>
+#include <mxflib/esp_dvdif.h>
 
 #endif // MXFLIB__MXFLIB_H

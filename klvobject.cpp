@@ -26,7 +26,7 @@
  *	     distribution.
  */
 
-#include "mxflib.h"
+#include <mxflib/mxflib.h>
 
 using namespace mxflib;
 

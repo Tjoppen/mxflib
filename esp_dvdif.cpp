@@ -24,7 +24,7 @@
  *	     distribution.
  */
 
-#include "mxflib.h"
+#include <mxflib/mxflib.h>
 
 #include <math.h>	// For "floor"
 

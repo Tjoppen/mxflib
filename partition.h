@@ -29,7 +29,7 @@
 #ifndef MXFLIB__PARTITION_H
 #define MXFLIB__PARTITION_H
 
-#include "primer.h"
+#include <mxflib/primer.h>
 
 #include <list>
 

@@ -29,7 +29,7 @@
 #ifndef MXFLIB__RIP_H
 #define MXFLIB__RIP_H
 
-#include "partition.h"
+#include <mxflib/partition.h>
 
 
 #include <list>

@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include "mxflib.h"
+#include <mxflib/mxflib.h>
 
 
 //! Random Index Pack constructor
