@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: partition.h,v 1.3 2004/12/18 20:39:28 matt-beard Exp $
  *
  */
 /*
@@ -144,20 +144,33 @@ namespace mxflib
 			Ptr->SetUint64(KAG);
 		}
 
-//		//! Read the partition from a buffer
-//		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size);
-
 		// Access functions for the reference resolving properties
 		// DRAGONS: These should be const, but can't make it work!
 		std::map<UUID, MDObjectPtr>& GetRefTargets(void) { return RefTargets; };
 		std::multimap<UUID, MDObjectPtr>& GetUnmatchedRefs(void) { return UnmatchedRefs; };
 
+		//! Determine if the partition object is currently set as complete
+		bool IsComplete(void);
+
+		//! Determine if the partition object is currently set as closed
+		bool IsClosed(void);
+
+		//! Determine if the metadata in this partition is actually "complete"
+		/*! \ret true if all required properties exist in the metadata sets and no best-effort property is set to its destinguished value
+		 *  \ret false in all other cases, or if there is no metadata loaded
+		 *  \note This is not a guarantee that the metadata is valid!
+		 */
+		bool IsMetadataComplete(void)
+		{
+			warning("Partition::IsMetadataComplete() not yet implemented\n");
+			return false;
+		}
 
 		//! Locate start of Essence Container
 		bool SeekEssence(void);
 
 
-// Sequential access to the Elements of the Body
+	// Sequential access to the Elements of the Body
 
 	public:
 		// goto start of body...set the member variables _BodyLocation, _NextBodyLocation
