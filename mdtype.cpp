@@ -10,6 +10,8 @@
  *			These classes are currently wrappers around KLVLib structures
  */
 /*
+ *	$Id: mdtype.cpp,v 1.13 2003/11/26 17:05:09 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -39,7 +41,7 @@ using namespace mxflib;
 
 
 //! Default traits for types without special handling
-MDTraits DefaultTraits;
+static MDTraits DefaultTraits;
 
 
 //! Add a definition for a basic type
