@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.1 2004/05/10 16:19:32 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.2 2004/05/10 17:10:51 matt-beard Exp $
  *
  */
 /*
@@ -52,24 +52,41 @@ namespace mxflib
 		virtual ~Encrypt_Base();
 
 		//! Set an encryption key
+		/*! \return True if key is accepted
+		 */
 		virtual bool SetKey(Uint32 KeySize, Uint8 *Key) = 0;
 
 		//! Set an encryption Initialization Vector
-		virtual bool SetIV(Uint32 IVSize, Uint8 *IV) = 0;
+		/*! \return False if Initialization Vector is rejected
+		 *  \note Some crypto schemes, such as cypher block chaining, only require
+		 *        the initialization vector to be set at the start - in these cases
+		 *        Force will be set to true when the vector needs to be initialized,
+		 *        and false for any other calls.  This allows different schemes to be
+		 *        used with minimal changes in the calling code.
+		 */
+		virtual bool SetIV(Uint32 IVSize, Uint8 *IV, bool Force = false) = 0;
 
 		//! Can this encryption system safely encrypt in place?
 		virtual bool CanEncryptInPlace(void) = 0;
 
 		//! Encrypt data bytes in place
+		/*! \return true if the encryption is successful
+		 */
 		virtual bool EncryptInPlace(Uint32 Size, Uint8 *Data) = 0;
 
 		//! Encrypt data bytes in place
+		/*! \return true if the encryption is successful
+		 */
 		bool EncryptInPlace(DataChunkPtr &Data) { return EncryptInPlace(Data->Size(), Data->Data()); };
 
 		//! Encrypt data and return in a new buffer
+		/*! \return NULL pointer if the encryption is unsuccessful
+		 */
 		virtual DataChunkPtr Encrypt(Uint32 Size, const Uint8 *Data) = 0;
 
 		//! Encrypt data and return in a new buffer
+		/*! \return NULL pointer if the encryption is unsuccessful
+		 */
 		DataChunkPtr Encrypt(DataChunkPtr &Data) { return Encrypt(Data->Size(), Data->Data()); };
 	};
 
@@ -83,24 +100,41 @@ namespace mxflib
 		virtual ~Decrypt_Base();
 
 		//! Set a decryption key
+		/*! \return True if key is accepted
+		 */
 		virtual bool SetKey(Uint32 KeySize, Uint8 *Key) = 0;
 
 		//! Set a decryption Initialization Vector
-		virtual bool SetIV(Uint32 IVSize, Uint8 *IV) = 0;
+		/*! \return False if Initialization Vector is rejected
+		 *  \note Some crypto schemes, such as cypher block chaining, only require
+		 *        the initialization vector to be set at the start - in these cases
+		 *        Force will be set to true when the vector needs to be initialized,
+		 *        and false for any other calls.  This allows different schemes to be
+		 *        used with minimal changes in the calling code.
+		 */
+		virtual bool SetIV(Uint32 IVSize, Uint8 *IV, bool Force = false) = 0;
 
 		//! Can this decryption system safely decrypt in place?
 		virtual bool CanEncryptInPlace(void) = 0;
 
 		//! Decrypt data bytes in place
+		/*! \return true if the decryption <i>appears to be</i> successful
+		 */
 		virtual bool DecryptInPlace(Uint32 Size, Uint8 *Data) = 0;
 
 		//! Decrypt data bytes in place
+		/*! \return true if the decryption <i>appears to be</i> successful
+		 */
 		bool DecryptInPlace(DataChunkPtr &Data) { return DecryptInPlace(Data->Size(), Data->Data()); };
 
 		//! Decrypt data and return in a new buffer
+		/*! \return NULL pointer if the decryption is unsuccessful
+		 */
 		virtual DataChunkPtr Decrypt(Uint32 Size, const Uint8 *Data) = 0;
 
 		//! Decrypt data and return in a new buffer
+		/*! \return NULL pointer if the decryption is unsuccessful
+		 */
 		DataChunkPtr Decrypt(DataChunkPtr &Data) { return Decrypt(Data->Size(), Data->Data()); };
 	};
 
