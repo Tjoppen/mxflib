@@ -120,7 +120,7 @@ namespace mxflib
 	
 	public:
 		//! Construct an IndexTable with no CBRDeltaArray
-		IndexTable() : BaseDeltaCount(0), EditUnitByteCount(0) { EditRate.Numerator=0; EditUnitByteCount=0; NSL=0; NPE=0; IndexEntrySize=11; };
+		IndexTable() : EditUnitByteCount(0), BaseDeltaCount(0) { EditRate.Numerator=0; EditUnitByteCount=0; NSL=0; NPE=0; IndexEntrySize=11; };
 
 		//! Free any memory used by BaseDeltaArray when this IndexTable is destroyed
 		~IndexTable() 
@@ -312,5 +312,4 @@ namespace mxflib
 
 
 
-#endif MXFLIB__INDEX_H
-
+#endif // MXFLIB__INDEX_H

@@ -191,8 +191,8 @@ namespace mxflib
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
 		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraits *TypeTraits)
-			: Name(TypeName) , Class(TypeClass) , Traits(TypeTraits)
-			, Endian(false) , ArrayClass(ARRAYARRAY) {};
+			: Name(TypeName), Class(TypeClass), Endian(false),
+			ArrayClass(ARRAYARRAY), Traits(TypeTraits) {};
 
 		//! Add a sub to a compound type
 		void AddSub(std::string SubName, MDTypePtr SubType);
@@ -409,11 +409,9 @@ namespace mxflib
 // These simple inlines need to be defined after MDValue
 namespace mxflib
 {
-inline MDValuePtr MDValuePtr::operator[](int Index) { return operator->()->operator[](Index); };
-inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) { return operator->()->operator[](ChildName); };
+inline MDValuePtr MDValuePtr::operator[](int Index) { return operator->()->operator[](Index); }
+inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) { return operator->()->operator[](ChildName); }
 }
 
 
-#endif MXFLIB__MDTYPE_H
-
-
+#endif // MXFLIB__MDTYPE_H
