@@ -23,7 +23,6 @@
  *	- If you make a class and want to use smart pointers to it derive the class from RefCount<YourClass>. This makes it safer to mix normal pointers and smart pointers (by ensuring a consistent reference count) but it doesn't stop objects being deleted with some standard pointers still referencing it.
  *	- Smart pointers can be set to NULL (and start that way when built).
  *	- You cannot say "if (Ptr == NULL)" because the compiler doesn't know whether to compare the pointer value of Ptr with "NULL" or build a smart pointer from "NULL" and compare it with Ptr. Use "if (!Ptr)" instead.
- *	- It is <b>not</b> possible to "cast" a smart pointer
  *
  *	Notes about operator functions and SmartPointers:
  *	  - SmartPtr::operator== is defined to give true if both pointers reference the same object. != works in much the same way.
@@ -34,6 +33,34 @@
  *	Ver = Preface->operator[]("Version");
  *	Ver = Preface->Child("Version");
  *	\endcode
+ *
+ *  \subsection PolySP Polymorphic Smart Pointers
+ *  Smart pointers can be used as polymorphic pointers, however:
+ *    - The base class must be derived from RefCount<the-base-class>
+ *	  - No derived class can also be derived from a form of RefCount<>
+ *	  - The base class must define a virtual destructor
+ *    - Member functions and properties not present in the base class must be accessed via the CastSmartPtr() macro as follows:
+ *	\code
+ *  class MyBase : public RefCount<MyBase> 
+ *  {
+ *      public: virtual int Func(void);    // Function available in all these types
+ *      ...
+ *  };
+ *
+ *  class MyDerived
+ *  {
+ *      public: int Func(void);            // Local version of "Func()"
+ *              int AdvancedFunc(void);    // Special available only to this type
+ *  };
+ *
+ *  typedef MyBasePtr SmartPtr<MyBase>;
+ *
+ *  MyBasePtr Special = new MyDerived();
+ *
+ *  int i = Special->Func();               // Can be accessed normally as it exists on the base class
+ *  int j = CastSmartPtr(Special, MyDerived)->AdvancedFunc();
+ *                                         // Requires casting as it doesn't exist on the base class
+ *  \endcode
  *
  *	\section classes The Main Classes
  *
