@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.2 2004/04/26 18:28:29 asuraparaju Exp $
+ *	\version $Id: mdobject.cpp,v 1.2.2.1 2004/05/26 18:22:19 matt-beard Exp $
  *
  */
 /*
@@ -200,6 +200,8 @@ MDObject::MDObject(std::string BaseType)
 	TheUL = Type->GetUL();
 	TheTag = 0;
 
+	Outer = NULL;
+
 	// Initialise the new object
 	Init();
 }
@@ -220,6 +222,8 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 	ParentFile = NULL;
 	TheUL = Type->GetUL();
 	TheTag = 0;
+
+	Outer = NULL;
 
 	// Initialise the new object
 	Init();
@@ -269,6 +273,8 @@ MDObject::MDObject(ULPtr UL)
 	ParentFile = NULL;
 	TheUL = UL;
 	TheTag = 0;
+
+	Outer = NULL;
 
 	// Initialise the new object
 	Init();
@@ -341,6 +347,8 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 	Parent = NULL;
 	ParentFile = NULL;
 	TheTag = BaseTag;
+
+	Outer = NULL;
 
 	// Initialise the new object
 	Init();

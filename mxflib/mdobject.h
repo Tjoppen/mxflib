@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdobject.h,v 1.1.2.1 2004/05/26 18:22:19 matt-beard Exp $
  *
  */
 /*
@@ -58,8 +58,13 @@ namespace mxflib
 	//! A list of smart pointers to MDOType objects
 	typedef std::list<MDOTypePtr> MDOTypeList;
 
+	//! A map of object type names to MDOType objects
 	typedef std::map<std::string, MDOTypePtr> MDOTypeMap;
+
+	// Forward declare the ObjectInterface
+	class ObjectInterface;
 }
+
 
 
 namespace mxflib
@@ -347,6 +352,8 @@ namespace mxflib
 		bool Modified;					//!< True if this object has been modified since being "read"
 										/*!< This is used to automatically update the GenerationUID when writing the object */
 
+		ObjectInterface *Outer;			//!< Pointer to outer object if this is a sub-object of an ObjectInterface derived object
+
 	public:
 		MDValuePtr Value;
 
@@ -631,6 +638,12 @@ namespace mxflib
 			return std::string("0x") + Int64toHexString(GetLocation(),8) + std::string(" in ") + GetSource();
 		}
 
+		//! Get pointer to Outer object
+		ObjectInterface *GetOuter(void) { return Outer; };
+
+		//! Set pointer to Outer object
+		void SetOuter(ObjectInterface *NewOuter) { Outer = NewOuter; };
+
 	protected:
 		// Some private helper functions
 		static Uint32 ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key);
@@ -650,9 +663,11 @@ namespace mxflib
 	class ObjectInterface
 	{
 	public:
-		MDObjectPtr Object;				//!< The MDObject for this item
+		MDObjectPtr Object;					//!< The MDObject for this item
 
 	public:
+		virtual ~ObjectInterface() {};		//!< Virtual destructor to allow polymorphism
+		
 		// ** MDObject Interface **
 		std::string Name(void) { return Object->Name(); };
 		std::string FullName(void) { return Object->FullName(); };
