@@ -1,25 +1,20 @@
-# $Id: Makefile,v 1.5 2004/01/06 14:39:12 terabrit Exp $
+# $Id: Makefile,v 1.6 2004/03/28 18:32:58 matt-beard Exp $
 #
-# Default values assume you have g++, klvlib installed in /usr/local/* and
+# Default values assume you have g++ installed in /usr/local/* and
 # a uuid library called libuuid.a (E.g. GNU/Linux with e2fsprogs)
 #
-# For builds with klvlib in a parallel directory use:
-#	make KLVINC=../klvlib KLVLIB=../klvlib
-#
 CXX = g++
-KLVINC = ../klvlib
-KLVLIB = ../klvlib
-CXXFLAGS = -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -I.. -I$(KLVINC) -g -Wall
+CXXFLAGS = -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -I.. -g -Wall
 UUIDLIB = -luuid
 INSTALL_PREFIX = /usr/local
 
 all: mxfwrap/mxfwrap mxfsplit/mxfsplit test/mxftest
 
-libmxf.a: deftypes.o esp_dvdif.o esp_mpeg2ves.o esp_wavepcm.o essence.o helper.o index.o klvobject.o mdobject.o mdtraits.o mdtype.o metadata.o mxffile.o partition.o primer.o rip.o
+libmxf.a: deftypes.o esp_dvdif.o esp_mpeg2ves.o esp_wavepcm.o essence.o helper.o index.o klvobject.o mdobject.o mdtraits.o mdtype.o metadata.o mxffile.o partition.o primer.o rip.o sopsax.o
 	rm -f libmxf.a
 	ar -rvs libmxf.a deftypes.o esp_dvdif.o esp_mpeg2ves.o \
  esp_wavepcm.o essence.o helper.o index.o klvobject.o mdobject.o mdtraits.o mdtype.o \
- metadata.o mxffile.o partition.o primer.o rip.o
+ metadata.o mxffile.o partition.o primer.o rip.o sopsax.o
 
 deftypes.o: deftypes.cpp mxflib.h system.h debug.h forward.h \
   smartptr.h endian.h types.h helper.h datachunk.h mdtraits.h \
@@ -142,14 +137,21 @@ rip.o: rip.cpp mxflib.h system.h debug.h forward.h smartptr.h \
   index.h essence.h esp_mpeg2ves.h esp_wavepcm.h esp_dvdif.h
 	$(CXX) $(CXXFLAGS) -c $<
 
+sopsax.o: sopsax.cpp sopsax.h mxflib.h system.h debug.h forward.h smartptr.h \
+  endian.h types.h helper.h datachunk.h mdtraits.h mdtype.h \
+  deftypes.h klvobject.h mdobject.h \
+  primer.h metadata.h rip.h partition.h mxffile.h \
+  index.h essence.h esp_mpeg2ves.h esp_wavepcm.h esp_dvdif.h
+	$(CXX) $(CXXFLAGS) -c $<
+
 mxfwrap/mxfwrap: libmxf.a mxfwrap/mxfwrap.cpp
-	$(CXX) $(CXXFLAGS) mxfwrap/mxfwrap.cpp -o mxfwrap/mxfwrap -L. -lmxf -L$(KLVLIB) -lklv $(UUIDLIB)
+	$(CXX) $(CXXFLAGS) mxfwrap/mxfwrap.cpp -o mxfwrap/mxfwrap -L. -lmxf $(UUIDLIB)
 
 mxfsplit/mxfsplit: libmxf.a waveheader.h mxfsplit/mxfsplit.cpp
-	$(CXX) $(CXXFLAGS) mxfsplit/mxfsplit.cpp -o mxfsplit/mxfsplit -L. -lmxf -L$(KLVLIB) -lklv $(UUIDLIB)
+	$(CXX) $(CXXFLAGS) mxfsplit/mxfsplit.cpp -o mxfsplit/mxfsplit -L. -lmxf $(UUIDLIB)
 
 test/mxftest: libmxf.a test/test.cpp
-	$(CXX) $(CXXFLAGS) test/test.cpp -o test/mxftest -L. -lmxf -L$(KLVLIB) -lklv $(UUIDLIB)
+	$(CXX) $(CXXFLAGS) test/test.cpp -o test/mxftest -L. -lmxf $(UUIDLIB)
 
 
 install: libmxf.a mxfwrap/mxfwrap test/mxftest

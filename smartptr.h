@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.10 2003/12/18 17:51:56 matt-beard Exp $
+ *	\version $Id: smartptr.h,v 1.11 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -232,6 +232,7 @@ namespace mxflib
 		/*!	This method is called if T does not implement IRefCount.
 		 *	A default counter is instanciated and used for all referencing
 		 */
+/*	DRAGONS: Removed to allow kludge to fix gcc 3.3.x bug
 		void __Assign(void *ptr)
 		{
 			if(ptr==NULL)
@@ -241,6 +242,14 @@ namespace mxflib
 				__Assign(new __RefCounter(static_cast<T *>(ptr)));
 			}
 		}
+*/
+
+/*	DRAGONS:  KLUDGE to fix gcc 3.3.x bug */
+void __Assign(void *ptr)
+{
+	// Always use the smart version... this won't work with classes not derived from RefCount<>
+	__Assign((IRefCount<T>*)ptr);
+};
 
 		//!	Assign a 'smart' object to this smart pointer
 		/*!	This method is picked over __Assign(void *ptr)

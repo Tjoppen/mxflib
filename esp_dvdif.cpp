@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.7 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.8 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -94,7 +94,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 					ListSize -= 8;
 
 					ReadU32(InFile);
-					U32 MediaType = ReadU32(InFile);
+					Uint32 MediaType = ReadU32(InFile);
 					ListSize -= 4;
 
 					if(

@@ -4,7 +4,7 @@
  *			The RIP class holds Random Index Pack data, either loaded from a real
  *			Random Index Pack in the file or built by discovering partitions.
  *
- *	\version $Id: rip.h,v 1.11 2003/12/18 17:51:56 matt-beard Exp $
+ *	\version $Id: rip.h,v 1.12 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -40,7 +40,7 @@
 namespace mxflib
 {
 	//! Holds RIP data relating to a single partition
-	class PartitionInfo
+	class PartitionInfo : public RefCount<PartitionInfo>
 	{
 	public:
 		PartitionPtr ThePartition;	//!< The actual partition

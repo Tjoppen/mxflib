@@ -7,11 +7,12 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.17 2004/01/06 14:19:30 terabrit Exp $
+ *	\version $Id: mdobject.h,v 1.18 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
- *	Copyright (c) 2003, Matt Beard
+ *	Copyright (c) 2004, Matt Beard
+ *  Portions copyright (c) 2002, BBC R&D
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -34,14 +35,6 @@
  */
 #ifndef MXFLIB__MDOBJECT_H
 #define MXFLIB__MDOBJECT_H
-
-
-// Include the KLVLib header
-extern "C"
-{
-#include <Klv.h>						//!< The KLVLib header
-#include <Dict.h>
-}
 
 
 // STL Includes
@@ -68,33 +61,133 @@ namespace mxflib
 	typedef std::map<std::string, MDOTypePtr> MDOTypeMap;
 }
 
+
+namespace mxflib
+{
+#define MXFLIB_MAXDICTDEPTH 32
+
+	/*
+	** Enumeration type for dictionary entry 'Use' field
+	*/
+	typedef enum
+	{
+		DICT_USE_NONE = 0,
+		DICT_USE_REQUIRED,
+		DICT_USE_ENCODER_REQUIRED,
+		DICT_USE_DECODER_REQUIRED,
+		DICT_USE_OPTIONAL,
+		DICT_USE_DARK,
+		DICT_USE_TOXIC,
+		DICT_USE_BEST_EFFORT
+	} DictUse;
+
+
+	/*
+	** Enumeration type for key formats
+	*/
+	typedef enum
+	{
+		DICT_KEY_NONE = 0,
+		DICT_KEY_1_BYTE = 1,
+		DICT_KEY_2_BYTE = 2,
+		DICT_KEY_4_BYTE = 4,
+		DICT_KEY_AUTO = 3
+	} DictKeyFormat;
+
+
+	/*
+	** Enumeration type for length formats
+	*/
+	typedef enum
+	{
+		DICT_LEN_NONE = 0,
+		DICT_LEN_1_BYTE = 1,
+		DICT_LEN_2_BYTE = 2,
+		DICT_LEN_4_BYTE = 4,
+		DICT_LEN_BER = 3
+	} DictLenFormat;
+
+
+	/*
+	** Enumeration type for reference type
+	*/
+	typedef enum
+	{
+		DICT_REF_NONE = 0,
+		DICT_REF_STRONG,
+		DICT_REF_WEAK,
+		DICT_REF_TARGET
+	} DictRefType;
+
+
+/* Notes about the structure of dictionaries...
+   ============================================
+
+   The dictionary is held as a list of MDOType objects, each of 
+   which holds information about a 'type' held in the dictionary.
+
+   The dictionary is generally tree structured, with some types
+   being children of others (this matches the sets with child items
+   of an MXF file) When an item is a child it contains a pointer to
+   its parent.  Each parent item contain pointers to each child item
+   through derivation from MDOTypeMap (maps child name to pointer to
+   child item). Care should be taken iterating this map as the
+   order is likely to be alphabetical rather than dictionary order
+   so where dictionary order is importand (such as packs) iterate
+   through the ChildOrder list property.
+
+   Inheritance is supported where a type is regarded as a modified
+   version of another (base) type. The mechanism for inheritance is
+   that a derived MDOType will be a copy of the base MDOType
+   with a link back to the base in 'Base'. The 'Children' lists is
+   copied and new child types are added to these lists.
+   If a child of a derived type has the same name as a child of
+   the base it is regarded as a replacement. 
+*/
+}
+
+
 namespace mxflib
 {
 	//! Holds the definition of a metadata object type
 	class MDOType : public RefCount<MDOType>, public MDOTypeMap
 	{
-	private:
-		//! The KLVLib dictionary entry
-		DictEntry *Dict;
-
+	protected:
 		MDContainerType ContainerType;
-
-		// DRAGONS: Need to define non-KLVLib version
-		DictRefType RefType;
 
 		std::string RootName;			//!< Base name of this type
 
-	public:
+	protected:
 		MDTypePtr ValueType;			//!< Value type if this is an actual data item, else NULL
+
+	public:
 		MDOTypePtr Base;				//!< Base class if this is a derived class, else NULL
-//		MDOTypeList Children;			//!< Types normally found inside this type
-//		StringList ChildrenNames;		//!< Names for each entry in Children
-//		MDOTypePtr ArrayType;			//!< Type of sub items if this is an array
+
+	protected:
 		StringList ChildOrder;			//!< Child names in order for packs
 		MDOTypePtr Parent;				//!< Parent type if this is a child
 		ULPtr TypeUL;					//!< The UL for this type, or NULL
 
-		const DictEntry* GetDict(void) { return (const DictEntry*)Dict; };
+		/* Dictionary data */
+		DataChunk		Key;			//!< Main key field
+		DataChunk		GlobalKey;		//!< Global key field (may be a copy of Key)
+		std::string		DictName;		//!< Short (XML tag) name
+		std::string		Detail;			//!< Full descriptive name
+		std::string		TypeName;		//!< Data type name from dictionary (or built from UL found in file)
+		DictKeyFormat	KeyFormat;		//!< Format of key of sub-items
+		DictLenFormat	LenFormat;		//!< Format of length of sub-items
+		unsigned int	minLength;		//!< Minimum length of value field
+		unsigned int	maxLength;		//!< Maximum length of value field
+		DictUse			Use;			//!< Usage requirements
+		DataChunk		Default;		//!< Default value (if one exists)
+		DataChunk		DValue;			//!< Distinguished value (if one is defined)
+		DictRefType		RefType;		//!< Reference type if this is a reference
+		MDOTypePtr		RefTarget;		//!< Type (or base type) of item this ref source must target
+		std::string		RefTargetName;	//!< Name of the type (or base type) of item this ref source must target
+
+	public:
+		//! Derive this new entry from a base entry
+		void Derive(MDOTypePtr BaseEntry);
 
 		//! Access function for ContainerType
 		const MDContainerType &GetContainerType(void) { return (const MDContainerType &)ContainerType; };
@@ -105,16 +198,41 @@ namespace mxflib
 		//! Get the type name
 		std::string Name(void)
 		{
-			if((Dict == NULL) || (Dict->Name == NULL)) return std::string("");
-			return std::string(Dict->Name);
+			return DictName;
 		}
 
 		//! Get the full type name, including all parents
 		std::string FullName(void)
 		{
-			if((Dict == NULL) || (Dict->Name == NULL)) return RootName;
-			return RootName + Dict->Name;
+			return RootName + DictName;
 		}
+
+		//! Read-only access to default value
+		const DataChunk &GetDefault(void) { return Default; }
+
+		//! Read-only access to destinguished value
+		const DataChunk &GetDValue(void) { return DValue; }
+
+		//! Read-only access to the type UL
+		const ULPtr &GetTypeUL(void) { return TypeUL; }
+
+		//! Read-only access to the minLength value
+		unsigned int GetMinLength(void) { return minLength; }
+
+		//! Read-only access to the maxnLength value
+		unsigned int GetMaxLength(void) { return maxLength; }
+
+		//! Read-only access to ValueType
+		const MDTypePtr &GetValueType(void) { return ValueType; }
+
+		//! Read-only access to ChildOrder
+		const StringList &GetChildOrder(void) { return ChildOrder; }
+
+		//! Read-only access to KeyFormat
+		DictKeyFormat &GetKeyFormat(void) { return KeyFormat; }
+
+		//! Read-only access to LenFormat
+		DictLenFormat &GetLenFormat(void) { return LenFormat; }
 
 		//! Insert a new child type
 		std::pair<iterator, bool> insert(MDOTypePtr NewType) 
@@ -126,70 +244,54 @@ namespace mxflib
 		}
 
 		//! Get the UL for this type
-		// DRAGONS: When the KLVLib stub is no longer used this will return a ref to the contained UL
-		ULPtr GetUL(void)
-		{
-			if(Dict == NULL) return new UL();
-			if(Dict->GlobalKey == NULL) return new UL();
-			if(Dict->GlobalKeyLen != 16) return new UL();
-			return new UL(Dict->GlobalKey);
-		}
+		ULPtr GetUL(void) { return TypeUL; }
 
-	private:
-		MDOType(DictEntry *RootDict);
+		//! Read-only access to the key
+		const DataChunk &GetKey(void) { return Key; }
+
+		//! Read-only access to the global key
+		const DataChunk &GetGlobalKey(void) { return GlobalKey; }
+
+	protected:
+		// Protected constructor so we can control creation of types
+		MDOType();
 
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
-	private:
+	protected:
 		static MDOTypeList	AllTypes;	//!< All types managed by this object
 		static MDOTypeList	TopTypes;	//!< The top-level types managed by this object
 
 		//! Map for UL lookups
 		static std::map<UL, MDOTypePtr> ULLookup;
 		
-		//! Map for reverse lookups based on DictEntry pointer
-		static std::map<DictEntry*, MDOTypePtr> DictLookup;
-
 		//! Map for reverse lookups based on type name
-		static std::map<std::string, MDOTypePtr> NameLookup;
+		static MDOTypeMap NameLookup;
 
-// DRAGONS: This is public to allow us to build entries for dark items...
-public:
-		//! Add a KLVLib DictEntry definition to the managed types
-		static void AddDict(DictEntry *Dict, MDOTypePtr ParentType = NULL);
-private:
-
-		//! Internal class to ensure dictionary is freed at application end
-		class DictManager
-		{
-		protected:
-			static PrimerPtr StaticPrimer;
-		public:
-			DictEntry *MainDict;		//!< The KLVLib dictionary entry of the root entry
-		public:
-			DictManager() { MainDict = NULL; };
-			void Load(const char *DictFile);
-			PrimerPtr MakePrimer(void);
-			PrimerPtr GetStaticPrimer(void) { return StaticPrimer; };
-			~DictManager();
-		};
-
-		// Make the internal class able to access to private members
-		friend class DictManager;
-
-		static DictManager DictMan;		//!< Dictionary manager
+protected:
+		//! Basic primer for use when parsing non-primer partitions
+		static PrimerPtr StaticPrimer;
 
 	public:
 		//! Load the dictionary
-		static void LoadDict(const char *DictFile) { DictMan.Load(DictFile); };
+		static void LoadDict(const char *DictFile);
 
 		//! Build a primer
-		static PrimerPtr MakePrimer(void) { return DictMan.MakePrimer(); };
-		static PrimerPtr GetStaticPrimer(void) { return DictMan.GetStaticPrimer(); };
+		static PrimerPtr MakePrimer(void);
+		static PrimerPtr GetStaticPrimer(void) { return StaticPrimer; };
 
 		static MDOTypePtr Find(std::string BaseType);
 		static MDOTypePtr Find(ULPtr BaseUL);
 		static MDOTypePtr Find(Tag BaseTag, PrimerPtr BasePrimer);
+
+	protected:
+		static int ReadHexString(const char **Source, int Max, Uint8 *Dest, char *Sep);
+
+		static void SAX_startElement(void *user_data, const char *name, const char **attrs);
+		static void SAX_endElement(void *user_data, const char *name);
+		static void SAX_warning(void *user_data, const char *msg, ...);
+		static void SAX_error(void *user_data, const char *msg, ...);
+		static void SAX_fatalError(void *user_data, const char *msg, ...);
 	};
 }
 
@@ -213,7 +315,7 @@ namespace mxflib
 	};
 
 	//! A list of smart pointers to MDObject objects
-	typedef std::list<MDObjectPtr> MDObjectList;
+	class MDObjectList : public RefCount<MDObjectList>, public std::list<MDObjectPtr> {};
 	typedef SmartPtr<MDObjectList> MDObjectListPtr;
 
 	//! A list of smart pointers to MDObject objects with names
@@ -299,13 +401,9 @@ namespace mxflib
 
 			ASSERT(Type);
 
-			const DictEntry *Dict = Type->GetDict();
+			if(Type->GetDefault().Size == 0) return false;
 
-			if(!Dict) return false;
-			if(!Dict->HasDefault) return false;
-			if(!Dict->Default) return false;
-			
-			Value->ReadValue(Dict->Default, Dict->DefaultLen);
+			Value->ReadValue(Type->GetDefault());
 
 			return true;
 		}

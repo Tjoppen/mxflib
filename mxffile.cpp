@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.12 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.13 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -143,8 +143,9 @@ bool mxflib::MXFFile::ReadRunIn()
 		return false;
 	}
 
-	// Index the start of the key
-	Uint8 *BaseKey = BaseHeader->GetDict()->Key;
+	// Index the start of the key (with a sanity check first!)
+	if(BaseHeader->GetKey().Size < 16) return false;
+	Uint8 *BaseKey = BaseHeader->GetKey().Data;
 
 	// If no run-in end now
 	if(memcmp(BaseKey,Key->Data,11) == 0)
@@ -587,10 +588,10 @@ bool mxflib::MXFFile::BuildRIP(void)
 	// Note that this is not stricty an error - the file could be empty!
 	if(!ThisPartition) return true;
 
-	// Check that the first KLV as a partition pack
+	// Check that the first KLV is a partition pack
 	// DRAGONS: What if the first KLV is a filler? - This shouldn't be valid as it would look like a run-in!
-	if(!(ThisPartition->GetType()->GetDict()->Base)
-		|| ( strcmp(ThisPartition->GetType()->GetDict()->Base->Name, "PartitionMetadata") != 0) )
+	if(!(ThisPartition->GetType()->Base)
+		|| ( ThisPartition->GetType()->Base->Name() != "PartitionMetadata") )
 	{
 		error("First KLV in file \"%s\" is not a known partition type\n", Name.c_str());
 		return false;
@@ -743,11 +744,9 @@ bool mxflib::MXFFile::BuildRIP(void)
 			// Only check for this being a partition pack if we know the type
 			if(ThisType)
 			{
-				const DictEntry *Dict = ThisType->GetDict();
-//printf("Found %s at 0x%08x\n", Dict->Name, (Uint32)Location);
-				if(Dict && Dict->Base)
+				if(ThisType->Base)
 				{
-					if(strcmp(Dict->Base->Name, "PartitionMetadata") == 0)
+					if(ThisType->Base->Name() == "PartitionMetadata")
 					{
 						break;
 					}
@@ -941,7 +940,7 @@ Uint64 MXFFile::Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize /*=0*/)
 	ASSERT(FillType);
 
 	// Write the filler key
-	Write(FillType->GetDict()->GlobalKey, FillType->GetDict()->GlobalKeyLen);
+	Write(FillType->GetGlobalKey());
 
 	// Calculate filler length for shortform BER length
 	Fill -= 17;

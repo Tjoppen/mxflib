@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.15 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.16 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -33,207 +33,23 @@
  */
 
 #include <mxflib/mxflib.h>
+#include <mxflib/sopsax.h>
 
-extern "C"
-{
-#include <Endian.h>
-#include <xmldict.h>
-}
+#include <stdarg.h>
 
 using namespace mxflib;
 
 
 
 //! Static primer to use for index tables
-PrimerPtr MDOType::DictManager::StaticPrimer;
+PrimerPtr MDOType::StaticPrimer;
 
-
-// Map used to convert KLVLib "DictType" enum to text string of type name
-typedef std::map<DictType, char *> KLVLib_XLateType;
-static KLVLib_XLateType KLVLib_XLate;
-
-
-//! Initialise the table used to convert KLVLib "DictType" enum to text string of type name
-static void InitDictType2Text(void)
-{
-	if(KLVLib_XLate.empty())
-	{
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_NONE,"Unknown"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_U8,"Uint8"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I8,"Int8"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_U16,"Uint16"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I16,"Int16"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_U32,"Uint32"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I32,"Int32"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_U64,"Uint64"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I64,"Int64"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_ISO7,"ISO7"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UTF8,"UTF8"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UTF16,"UTF16"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UUID,"UUID"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UMID,"UMID"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_LABEL,"Label"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_TIMESTAMP,"TimeStamp"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_VERTYPE,"VersionType"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_RATIONAL,"Rational"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_BOOLEAN,"Boolean"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_ISO7STRING,"ISO7String"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UTF16STRING,"UTF16String"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_IEEEFLOAT64,"Float64"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UINT8STRING,"Uint8Array")); // DRAGONS: Is this right?
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_PRODUCTVERSION,"ProductVersion"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_RAW,"Uint8Array"));
-		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I32ARRAY,"Int32Array"));
-	}
-}
-
-
-//! Convert KLVLib "DictType" enum to text string of type name
-/*! \return Pointer to a string constant.
- *  \return "" if the DictType is not known or is a container (e.g. a pack)
- */
-static char *DictType2Text(DictType Type)
-{
-	KLVLib_XLateType::iterator it = KLVLib_XLate.find(Type);
-
-	if(it == KLVLib_XLate.end()) return "";
-
-	return (*it).second;
-}
-
-
-//! MDDict constructor
-/*! Loads the dictionary from the specified file
-*/
-void MDOType::DictManager::Load(const char *DictFile)
-{
-	// Initialise the map that converts KLVLib dictionary type enums to type names
-	InitDictType2Text();
-
-	// Build an entry for all unknown types
-	// Note that we malloc it because KLVLib will "free" it later
-	DictEntry *Unknown = (DictEntry*)malloc(sizeof(DictEntry));
-
-	ASSERT(Unknown);
-	if(!Unknown)
-	{
-		error("Out of memory\n");
-		return;
-	}
-
-	InitialiseDictEntry(Unknown);
-
-	Unknown->Name = (char *)malloc(8);
-	strcpy(Unknown->Name, "Unknown");
-
-
-	// Load the KLVLib dictionary
-	MainDict = LoadXMLDictionary(DictFile);
-
-	if(MainDict == NULL)
-	{
-		error("Couldn't open dictionary file \"%s\"\n", DictFile);
-
-		// Note: We don't bug out here, we process the single "Unknown" type
-		MainDict = Unknown;
-	}
-	else
-	{
-		// Add an "Unknown" entry at the end
-		DictEntry *Dict = MainDict;
-		for(;;)
-		{
-			if(Dict->Next == NULL)
-			{
-				Dict->Next = Unknown;
-				break;
-			}
-			Dict = Dict->Next;
-		}
-	}
-
-	// Build all MDOTypes from the KLVLib dictionary
-	DictEntry *Dict = MainDict;
-	while(Dict != NULL)
-	{
-		DictEntry *p = Dict->Parent;
-		while(p)
-		{
-			debug("*");
-			p = p->Parent;
-		}
-
-		debug("DictEntry: %s\n", Dict->Name);
-
-		// Add any top level types (and their children)
-		if(Dict->Parent == NULL)
-		{
-			MDOType::AddDict(Dict);
-		}
-
-		// Continue looping
-		Dict = Dict->Next;
-	}
-
-	// DRAGONS: Clumbsy code to sort out base types
-	{
-		MDOTypeList::iterator it = AllTypes.begin();
-
-		while(it != AllTypes.end())
-		{
-			DictEntry *Base = (*it)->GetDict()->Base;
-
-			if(Base != NULL)
-			{
-				if( DictLookup.find(Base) == DictLookup.end() )
-				{
-					error("Missing base type for MDOType \"%s\"\n", (*it)->GetDict()->Name);
-				}
-				else
-				{
-					(*it)->Base = DictLookup[Base];
-				}
-			}
-			it++;
-		}
-	}
-
-/*
-	// DRAGONS: Some debug!
-	MDOTypeList::iterator it = TopTypes.begin();
-	while(it != TopTypes.end())
-	{
-		debug("MDOType: %s\n", (*it)->GetDict()->Name);
-
-		StringList::iterator it2 = (*it)->ChildOrder.begin();
-		while(it2 != (*it)->ChildOrder.end())
-		{
-			MDOTypePtr Current = NameLookup[(*it)->FullName() + "/" + *it2];
-			debug("  Sub->: %s = %s\n", (*it2).c_str() , Current->GetDict()->Name);
-
-			StringList::iterator it3 = Current->ChildOrder.begin();
-			while(it3 != Current->ChildOrder.end())
-			{
-				debug("    SubSub->: %s\n", (*it3).c_str());
-				it3++;
-			}
-			it2++;
-//			it2n++;
-		}
-
-		it++;
-	}
-*/
-
-	// Build a static primer (for use in index tables)
-	StaticPrimer = MakePrimer();
-}
 
 
 //! Build a Primer object for the current dictionary
 /*! This primer has the mappings of tag to UL from the dictionary
  */
-PrimerPtr MDOType::DictManager::MakePrimer(void)
+PrimerPtr MDOType::MakePrimer(void)
 {
 	PrimerPtr Ret = new Primer;
 
@@ -241,20 +57,18 @@ PrimerPtr MDOType::DictManager::MakePrimer(void)
 	MDOTypeList::iterator it = AllTypes.begin();
 	while(it != AllTypes.end())
 	{
-		const DictEntry *Dict = (*it)->GetDict();
-
-		if(Dict->KeyLen == 2)
+		if((*it)->Key.Size == 2)
 		{
-			Tag ThisTag = Dict->Key[1] + (Dict->Key[0] << 8);
+			Tag ThisTag = (*it)->Key.Data[1] + ((*it)->Key.Data[0] << 8);
 
 			// Don't barf if the dictionary entry is invalid!
-			if(Dict->GlobalKeyLen != 16)
+			if((*it)->GlobalKey.Size != 16)
 			{
-				error("Dictionary entry for \"%s\" has a 2-byte tag, but doesn't have a 16-byte UL\n", Dict->Name);
+				error("Dictionary entry for \"%s\" has a 2-byte tag, but doesn't have a 16-byte UL\n", (*it)->FullName().c_str());
 			}
 			else
 			{
-				mxflib::UL ThisUL(Dict->GlobalKey);
+				mxflib::UL ThisUL((*it)->GlobalKey.Data);
 				Ret->insert(Primer::value_type(ThisTag, ThisUL));
 			}
 		}
@@ -266,199 +80,22 @@ PrimerPtr MDOType::DictManager::MakePrimer(void)
 }
 
 
-//! Add a KLVLib DictEntry definition to the managed types
-void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
-{
-	// Create a new MDOType to manage
-	MDOTypePtr NewType = new MDOType(Dict);
-
-	// Add to the list of all types
-	AllTypes.push_back(NewType);
-
-	// If it is a top level type then add it to TopTypes as well
-	if(Dict->Parent == NULL) TopTypes.push_back(NewType);
-
-	// Record the parent
-	NewType->Parent = ParentType;
-
-	// If it is a child of another type then add to the children lists
-	if(ParentType)
-	{
-		ParentType->insert(NewType);
-	}
-
-	// Build base name for any children
-	MDOTypePtr Scan = ParentType;
-	NewType->RootName = "";
-	if(Scan) NewType->RootName = ParentType->FullName() + "/";
-
-	// Copy any children from our base
-	if(Dict->Base)
-	{
-		MDOTypePtr Base = DictLookup[Dict->Base];
-		
-		// Add child names to name lookup
-		StringList::iterator it = Base->ChildOrder.begin();
-		while(it != Base->ChildOrder.end())
-		{
-			MDOTypePtr Current = NameLookup[Base->FullName() + "/" + (*it)];
-
-			if(!Current)
-			{
-				error("Cannot locate child derived from base type in MDOType::AddDict() - dictionary or types dictionary may be corrupt or missing\n");
-				break;
-			}
-
-			// Add the base types children
-			NewType->insert(Current);
-
-			NameLookup[NewType->FullName() + "/" + (*it)] = Current;
-			it++;
-		}
-	}
-
-	// Get name of this value type
-	// First we do a quick trick to make vectors work as MDValue array types
-	std::string Type;
-	if( (Dict->Type == DICT_TYPE_VECTOR) || (Dict->Type == DICT_TYPE_ARRAY) )
-	{
-		// First see if there is only one item in the vector
-		if(Dict->Children && (Dict->Children->Next == NULL))
-		{
-			// If it is a ref this is more important than the UUID type
-			if(Dict->RefType == DICT_REF_STRONG)
-				Type = "StrongRef";
-			else if(Dict->RefType == DICT_REF_WEAK)
-				Type = "WeakRef";
-			else
-				Type = DictType2Text(Dict->Children->Link->Type);
-
-			if(Type != "")
-			{
-				if(Dict->Type == DICT_TYPE_VECTOR) Type += "Batch";
-				else Type += "Array";
-			}
-
-			AddDict(Dict->Children->Link, NewType);
-		}
-		else
-		{
-			Type = "";
-		}
-	}
-	else
-	{
-		// Not a vector or array, look up the type
-		Type = DictType2Text(Dict->Type);
-	}
-
-	if(Type != "")
-	{
-		NewType->ValueType = MDType::Find(Type.c_str());
-		if(!NewType->ValueType)
-		{
-			std::string Temp = NewType->RootName;
-			Temp += Dict->Name;
-			warning("Object type \"%s\" is of unknown type \"%s\"\n", Temp.c_str(), Type.c_str());
-
-			NewType->ValueType = MDType::Find("Unknown");
-
-			if(!NewType->ValueType)
-			{
-				error("Type \"Unknown\" is not available - has the types dictionary been loaded?\n");
-				return;
-			}
-		}
-	}
-	else
-	{
-		// Add any children of our own
-		// Note that this is only done if the type is not a known
-		// MDType because this allows vectors to be handled as
-		// MDValue objects rather than containers
-		DictEntryList *ChildList = Dict->Children;
-		while(ChildList != NULL)
-		{
-			// Rinse and repeat!
-			AddDict(ChildList->Link, NewType);
-
-			// Iterate through the list
-			ChildList = ChildList->Next;
-		}
-	}
-
-	if(Dict->GlobalKeyLen == 16)
-	{
-		NewType->TypeUL = new UL(Dict->GlobalKey);
-	}
-
-	// Set the lookups
-	if(NewType->TypeUL) ULLookup[UL(NewType->TypeUL)] = NewType;
-	DictLookup[Dict] = NewType;
-	NameLookup[NewType->RootName + std::string(Dict->Name)] = NewType;
-}
-
-
-//! MDOType destructor
-/*! Frees all items loaded and generated by this object
-*/
-MDOType::DictManager::~DictManager()
-{
-	// Free the main dictionary (as long as it has been loaded)
-	if (MainDict) FreeDictionary(MainDict);
-}
-
-
-
 //! Builds an MDOType
 /*! This constructor is private so the ONLY way to create
  *	new MDOTypes from outside this class is via AddDict()
 */
-MDOType::MDOType(DictEntry *RootDict) : Dict(RootDict), Parent(NULL)
+MDOType::MDOType(void)
 {
-	// Can't build an MDOType based on nothing
-	ASSERT( RootDict != NULL );
+	// Initialise dictionary data
+	KeyFormat = DICT_KEY_NONE;
+	LenFormat = DICT_LEN_BER;
+	minLength = 0;
+	maxLength = (unsigned int)-1;
+	Use = DICT_USE_NONE;
+	RefType = DICT_REF_NONE;
 
-	// Assume we have the same type as KLVLib uses
-	RefType = RootDict->RefType;
-
-	//! Determine the container type
-	if( (RootDict->Type == DICT_TYPE_UNIVERSAL_SET) 
-	  ||(RootDict->Type == DICT_TYPE_LOCAL_SET) )
-	{
-		ContainerType = SET;
-	}
-	else if( (RootDict->Type == DICT_TYPE_FIXED_PACK) 
-		   ||(RootDict->Type == DICT_TYPE_VARIABLE_PACK) )
-	{
-		ContainerType = PACK;
-	}
-	else if(RootDict->Type == DICT_TYPE_VECTOR)
-	{
-		ContainerType = BATCH;
-
-		// Children will have the ref property (different to KLVLib)
-		RefType = DICT_REF_NONE;
-	}
-	else if(RootDict->Type == DICT_TYPE_ARRAY)
-	{
-		ContainerType = ARRAY;
-
-		// Children will have the ref property (different to KLVLib)
-		RefType = DICT_REF_NONE;
-	}
-	else
-	{
-		ContainerType = NONE;
-
-		if(RootDict->Parent)
-		{
-//printf("%s is a child of %s\n",RootDict->Name, RootDict->Parent->Name);
-//if(RootDict->Parent->RefType != DICT_REF_NONE) printf("Parent Ref Type = %d\n", RootDict->Parent->RefType );
-			// Inherit ref type from parent if it has one
-			if(RootDict->Parent->RefType != DICT_REF_NONE) RefType = RootDict->Parent->RefType;
-		}
-	}
+	// Initially assume not a container
+	ContainerType = NONE;
 }
 
 
@@ -503,41 +140,27 @@ MDOTypePtr MDOType::Find(ULPtr BaseUL)
 
 //! Find the MDOType object that defines a type with a specified Tag
 /*! The tag is looked up in the supplied primer
- *	\note if BasePrimer is NULL then a standard dictionary lookup of known static tags is performed
+ *	\note if BasePrimer is NULL then the static primer is searched
  *  \return Pointer to the object
- *  \return NULL if there is no type with that UL
+ *  \return NULL if there is no type with that tag
  */
 MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 {
 	MDOTypePtr theType;
 
-	if(BasePrimer)
+	// Search the static primer by default
+	if(!BasePrimer) BasePrimer = StaticPrimer;
+
+	Primer::iterator it = BasePrimer->find(BaseTag);
+
+	if(it != BasePrimer->end())
 	{
-		Primer::iterator it = BasePrimer->find(BaseTag);
+		UL BaseUL = (*it).second;
+		std::map<UL, MDOTypePtr>::iterator it2 = ULLookup.find(UL(BaseUL));
 
-		if(it != BasePrimer->end())
+		if(it2 != ULLookup.end())
 		{
-			UL BaseUL = (*it).second;
-			std::map<UL, MDOTypePtr>::iterator it2 = ULLookup.find(UL(BaseUL));
-
-			if(it2 != ULLookup.end())
-			{
-				theType = (*it2).second;
-			}
-		}
-	}
-	else
-	{
-		// See if we know this static tag
-		if(BaseTag < 0x8000)
-		{
-			Uint8 Key[2];
-			Key[0] = BaseTag >> 8;
-			Key[1] = BaseTag & 0xff;
-
-			DictEntry *Dict = FindDictByLocalKey(DictMan.MainDict, 2, Key, NULL);
-
-			if(Dict) return MDOType::Find(new UL(Dict->GlobalKey));
+			theType = (*it2).second;
 		}
 	}
 
@@ -630,7 +253,7 @@ MDObject::MDObject(ULPtr UL)
 
 			ASSERT(Preface);
 
-			if(memcmp(Preface->TypeUL->GetValue(), UL->GetValue(), 6) == 0)
+			if(memcmp(Preface->GetTypeUL()->GetValue(), UL->GetValue(), 6) == 0)
 			{
 				Type = MDOType::Find("DefaultObject");
 				ASSERT(Type);
@@ -671,7 +294,7 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 			Type = MDOType::Find(BaseTag, NULL);
 
 			// If it is a "known" static then use it (but still give the error)
-			if(Type) TheUL = Type->TypeUL;
+			if(Type) TheUL = Type->GetTypeUL();
 		}
 		else
 		{
@@ -684,7 +307,7 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 	{
 		// No primer supplied - see if we know this tag anyway
 		Type = MDOType::Find(BaseTag, NULL);
-		if(Type) TheUL = Type->TypeUL;
+		if(Type) TheUL = Type->GetTypeUL();
 	}
 
 	// If it was unknown build an "Unknown" and set a meaningful name
@@ -736,12 +359,12 @@ void MDObject::Init(void)
 	case NONE:
 		// If it isn't a container build the basic item
 		{
-			Value = new MDValue(Type->ValueType);
+			Value = new MDValue(Type->GetValueType());
 
-			if(Type->ValueType->EffectiveClass() == TYPEARRAY)
+			if(Type->GetValueType()->EffectiveClass() == TYPEARRAY)
 			{
 				// Build the minimum size array
-				Value->Resize(Type->GetDict()->minLength);
+				Value->Resize(Type->GetMinLength());
 			}
 		}
 		break;
@@ -751,8 +374,8 @@ void MDObject::Init(void)
 		{
 			Value = NULL;
 
-			StringList::iterator it = Type->ChildOrder.begin();
-			while(it != Type->ChildOrder.end())
+			StringList::const_iterator it = Type->GetChildOrder().begin();
+			while(it != Type->GetChildOrder().end())
 			{
 				MDOTypePtr Current = MDOType::Find(Type->FullName() + "/" + (*it));
 
@@ -1116,7 +739,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			clear();
 
 			// Find the first (or only) child type
-			StringList::iterator it = Type->ChildOrder.begin();
+			StringList::const_iterator it = Type->GetChildOrder().begin();
 			MDOType::iterator it2 = Type->find(*it);
 			ASSERT(it2 != Type->end());
 			MDOTypePtr ChildType = (*it2).second;
@@ -1148,7 +771,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				{
 					it++;
 					
-					if(it == Type->ChildOrder.end()) it = Type->ChildOrder.begin(); 
+					if(it == Type->GetChildOrder().end()) it = Type->GetChildOrder().begin(); 
 					else ItemStart = false;
 					
 					it2 = Type->find(*it);
@@ -1164,7 +787,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				}
 			}
 
-			if((ChildCount > 1) && (it != Type->ChildOrder.begin()))
+			if((ChildCount > 1) && (it != Type->GetChildOrder().begin()))
 			{
 				error("Multiple %s at 0x%s in %s does not contain an integer number of sub-items\n", 
 					  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
@@ -1255,7 +878,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				Uint32 BytesAtItemStart = Bytes;
 
 				DataChunk Key;
-				Uint32 ThisBytes = ReadKey(Type->GetDict()->KeyFormat, Size, Buffer, Key);
+				Uint32 ThisBytes = ReadKey(Type->GetKeyFormat(), Size, Buffer, Key);
 
 				// Abort if we can't read the key
 				// this prevents us looping for ever if we
@@ -1268,7 +891,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				Bytes += ThisBytes;
 
 				Uint32 Length;
-				ThisBytes = ReadLength(Type->GetDict()->LenFormat, Size, Buffer, Length);
+				ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
 
 				// Advance counters and pointers passed Length
 				Size -= ThisBytes;
@@ -1287,14 +910,14 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 					}
 
 					MDObjectPtr NewItem;
-					if(Type->GetDict()->KeyFormat == DICT_KEY_2_BYTE)
+					if(Type->GetKeyFormat() == DICT_KEY_2_BYTE)
 					{
 						ASSERT(Key.Size == 2);
 						Tag ThisKey = GetU16(Key.Data);
 
 						NewItem = new MDObject(ThisKey, UsePrimer);
 					}
-					else if(Type->GetDict()->KeyFormat == DICT_KEY_AUTO)
+					else if(Type->GetKeyFormat() == DICT_KEY_AUTO)
 					{
 						ASSERT(Key.Size == 16);
 						ULPtr ThisUL = new UL(Key.Data);
@@ -1613,26 +1236,23 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 	{
 		DEBUG_WRITEOBJECT( debug("Parent %s, ", ParentObject->FullName().c_str()); )
 		
-		const DictEntry *Dict = ParentObject->Type->GetDict();
-		ASSERT(Dict);
-
 		// Only sets need keys
-		if((Dict->Type == DICT_TYPE_UNIVERSAL_SET) || (Dict->Type == DICT_TYPE_LOCAL_SET))
+		if(ParentObject->Type->GetContainerType() == SET)
 		{
-			Bytes = WriteKey(Buffer, Dict->KeyFormat, UsePrimer);
+			Bytes = WriteKey(Buffer, Type->GetKeyFormat(), UsePrimer);
 			DEBUG_WRITEOBJECT( debug("Key = %s, ", Buffer.GetString().c_str()); )
 		}
 
-		if((Dict->Type == DICT_TYPE_VECTOR) || (Dict->Type == DICT_TYPE_ARRAY))
+		if((ParentObject->Type->GetContainerType() == BATCH) || (ParentObject->Type->GetContainerType() == ARRAY))
 		{
 			LenFormat = DICT_LEN_NONE;
 		}
 		else
 		{
-			LenFormat = Dict->LenFormat;
+			LenFormat = Type->GetLenFormat();
 		}
-		
-		DEBUG_WRITEOBJECT( debug("Dict->Type = %d, ", Dict->Type); )
+
+		DEBUG_WRITEOBJECT( debug("ParentObject->ContainerType = %d, ", ParentObject->Type->GetContainerType()); )
 		DEBUG_WRITEOBJECT( if(LenFormat == DICT_LEN_BER) debug("Length = BER\n"); )
 		DEBUG_WRITEOBJECT( else debug("Length = %d-byte\n", (int)LenFormat); )
 	}
@@ -1650,7 +1270,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		DataChunk Val;
 
 		// Work out how many sub-items per child 
-		Uint32 SubCount = Type->ChildOrder.size();
+		Uint32 SubCount = Type->GetChildOrder().size();
 		
 		// Count of remaining subs for this item
 		Uint32 Subs = 0;
@@ -1680,8 +1300,8 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		{
 			DataChunk Temp;
 
-			StringList::iterator it = Type->ChildOrder.begin();
-			while(it != Type->ChildOrder.end())
+			StringList::const_iterator it = Type->GetChildOrder().begin();
+			while(it != Type->GetChildOrder().end())
 			{
 				MDOType::iterator it2 = Type->find(*it);
 				ASSERT(it2 != Type->end());
@@ -1725,9 +1345,9 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		DataChunk Val;
 
 		// Ensure we write the pack out in order
-		StringList::iterator it = Type->ChildOrder.begin();
+		StringList::const_iterator it = Type->GetChildOrder().begin();
 
-		while(it != Type->ChildOrder.end())
+		while(it != Type->GetChildOrder().end())
 		{
 			MDObjectPtr Ptr = Child(*it);
 			if(!Ptr)
@@ -1969,14 +1589,10 @@ bool MDObject::MakeLink(MDObjectPtr TargetSet)
 /*! \return true if distinguished value set, else false */
 bool MDObject::SetDValue(void)
 {
-	DictEntry const *Dict = Type->GetDict();
-
-	if(!Dict) return false;
-
-	if(!Dict->HasDValue) return false;
+	if(Type->GetDValue().Size == 0) return false;
 
 	SetModified(true);
-	ReadValue(Dict->DValue, Dict->DValueLen);
+	ReadValue(Type->GetDValue());
 
 	return true;
 }
@@ -1986,15 +1602,12 @@ bool MDObject::SetDValue(void)
 /*! \return true if distinguished value set, else false */
 bool MDObject::IsDValue(void)
 {
-	DictEntry const *Dict = Type->GetDict();
-
-	if(!Dict) return false;
-	if(!Dict->HasDValue) return false;
+	if(Type->GetDValue().Size == 0) return false;
 
 	DataChunk DVal = PutData();
-	if(DVal.Size != Dict->DValueLen) return false;
+	if(DVal.Size != Type->GetDValue().Size) return false;
 	
-	if(memcmp(DVal.Data, Dict->DValue, DVal.Size) == 0) return true;
+	if(memcmp(DVal.Data, Type->GetDValue().Data, DVal.Size) == 0) return true;
 
 	return false;
 }
@@ -2037,6 +1650,766 @@ MDObjectPtr MDObject::MakeCopy(void)
 	return Ret;
 }
 
+//! XML Dictionary parsing state-machine state
+typedef enum
+{
+	DICT_STATE_START = 0,				//!< Not yet inside the 'MXFDictionary' tag
+	DICT_STATE_DICT,					//!< Inside the 'MXFDictionary' tag
+	DICT_STATE_END,						//!< Finished the dictionary
+	DICT_STATE_ERROR					//!< Skip all else - error condition
+} DictStateState;
+
+
+//! SAX parsing state structure for XML dictionary parser
+typedef struct
+{
+	DictStateState	State;					//! State-machine current state
+	std::list<MDOTypePtr> Parents;			//! List of pointers to parents, empty if currently at the top level
+	std::list<std::string> ParentNames;		//! List of parent names, empty if currently at the top level
+} DictState;
+
+
+//! Load the dictionary from the specified file
+void MDOType::LoadDict(const char *DictFile)
+{
+	DictState State;
+
+	// Set start state
+	State.State = DICT_STATE_START;
+
+	// Parse the file
+	sopSAXHandler SAXHandler = {
+		(startElementSAXFunc) SAX_startElement,		/* startElement */
+		(endElementSAXFunc) SAX_endElement,			/* endElement */
+		(warningSAXFunc) SAX_warning,				/* warning */
+		(errorSAXFunc) SAX_error,					/* error */
+		(fatalErrorSAXFunc) SAX_fatalError,			/* fatalError */
+	};
+
+	sopSAXParseFile(&SAXHandler, &State, DictFile);
+
+	// If "Unknown" is not yet defined - define it
+	MDOTypePtr Type = MDOType::Find("Unknown");
+	if(!Type)
+	{
+		Type = new MDOType;
+		Type->DictName = "Unknown";
+
+		// The type of "Unknown" is also "Unknown"
+		MDTypePtr ValType = MDType::Find("Unknown");
+		ASSERT(ValType);
+		Type->ValueType = ValType;
+
+		// Add to the list of all types
+		AllTypes.push_back(Type);
+
+		// As it is a top level type then add it to TopTypes as well
+		TopTypes.push_back(Type);
+
+		// Set the name lookup - no UL for unknown
+		NameLookup[Type->DictName] = Type;
+
+	}
+
+	// Locate reference target types
+	MDOTypeList::iterator it = AllTypes.begin();
+	while(it != AllTypes.end())
+	{
+		if((*it)->RefTargetName.size())
+		{
+			MDOTypeMap::iterator it2 = NameLookup.find((*it)->RefTargetName);
+
+			if(it2 == NameLookup.end())
+			{
+				error("Type %s specifies an unknown reference target type of %s\n", (*it)->Name().c_str(), (*it)->RefTargetName.c_str());
+			}
+			else
+			{
+				(*it)->RefTarget = (*it2).second;
+			}
+		}
+
+		it++;
+	}
+
+	// Build a static primer (for use in index tables)
+	StaticPrimer = MakePrimer();
+}
+
+
+//! XML Dictionary parsing - Deal with start tag of an element
+void MDOType::SAX_startElement(void *user_data, const char *name, const char **attrs)
+{
+	DictState *State = (DictState*)user_data;
+	int this_attr = 0;
+
+	debug("Element : %s\n", name);
+
+	if(attrs != NULL)
+	{
+		while(attrs[this_attr])
+		{
+			debug("  Attribute : %s = \"%s\"\n", attrs[this_attr], attrs[this_attr+1]);
+			this_attr += 2;
+		}
+	}
+
+	switch(State->State)
+	{
+		case DICT_STATE_START:
+			if(strcmp(name, "MXFDictionary") != 0)
+			{
+				SAX_error(State, "Expected outer tag <MXFDictionary> got <%s>", name);
+				State->State = DICT_STATE_ERROR;
+			}
+			else
+			{
+				/* Start above outer layer of MXF dictionary */
+				State->State = DICT_STATE_DICT;
+			}
+
+			break;
+
+		case DICT_STATE_DICT:
+		{
+			bool HasGlobalKey = false;
+			std::string default_text;
+			std::string dvalue_text;
+
+			/* Grab a new dictionary entry */
+			MDOTypePtr Dict = new MDOType;
+
+			// Record our name
+			Dict->DictName = std::string(name);
+
+			/* Check for inheritance */
+			// We do this first as the entry needs to be BASED on the base entry
+			if(attrs != NULL)
+			{
+				this_attr = 0;
+				while(attrs[this_attr])
+				{
+					char const *attr = attrs[this_attr++];
+					char const *val = attrs[this_attr++];
+					
+					if(strcmp(attr, "base") == 0)
+					{
+						MDOTypePtr BaseType = Find(val);
+
+						if(!BaseType)
+						{
+							SAX_error(State, "Cannot find base type '%s' for <%s>", val, name);
+						}
+						else
+						{
+							debug("Deriving %s from %s\n", name, BaseType->Name().c_str());
+							Dict->Derive(BaseType);
+						}
+
+						break;
+					}
+				}
+			}
+
+			// Record our parent
+			if(State->Parents.size())
+			{
+				// Our parent is the last entry in the parents list
+				Dict->Parent = *State->Parents.rbegin();
+
+				// Add us as a child of our parent
+				Dict->Parent->insert(Dict);
+
+				// Move reference details from parent (used for vectors)
+				if(Dict->Parent->RefType != DICT_REF_NONE)
+				{
+					Dict->RefType = Dict->Parent->RefType;
+					Dict->Parent->RefType = DICT_REF_NONE;
+				}
+
+//				/* Inherit vector details */
+//				if((Parent->Type == DICT_TYPE_VECTOR) || (Parent->Type == DICT_TYPE_ARRAY))
+//				{
+//					Current->Type = Parent->VectorType;
+//					Current->minLength = Parent->minLength;
+//					Current->maxLength = Parent->maxLength;
+//				}
+			}
+
+			// If we are not top level then record out "family tree"
+			if(Dict->Parent) Dict->RootName = Dict->Parent->FullName() + "/";
+
+			// Add to the list of all types
+			AllTypes.push_back(Dict);
+
+			// If it is a top level type then add it to TopTypes as well
+			if(!Dict->Parent) TopTypes.push_back(Dict);
+
+			// Set the name lookup - UL lookup set when key set
+			NameLookup[Dict->RootName + Dict->DictName] = Dict;
+
+			// Add us as parent to any following entries
+			State->Parents.push_back(Dict);
+
+			/* Scan attributes */
+			this_attr = 0;
+			if(attrs != NULL)
+			{
+				while(attrs[this_attr])
+				{
+					char const *attr = attrs[this_attr++];
+					char const *val = attrs[this_attr++];
+					
+					if(strcmp(attr, "key") == 0)
+					{
+						int Size;
+						const char *p = val;
+						Uint8 Buffer[32];
+
+						Size = ReadHexString(&p, 32, Buffer, " \t.");
+
+						Dict->Key.Set(Size, Buffer);
+					}
+					else if(strcmp(attr, "globalKey") == 0)
+					{
+						int Size;
+						const char *p = val;
+						Uint8 Buffer[32];
+
+						Size = ReadHexString(&p, 32, Buffer, " \t.");
+
+						Dict->GlobalKey.Set(Size, Buffer);
+
+						HasGlobalKey = true;
+					}
+					else if(strcmp(attr, "detail") == 0)
+					{
+						Dict->Detail = std::string(val);
+					}
+					else if(strcmp(attr, "use") == 0)
+					{
+						DictUse Use;
+
+						if(strcasecmp(val,"required") == 0) Use = DICT_USE_REQUIRED;
+						else if(strcasecmp(val,"encoder required") == 0) Use = DICT_USE_ENCODER_REQUIRED;
+						else if(strcasecmp(val,"decoder required") == 0) Use = DICT_USE_DECODER_REQUIRED;
+						else if(strcasecmp(val,"best effort") == 0) Use = DICT_USE_BEST_EFFORT;
+						else if(strcasecmp(val,"optional") == 0) Use = DICT_USE_OPTIONAL;
+						else if(strcasecmp(val,"dark") == 0) Use = DICT_USE_DARK;
+						else if(strcasecmp(val,"toxic") == 0) Use = DICT_USE_TOXIC;
+						else
+						{
+							SAX_warning(State, "Unknown use value use=\"%s\" in <%s>", val, name);
+							Use = DICT_USE_OPTIONAL;
+						}
+
+						Dict->Use = Use;
+					}
+					else if(strcmp(attr, "ref") == 0)
+					{
+						DictRefType RefType;
+
+						if(strcasecmp(val,"strong") == 0) RefType = DICT_REF_STRONG;
+						else if(strcasecmp(val,"target") == 0) RefType = DICT_REF_TARGET;
+						else if(strcasecmp(val,"weak") == 0) RefType = DICT_REF_WEAK;
+						else
+						{
+							SAX_warning(State, "Unknown ref value ref=\"%s\" in <%s>\n", val, name);
+							RefType = DICT_REF_NONE;
+						}
+
+						Dict->RefType = RefType;
+					}
+					else if(strcmp(attr, "type") == 0)
+					{
+						MDTypePtr Type = MDType::Find(val);
+
+						if(Type)
+						{
+							Dict->ValueType = Type;
+						}
+						else
+						{
+							/*
+							** Enumeration type for dictionary entry 'Type' field
+							*/
+							typedef enum 
+							{
+								DICT_TYPE_NONE = 0,
+								DICT_TYPE_U8,
+								DICT_TYPE_I8,
+								DICT_TYPE_U16,
+								DICT_TYPE_I16,
+								DICT_TYPE_U32,
+								DICT_TYPE_I32,
+								DICT_TYPE_U64,
+								DICT_TYPE_I64,
+								DICT_TYPE_ISO7,
+								DICT_TYPE_UTF8,
+								DICT_TYPE_UTF16,
+								DICT_TYPE_UUID,
+								DICT_TYPE_UMID,
+								DICT_TYPE_LABEL,
+								DICT_TYPE_TIMESTAMP,
+								DICT_TYPE_VERTYPE,
+								DICT_TYPE_RATIONAL,
+								DICT_TYPE_RAW,
+								DICT_TYPE_I32ARRAY,
+
+								/* Special to allow decoding of Sony IBC 2000 file */
+								DICT_TYPE_UTFSONY,
+
+								/* New types (soon to be added via types registry) */
+								DICT_TYPE_BOOLEAN,
+								DICT_TYPE_ISO7STRING,
+								DICT_TYPE_UTF16STRING,
+								DICT_TYPE_IEEEFLOAT64,
+								DICT_TYPE_UINT8STRING,
+								DICT_TYPE_PRODUCTVERSION,
+
+								/* Container types */
+								DICT_TYPE_UNIVERSAL_SET,
+								DICT_TYPE_LOCAL_SET,
+								DICT_TYPE_FIXED_PACK,
+								DICT_TYPE_VARIABLE_PACK,
+								DICT_TYPE_VECTOR,
+								DICT_TYPE_ARRAY,
+
+								/* Types for pixel layout */
+								DICT_TYPE_RGBALAYOUT,
+
+							} DictType;
+
+
+							DictType DType = DICT_TYPE_NONE;
+							if(strcasecmp(val,"universalSet") == 0) DType = DICT_TYPE_UNIVERSAL_SET;
+							else if(strcasecmp(val,"localSet") == 0) DType = DICT_TYPE_LOCAL_SET;
+							else if(strcasecmp(val,"subLocalSet") == 0) DType = DICT_TYPE_LOCAL_SET;
+							else if(strcasecmp(val,"fixedPack") == 0) DType = DICT_TYPE_FIXED_PACK;
+							else if(strcasecmp(val,"subFixedPack") == 0) DType = DICT_TYPE_FIXED_PACK;
+							else if(strcasecmp(val,"variablePack") == 0) DType = DICT_TYPE_VARIABLE_PACK;
+							else if(strcasecmp(val,"subVariablePack") == 0) DType = DICT_TYPE_VARIABLE_PACK;
+							else if(strcasecmp(val,"vector") == 0) DType = DICT_TYPE_VECTOR;
+							else if(strcasecmp(val,"subVector") == 0) DType = DICT_TYPE_VECTOR;
+							else if(strcasecmp(val,"array") == 0) DType = DICT_TYPE_ARRAY;
+							else if(strcasecmp(val,"subArray") == 0) DType = DICT_TYPE_ARRAY;
+							else
+							{
+								SAX_warning(State, "Unknown type \"%s\" in <%s>", val, name);
+							}
+
+							// Set the container type
+							if((DType == DICT_TYPE_UNIVERSAL_SET) || (DType == DICT_TYPE_LOCAL_SET))
+							{
+								Dict->ContainerType = SET;
+							}
+							else if((DType == DICT_TYPE_FIXED_PACK) || (DType == DICT_TYPE_VARIABLE_PACK))
+							{
+								Dict->ContainerType = PACK;
+							}
+							else if(DType == DICT_TYPE_VECTOR)
+							{
+								Dict->ContainerType = BATCH;
+							}
+							else if(DType == DICT_TYPE_ARRAY)
+							{
+								Dict->ContainerType = ARRAY;
+							}
+
+							// Modify 'omitted' items by type
+							if(DType == DICT_TYPE_FIXED_PACK)
+							{
+								Dict->KeyFormat = DICT_KEY_NONE;
+								Dict->LenFormat = DICT_LEN_NONE;
+							}
+							else if(DType == DICT_TYPE_VARIABLE_PACK)
+							{
+								Dict->KeyFormat = DICT_KEY_NONE;
+							}
+						}
+
+						Dict->TypeName = std::string(val);
+
+					}
+//					else if(strcmp(attr, "length") == 0)
+//					{
+//						State->Tree[State->Sub]->minLength = atoi(val);
+//						State->Tree[State->Sub]->maxLength = State->Tree[State->Sub]->minLength;
+//					}
+					else if(strcmp(attr, "minLength") == 0)
+					{
+						Dict->minLength = atoi(val);
+					}
+					else if(strcmp(attr, "maxLength") == 0)
+					{
+						Dict->maxLength = atoi(val);
+					}
+					else if(strcmp(attr, "keyFormat") == 0)
+					{
+						Dict->KeyFormat = (DictKeyFormat)atoi(val);
+					}
+					else if(strcmp(attr, "lengthFormat") == 0)
+					{
+						if(strcmp(val, "BER")==0)
+						{
+							Dict->LenFormat = DICT_LEN_BER;
+						}
+						else
+						{
+							Dict->LenFormat = (DictLenFormat)atoi(val);
+						}
+					}
+					else if(strcmp(attr, "default") == 0)
+					{
+						/* Process later when all attributes read! */
+						default_text = val;
+					}
+					else if(strcmp(attr, "dvalue") == 0)
+					{
+						/* Process later when all attributes read! */
+						dvalue_text = val;
+					}
+					else if(strcmp(attr, "target") == 0)
+					{
+						Dict->RefTargetName = std::string(val);
+					}
+					else if(strcmp(attr, "base") == 0)
+					{
+						/* Do nothing here as base attribute is handled first! */
+					}
+					else
+					{
+						SAX_warning(State, "Unexpected attribute '%s' in <%s>", attr, name);
+					}
+				}
+			}
+			
+			/* If only a 'key' is given index it with global key as well */
+			if(!HasGlobalKey)
+			{
+				Dict->GlobalKey.Set(Dict->Key);
+			}
+
+			// Set the type UL
+			if(Dict->GlobalKey.Size != 16)
+			{
+				// Zero byte keys are fine for abstract base classes
+				if(Dict->GlobalKey.Size != 0) SAX_error(State, "Global key is not 16 bytes long for <%s>", name);
+			}
+			else
+			{
+				Dict->TypeUL = new UL(Dict->GlobalKey.Data);
+				if(Dict->TypeUL) ULLookup[UL(Dict->TypeUL)] = Dict;
+			}
+
+			/* We process the default at the end so we are certain to know the type! */
+			if(default_text.size())
+			{
+				if(Dict->ValueType)
+				{
+					MDValuePtr Val = new MDValue(Dict->ValueType);
+					if(Val)
+					{
+						Val->SetString(std::string(default_text));
+						DataChunk Temp = Val->PutData();
+						Dict->Default.Set(Temp);
+					}
+				}
+				else
+				{
+					SAX_warning(State, "Default value for <%s> ignored as it is an unknown type", name);
+				}
+			}
+
+			/* We also process the distinguished at the end so we are certain to know the type! */
+			if(dvalue_text != "")
+			{
+				if(Dict->ValueType)
+				{
+					MDValuePtr Val = new MDValue(Dict->ValueType);
+					if(Val)
+					{
+						Val->SetString(std::string(dvalue_text));
+						DataChunk Temp = Val->PutData();
+						Dict->DValue.Set(Temp);
+					}
+				}
+				else
+				{
+					SAX_warning(State, "Distinguished value for <%s> ignored as it is an unknown type", name);
+				}
+			}
+			break;
+		}
+
+		case DICT_STATE_END:
+			SAX_error(State, "Unexpected outer tag after <MXFDictionary> completed -> <%s>", name);
+			State->State = DICT_STATE_ERROR;
+			break;
+
+		default:			/* Unknown! */
+		case DICT_STATE_ERROR:
+			break;
+	}
+}
+
+
+/*
+** SAX_endElement() - Deal with end tag of an element
+*/
+void MDOType::SAX_endElement(void *user_data, const char *name)
+{
+	DictState *State = (DictState *)user_data;
+
+	/* Skip if all has gone 'belly-up' */
+	if(State->State == DICT_STATE_ERROR) return;
+
+	// Remove the last parent from the stack
+	std::list<MDOTypePtr>::iterator it = State->Parents.end();
+	if(--it != State->Parents.end()) State->Parents.erase(it);
+}
+
+
+//! Derive this new entry from a base entry
+/*! /note It is important that DictName is set before calling
+ *	/note Don't attempt to call this function on objects that are not freshly created
+ */
+void MDOType::Derive(MDOTypePtr BaseEntry)
+{
+	// Default to using the base entry keys
+	Key.Set(BaseEntry->Key);
+	GlobalKey.Set(BaseEntry->GlobalKey);
+
+	// Copy the base root name, note that we can't copy the name as this must be unique
+	RootName = BaseEntry->RootName;
+
+	// Copy the container type
+	ContainerType = BaseEntry->ContainerType;
+
+	// Copy the base detail
+	Detail = BaseEntry->Detail;
+
+	// Copy the type info
+	ValueType = BaseEntry->ValueType;
+	TypeName = BaseEntry->TypeName;
+
+	//VectorType = BaseEntry->VectorType;
+	
+	// Copy the data relating to content format
+	KeyFormat = BaseEntry->KeyFormat;
+	LenFormat = BaseEntry->LenFormat;
+	minLength = BaseEntry->minLength;
+	maxLength = BaseEntry->maxLength;
+
+	// Copy the usage
+	Use = BaseEntry->Use;
+
+	// Copy the default and the destinguished value
+	Default.Set(BaseEntry->Default);
+	DValue.Set(BaseEntry->DValue);
+
+	// Copy the reference type
+	RefType = BaseEntry->RefType;
+	
+	// Copy the parentage
+	Parent = BaseEntry->Parent;
+
+	// Tie to the base class
+	Base = BaseEntry;
+	
+	// Remove any of our existing children
+	clear();
+
+	// Add children from base class
+	StringList::iterator it = BaseEntry->ChildOrder.begin();
+	while(it != Base->ChildOrder.end())
+	{
+		MDOTypePtr Current = NameLookup[Base->FullName() + "/" + (*it)];
+
+		if(!Current)
+		{
+			error("Cannot locate child %s while deriving %s from %s\n", 
+				  (*it).c_str(), BaseEntry->DictName.c_str(), DictName.c_str());
+			it++;
+			continue;
+		}
+
+		// Add the base types children
+		insert(Current);
+
+		NameLookup[RootName + DictName + "/" + (*it)] = Current;
+		it++;
+	}
+
+
+	// Copy the base type's ref target setting
+	RefTarget = Base->RefTarget;
+	RefTargetName = Base->RefTargetName;
+}
+
+
+//! Read hex values separated by any of 'Sep'
+/*! /ret number of values read */
+int MDOType::ReadHexString(const char **Source, int Max, Uint8 *Dest, char *Sep)
+{
+	/* Note - Pointer to pointer used for Source
+	**		  This allows the caller's pointer to be updated to
+	**		  point to the first character after the hex string
+	**
+	**		  **Source = character value in input data
+	**		  *Source  = pointer to source data
+	*/
+
+	int Count = 0;
+	Uint8 current = 0;
+	int Started = 0;
+
+	/* Skip leading whitespace (Abort if end of string) */
+	while((**Source==' ') || (**Source=='\t'))
+	{
+		if((**Source)=='\0') return 0;
+		(*Source)++;
+	}
+
+	while(**Source != 0)
+	{
+		char c = **Source;
+
+		if((c>='0') && (c<='9'))
+		{
+			/* Update current value with next hex digit */
+			current *= 16;
+			current += (c - '0');
+			Started = 1;
+		}
+		else if((c>='a') && (c<='f'))
+		{
+			/* Update current value with next hex digit */
+			current *= 16;
+			current += (c - 'a') + 10;
+			Started = 1;
+		}
+		else if((c>='A') && (c<='F'))
+		{
+			/* Update current value with next hex digit */
+			current *= 16;
+			current += (c - 'A') + 10;
+			Started = 1;
+		}
+		else
+		{
+			int separator = 0;
+			char *p = Sep;
+			
+			if(p == NULL)
+			{
+				if((c==' ') || (c=='\t')) separator = 1;
+			}
+			else
+			{
+				while(*p)
+				{
+					if(*(p++)) 
+					{
+						separator = 1;
+						break;
+					}
+				}
+			}
+
+			/* Valid separator found? */
+			if(separator)
+			{
+				/* Update the output data if not full */
+				if(Started && (Count <= Max))
+				{
+					*Dest++ = current;
+					Count++;
+				}
+
+				/* Reset current value */
+				current = 0;
+				Started = 0;
+			}
+			else
+			{
+				/* Run out of valid characters - exit loop */
+				break;
+			}
+		}
+
+		/* Move to next character */
+		(*Source)++;
+	}
+	
+	/* Update the output data with last value      */
+	/* If we are working on one and there is space */
+	if(Started)
+	{
+		if(Count <= Max)
+		{
+			*Dest++ = current;
+			Count++;
+		}
+	}
+
+	return Count;
+}
+
+
+/*
+** SAX_warning() - Handle warnings during SAX parsing
+*/
+void MDOType::SAX_warning(void *user_data, const char *msg, ...)
+{
+    va_list args;
+
+    va_start(args, msg);
+
+	// DRAGONS: How do we prevent bursting?
+	char Buffer[10240];
+	vsprintf(Buffer, msg, args);
+	warning("XML WARNING: %s\n", Buffer);
+
+    va_end(args);
+}
+
+/*
+** SAX_error() - Handle errors during SAX parsing
+*/
+void MDOType::SAX_error(void *user_data, const char *msg, ...)
+{
+    va_list args;
+
+    va_start(args, msg);
+
+	// DRAGONS: How do we prevent bursting?
+	char Buffer[10240];
+	vsprintf(Buffer, msg, args);
+	error("XML ERROR: %s\n", Buffer);
+
+    va_end(args);
+}
+
+/*
+** SAX_fatalError() - Handle fatal erros during SAX parsing
+*/
+void MDOType::SAX_fatalError(void *user_data, const char *msg, ...)
+{
+    va_list args;
+
+    va_start(args, msg);
+
+	// DRAGONS: How do we prevent bursting?
+	char Buffer[1024];
+	vsprintf(Buffer, msg, args);
+	error("XML FATAL ERROR: %s\n", Buffer);
+
+    va_end(args);
+}
+
+
+
 
 //** Static Instantiations for MDOType class **
 //*********************************************
@@ -2047,11 +2420,6 @@ MDOTypeList MDOType::TopTypes;	//!< The top-level types managed by the MDOType c
 //! Map for UL lookups
 std::map<UL, MDOTypePtr> MDOType::ULLookup;
 		
-//! Map for reverse lookups based on DictEntry pointer
-std::map<DictEntry*, MDOTypePtr> MDOType::DictLookup;
-
 //! Map for reverse lookups based on type name
 std::map<std::string, MDOTypePtr> MDOType::NameLookup;
-
-MDOType::DictManager MDOType::DictMan;		//!< Dictionary manager
 

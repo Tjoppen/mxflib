@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Defines known types
  *
- *	\version $Id: deftypes.cpp,v 1.8 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.9 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -28,12 +28,7 @@
  */
 
 #include <mxflib/mxflib.h>
-
-extern "C"
-{
-#include <Klv.h>
-#include <sopSAX.h>
-}
+#include <mxflib/sopsax.h>
 
 #include <stdarg.h>
 
@@ -41,11 +36,12 @@ extern "C"
 using namespace mxflib;
 
 /* SAX functions */
-extern "C" void DefTypes_startElement(void *user_data, const char *name, const char **attrs);
-extern "C" void DefTypes_endElement(void *user_data, const char *name);
-extern "C" void DefTypes_warning(void *user_data, const char *msg, ...);
-extern "C" void DefTypes_error(void *user_data, const char *msg, ...);
-extern "C" void DefTypes_fatalError(void *user_data, const char *msg, ...);
+void DefTypes_startElement(void *user_data, const char *name, const char **attrs);
+void DefTypes_endElement(void *user_data, const char *name);
+void DefTypes_warning(void *user_data, const char *msg, ...);
+void DefTypes_error(void *user_data, const char *msg, ...);
+void DefTypes_fatalError(void *user_data, const char *msg, ...);
+
 
 /*
 ** Our SAX handler
@@ -117,7 +113,7 @@ static void DefineTraits(void)
 	TraitsMap.insert(TraitsMapType::value_type("LabelCollection", new MDTraits_RawArrayArray));
 
 	TraitsMap.insert(TraitsMapType::value_type("Rational", new MDTraits_Rational));
-	TraitsMap.insert(TraitsMapType::value_type("TimeStamp", new MDTraits_TimeStamp));
+	TraitsMap.insert(TraitsMapType::value_type("Timestamp", new MDTraits_TimeStamp));
 }
 
 
@@ -549,7 +545,7 @@ extern void DefTypes_endElement(void *user_data, const char *name)
 //! SAX callback - Handle warnings during SAX parsing
 extern void DefTypes_warning(void *user_data, const char *msg, ...)
 {
-    char Buffer[1024];			// DRAGONS: Could burst!!
+    char Buffer[10240];			// DRAGONS: Could burst!!
 	va_list args;
 
     va_start(args, msg);
@@ -561,7 +557,7 @@ extern void DefTypes_warning(void *user_data, const char *msg, ...)
 //! SAX callback - Handle errors during SAX parsing
 extern void DefTypes_error(void *user_data, const char *msg, ...)
 {
-    char Buffer[1024];			// DRAGONS: Could burst!!
+    char Buffer[10240];			// DRAGONS: Could burst!!
 	va_list args;
 
     va_start(args, msg);
@@ -573,7 +569,7 @@ extern void DefTypes_error(void *user_data, const char *msg, ...)
 //! SAX callback - Handle fatal errors during SAX parsing
 extern void DefTypes_fatalError(void *user_data, const char *msg, ...)
 {
-    char Buffer[1024];			// DRAGONS: Could burst!!
+    char Buffer[10240];			// DRAGONS: Could burst!!
 	va_list args;
 
     va_start(args, msg);

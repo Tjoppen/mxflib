@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.cpp,v 1.12 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: primer.cpp,v 1.13 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -146,14 +146,13 @@ Tag Primer::Lookup(ULPtr ItemUL, Tag TryTag /*=0*/)
 	MDOTypePtr Type = MDOType::Find(ItemUL);
 	if(Type)
 	{
-		const DictEntry *Dict = Type->GetDict();
-		if((!Dict) || (Dict->KeyLen != 2) || (Dict->Key == NULL))
+		if(Type->GetKey().Size != 2)
 		{
 			// No static tag supplied - fall through and use a dynamic tag
 		}
 		else
 		{
-			Tag ThisTag = (Dict->Key[0] << 8) + Dict->Key[1];
+			Tag ThisTag = (Type->GetKey().Data[0] << 8) + Type->GetKey().Data[1];
 			insert(Primer::value_type(ThisTag, ItemUL));
 			return ThisTag;
 		}
@@ -194,12 +193,9 @@ Uint32 Primer::WritePrimer(DataChunk &Buffer)
 	// Lookup the type to get the key - Static so only need to lookup once
 	static MDOTypePtr PrimerType = MDOType::Find("Primer");
 	ASSERT(PrimerType);
-	static const DictEntry *PrimerDict = PrimerType->GetDict();
-	ASSERT(PrimerDict);
-	ASSERT(PrimerDict->Key);
 
-	Buffer.Append(PrimerDict->KeyLen, PrimerDict->Key);
-	Bytes = PrimerDict->KeyLen;
+	Buffer.Append(PrimerType->GetKey());
+	Bytes = PrimerType->GetKey().Size;
 
 	// Add the length
 	DataChunkPtr BER = MakeBER(PrimerLen);

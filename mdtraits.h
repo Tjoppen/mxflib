@@ -1,7 +1,7 @@
 /*! \file	mdtraits.h
  *	\brief	Definition of traits for MDType definitions
  *
- *	\version $Id: mdtraits.h,v 1.10 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: mdtraits.h,v 1.11 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -49,7 +49,7 @@ namespace mxflib
 	//! A smart pointer to an MDValue object
 	class MDValuePtr;
 
-	class MDTraits
+	class MDTraits : public RefCount<MDTraits>
 	{
 	public:
 		MDTraits() {};

@@ -5,6 +5,18 @@ Release Notes for mxflib version 0.3.5-Alpha
 Changes since version 0.3.2-Alpha
 =================================
 
+* Added kludge code to allow compilation under gcc 3.3.x which has a known bug with complex template classes and forward declares
+* Removed dependency on KLVLib by adding new dictionary loading code
+* GetDict() No longer exists - replaced with various accessors
+* Made MDObject::TypeUL protected with GetTypeUL() accessor
+* Made MDObject::ValueType protected with GetValueType() accessor
+* Made MDObject::ChildOrder protected with GetChildOrder() accessor
+* Made MDType::EffectiveClass() and MDType::EffectiveType() const funcs
+* Make DataChunk::Set(), DataChunk::Append() and MXFFile::Write() take const references not normal refs
+* Added "RAW" data type to types.xml rather than hard-coding
+* Changed "TimeStamp" data type to "Timestamp" as per SMPTE-377M
+* Fixed bug where IndexManager destructor was badly wrong!
+* BugFix: Change KLVFile to FileHandle in mxffile.h
 * Added IndexManager class to support complex index table building
 * Added many index table options to mxfwrap
 * Moved index writing into MXFFile functions WritePartitionWithIndex()

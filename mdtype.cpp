@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.14 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.15 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -205,7 +205,7 @@ MDTypePtr MDType::EffectiveType(void)
 
 
 //! Report the effective class of this type
-MDTypeClass MDType::EffectiveClass(void)
+MDTypeClass MDType::EffectiveClass(void) const
 {
 	// If we are an interpretation then see what of
 	if(Class == INTERPRETATION)
@@ -219,7 +219,7 @@ MDTypeClass MDType::EffectiveClass(void)
 
 
 //! Report the effective base type of this type
-MDTypePtr MDType::EffectiveBase(void)
+MDTypePtr MDType::EffectiveBase(void) const
 {
 	// If we are an interpretation then see what of
 	if(Class == INTERPRETATION)

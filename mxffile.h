@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.12 2004/01/31 16:25:14 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.13 2004/03/28 18:32:58 matt-beard Exp $
  *
  */
 /*
@@ -272,7 +272,7 @@ namespace mxflib
 		};
 
 		//! Write the contents of a DataChunk by reference
-		Uint64 Write(DataChunk &Data) 
+		Uint64 Write(const DataChunk &Data) 
 		{ 
 			if(isMemoryFile) return MemoryWrite(Data.Data, Data.Size);
 

@@ -38,6 +38,7 @@
 	</Multiple>
 
 	<Interpretation>
+		<RAW detail="RAW data bytes" base="Uint8Array"/>
 		<DataStream detail="Data Stream" base="Uint8Array"/>
 		<DataValue detail="Data Value" base="Uint8Array"/>
 		<Identifier detail="Generic Identifier" base="Uint8Array"/>
@@ -66,7 +67,7 @@
 			<Numerator detail="Numerator" type="Int32"/>
 			<Denominator detail="Denominator" type="Int32"/>
 		</Rational>
-		<TimeStamp detail="Date and Time">
+		<Timestamp detail="Date and Time">
 			<Year detail="Year" type="Uint16"/>
 			<Month detail="Month" type="Uint8"/>
 			<Day detail="Day" type="Uint8"/>
@@ -74,7 +75,7 @@
 			<Minutes detail="Minutes" type="Uint8"/>
 			<Seconds detail="Seconds" type="Uint8"/>
 			<msBy4 detail="msBy4" type="Uint8"/>
-		</TimeStamp>
+		</Timestamp>
 		<ProductVersion detail="Product Version Number">
 			<Major detail="Major" type="Uint16"/>
 			<Minor detail="Minor" type="Uint16"/>
