@@ -83,10 +83,10 @@ namespace mxflib
 		ECWriter(MXFFilePtr File, Uint32 BodySID = 0);
 
 		//! Add an essence container (mapping) UL to those used by this essence container
-		AddEssenceUL(ULPtr EssenceUL);
+		void AddEssenceUL(ULPtr EssenceUL){};
 
 		//! Write essence data
-		Write(Uint64 Size, const Uint8 *Data);
+		void Write(Uint64 Size, const Uint8 *Data){};
 	};
 }
 
@@ -190,7 +190,7 @@ namespace mxflib
 		Uint32 GetTrackNumber(GCStreamID ID);
 
 		//! Assign an essence container (mapping) UL to the specified stream
-		AssignEssenceUL(GCStreamID ID, ULPtr EssenceUL);
+		void AssignEssenceUL(GCStreamID ID, ULPtr EssenceUL);
 
 		//! Start a new content package (and write out the prevous one if required)
 		void StartNewCP(void);
@@ -252,7 +252,7 @@ namespace mxflib
 	{
 		//! Wrapping type
 		/*! \note "None" is only for use as a default condition */
-		enum WrapType { None, Frame, Clip, Line, Other } ;
+		enum WrapType { None, Frame, Clip, Line, Other };
 
 		EssenceSubParserBase *Handler;			//!< Pointer to the object that can parse this wrapping option
 		std::string Description;				//!< Human readable description of this wrapping option (to allow user selection)
@@ -546,7 +546,7 @@ namespace mxflib
 		typedef std::list<WrappingConfigPtr> WrappingConfigList;
 
 		// DRAGONS: Currently destroys PDList to preserve the essence handler
-		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::WrapType::None)
+		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
 			WrappingConfigPtr Ret;
 
@@ -568,7 +568,7 @@ namespace mxflib
 						Ret = new WrappingConfig;
 
 						// Only accept wrappings of the specified type
-						if(ForceWrap != WrappingOption::WrapType::None)
+						if(ForceWrap != WrappingOption::None)
 						{
 							if((*it2)->ThisWrapType != ForceWrap)
 							{
@@ -588,7 +588,6 @@ namespace mxflib
 						}
 						else
 						{
-							std::string Rate = Ptr->GetString();
 							Ret->EditRate.Numerator = Ptr->GetInt("Numerator");
 							Ret->EditRate.Denominator = Ptr->GetInt("Denominator");
 						}
