@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.1.2.3 2004/10/10 18:42:05 terabrit Exp $
+ *	\version $Id: mdtraits.cpp,v 1.1.2.4 2004/10/19 17:54:25 matt-beard Exp $
  *
  */
 /*
@@ -229,7 +229,7 @@ void mxflib::MDTraits_Int8::SetInt(MDValuePtr Object, Int32 Val)
 
 //! Get Int32 from an Int8
 Int32 mxflib::MDTraits_Int8::GetInt(MDValuePtr Object) 
-{ 
+{
 	int Size = Object->GetData().Size;
 
 	// Deal with a NULL variable
@@ -1057,131 +1057,43 @@ void MDTraits_RawArray::SetString(MDValuePtr Object, std::string Val)
 	} while(*(p++));
 }
 
-/***********************************
-**   UUID Implementations **
-************************************/
+
+/*****************************
+**   UUID Implementations	**
+*****************************/
 
 std::string MDTraits_UUID::GetString(MDValuePtr Object)
 {
-	std::string Ret;
-	char buf[100];
+	char Buffer[100];
 
-	int Count = Object->GetData().Size;
+	ASSERT(Object->GetData().Size >= 16);
 	const Uint8 *Ident = Object->GetData().Data;
 
-	if( !(0x80&Ident[8]) ) // yes, a half-swapped UL can appear in a UUID
-	{	// UL
-		// printed as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
-		// but stored  with upper/lower 8 bytes exchanged
-		// stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
-		sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
-									Ident[8],
-									Ident[9],
-									Ident[10],
-									Ident[11],
-									Ident[12],
-									Ident[13],
-									Ident[14],
-									Ident[15],
-									Ident[0],
-									Ident[1],
-									Ident[2],
-									Ident[3],
-									Ident[4],
-									Ident[5],
-									Ident[6],
-									Ident[7]
+	// Check which format should be used
+	if( !(0x80&Ident[8]) )
+	{	// Half-swapped UL packed into a UUID datatype
+		// Return as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
+		// Stored with upper/lower 8 bytes exchanged
+		// Stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
+		sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+						   Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15],
+						   Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7]
 		);
 	}
 	else
 	{	// UUID
-		// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
 		// (i.e. network byte order)
-		// printed as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
-		sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-									Ident[0],
-									Ident[1],
-									Ident[2],
-									Ident[3],
-									Ident[4],
-									Ident[5],
-									Ident[6],
-									Ident[7],
-									Ident[8],
-									Ident[9],
-									Ident[10],
-									Ident[11],
-									Ident[12],
-									Ident[13],
-									Ident[14],
-									Ident[15]
-		);
+		// Return as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
+		sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+						   Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7],
+						   Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15]
+				);
 	}
-	Ret = buf;
-	return Ret ;
+
+	return std::string(Buffer);
 }
 
-/***********************************
-**   Identifier16 Implementations **
-************************************/
-
-std::string MDTraits_Identifier16::GetString(MDValuePtr Object)
-{
-	std::string Ret;
-	char buf[100];
-
-	int Count = Object->GetData().Size;
-	const Uint8 *Ident = Object->GetData().Data;
-
-	if( !(0x80&Ident[0]) )
-	{	// UL
-		// printed as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
-		// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
-		// (i.e. network byte order)
-		sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
-									Ident[0],
-									Ident[1],
-									Ident[2],
-									Ident[3],
-									Ident[4],
-									Ident[5],
-									Ident[6],
-									Ident[7],
-									Ident[8],
-									Ident[9],
-									Ident[10],
-									Ident[11],
-									Ident[12],
-									Ident[13],
-									Ident[14],
-									Ident[15]
-		);
-	}
-	else
-	{	// half-swapped UUID
-		// printed as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
-		sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-									Ident[8],
-									Ident[9],
-									Ident[10],
-									Ident[11],
-									Ident[12],
-									Ident[13],
-									Ident[14],
-									Ident[15],
-									Ident[0],
-									Ident[1],
-									Ident[2],
-									Ident[3],
-									Ident[4],
-									Ident[5],
-									Ident[6],
-									Ident[7]
-		);
-	}
-	Ret = buf;
-	return Ret ;
-};
 
 /***********************************
 **   Label Implementations        **
@@ -1189,109 +1101,97 @@ std::string MDTraits_Identifier16::GetString(MDValuePtr Object)
 
 std::string MDTraits_Label::GetString(MDValuePtr Object)
 {
-	std::string Ret;
+	// TODO: This uses the sets registry for label lookups, which can work but is not really correct
 
-	int Count = Object->GetData().Size;
+	ASSERT(Object->GetData().Size >= 16);
 	const Uint8 *Ident = Object->GetData().Data;
 
-	// Look up the Ident (DDEFS were added to aafdict.xml)
+	// Look up the Ident in the dictionary
 	// if found, emit the Name (should by symbol)
-	// else emit underlying identifier
+	MDOTypePtr Label = MDOType::Find( UL(Ident) );
 
-	MDOTypePtr label = MDOType::Find( UL(Ident) );
+	if( Label ) return Label->Name();
 
-	if( label ) Ret = label->Name();
-	else Ret = MDTraits_Identifier16::GetString(Object);
+	// ...else emit underlying identifier
 
-	return Ret ;
+	char Buffer[100];
+
+	// Check which format should be used
+	if( !(0x80&Ident[0]) )
+	{	
+		// This is a UL rather than a half-swapped UUID
+		// Return as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
+		// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// (i.e. network byte order)
+		sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+						   Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7],
+						   Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15]
+				);
+	}
+	else
+	{	
+		// Half-swapped UUID
+		// Return as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
+		sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+						   Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15],
+						   Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7]
+				);
+	}
+
+	return std::string(Buffer);
 };
 
-/***********************************
-**   UMID Implementations **
-************************************/
+
+/*****************************
+**   UMID Implementations	**
+*****************************/
 
 std::string MDTraits_UMID::GetString(MDValuePtr Object)
 {
-	std::string Ret;
-	char buf[100];
+	char Buffer[100];
 
-	int Count = Object->GetData().Size;
+	ASSERT(Object->GetData().Size >= 32);
 	const Uint8 *Ident = Object->GetData().Data;
 
-	sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x]",
-								Ident[0],
-								Ident[1],
-								Ident[2],
-								Ident[3],
-								Ident[4],
-								Ident[5],
-								Ident[6],
-								Ident[7],
-								Ident[8],
-								Ident[9],
-								Ident[10],
-								Ident[11]
-		);
-	Ret+=buf;
+	sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x]",
+					  Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5],
+					  Ident[6], Ident[7], Ident[8], Ident[9], Ident[10], Ident[11]
+		    );
+	
+	// Start building the return value
+	std::string Ret(Buffer);
 
-	sprintf( buf, ",%02x,%02x,%02x,%02x,", 
-									Ident[12],
-									Ident[13],
-									Ident[14],
-									Ident[15]
-		);
-	Ret+=buf;
+	sprintf( Buffer, ",%02x,%02x,%02x,%02x,", Ident[12], Ident[13], Ident[14], Ident[15]);
+	Ret += Buffer;
 
-	const Uint8* Material = Ident+16;
+	// Decide how best to represent the material number
+	const Uint8* Material = &Ident[16];
 	if( !(0x80&Material[0]) )
-	{	// UL
-		// printed as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
-		// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+	{	
+		// This is a UL rather than a half-swapped UUID
+		// Return as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
+		// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
 		// (i.e. network byte order)
-		sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
-									Material[0],
-									Material[1],
-									Material[2],
-									Material[3],
-									Material[4],
-									Material[5],
-									Material[6],
-									Material[7],
-									Material[8],
-									Material[9],
-									Material[10],
-									Material[11],
-									Material[12],
-									Material[13],
-									Material[14],
-									Material[15]
-		);
+		sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+						   Material[0], Material[1], Material[2], Material[3], Material[4], Material[5], Material[6], Material[7],
+						   Material[8], Material[9], Material[10], Material[11], Material[12], Material[13], Material[14], Material[15]
+				);
 	}
 	else
-	{	// half-swapped UUID
-		// printed as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
-		sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-									Material[8],
-									Material[9],
-									Material[10],
-									Material[11],
-									Material[12],
-									Material[13],
-									Material[14],
-									Material[15],
-									Material[0],
-									Material[1],
-									Material[2],
-									Material[3],
-									Material[4],
-									Material[5],
-									Material[6],
-									Material[7]
-		);
+	{	
+		// Half-swapped UUID
+		// Return as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
+		sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+						   Material[8], Material[9], Material[10], Material[11], Material[12], Material[13], Material[14], Material[15],
+						   Material[0], Material[1], Material[2], Material[3], Material[4], Material[5], Material[6], Material[7]
+				);
 	}
-	Ret += buf;
-	return Ret ;
+
+	Ret += Buffer;
+
+	return Ret;
 };
+
 
 /********************************************
 **   Array of Raw Arrays Implementations   **
@@ -1371,14 +1271,11 @@ std::string MDTraits_BasicCompound::GetString(MDValuePtr Object)
 		}
 		else
 		{
-			if(Ret.length() != 0) Ret += "\n";
-			Ret += "<";
-			Ret += (*it).c_str();
-			Ret += ">";
+			if(Ret.length() != 0) Ret += ", ";
+			Ret += (*it);
+			Ret += "=\"";
 			Ret += Value->GetString();
-			Ret += "</";
-			Ret += (*it).c_str();
-			Ret += ">";
+			Ret += "\"";
 		}
 		it++;
 	}
@@ -1484,7 +1381,7 @@ std::string MDTraits_Rational::GetString(MDValuePtr Object)
 	if(Numerator) Num = Numerator->GetUint();
 	if(Denominator) Den = Denominator->GetUint();
 
-	return Uint2String(Num) + ", " + Uint2String(Den);
+	return Uint2String(Num) + "/" + Uint2String(Den);
 }
 
 
@@ -1496,8 +1393,8 @@ void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
 	Uint32 Num = atoi(Val.c_str());
 
 	Uint32 Den = 1;
-	std::string::size_type Comma = Val.find(",");
-	if(Comma != std::string::npos) Den = atoi(&(Val.c_str()[Comma+1]));
+	std::string::size_type Slash = Val.find("/");
+	if(Slash != std::string::npos) Den = atoi(&(Val.c_str()[Slash+1]));
 
 	if(Numerator) Numerator->SetUint(Num);
 	if(Denominator) Denominator->SetUint(Den);
