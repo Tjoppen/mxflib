@@ -41,7 +41,7 @@ RSC=rc.exe
 # PROP Intermediate_Dir "Release"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /I "..\..\.." /I "..\..\..\klvlib" /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
+# ADD CPP /nologo /W3 /GX /I "..\.." /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
 # ADD RSC /l 0x809 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -64,7 +64,7 @@ LIB32=link.exe -lib
 # PROP Intermediate_Dir "Debug"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
-# ADD CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /I "..\..\.." /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
+# ADD CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /I "..\.." /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
 # ADD RSC /l 0x809 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -85,71 +85,71 @@ LIB32=link.exe -lib
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
-SOURCE=..\..\deftypes.cpp
+SOURCE=..\..\mxflib\deftypes.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\esp_dvdif.cpp
+SOURCE=..\..\mxflib\esp_dvdif.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\esp_mpeg2ves.cpp
+SOURCE=..\..\mxflib\esp_mpeg2ves.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\esp_wavepcm.cpp
+SOURCE=..\..\mxflib\esp_wavepcm.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\essence.cpp
+SOURCE=..\..\mxflib\essence.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\helper.cpp
+SOURCE=..\..\mxflib\helper.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\index.cpp
+SOURCE=..\..\mxflib\index.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\klvobject.cpp
+SOURCE=..\..\mxflib\klvobject.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mdobject.cpp
+SOURCE=..\..\mxflib\mdobject.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mdtraits.cpp
+SOURCE=..\..\mxflib\mdtraits.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mdtype.cpp
+SOURCE=..\..\mxflib\mdtype.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\metadata.cpp
+SOURCE=..\..\mxflib\metadata.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mxffile.cpp
+SOURCE=..\..\mxflib\mxffile.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\partition.cpp
+SOURCE=..\..\mxflib\partition.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\primer.cpp
+SOURCE=..\..\mxflib\primer.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\rip.cpp
+SOURCE=..\..\mxflib\rip.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\sopsax.cpp
+SOURCE=..\..\mxflib\sopsax.cpp
 # End Source File
 # End Group
 # Begin Group "Header Files"
