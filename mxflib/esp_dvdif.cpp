@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.2 2004/11/12 09:20:43 matt-beard Exp $
  *
  */
 /*
@@ -45,7 +45,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 
 	// Read the first 12 bytes of the file to allow us to identify it
 	FileSeek(InFile, 0);
-	BufferBytes = FileRead(InFile, Buffer, 12);
+	BufferBytes =(int) FileRead(InFile, Buffer, 12);
 
 	// If the file is smaller than 12 bytes give up now!
 	if(BufferBytes < 12) return Ret;
@@ -57,8 +57,8 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 		if((Buffer[8] != 'A') || (Buffer[9] != 'V') || (Buffer[10] != 'I') || (Buffer[11] != ' ')) return Ret;
 
 		// So its an AVI file.. but what type?
-		const unsigned int ID_LIST = 0x4B495354;		//! "LIST"
-		const unsigned int ID_hdrl = 0x6864726b;		//! "hdrl"
+		const unsigned int ID_LIST = 0x4C495354;		//! "LIST"
+		const unsigned int ID_hdrl = 0x6864726c;		//! "hdrl"
 		
 		FileSeek(InFile, 12);
 		U32Pair Header = ReadRIFFHeader(InFile);
@@ -79,7 +79,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 		// Find the "strl" entry
 		while(ListSize > 0)
 		{
-			const unsigned int ID_strl = 0x7374726b;		//! "strl"
+			const unsigned int ID_strl = 0x7374726c;		//! "strl"
 			const unsigned int ID_strh = 0x73747268;		//! "strh"
 
 			U32Pair Header = ReadRIFFHeader(InFile);
@@ -130,7 +130,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 
 	// Read the first 80*150 bytes of the file, this should be the first DIF sequence
 	FileSeek(InFile, 0);
-	BufferBytes = FileRead(InFile, Buffer, 80 * 150);
+	BufferBytes = (int)FileRead(InFile, Buffer, 80 * 150);
 
 	// If we couldn't read the sequence give up now!
 	if(BufferBytes < (80 * 150)) return Ret;
@@ -244,7 +244,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
  */
 WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor Descriptor)
 {
-	Uint8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x02, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x02, 0x7f, 0x01 };
+	Uint8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x02, 0x7f, 0x01 };
 	WrappingOptionList Ret;
 
 	// If the supplied descriptor isn't an CDCI Essence Descriptor then we can't wrap the essence
@@ -262,7 +262,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	ClipWrap->GCElementType = 0x02;						// Clip wrapped picture elemenet
 	ClipWrap->ThisWrapType = WrappingOption::Clip;		// Clip wrapping
 	ClipWrap->CanSlave = true;							// Can use non-native edit rate (clip wrap only!)
-	ClipWrap->CanIndex = true;							// We can index this essence
+	ClipWrap->CanIndex = false;							// We can NOT currently index this essence in VBR mode
 	ClipWrap->CBRIndex = true;							// This essence uses CBR indexing
 	ClipWrap->BERSize = 0;								// No BER size forcing
 
@@ -278,7 +278,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	FrameWrap->GCElementType = 0x01;					// Frame wrapped picture elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = false;						// Can only use the correct edit rate
-	FrameWrap->CanIndex = true;							// We can index this essence
+	FrameWrap->CanIndex = false;						// We can NOT currently index this essence in VBR mode
 	FrameWrap->CBRIndex = true;							// This essence uses CBR indexing
 	FrameWrap->BERSize = 0;								// No BER size forcing
 
@@ -291,29 +291,25 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 
 
 //! Set a wrapping option for future Read and Write calls
-void DV_DIF_EssenceSubParser::Use(Uint32 Stream, WrappingOptionPtr UseWrapping)
+void DV_DIF_EssenceSubParser::Use(Uint32 Stream, WrappingOptionPtr &UseWrapping)
 {
-	SelectedWrapping = UseWrapping->ThisWrapType;
+	SelectedWrapping = UseWrapping;
 	SelectedEditRate = NativeEditRate;
 	EditRatio = 1;
 	PictureNumber = 0;
-//	AnchorFrame = 0;
 	CurrentPos = 0;
-//	GOPOffset = 0;
-//	ClosedGOP = false;					// Start by assuming the GOP is closed
-//	IndexMap.clear();
 }
 
 
 //! Set a non-native edit rate
 /*! \return true if this rate is acceptable */
-bool DV_DIF_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
+bool DV_DIF_EssenceSubParser::SetEditRate(Rational EditRate)
 {
 	if(    (EditRate.Numerator == NativeEditRate.Numerator) 
 		&& (EditRate.Denominator == NativeEditRate.Denominator) )return true;
 
 	// We can clip-wrap at any rate!
-	if(SelectedWrapping == WrappingOption::Clip)
+	if(SelectedWrapping->ThisWrapType == WrappingOption::Clip)
 	{
 		SelectedEditRate = EditRate;
 		return true;
@@ -351,7 +347,7 @@ bool DV_DIF_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
 //! Get the current position in SetEditRate() sized edit units
 /*! \return 0 if position not known
  */
-Int64 DV_DIF_EssenceSubParser::GetCurrentPosition(void)
+Position DV_DIF_EssenceSubParser::GetCurrentPosition(void)
 {
 	if((SelectedEditRate.Numerator == NativeEditRate.Numerator) && (SelectedEditRate.Denominator == NativeEditRate.Denominator))
 	{
@@ -360,13 +356,10 @@ Int64 DV_DIF_EssenceSubParser::GetCurrentPosition(void)
 
 	if((SelectedEditRate.Denominator == 0) || (NativeEditRate.Denominator || 0)) return 0;
 
-	// Correct the position
-	Int64 iPictureNumber = PictureNumber;		// A wonderful Microsoft omission means we can only convert Int64 -> double, not Uint64
-
-	double Pos = iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator;
+	double Pos = (double)(PictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator);
 	Pos /= (SelectedEditRate.Denominator * NativeEditRate.Numerator);
-	
-	return (Int64)floor(Pos + 0.5);
+
+	return (Position)floor(Pos + 0.5);
 }
 
 
@@ -377,10 +370,10 @@ Int64 DV_DIF_EssenceSubParser::GetCurrentPosition(void)
  *  not be the frame rate of this essence
  *	\note This is going to take a lot of memory in clip wrapping! 
  */
-DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/ /*, IndexTablePtr Index *//*=NULL*/) 
+DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/) 
 { 
 	// Scan the stream and find out how many bytes to read
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count/*, Index*/);
+	Length Bytes = ReadInternal(InFile, Stream, Count);
 
 	// Read the data
 	return FileReadChunk(InFile, Bytes);
@@ -395,24 +388,24 @@ DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uin
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Uint64 DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*//*, IndexTablePtr Index*/ /*=NULL*/)
+Length DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/)
 {
 	const unsigned int BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count/*, Index*/);
-	Uint64 Ret = Bytes;
+	Length Bytes = ReadInternal(InFile, Stream, Count);
+	Length Ret = Bytes;
 
 	while(Bytes)
 	{
-		Uint64 ChunkSize;
+		Length ChunkSize;
 		
 		// Number of bytes to transfer in this chunk
 		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
 
 		FileRead(InFile, Buffer, ChunkSize);
-		OutFile->Write(Buffer, ChunkSize);
+		OutFile->Write(Buffer, (Uint32)ChunkSize);
 
 		Bytes -= ChunkSize;
 	}
@@ -527,24 +520,33 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
  *
  *	\note PictureNumber is incremented for each picture 'read'
  *
- *  \note	Currently assumes 25Mbit
+ *  TODO: Currently assumes 25Mbit - needs fixing
  */
-Uint64 DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count/*, IndexTablePtr Index *//*=NULL*/)
+Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count)
 {	
-	// Return anything we can find if clip wrapping
-	if((Count == 0) && (SelectedWrapping == WrappingOption::Clip)) return DIFEnd - DIFStart;
+	// Return anything remaining if clip wrapping
+	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip)) Count = ((DIFEnd - DIFStart) / (150 * 80)) - PictureNumber;
 
 	// Simple version - we are working in our native edit rate
 	if((SelectedEditRate.Denominator == NativeEditRate.Denominator) && (SelectedEditRate.Numerator = NativeEditRate.Numerator))
 	{
-//printf("Reading %d bytes at %d:0x%08x\n",(int)(150 * 80 * Count), (int)PictureNumber, (150 * 80 * PictureNumber));
-
 		// Seek to the data position
-		FileSeek(InFile, DIFStart + (150 * 80 * PictureNumber));
+		Position ReadStart = DIFStart + (150 * 80 * PictureNumber);
+		FileSeek(InFile, ReadStart);
 
+		// Work out how many bytes to read
+		Length Ret = (Length)(Count * 150 * 80);
 		PictureNumber += Count;
 
-		return (Count * 150 * 80);
+		// If this would read beyond the end of the file stop at the end
+		if((Ret + ReadStart) > DIFEnd)
+		{
+			Ret = DIFEnd - ReadStart;
+			PictureNumber = (DIFEnd - DIFStart) / (150 * 80);
+		}
+
+		// Return the number of bytes to read
+		return Ret;
 	}
 
 	error("Non-native edit rate not yet supported\n");
@@ -558,7 +560,7 @@ int DV_DIF_EssenceSubParser::BuffGetU8(FileHandle InFile)
 {
 	if(!BuffCount)
 	{
-		BuffCount = FileRead(InFile, Buffer, MPEG2_VES_BUFFERSIZE);
+		BuffCount =(int) FileRead(InFile, Buffer, MPEG2_VES_BUFFERSIZE);
 		if(BuffCount == 0) return -1;
 
 		BuffPtr = Buffer;
@@ -573,7 +575,7 @@ int DV_DIF_EssenceSubParser::BuffGetU8(FileHandle InFile)
 /*! \return true if the option was successfully set */
 bool DV_DIF_EssenceSubParser::SetOption(std::string Option, Int64 Param /*=0*/ )
 {
-	warning("MPEG2_VES_EssenceSubParser::SetOption(\"%s\", Param) not a known option\n", Option.c_str());
+	warning("DV_DIF_EssenceSubParser::SetOption(\"%s\", Param) not a known option\n", Option.c_str());
 
 	return false; 
 }

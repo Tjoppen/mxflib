@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.4 2004/05/21 20:09:59 terabrit Exp $
+ *	\version $Id: mdobject.cpp,v 1.5 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -124,11 +124,11 @@ MDOTypePtr MDOType::Find(std::string BaseType)
 /*! \return Pointer to the object
  *  \return NULL if there is no type with that UL
  */
-MDOTypePtr MDOType::Find(ULPtr BaseUL)
+MDOTypePtr MDOType::Find(const UL& BaseUL)
 {
 	MDOTypePtr theType;
 
-	std::map<UL, MDOTypePtr>::iterator it = ULLookup.find(UL(BaseUL));
+	std::map<UL, MDOTypePtr>::iterator it = ULLookup.find(BaseUL);
 
 	if(it != ULLookup.end())
 	{
@@ -189,7 +189,8 @@ MDObject::MDObject(std::string BaseType)
 
 		ASSERT(Type);
 
-		ObjectName = "Unknown (" + BaseType + ")";
+		// TODO: Needs to have a more complete name
+		ObjectName = "Unknown"; // add " g:type=\"" + BaseType + "\"";
 	}
 
 	IsConstructed = true;
@@ -199,6 +200,8 @@ MDObject::MDObject(std::string BaseType)
 	ParentFile = NULL;
 	TheUL = Type->GetUL();
 	TheTag = 0;
+
+	Outer = NULL;
 
 	// Initialise the new object
 	Init();
@@ -221,6 +224,8 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 	TheUL = Type->GetUL();
 	TheTag = 0;
 
+	Outer = NULL;
+
 	// Initialise the new object
 	Init();
 }
@@ -230,9 +235,9 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 /*! Builds a "blank" metadata object of a specified type
  *	\note packs are built with defaut values
  */
-MDObject::MDObject(ULPtr UL) 
+MDObject::MDObject(ULPtr BaseUL) 
 {
-	Type = MDOType::Find(UL);
+	Type = MDOType::Find(BaseUL);
 	if(Type)
 	{
 		ObjectName = Type->Name();
@@ -241,7 +246,8 @@ MDObject::MDObject(ULPtr UL)
 	{
 		Type = MDOType::Find("Unknown");
 
-		ObjectName = "Unknown (" + UL->GetString() + ")";
+		// TODO: Needs to have a more complete name
+		ObjectName = "Unknown"; // add " g:uid=\"" + BaseUL->GetString() + "\"";
 
 		ASSERT(Type);
 
@@ -250,11 +256,8 @@ MDObject::MDObject(ULPtr UL)
 #define ParseDark true
 		if(ParseDark)
 		{
-			static MDOTypePtr Preface = MDOType::Find("Preface");
-
-			ASSERT(Preface);
-
-			if(memcmp(Preface->GetTypeUL()->GetValue(), UL->GetValue(), 6) == 0)
+			const Uint8 Set2x2[6] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53 };
+			if(memcmp(Set2x2, BaseUL->GetValue(), 6) == 0)
 			{
 				Type = MDOType::Find("DefaultObject");
 				ASSERT(Type);
@@ -267,8 +270,10 @@ MDObject::MDObject(ULPtr UL)
 	KLSize = 0;
 	Parent = NULL;
 	ParentFile = NULL;
-	TheUL = UL;
+	TheUL = BaseUL;
 	TheTag = 0;
+
+	Outer = NULL;
 
 	// Initialise the new object
 	Init();
@@ -321,13 +326,14 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 		if(TheUL)
 		{
 			// Tag found, but UL unknown
-			ObjectName = "Unknown (" + Tag2String(BaseTag) + " -> " + TheUL->GetString() + ")";
+			// FIXME: Needs to have a more complete name
+			ObjectName = "Unknown"; // add " g:tag=\"" + Tag2String(BaseTag) + "\" g:uid=\"" + TheUL->GetString() + "\"";
 		}
 		else
 		{
 			// Tag not found, build a blank UL
-			TheUL = new UL();
-			ObjectName = "Unknown (" + Tag2String(BaseTag) + ")";
+			// FIXME: Needs to have a more complete name
+			ObjectName = "Unknown"; // add " g:tag=\"" + Tag2String(BaseTag) + "\"";
 		}
 	}
 	else
@@ -341,6 +347,8 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 	Parent = NULL;
 	ParentFile = NULL;
 	TheTag = BaseTag;
+
+	Outer = NULL;
 
 	// Initialise the new object
 	Init();
@@ -406,6 +414,42 @@ void MDObject::Init(void)
 		}
 	}
 }
+
+
+#if 0 // WORK IN PROGRESS...
+//! Add an empty numbered child to an MDObject continer and return a pointer to it
+/*!	\return NULL if this object does not take numbered children
+ *	\note If a child with this index already exists it is returned rather than adding a new one
+ */
+MDObjectPtr MDObject::AddChild(Uint32 ChildIndex)
+{
+	MDObjectPtr Ret;
+
+	SetModified(true); 
+
+	// Try and find an existing child (if replacing)
+	Ret = Child(ChildIndex);
+
+	// Only add a new one if we didn't find it
+	if(!Ret)
+	{
+		// Find the child definition
+		MDOType::iterator it = Type->begin();
+
+		// Return NULL if not found
+		if(it == Type->end()) return Ret;
+
+		// Build a new item of the correct type
+		Ret = new MDObject((*it).second);
+
+		// Add the new child
+		AddChildInternal(Ret, false);
+	}
+
+	// Return smart pointer to the new object
+	return Ret;
+}
+#endif // 0
 
 
 //! Add an empty named child to an MDObject continer and return a pointer to it
@@ -803,7 +847,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 			if( Type->GetLenFormat() == DICT_LEN_NONE )
 			{
-				// fixed pack - items know their own length
+				// Fixed pack - items know their own length
 				Uint32 Bytes = 0;
 				MDObjectNamedList::iterator it = begin();
 				if(Size) for(;;)
@@ -868,7 +912,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			}
 			else
 			{
-				// variable pack - each item has a length
+				// Variable pack - each item has a length
 				Uint32 Bytes = 0;
 				MDObjectNamedList::iterator it = begin();
 				if(Size) for(;;)
@@ -884,7 +928,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 					(*it).second->ParentOffset = Bytes;
 					(*it).second->KLSize = 0;
 
-					// read Length
+					// Read Length
 					Uint32 Length;
 					Uint32 ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
 
@@ -916,6 +960,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 						// Length == 0, so skip this item
 						//(*it).second->ReadValue(Buffer, 0);
 						(*it).second->ClearModified();
+						ThisBytes = 0;
 					}
 
 					it++;
@@ -1096,7 +1141,6 @@ bool MDObject::SetGenerationUID(UUIDPtr NewGen)
 	MDObjectPtr GenUID = Child("GenerationUID");
 	if(!GenUID) GenUID = AddChild("GenerationUID");
 
-//printf("Setting GenerationUID id %s to %s\n", FullName().c_str(), NewGen->GetString().c_str());
 	ASSERT(GenUID);
 
 	// Set the actual UID
@@ -1150,6 +1194,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 	default:
 	// Unsupported key types!
 	case DICT_LEN_NONE:
+		ASSERT(0);							// Cause debug sessions to show this error
 		Length = 0;
 		return 0;
 
@@ -1160,30 +1205,52 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 
 			if( LenLen < 0x80 )
 			{
-				// short form
+				// Short form
 				Length = LenLen;
 				return 1;
 			}
 			else
 			{
-				// long form
+				// Long form
 				LenLen &= 0x7f;
 
-				Uint32 RetLen = 1+LenLen;
+				Uint32 RetLen = LenLen + 1;
+				if( RetLen > Size) break;
 
 				// DRAGONS: ReadLength should return Uint64, BER length up to 7
-				if( LenLen > 4 )
+				if(LenLen > 8)
 				{
 					error("Excessive BER length field in MDObject::ReadLength()\n");
 					Length = 0;
-					return RetLen;
+					return 0;
 				}
 
-				if( Size < 1+LenLen ) break;
+				if(LenLen > 4)
+				{
+					// It is valid to have BER length > 4 bytes long however we don't
+					// support metadata values > 4Gb in size so we ensure they are
+					// not that big by reading the length and validating
 
-				Length = 0;
-				const Uint8* LenBuff = (Buffer+1);
-				while(LenLen--) Length = (Length<<8) + *LenBuff++;
+					Uint64 Length64 = 0;
+					const Uint8* LenBuff = (Buffer+1);
+					while(LenLen--) Length64 = (Length64<<8) + *LenBuff++;
+
+					if((Length64 >> 32) != 0)
+					{
+						error("Excessive BER length field in MDObject::ReadLength() - Metadata objects are limited to 4Gb each\n");
+						Length = 0;
+						return 0;
+					}
+					
+					Length =(Uint32) Length64;
+				}
+				else
+				{
+					// Handle sane sized BER lengths
+					Length = 0;
+					const Uint8* LenBuff = (Buffer+1);
+					while(LenLen--) Length = (Length<<8) + *LenBuff++;
+				}
 
 				return RetLen;
 			}
@@ -1551,7 +1618,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 	case DICT_LEN_1_BYTE:		
 		{ 
 			Uint8 Buff;
-			PutU8(Length, &Buff);
+			PutU8((Uint8)Length, &Buff);
 
 			Buffer.Append(1, &Buff);
 			return 1;
@@ -1560,7 +1627,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 	case DICT_LEN_2_BYTE:
 		{ 
 			Uint8 Buff[2];
-			PutU16(Length, Buff);
+			PutU16((Uint16)Length, Buff);
 
 			Buffer.Append(2, Buff);
 			return 2;
@@ -1569,7 +1636,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 	case DICT_LEN_4_BYTE:
 		{ 
 			Uint8 Buff[4];
-			PutU32(Length, Buff);
+			PutU32((Uint32)Length, Buff);
 
 			Buffer.Append(4, Buff);
 			return 4;
@@ -1792,16 +1859,16 @@ void MDOType::LoadDict(const char *DictFile)
 		(fatalErrorSAXFunc) SAX_fatalError,			/* fatalError */
 	};
 
-	char *xmlFilePath = lookupDataFilePath(DictFile);
+	std::string XMLFilePath = LookupDictionaryPath(DictFile);
 	
 	// Parse the file
-	bool result = sopSAXParseFile(&SAXHandler, &State, xmlFilePath);
-	if (xmlFilePath)
-		delete [] xmlFilePath;
-	if (! result)
+	bool result = false;
+	
+	if(XMLFilePath.size()) result = sopSAXParseFile(&SAXHandler, &State, XMLFilePath.c_str());
+	if(!result)
 	{
 		error("sopSAXParseFile failed for %s\n", DictFile);
-		exit(1);
+		return;
 	}
 
 	// If "Unknown" is not yet defined - define it
@@ -1875,7 +1942,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 		case DICT_STATE_START:
 			if(strcmp(name, "MXFDictionary") != 0)
 			{
-				SAX_error(State, "Expected outer tag <MXFDictionary> got <%s>", name);
+				SAX_error(State, "Expected outer tag <MXFDictionary> got <%s/>", name);
 				State->State = DICT_STATE_ERROR;
 			}
 			else
@@ -1914,7 +1981,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 
 						if(!BaseType)
 						{
-							SAX_error(State, "Cannot find base type '%s' for <%s>", val, name);
+							SAX_error(State, "Cannot find base type '%s' for <%s/>", val, name);
 						}
 						else
 						{
@@ -2015,7 +2082,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 						else if(strcasecmp(val,"toxic") == 0) Use = DICT_USE_TOXIC;
 						else
 						{
-							SAX_warning(State, "Unknown use value use=\"%s\" in <%s>", val, name);
+							SAX_warning(State, "Unknown use value use=\"%s\" in <%s/>", val, name);
 							Use = DICT_USE_OPTIONAL;
 						}
 
@@ -2030,7 +2097,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 						else if(strcasecmp(val,"weak") == 0) RefType = DICT_REF_WEAK;
 						else
 						{
-							SAX_warning(State, "Unknown ref value ref=\"%s\" in <%s>\n", val, name);
+							SAX_warning(State, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
 							RefType = DICT_REF_NONE;
 						}
 
@@ -2111,7 +2178,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 							else if(strcasecmp(val,"subArray") == 0) DType = DICT_TYPE_ARRAY;
 							else
 							{
-								SAX_warning(State, "Unknown type \"%s\" in <%s>", val, name);
+								SAX_warning(State, "Unknown type \"%s\" in <%s/>", val, name);
 							}
 
 							// Set the container type
@@ -2195,7 +2262,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 					}
 					else
 					{
-						SAX_warning(State, "Unexpected attribute '%s' in <%s>", attr, name);
+						SAX_warning(State, "Unexpected attribute '%s' in <%s/>", attr, name);
 					}
 				}
 			}
@@ -2210,7 +2277,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 			if(Dict->GlobalKey.Size != 16)
 			{
 				// Zero byte keys are fine for abstract base classes
-				if(Dict->GlobalKey.Size != 0) SAX_error(State, "Global key is not 16 bytes long for <%s>", name);
+				if(Dict->GlobalKey.Size != 0) SAX_error(State, "Global key is not 16 bytes long for <%s/>", name);
 			}
 			else
 			{
@@ -2233,7 +2300,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 				}
 				else
 				{
-					SAX_warning(State, "Default value for <%s> ignored as it is an unknown type", name);
+					SAX_warning(State, "Default value for <%s/> ignored as it is an unknown type", name);
 				}
 			}
 
@@ -2252,14 +2319,14 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 				}
 				else
 				{
-					SAX_warning(State, "Distinguished value for <%s> ignored as it is an unknown type", name);
+					SAX_warning(State, "Distinguished value for <%s/> ignored as it is an unknown type", name);
 				}
 			}
 			break;
 		}
 
 		case DICT_STATE_END:
-			SAX_error(State, "Unexpected outer tag after <MXFDictionary> completed -> <%s>", name);
+			SAX_error(State, "Unexpected outer tag after <MXFDictionary/> completed -> <%s/>", name);
 			State->State = DICT_STATE_ERROR;
 			break;
 
@@ -2364,6 +2431,36 @@ void MDOType::Derive(MDOTypePtr BaseEntry)
 	RefTargetName = Base->RefTargetName;
 }
 
+
+//! Determine if this object is derived from a specified type (directly or indirectly)
+bool MDObject::IsA(std::string BaseType)
+{
+	MDOTypePtr TestType = Type;
+
+	while(TestType)
+	{
+		if(TestType->Name() == BaseType) return true;
+		TestType = TestType->Base;
+	}
+
+	return false;
+}
+
+
+//! Determine if this object is derived from a specified type (directly or indirectly)
+bool MDObject::IsA(MDOTypePtr BaseType)
+{
+	MDOTypePtr TestType = Type;
+
+	while(TestType)
+	{
+		if(TestType == BaseType) return true;
+		TestType = TestType->Base;
+	}
+
+	return false;
+}
+		
 
 //! Read hex values separated by any of 'Sep'
 /*! /ret number of values read */
@@ -2486,8 +2583,14 @@ void MDOType::SAX_warning(void *user_data, const char *msg, ...)
 	// DRAGONS: How do we prevent bursting?
 	char Buffer[10240];
 	vsprintf(Buffer, msg, args);
-	warning("XML WARNING: %s\n", Buffer);
 
+// DRAGONS: This should end up on stderr or similar, not in any XML output file!
+//          If there is any reason to send warnings to an XML file that should be done in
+//          the implementation of wraning(), not each message.
+//	warning("<!-- XML WARNING: %s -->\n", Buffer);
+	
+	warning("XML WARNING: %s\n", Buffer);
+	
     va_end(args);
 }
 

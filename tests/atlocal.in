@@ -1,5 +1,5 @@
 # Configurable variables for the MXFlib test suite.
 
 # Make sure the local data files (types.xml etc) are used
-MXFLIB_DATA_DIR=$abs_top_srcdir/mxflib
+MXFLIB_DATA_DIR=$abs_top_srcdir
 export MXFLIB_DATA_DIR

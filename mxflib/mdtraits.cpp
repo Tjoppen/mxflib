@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.3 2004/05/21 20:10:44 terabrit Exp $
+ *	\version $Id: mdtraits.cpp,v 1.4 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -34,6 +34,17 @@ using namespace mxflib;
 
 // Standard library includes
 #include <stdexcept>
+
+//! Soft limit for strings returned by MDTraits - Defaults to 10k
+/*! \note This is a soft limit in that it is not enforced strictly.
+ *        It is possible for string values to be returned that are longer than this value, but where
+ *	      the string is built by several passes around a loop that loop should exit once this value
+ *	      has been reached. The MDTrait may return a short text string to indicate that the limit
+ *        would be exceeded by a full version (e.g. "Data exceeds <limit> bytes") or it may add
+ *        an indication that the limit has been reached (e.g. "01 23 45 67 ..." for a very short limit).
+ *        It is also permissable to simply stop at the limit (e.g. "A very long stri")
+ */
+Uint32 mxflib::MDTraits_StringLimit = 10240;
 
 
 // Default trait implementations
@@ -218,7 +229,7 @@ void mxflib::MDTraits_Int8::SetInt(MDValuePtr Object, Int32 Val)
 
 //! Get Int32 from an Int8
 Int32 mxflib::MDTraits_Int8::GetInt(MDValuePtr Object) 
-{ 
+{
 	int Size = Object->GetData().Size;
 
 	// Deal with a NULL variable
@@ -744,7 +755,7 @@ Uint32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Ui
 {
 	// Start with no children in the object
 	Object->clear();
-	
+
 	// If Count is 0 then the number of items is unknown
 	bool UnknownCount;
 	if(Count == 0)
@@ -755,6 +766,40 @@ Uint32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Ui
 	else 
 	{
 		UnknownCount = false;
+	}
+
+	// If this object is a batch we need to read its header
+	if(Object->GetType()->GetArrayClass() == ARRAYBATCH)
+	{
+		if(Size < 8)
+		{
+			error("Tried to read a batch of type %s but less than 8 bytes available\n", Object->Name().c_str());
+			return 0;
+		}
+
+		Uint32 ItemCount = GetU32(Buffer);
+		Uint32 ItemSize = GetU32(&Buffer[4]);
+
+		Buffer += 8;
+		Size -= 8;
+
+		if(Count > (int)ItemCount)
+		{
+			error("Tried to read more items from batch of type %s than available - requested = %u, available = %u\n", Object->Name().c_str(), Count, ItemCount);
+		}
+		else
+		{
+			// Only update the count if it was unknown (this allows a valid request to read less than available)
+			if(Count == 0) Count = ItemCount;
+
+			// Now the count IS known
+			UnknownCount = false;
+		}
+
+		if((ItemCount * ItemSize) < Size)
+		{
+			error("Invalid batch of type %s - count = %u, item size = %u so 0x%08x bytes required but only 0x%08x available\n", Object->Name().c_str(), ItemCount, ItemSize, (ItemCount * ItemSize), Size);
+		}
 	}
 
 	// Figure out the maximum number of items to read
@@ -941,19 +986,11 @@ void MDTraits_Raw::SetString(MDValuePtr Object, std::string Val)
 **   Raw Array Implementations   **
 **********************************/
 
-// maximum value size to dump
-// above this, dump will just state size
-#define MAX_DUMPSIZE 128
-
 std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 {
 	std::string Ret;
 
-	MDValue::iterator it;
-
-	Ret = "";
-
-	if( Object->size() > MAX_DUMPSIZE )
+	if( Object->size() > GetStringLimit() )
 	{
 		char Buffer[32];
 		sprintf( Buffer, "RAW[0x%08x]", Object->size() );
@@ -961,6 +998,9 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 		return Ret;
 	}
 
+	MDValue::iterator it;
+
+	Ret = "";
 
 	it = Object->begin();
 	while(it != Object->end())
@@ -978,7 +1018,7 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 		if(Size == 1) sprintf(Buffer, "%02x", (*it).second->GetUint());
 		else if(Size == 2) sprintf(Buffer, "%04x", (*it).second->GetUint());
 		else if(Size == 4) sprintf(Buffer, "%08x", (*it).second->GetUint());
-		else if(Size == 8) strcpy( Buffer, Int64toHexString((*it).second->GetUint(), 8).c_str() );
+		else if(Size == 8) strcpy( Buffer, Int64toHexString((*it).second->GetUint64(), 8).c_str() );
 		else
 		{
 			// Non-standard size!
@@ -1050,6 +1090,141 @@ void MDTraits_RawArray::SetString(MDValuePtr Object, std::string Val)
 	// number to be processed
 	} while(*(p++));
 }
+
+
+/*****************************
+**   UUID Implementations	**
+*****************************/
+
+std::string MDTraits_UUID::GetString(MDValuePtr Object)
+{
+	char Buffer[100];
+
+	ASSERT(Object->GetData().Size >= 16);
+	const Uint8 *Ident = Object->GetData().Data;
+
+	// Check which format should be used
+	if( !(0x80&Ident[8]) )
+	{	// Half-swapped UL packed into a UUID datatype
+		// Return as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
+		// Stored with upper/lower 8 bytes exchanged
+		// Stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
+		sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+						   Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15],
+						   Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7]
+		);
+	}
+	else
+	{	// UUID
+		// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// (i.e. network byte order)
+		// Return as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
+		sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+						   Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7],
+						   Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15]
+				);
+	}
+
+	return std::string(Buffer);
+}
+
+
+/***********************************
+**   Label Implementations        **
+************************************/
+
+std::string MDTraits_Label::GetString(MDValuePtr Object)
+{
+	// TODO: This uses the sets registry for label lookups, which can work but is not really correct
+
+	ASSERT(Object->GetData().Size >= 16);
+	const Uint8 *Ident = Object->GetData().Data;
+
+	// Look up the Ident in the dictionary
+	// if found, emit the Name (should by symbol)
+	MDOTypePtr Label = MDOType::Find( UL(Ident) );
+
+	if( Label ) return Label->Name();
+
+	// ...else emit underlying identifier
+
+	char Buffer[100];
+
+	// Check which format should be used
+	if( !(0x80&Ident[0]) )
+	{	
+		// This is a UL rather than a half-swapped UUID
+		// Return as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
+		// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// (i.e. network byte order)
+		sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+						   Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7],
+						   Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15]
+				);
+	}
+	else
+	{	
+		// Half-swapped UUID
+		// Return as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
+		sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+						   Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15],
+						   Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7]
+				);
+	}
+
+	return std::string(Buffer);
+};
+
+
+/*****************************
+**   UMID Implementations	**
+*****************************/
+
+std::string MDTraits_UMID::GetString(MDValuePtr Object)
+{
+	char Buffer[100];
+
+	ASSERT(Object->GetData().Size >= 32);
+	const Uint8 *Ident = Object->GetData().Data;
+
+	sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x]",
+					  Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5],
+					  Ident[6], Ident[7], Ident[8], Ident[9], Ident[10], Ident[11]
+		    );
+	
+	// Start building the return value
+	std::string Ret(Buffer);
+
+	sprintf( Buffer, ",%02x,%02x,%02x,%02x,", Ident[12], Ident[13], Ident[14], Ident[15]);
+	Ret += Buffer;
+
+	// Decide how best to represent the material number
+	const Uint8* Material = &Ident[16];
+	if( !(0x80&Material[8]) )
+	{	// Half-swapped UL packed into a UUID datatype
+		// Return as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
+		// Stored with upper/lower 8 bytes exchanged
+		// Stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
+		sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+						   Material[8], Material[9], Material[10], Material[11], Material[12], Material[13], Material[14], Material[15],
+						   Material[0], Material[1], Material[2], Material[3], Material[4], Material[5], Material[6], Material[7]
+				);
+	}
+	else
+	{	// UUID
+		// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// (i.e. network byte order)
+		// Return as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
+		sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+						   Material[0], Material[1], Material[2], Material[3], Material[4], Material[5], Material[6], Material[7],
+						   Material[8], Material[9], Material[10], Material[11], Material[12], Material[13], Material[14], Material[15]
+				);
+	}
+
+	Ret += Buffer;
+
+	return Ret;
+};
 
 
 /********************************************
@@ -1156,6 +1331,7 @@ void MDTraits_BasicCompound::SetString(MDValuePtr Object, std::string Val)
 		if(OpenQuote == (int)std::string::npos) return;
 
 		// DRAGONS: Should add code here to allow out-of-order items
+		// TODO: not updated to match new GetString() above
 
 		CloseQuote = Val.find("\"",OpenQuote+1);
 		if(CloseQuote == (int)std::string::npos) return;
@@ -1235,7 +1411,7 @@ std::string MDTraits_Rational::GetString(MDValuePtr Object)
 	MDValuePtr Denominator = Object["Denominator"];
 
 	Uint32 Num = 0;
-	Uint32 Den = 0;
+	Uint32 Den = 1;
 	if(Numerator) Num = Numerator->GetUint();
 	if(Denominator) Den = Denominator->GetUint();
 
@@ -1250,7 +1426,7 @@ void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
 
 	Uint32 Num = atoi(Val.c_str());
 
-	Uint32 Den = 0;
+	Uint32 Den = 1;
 	std::string::size_type Slash = Val.find("/");
 	if(Slash != std::string::npos) Den = atoi(&(Val.c_str()[Slash+1]));
 
@@ -1263,7 +1439,7 @@ void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
 **   TimeStamp Implementations   **
 **********************************/
 
-//! Read timestamp from ISO-8601 format string
+//! Write timestamp to ISO-8601 format string
 std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 {
 	MDValuePtr Year = Object["Year"];
@@ -1290,12 +1466,32 @@ std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 	if(Seconds) S = Seconds->GetUint(); else S = 0;
 	if(msBy4) ms = msBy4->GetUint() * 4; else ms = 0;
 
+
+#if defined(AAF_DATES)
+	static const char * const monthNames[] =
+	{
+		    "Month0",
+		    "Jan", "Feb", "Mar",
+			"Apr", "May", "Jun",
+			"Jul", "Aug", "Sep",
+			"Oct", "Nov", "Dec"
+	};
+
+	std::string date = monthNames[ M ];
+
+	return date + " "  + Uint2String(D,2)
+	            + ", " + Uint2String(Y)
+	            + " "  + Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2)
+				+ "."  + Uint2String(ms,3)
+				+ " GMT";
+#else
 	return Uint2String(Y) + "-" + Uint2String(M,2) + "-" + Uint2String(D,2) + " " +
 		   Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2) + "." + Uint2String(ms,3);
+#endif
 }
 
 
-//! Write timestamp to ISO-8601 format string
+//! Read timestamp from ISO-8601 format string
 void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
 {
 	MDValuePtr Year = Object["Year"];

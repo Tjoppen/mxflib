@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Defines known types
  *
- *	\version $Id: deftypes.cpp,v 1.3 2004/05/21 20:08:45 terabrit Exp $
+ *	\version $Id: deftypes.cpp,v 1.4 2004/11/12 09:20:43 matt-beard Exp $
  *
  */
 /*
@@ -112,6 +112,11 @@ static void DefineTraits(void)
 	TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_BasicStringArray));
 	TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
 
+	TraitsMap.insert(TraitsMapType::value_type("UUID", new MDTraits_UUID));
+	TraitsMap.insert(TraitsMapType::value_type("Label", new MDTraits_Label));
+
+	TraitsMap.insert(TraitsMapType::value_type("UMID", new MDTraits_UMID));
+
 	TraitsMap.insert(TraitsMapType::value_type("LabelCollection", new MDTraits_RawArrayArray));
 
 	TraitsMap.insert(TraitsMapType::value_type("Rational", new MDTraits_Rational));
@@ -136,16 +141,16 @@ int mxflib::LoadTypes(char *TypesFile)
 	State.CurrentCompound = NULL;
 	State.CompoundName[0] = '\0';
 
-	char *xmlFilePath = lookupDataFilePath(TypesFile);
+	std::string XMLFilePath = LookupDictionaryPath(TypesFile);
 
 	// Parse the file
-	bool result = sopSAXParseFile(&DefTypes_SAXHandler, &State, xmlFilePath);
-	if (xmlFilePath)
-		delete [] xmlFilePath;
-	if (! result)
+	bool result = false;
+	
+	if(XMLFilePath.size()) result = sopSAXParseFile(&DefTypes_SAXHandler, &State, XMLFilePath.c_str());
+	if (!result)
 	{
 		error("sopSAXParseFile failed for %s\n", TypesFile);
-		exit(1);
+		return -1;
 	}
 
 
@@ -378,7 +383,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 					}
 					else if(strcmp(attr, "type") == 0)
 					{
-						if(strcasecmp(val, "Collection") == 0) Class = ARRAYCOLLECTION;
+						if(strcasecmp(val, "Batch") == 0) Class = ARRAYBATCH;
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
@@ -399,7 +404,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 			else
 			{
 				MDTypePtr Ptr = MDType::AddArray(name, BaseType, Size);
-				if(Class == ARRAYCOLLECTION) Ptr->SetArrayClass(ARRAYCOLLECTION);
+				if(Class == ARRAYBATCH) Ptr->SetArrayClass(ARRAYBATCH);
 
 				MDTraitsPtr Traits = TraitsMap[name];
 				if(!Traits) Traits = TraitsMap["Default-Array"];

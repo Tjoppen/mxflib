@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.2 2004/05/18 01:59:57 terabrit Exp $
+ *	\version $Id: index.cpp,v 1.3 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -133,7 +133,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	if(EditUnitByteCount)
 	{
 		// Start of edit unit
-		Uint64 Loc = EditUnit * EditUnitByteCount;
+		Position Loc = EditUnit * (Position)EditUnitByteCount;
 
 		if(SubItem == 0)
 		{
@@ -246,11 +246,9 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	Int8 TemporalOffset = GetI8(Ptr);
 	Ptr++;
 
-//printf("** EditUnit %d, Offset %d, TempOffset %d\n", (int)EditUnit, (int)GetI64(&Ptr[2]), (int)TemporalOffset);
 	// Apply temporal re-ordering if we should, but only if we have details of the exact sub-item
 	if(Reorder && (TemporalOffset != 0) && (SubItem < Segment->DeltaCount) && (Segment->DeltaArray[SubItem].PosTableIndex < 0))
 	{
-//printf(">>Reorder\n");
 		return Lookup(EditUnit + TemporalOffset, SubItem, false);
 	}
 
@@ -538,6 +536,9 @@ bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8
 	// Increment the count
 	EntryCount++;
 
+	// Free the buffer
+	delete[] Buffer;
+
 	return true;
 }
 
@@ -559,23 +560,23 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
 
 // diagnostics
 #ifdef MXFLIB_DEBUG
-	printf("\nAddIndexEntries() %d, %d:\n", Size, Count);
+	debug("\nAddIndexEntries() %d, %d:\n", Size, Count);
 	Uint8 *p = (Uint8*)Entries;
 	int i, j, k;
 	for(i=0; i<Count && i<35; i++)
 	{
-		printf( " %3d: %2d %3d  0x%02x  0x", i, (int)(char)p[0], (int)(char)p[1], p[2] );
+		debug( " %3d: %2d %3d  0x%02x  0x", i, (int)(char)p[0], (int)(char)p[1], p[2] );
 
-		for(j=3; j<11 && j<Size; j++) printf("%02x", p[j]);
+		for(j=3; j<11 && j<Size; j++) debug("%02x", p[j]);
 
 		for(j=11; j<Size; j+=4)
 		{
-			printf(" 0x");
-			for( k=0; k<4; k++) printf("%02x", p[j+k]);
+			debug(" 0x");
+			for( k=0; k<4; k++) debug("%02x", p[j+k]);
 		}
 
 		p+=Size;
-		printf("\n");
+		debug("\n");
 	}
 #endif // MXFLIB_DEBUG
 
@@ -597,9 +598,9 @@ IndexSegmentPtr IndexSegment::AddIndexSegmentToIndexTable(IndexTablePtr ParentTa
 	Segment->Parent = ParentTable;
 	Segment->StartPosition = IndexStartPosition;
 	Segment->DeltaCount = ParentTable->BaseDeltaCount;
-	Segment->DeltaArray = new DeltaEntry[Segment->DeltaCount];
 	if(ParentTable->BaseDeltaCount) 
 	{
+		Segment->DeltaArray = new DeltaEntry[Segment->DeltaCount];
 		memcpy(Segment->DeltaArray, ParentTable->BaseDeltaArray, ParentTable->BaseDeltaCount * sizeof(DeltaEntry));
 	}
 
@@ -632,7 +633,8 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 		// Even though it isn't used IndexTableSegments need an InstanceUID
 		// as it is derived from InterchangeObject (A minor bug in the spec)
 		MDObjectPtr Instance = ThisSegment->AddChild("InstanceUID");
-		if(Instance) Instance->ReadValue(DataChunk(new UUID));
+		UUIDPtr ThisInstance = new UUID;
+		if(Instance) Instance->ReadValue(DataChunk(16, ThisInstance->GetValue()));
 
 		MDObjectPtr Ptr;
 		Ptr = ThisSegment->AddChild("IndexEditRate");
@@ -687,7 +689,8 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 			// Even though it isn't used IndexTableSegments need an InstanceUID
 			// as it is derived from InterchangeObject (A minor bug in the spec)
 			MDObjectPtr Instance = ThisSegment->AddChild("InstanceUID");
-			if(Instance) Instance->ReadValue(DataChunk(new UUID));
+			UUIDPtr ThisInstance = new UUID;
+			if(Instance) Instance->ReadValue(DataChunk(16, ThisInstance->GetValue()));
 
 			MDObjectPtr Ptr;
 			Ptr = ThisSegment->AddChild("IndexEditRate");
@@ -797,14 +800,14 @@ bool ReorderIndex::SetEntry(Position Pos, Uint8 Flags, Int8 AnchorOffset, Uint8 
 		Int64 Shift = (FirstPosition - Pos) * IndexEntrySize;
 
 		// Make enought room
-		IndexEntries.Resize(IndexEntries.Size + Shift);
+		IndexEntries.Resize((Uint32)(IndexEntries.Size + Shift));
 
 		// Shift the entries forwards
 		memmove(&IndexEntries.Data[Shift], IndexEntries.Data, EntryCount * IndexEntrySize);
 
 		// Adjust the counts
-		if(CompleteEntryCount) CompleteEntryCount += (FirstPosition - Pos);
-		EntryCount += (FirstPosition - Pos);
+		if(CompleteEntryCount) CompleteEntryCount += (int)(FirstPosition - Pos);
+		EntryCount += (int)(FirstPosition - Pos);
 		
 		// And the start position
 		FirstPosition = Pos;
@@ -893,14 +896,14 @@ bool ReorderIndex::SetTemporalOffset(Position Pos, Int8 TemporalOffset)
 		Int64 Shift = (FirstPosition - Pos) * IndexEntrySize;
 
 		// Make enought room
-		IndexEntries.Resize(IndexEntries.Size + Shift);
+		IndexEntries.Resize((Uint32)(IndexEntries.Size + Shift));
 
 		// Shift the entries forwards
 		memmove(&IndexEntries.Data[Shift], IndexEntries.Data, EntryCount * IndexEntrySize);
 
 		// Adjust the counts
-		if(CompleteEntryCount) CompleteEntryCount += (FirstPosition - Pos);
-		EntryCount += (FirstPosition - Pos);
+		if(CompleteEntryCount) CompleteEntryCount += (int)(FirstPosition - Pos);
+		EntryCount +=(int) (FirstPosition - Pos);
 		
 		// And the start position
 		FirstPosition = Pos;
@@ -1253,7 +1256,8 @@ bool IndexManager::OfferEditUnit(int SubStream, Position EditUnit, int KeyOffset
 	// DRAGONS: Currently we accept all offered entries
 
 	AddEditUnit(SubStream, EditUnit, KeyOffset, Flags);
-	Log(EditUnit);
+
+//	Log(EditUnit); -- already done in AddEditUnit
 
 	return true;
 }
@@ -1423,7 +1427,7 @@ IndexTablePtr IndexManager::MakeIndex(void)
 	// Calculate length if CBR
 	if( DataIsCBR )
 	{
-		Uint64 ByteCount = 0;
+		Uint32 ByteCount = 0;
 		for(i=0; i<StreamCount; i++)
 		{
 			ByteCount += ElementSizeList[i];
@@ -1495,7 +1499,6 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 		Position StreamPos = ThisEntry->StreamOffset[0];
 
 		// Don't build an entry if it is not (yet) complete
-//if((ThisEntry->Status & StatusTest) != StatusTest) printf("Aborting %d status %0x\n", (int)(*it).first, ThisEntry->Status);
 		if((ThisEntry->Status & StatusTest) != StatusTest) break;
 
 		// Build the slice table

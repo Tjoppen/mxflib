@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.2 2004/05/09 12:00:33 stuart_hc Exp $
+ *	\version $Id: index.h,v 1.3 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -33,9 +33,12 @@
 // Forward refs
 namespace mxflib
 {
-	//! Smart pointer to an index table
 	class IndexTable;
+	//! Smart pointer to an index table
 	typedef SmartPtr<IndexTable> IndexTablePtr;
+	
+	//! Parent pointer to an index table
+	typedef ParentPtr<IndexTable> IndexTableParent;
 
 	//! Smart pointer to an index table segment
 	class IndexSegment;
@@ -50,10 +53,14 @@ namespace mxflib
 	class IndexPos : public RefCount<IndexPos>
 	{
 	public:
-		Uint64 ThisPos;			//!< The position (in file package edit units) of the data for which Location points to the start
-								/*!< \note If Exact = false and OtherPos = false this will be the <b>un-reordered</b> position of the
-								 *		   data returned in Location */
-		Int64 Location;			//!< The location of the start of ThisPos edit unit in the essence container
+		Uint64 ThisPos;			//!< The position (in file package edit units) of the data of which Location indexes the start
+								/*!< \note If Exact = false and OtherPos = true this will be the <b>un-reordered</b> or bytestream
+								 *         position of a different edit unit of data whose location is returned in Location.
+								 *         This happens if the exact location is not indexed for some reason such as a 
+								 *         sparse or incomplete index table. The location returned will be a "hint" of
+								 *         where to start looking for the un-indexed data.
+		                         */
+		Position Location;		//!< The location of the start of ThisPos edit unit in the essence container
 		Rational PosOffset;		//!< The temporal offset for this edit unit (if Offset = true, otherwise undefined)
 		bool Exact;				//!< true if ThisPos is the requested edit unit and the location is for the requested sub-item.
 								/*!< false if it is a preceeding edit unit or the requested sub-item could not be identified */
@@ -118,7 +125,7 @@ namespace mxflib
 											 */
 		Position FirstPosition;				//!< The edit unit number of the first position in this index table
 		Uint32 IndexEntrySize;				//!< The size of each index entry
-		
+
 	public:
 		//! Initialise the ReorderIndex
 		ReorderIndex(int UseIndexEntrySize)
@@ -162,7 +169,7 @@ namespace mxflib
 		Rational EditRate;
 
 		//! Byte count for each and every edit unit, if CBR, else zero
-		Uint64 EditUnitByteCount;
+		Uint32 EditUnitByteCount;
 
 		//! Number of entries in BaseDeltaArray
 		int BaseDeltaCount;
@@ -191,7 +198,6 @@ namespace mxflib
 		//! Free any memory used by BaseDeltaArray when this IndexTable is destroyed
 		~IndexTable() 
 		{ 
-//printf("Deleting IndexTable at 0x%08x: Count = %d, Array = 0x%08x\n", this, BaseDeltaCount, BaseDeltaArray);
 			if(BaseDeltaCount) delete[] BaseDeltaArray; 
 		};
 
@@ -290,35 +296,6 @@ namespace mxflib
 		//! Write this index table to a memory buffer
 		Uint32 WriteIndex(DataChunk &Buffer);
 
-//		//! Add a new index entry that may be out of order
-//		/*! The entry is added to IndexOrderEntryMap and EssenceOrderEntryMap */
-//		void AddNewEntry(Int64 IndexOrder, Int64 EssenceOrder, IndexEntryPtr NewEntry)
-//		{
-//			IndexOrderEntryMap.insert(IndexEntryMap::value_type(IndexOrder, NewEntry));
-///			EssenceOrderEntryMap.insert(IndexEntryMap::value_type(EssenceOrder, NewEntry));
-//		}
-//
-//		//! Get the "new" index entry in IndexOrderEntryMap (i.e. by indexed order)
-//		IndexEntryPtr IndexEntryByIndexOrder(Int64 Pos)
-//		{
-//			IndexEntryMap::iterator it = IndexOrderEntryMap.find(Pos);
-//
-//			if(it == IndexOrderEntryMap.end()) return NULL;
-//
-//			return (*it).second;
-//		}
-//
-/*		//! Get the "new" index entry in EssenceOrderEntryMap (i.e. by essence order)
-		IndexEntryPtr IndexEntryByEssenceOrder(Int64 Pos)
-		{
-			IndexEntryMap::iterator it = EssenceOrderEntryMap.find(Pos);
-
-			if(it == EssenceOrderEntryMap.end()) return NULL;
-
-			return (*it).second;
-		}
-*/
-
 		//! Get a pointer to the reorder index object (if one has been enabled)
 		ReorderIndexPtr GetReorder(void)
 		{
@@ -332,21 +309,6 @@ namespace mxflib
 
 			return Reorder;
 		}
-
-/*		void CommitIndexEntries(void)
-		{
-			IndexEntryMap::iterator it = IndexOrderEntryMap.begin();
-
-			while(it != IndexOrderEntryMap.end())
-			{
-				AddIndexEntry((*it).first, (*it).second->TemporalOffset, (*it).second->AnchorOffset, (*it).second->Flags, (*it).second->StreamOffset);
-				IndexOrderEntryMap.erase(it);
-				it = IndexOrderEntryMap.begin();
-			}
-
-//			EssenceOrderEntryMap.clear();
-		}
-*/
 	};
 }
 
@@ -360,7 +322,7 @@ namespace mxflib
 
 	public:
 		//! Table that owns this segment
-		IndexTablePtr Parent;
+		IndexTableParent Parent;
 		
 		//! Edit unit of the first entry in this segment
 		Int64 StartPosition;
@@ -410,13 +372,6 @@ namespace mxflib
 		bool FormatFixed;					//!< True once we have started building an index - can't then change the format
 											/*!< DRAGONS: There may be a need to allow changes later... */
 		bool DataIsCBR;						//!< True if the index table will be CBR
-///		Position CompletedListBase;			//!< Edit Uint of first entry in CompletedList
-///		DataChunkPtr CompleteList;			//!< Datachunk containing list of flags
-											/*!<	0 = no data
-											 *		1 = offset set
-											 *		2 = temporal offset set
-											 *		3 = both set
-											 */
 		int StreamCount;					//!< Number of streams (including the main stream)
 		int StreamListSize;					//!< Size of PosTableList and ElementSizeList arrays
 		int *PosTableList;					//!< PosTableIndex for each stream
@@ -439,12 +394,7 @@ namespace mxflib
 											/*!< \note This array is variable length so the entire structure is also variable length */
 		};
 
-//		int ManagedDataCount;				//!< Number of active entries in the ManagedData array
-//		int ManagedDataArraySize;			//!< Number of allocated entries in the ManagedData array
-//		Position ManagedDataBase;			//!< Edit Unit of first entry in the ManagedData array
 		int ManagedDataEntrySize;			//!< Size of each entry in the ManagedData array (depends on number of sub streams)
-//		IndexData *ManagedData;				//!< Array of IndexData structures, one per managed entry (or NULL if not allocated)
-//											//!< \note This array is allocated and freed with malloc()/calloc() and free() as elements are variable in size
 
 		std::map<Position, IndexData*> ManagedData;
 											//!< Map of IndexData entries for all recorded edit units

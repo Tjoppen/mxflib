@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.6 2004/05/12 17:09:33 matt-beard Exp $
+ *	\version $Id: system.h,v 1.7 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -46,7 +46,7 @@
 
 // Required headers for non-system specific bits
 #include <time.h>
-#include <stdlib.h>						//!< Required for integer conversions
+#include <stdlib.h>						// Required for integer conversions
 
 /************************************************/
 /*           (Hopefully) Common types           */
@@ -73,7 +73,7 @@ namespace mxflib
 
 
 	// Runtime detection of endian-ness using detection code that executes once.
-	// The variable littleEndian is then used to check if bytes read/written to 
+	// The variable littleEndian is then used to check if bytes read/written to
 	// files need to be swapped.
 	static bool IsLittleEndian()
 	{
@@ -169,11 +169,6 @@ namespace mxflib
 		return std::string(Buffer);
 	};
 
-// FIXME: What is a sensible default for MXFDATADIR under MSVC environment?
-#ifndef MXFDATADIR
-#define MXFDATADIR "."
-#endif
-
 #define UINT64_C(c)	c			// for defining 64bit constants
 #define INT64_C(c)	c			// for defining 64bit constants
 
@@ -183,8 +178,15 @@ namespace mxflib
 //! Allow command-line switches to be prefixed with '/' or '-'
 #define IsCommandLineSwitchPrefix(x) ( (x == '/') || (x == '-'))
 
+	//! Pause for user input (with prompt) e.g. for debugging purposes
+	inline void PauseForInput(void)
+	{
+		printf("Press enter key...");
+		getchar();
+		printf("\n");
+	}
 }
-#else
+#else // _MSC_VER
 namespace mxflib
 {
 	typedef long long Int64;			//!< Signed 64-bit integer
@@ -203,6 +205,10 @@ namespace mxflib
 #include <sys/timeb.h>		//!< for _timeb
 
 #define DIR_SEPARATOR		'\\'
+#define PATH_SEPARATOR		';'
+#ifndef DEFAULT_DICT_PATH
+#define DEFAULT_DICT_PATH	".\\"
+#endif //DEFAULT_DICT_PATH
 
 namespace mxflib
 {
@@ -211,9 +217,12 @@ namespace mxflib
 	typedef int FileHandle;
 	inline int FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET) == -1 ? -1 : 0; }
 	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END) == -1 ? -1 : 0; }
-	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, size); }
-	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, size); }
-	inline Uint8 FileGetc(FileHandle file) { Uint8 c; FileRead(file, &c, 1); return c; }
+	
+	// DRAGONS: MSVC can't read or write more than 4Gb in one go currently
+	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, (unsigned int)size); }
+	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, (unsigned int)size); }
+
+	inline int FileGetc(FileHandle file) { Uint8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return open(filename, _O_BINARY | _O_RDWR ); }
 	inline FileHandle FileOpenRead(const char *filename) { return open(filename, _O_BINARY | _O_RDONLY ); }
 	inline FileHandle FileOpenNew(const char *filename) { return open(filename, _O_BINARY | _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE); }
@@ -240,6 +249,15 @@ namespace mxflib
 	inline void MakeUUID(Uint8 *Buffer)
 	{
 		CoCreateGuid(reinterpret_cast<GUID*>(Buffer));
+	}
+
+	//! Determine if the spacified filename refers to an absolute path
+	inline bool IsAbsolutePath(const char *Filename)
+	{
+		if(*Filename == '\\') return true;
+		if(*Filename == '/') return true;
+		if(*Filename != '\0' && Filename[1] == ':') return true;
+		return false;
 	}
 }
 #endif // _WIN32
@@ -335,9 +353,21 @@ namespace mxflib
 		return std::string(Buffer);
 	}
 
+	//! Pause for user input (with prompt) e.g. for debugging purposes
+	inline void PauseForInput(void)
+	{
+		printf("Press enter key...");
+		getchar();
+		printf("\n");
+	}
+
 #ifndef _WIN32
 
 #define DIR_SEPARATOR		'/'
+#define PATH_SEPARATOR		':'
+#ifndef DEFAULT_DICT_PATH
+#define DEFAULT_DICT_PATH	"/usr/local/share/mxflib/"
+#endif //DEFAULT_DICT_PATH
 
 	/******** 64-bit file-I/O ********/
 #ifndef MXFLIB_NO_FILE_IO
@@ -346,7 +376,7 @@ namespace mxflib
 	inline int FileSeekEnd(FileHandle file) { return fseeko(file, 0, SEEK_END); }
 	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return fread(dest, 1, size, file); }
 	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return fwrite(source, 1, size, file); }
-	inline Uint8 FileGetc(FileHandle file) { Uint8 c; FileRead(file, &c, 1); return c; }
+	inline int FileGetc(FileHandle file) { Uint8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return fopen(filename, "r+b" ); }
 	inline FileHandle FileOpenRead(const char *filename) { return fopen(filename, "rb" ); }
 	inline FileHandle FileOpenNew(const char *filename) { return fopen(filename, "w+b"); }
@@ -412,6 +442,14 @@ namespace mxflib
 		Buffer[7] |= 0x40;
 	}
 #endif // HAVE_UUID_GENERATE
+
+	//! Determine if the spacified filename refers to an absolute path
+	inline bool IsAbsolutePath(const char *Filename)
+	{
+		if(*Filename == '/') return true;
+		return false;
+	}
+
 #endif // _WIN32
 }
 
@@ -448,7 +486,7 @@ namespace mxflib
 	int FileSeekEnd(FileHandle file);
 	Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size);
 	Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size);
-	Uint8 FileGetc(FileHandle file);
+	int FileGetc(FileHandle file);
 	FileHandle FileOpen(const char *filename);
 	FileHandle FileOpenRead(const char *filename);
 	FileHandle FileOpenNew(const char *filename);

@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.2 2004/05/09 11:50:47 stuart_hc Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.3 2004/11/12 09:20:43 matt-beard Exp $
  *
  */
 /*
@@ -38,13 +38,12 @@ namespace mxflib
 	class WAVE_PCM_EssenceSubParser : public EssenceSubParserBase
 	{
 	protected:
-		WrappingOption::WrapType SelectedWrapping;			//!< The wrapping type selected
-
 		Uint32 SampleRate;									//!< The sample rate of this essence
+		Rational UseEditRate;								//!< The edit rate to use for wrapping this essence
 
-		Uint64 DataStart;									//!< Start of "data" chunk (value part)
-		Uint64 DataSize;									//!< Size of "data" chunk (value part)
-		Uint64 CurrentPos;									//!< Current position in the input file
+		Position DataStart;									//!< Start of "data" chunk (value part)
+		Length DataSize;									//!< Size of "data" chunk (value part)
+		Position CurrentPos;								//!< Current position in the input file
 															/*!< A value of 0 means the start of the data chunk,
 															 *	 any other value is that position within the whole file.
 															 *	 This means that a full rewind can be achieved by setting CurrentPos = 0
@@ -62,17 +61,17 @@ namespace mxflib
 		class ESP_EssenceSource : public EssenceSubParserBase::ESP_EssenceSource
 		{
 		protected:
-			Uint64 EssenceBytePos;
+			Position EssenceBytePos;
 			bool CountSet;
-			Uint64 ByteCount;
-			Uint64 Offset;
+			Length ByteCount;
+			Position Offset;
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
-			ESP_EssenceSource(EssenceSubParserBase *TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
+			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
-				WAVE_PCM_EssenceSubParser *pCaller = (WAVE_PCM_EssenceSubParser*) TheCaller;
+				WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
 				EssenceBytePos = pCaller->CurrentPos;
 				if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
 
@@ -82,61 +81,36 @@ namespace mxflib
 			//! Get the size of the essence data in bytes
 			/*! \note There is intentionally no support for an "unknown" response 
 			 */
-			virtual Uint64 GetEssenceDataSize(void) 
+			virtual Length GetEssenceDataSize(void) 
 			{
 				CountSet = true;
 				Offset = 0;
-				WAVE_PCM_EssenceSubParser *pCaller = (WAVE_PCM_EssenceSubParser*) Caller;
+				WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
 				ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
 				return ByteCount;
 			};
 
 			//! Get the next "installment" of essence data
-			/*! \ret Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+			/*! \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
 			 *	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 			 */
 			virtual DataChunkPtr GetEssenceData(Uint64 Size = 0, Uint64 MaxSize = 0)
 			{
-				WAVE_PCM_EssenceSubParser *pCaller = (WAVE_PCM_EssenceSubParser*) Caller;
-
 				// Allow us to differentiate the first call
 				if(!Started)
 				{
-					if(!CountSet)
-					{
-						CountSet = true;
-						ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
-						Offset = 0;
-					}
+					Started = true;
+
+					WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
 
 					// Move to the selected position
 					if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
 					pCaller->CurrentPos = EssenceBytePos;
-
-					Started = true;
 				}
 
-				// Flag the end when no more to read
-				if(ByteCount <= Offset) return NULL;
-
-				// Decide how much to actually read
-				if(Size == 0)
-				{
-					Size = ByteCount - Offset;
-					if((MaxSize) && (Size > MaxSize)) Size = MaxSize;
-				}
-
-				// Read the data
-				FileSeek(File, EssenceBytePos + Offset);
-				DataChunkPtr Data = FileReadChunk(File, Size);
-
-				// Update the position
-				pCaller->CurrentPos += Data->Size;
-				Offset += Data->Size;
-
-				return Data;
+				return BaseGetEssenceData(Size, MaxSize);
 			}
 		};
 
@@ -146,17 +120,23 @@ namespace mxflib
 	public:
 		WAVE_PCM_EssenceSubParser()
 		{
+			SampleRate = 1;
 			ConstSamples = 0;
 			SampleSequenceSize = 0;
 			SampleSequence = NULL;
 			SequencePos = 0;
 			DataStart = 0;
 			DataSize = 0;
-//			CurrentPos = 0;		// DRAGONS: Why was this removed?
+			CurrentPos = 0;
+
+			// Use a sensible default if no edit rate is set - not ideal, but better than one sample!
+			// It will always be possible to wrap at this rate, but the end of the data may not be a whole edit unit
+			UseEditRate.Numerator = 1;
+			UseEditRate.Denominator = 1;
 		}
 
 		//! Build a new parser of this type and return a pointer to it
-		virtual EssenceSubParserBase *NewParser(void) const { return new WAVE_PCM_EssenceSubParser; }
+		virtual EssenceSubParserPtr NewParser(void) const { return new WAVE_PCM_EssenceSubParser; }
 
 		//! Report the extensions of files this sub-parser is likely to handle
 		virtual StringList HandledExtensions(void)
@@ -178,7 +158,7 @@ namespace mxflib
 		/*! \return true if this EditRate is acceptable with this wrapping */
 		virtual void Use(Uint32 Stream, WrappingOptionPtr UseWrapping)
 		{
-			SelectedWrapping = UseWrapping->ThisWrapType;
+			SelectedWrapping = UseWrapping;
 
 			CurrentPos = 0;
 		}
@@ -188,20 +168,45 @@ namespace mxflib
 		/*! Must be called <b>after</b> Use()
 		 *	\return true if this rate is acceptable 
 		 */
-		virtual bool SetEditRate(Uint32 Stream, Rational EditRate)
+		virtual bool SetEditRate(Rational EditRate)
 		{
-			SequencePos = 0;
-			return CalcWrappingSequence(EditRate);
+			// See if we can figure out a sequence for this rate
+			bool Ret = CalcWrappingSequence(EditRate);
+
+			// If we can then set the rate
+			if(Ret)
+			{
+				SequencePos = 0;
+				UseEditRate = EditRate;
+			}
+
+			return Ret;
 		}
+
+		//! Get the current edit rate
+		virtual Rational GetEditRate(void) { return UseEditRate; }
+
+		//! Get the preferred edit rate (if one is known)
+		/*! \return The prefered edit rate or 0/0 if note known
+		 */
+		virtual Rational GetPreferredEditRate(void);
 
 		//! Get BytesPerEditUnit, if Constant
 		virtual Uint32 GetBytesPerEditUnit()
 		{
-			return SampleSize*ConstSamples;
+			// If we haven't determined the sample sequence we do it now
+			if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
+
+			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 
+			{
+				// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
+				return SampleSize*ConstSamples + 16 + 4;
+			}
+			else return SampleSize*ConstSamples;
 		}
 
 		//! Get the current position in SetEditRate() sized edit units
-		virtual Int64 GetCurrentPosition(void);
+		virtual Position GetCurrentPosition(void);
 
 		//! Read a number of wrapping items from the specified stream and return them in a data chunk
 		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
@@ -213,7 +218,7 @@ namespace mxflib
 		};
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
-		virtual Uint64 Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
+		virtual Length Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 
 	protected:
@@ -224,7 +229,7 @@ namespace mxflib
 		MDObjectPtr BuildWaveAudioDescriptor(FileHandle InFile, Uint64 Start = 0);
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
-		Uint64 ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count);
+		Length ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count);
 
 	};
 }

@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.10 2004/05/21 20:11:13 terabrit Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.11 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -63,7 +63,7 @@ static bool SplitParts = false;		// -p
 static bool FullIndex = false;		// -f dump full index
 static bool DumpExtraneous = false;		// -x dump extraneous body elements
 
-static unsigned long SplitWaveChannels = 2;	// -w=n
+static unsigned int SplitWaveChannels = 2;	// -w=n
 
 #ifdef DMStiny
 static char* DMStinyDict = NULL;						//!< Set to name of DMStiny xmldict
@@ -80,33 +80,29 @@ static void DumpIndex(PartitionPtr ThisPartition);
 static void DumpBody(PartitionPtr ThisPartition);
 
 
-int main(int argc, char *argv[])
+//! Should we pause before exit?
+bool PauseBeforeExit = false;
+
+// Declare main process function
+int main_process(int argc, char *argv[]);
+
+//! Do the main processing and pause if required
+int main(int argc, char *argv[]) 
+{ 
+	int Ret = main_process(argc, argv);
+
+	if(PauseBeforeExit) PauseForInput();
+
+	return Ret;
+}
+
+//! Do the main processing (less any pause before exit)
+int main_process(int argc, char *argv[])
 {
-	fprintf( stderr,"MXFlib File Splitter\n" );
+	printf("MXFlib File Splitter\n" );
 
 	LoadTypes("types.xml");
 	MDOType::LoadDict("xmldict.xml");
-
-	if(argc < 2)
-	{
-		fprintf( stderr,"\nUsage:  mxfsplit [-qv] <filename> \n" );
-		fprintf( stderr,"                       [-q] Quiet (default is Terse) \n" );
-		fprintf( stderr,"                       [-v] Verbose (Debug) \n" );
-		fprintf( stderr,"                       [-f] Dump Full Index \n" );
-		//fprintf( stderr,"                       [-i] Split Index Table Segments \n" );
-		//fprintf( stderr,"                       [-g] Split Generic Containers into Elements \n" );
-		fprintf( stderr,"                     [-w:n] Split AESBWF Elements into n-channel wave files \n" );
-		//fprintf( stderr,"                       [-m] Subdivide AESBWF Elements into mono wave files \n" );
-		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
-		//fprintf( stderr,"                       [-p] Split Partitions \n");
-		fprintf( stderr,"                       [-x] Dump Extraneous Body Elements \n" );
-#ifdef DMStiny
-		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
-#endif
-		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
-
-		return 1;
-	}
 
 	int num_options = 0;
 	for(int i=1; i<argc; i++)
@@ -142,11 +138,32 @@ int main(int argc, char *argv[])
 				SplitWave = true;
 				if( argv[i][2]==':' || argv[i][2]=='=' )
 				{
-					SplitWaveChannels = strtoul( argv[i]+3, NULL, 0 );
+					SplitWaveChannels = (unsigned int)strtoul( argv[i]+3, NULL, 0 );
 				}
 			}
 			else if(Opt == 'x') DumpExtraneous = true;
 		}
+	}
+
+	if((argc-num_options) < 2)
+	{
+		fprintf( stderr,"\nUsage:  mxfsplit [-qv] <filename> \n" );
+		fprintf( stderr,"                       [-q] Quiet (default is Terse) \n" );
+		fprintf( stderr,"                       [-v] Verbose (Debug) \n" );
+		fprintf( stderr,"                       [-f] Dump Full Index \n" );
+		//fprintf( stderr,"                       [-i] Split Index Table Segments \n" );
+		//fprintf( stderr,"                       [-g] Split Generic Containers into Elements \n" );
+		fprintf( stderr,"                     [-w:n] Split AESBWF Elements into n-channel wave files \n" );
+		//fprintf( stderr,"                       [-m] Subdivide AESBWF Elements into mono wave files \n" );
+		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
+		//fprintf( stderr,"                       [-p] Split Partitions \n");
+		fprintf( stderr,"                       [-x] Dump Extraneous Body Elements \n" );
+		fprintf( stderr,"                       [-z] Pause for input before final exit\n");
+#ifdef DMStiny
+		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
+#endif
+
+		return 1;
 	}
 
 #ifdef DMStiny
@@ -158,8 +175,7 @@ int main(int argc, char *argv[])
 	if (! TestFile->Open(argv[num_options+1], true))
 	{
 		perror(argv[num_options+1]);
-		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
-		exit(1);
+		return 1;
 	}
 
 	// Get a RIP (however possible)
@@ -232,8 +248,6 @@ int main(int argc, char *argv[])
 	}
 	theStreams.clear();
 
-	if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
-
 	return 0;
 }
 
@@ -269,10 +283,10 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 		}
 		else
 		{
-			const char* n=Object->Name().c_str();
+//			const char* n=Object->Name().c_str();
 			if(Object->Value)
 			{
-				Uint32 sz=Object->Value->GetData().Size;
+//				Uint32 sz=Object->Value->GetData().Size;
 				if( Object->Value->GetData().Size > MAX_DUMPSIZE )
 				{
 					printf("%s%s = RAW[0x%08x]", Prefix.c_str(), Object->Name().c_str(), Object->Value->GetData().Size );
@@ -283,14 +297,14 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 						printf("\n%s%*c      ", Prefix.c_str(), strlen(Object->Name().c_str()), ' ');
 						int j; for(j=0;j<4;j++)
 						{
-							int k; for(k=0;k<4;k++) printf("%02x", *p++); 
+							int k; for(k=0;k<4;k++) printf("%02x", *p++);
 							printf(" ");
 						}
 						if(i==2) printf( "...\n" );
 					}
 				}
 				else
-					printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+				printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
 			}
 			else
 				printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
@@ -431,6 +445,8 @@ static void DumpBody( PartitionPtr ThisPartition )
 		FileMap::iterator itFile;
 		FILE* fp;
 
+		int limit=0;
+
 		KLVObjectPtr anElement;
 		ThisPartition->StartElements();
 		while( anElement = ThisPartition->NextElement() )
@@ -443,22 +459,27 @@ static void DumpBody( PartitionPtr ThisPartition )
 			{
 				if( !Quiet ) printf( "EXTRANEOUS (non-GC) Element: K=%s L=0x%s\n", 
 															anElement->GetUL()->GetString().c_str(),
-															Int64toHexString( anElement->GetSize(), 8 ).c_str() );
+															Int64toHexString( anElement->GetLength(), 8 ).c_str() );
 				if( DumpExtraneous )
 				{
 					// anElement isa KLVObject
 					MDObjectPtr anObj = new MDObject( anElement->GetUL() );
 
-					DataChunkPtr theChunk = anElement->GetData();
+					// this may take a long time if we only want to report the size of a mystery KLV
+					anElement->ReadData();
 
-					Uint64 theSize = theChunk->Size;
-					Uint8 *Data = theChunk->Data;
+					DataChunk& theChunk = anElement->GetData();
+					anObj->ReadValue( theChunk );
 
-					anObj->ReadValue( *theChunk );
-
-					DumpObject( anObj, "   " );
+					DumpObject( anObj, "  " );
 					printf( "\n" );
 
+				}
+
+				if( ++limit >= 35 )
+				{
+					printf( "Excessive Extraneous Elements in this Partition...skipping the rest\n" );
+					break;
 				}
 			}
 			else
@@ -472,7 +493,7 @@ static void DumpBody( PartitionPtr ThisPartition )
 									kind.Number );
 
 				if( !Quiet ) printf( "GC Element: L=0x%s File=%s", 
-															Int64toHexString( anElement->GetSize(), 8 ).c_str(),
+															Int64toHexString( anElement->GetLength(), 8 ).c_str(),
 															filename );
 
 				itFile = theStreams.find( filename );
@@ -505,12 +526,15 @@ static void DumpBody( PartitionPtr ThisPartition )
 
 				if( !Quiet ) printf( "\n" );
 
-				DataChunkPtr theEss = anElement->GetData();
+				// Read entire essence KLV
+				// DRAGONS: This is likely to be messy with large KLVs such as clip-wrapped essence!
+				anElement->ReadData();
+				DataChunk &theEss = anElement->GetData();
 
 				//diagnostics
-				//printf( "  writing %x bytes to %s\n", theEss->Size, (*itFile).first.c_str() );
+				// printf( "  writing %x bytes to %s\n", theEss.Size, (*itFile).first.c_str() );
 
-				fwrite( theEss->Data, 1, theEss->Size, (*itFile).second.file );
+				fwrite( theEss.Data, 1, theEss.Size, (*itFile).second.file );
 
 			}
 		}

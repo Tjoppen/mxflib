@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: mxflib.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -33,27 +33,39 @@
 //! Namespace for all MXFLib items
 namespace mxflib {}
 
+
+//! Include system specifics first to allow any required compiler set-up
 #include <mxflib/system.h>
+
+
+// Required std::headers
+
+#include <list>
+#include <map>
+
+
 
 #include <mxflib/debug.h>
 
-#include <mxflib/forward.h>
+#include <mxflib/smartptr.h>
 
 #include <mxflib/endian.h>
 
-#include <mxflib/smartptr.h>
-
 #include <mxflib/types.h>
+
+#include <mxflib/datachunk.h>
+
+#include <mxflib/forward.h>
+
+
+
 
 #include <mxflib/helper.h>
 
-#include <mxflib/datachunk.h>
 
 #include <mxflib/mdtraits.h>
 #include <mxflib/mdtype.h>
 #include <mxflib/deftypes.h>
-
-#include <mxflib/klvobject.h>
 
 #include <mxflib/mdobject.h>
 
@@ -66,6 +78,10 @@ namespace mxflib {}
 #include <mxflib/index.h>
 
 #include <mxflib/essence.h>
+
+#include <mxflib/klvobject.h>
+
+#include <mxflib/crypto.h>
 
 #include <mxflib/esp_mpeg2ves.h>
 #include <mxflib/esp_wavepcm.h>

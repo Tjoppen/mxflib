@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: partition.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -48,8 +48,21 @@ namespace mxflib
 	{
 	public:
 		PartitionPtr() : SmartPtr<Partition>() {};
-		PartitionPtr(Partition * ptr) : SmartPtr<Partition>(ptr) {};
+//		PartitionPtr(Partition * ptr) : SmartPtr<Partition>(ptr) {};
 //		PartitionPtr(MDObjectPtr ptr) : SmartPtr<Partition>((Partition *)ptr.GetPtr()) {};
+		PartitionPtr(IRefCount<Partition> * ptr) : SmartPtr<Partition>(ptr) {};
+
+		//! Child access operators that overcome dereferencing problems with SmartPtrs
+		MDObjectPtr operator[](const char *ChildName);
+		MDObjectPtr operator[](MDOTypePtr ChildType);
+	};
+
+	//! A parent pointer to an Partition object (with operator[] overload)
+	class PartitionParent : public ParentPtr<Partition>
+	{
+	public:
+		PartitionParent() : ParentPtr<Partition>() {};
+		PartitionParent(IRefCount<Partition> * ptr) : ParentPtr<Partition>(ptr) {};
 		
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
@@ -89,7 +102,7 @@ namespace mxflib
 
 		//! Reload the metadata tree - DRAGONS: not an ideal way of doing this
 		void UpdateMetadata(MDObjectPtr NewObject) { ClearMetadata(); AddMetadata(NewObject); };
-		
+
 		//! Add a metadata object to the header metadata belonging to a partition
 		/*! Note that any strongly linked objects are also added */
 		void AddMetadata(ObjectInterface *NewObject) { AddMetadata(NewObject->Object); };
@@ -106,16 +119,22 @@ namespace mxflib
 		}
 
 		//! Read a full set of header metadata from this partition's source file (including primer)
-		Uint64 ReadMetadata(void);
+		Length ReadMetadata(void);
 
 		//! Read a full set of header metadata from a file (including primer)
-		Uint64 ReadMetadata(MXFFilePtr File, Uint64 Size);
+		Length ReadMetadata(MXFFilePtr File, Length Size);
+
+		//! Parse the current metadata sets into higher-level sets
+		MetadataPtr ParseMetadata(void);
 
 		//! Read any index table segments from this partition's source file
 		MDObjectListPtr ReadIndex(void);
 
 		//! Read any index table segments from a file
 		MDObjectListPtr ReadIndex(MXFFilePtr File, Uint64 Size);
+
+		//! Read raw index table data from this partition's source file
+		DataChunkPtr ReadIndexChunk(void);
 
 		//! Set the KAG for this partition
 		void SetKAG(Uint64 KAG)
@@ -131,7 +150,12 @@ namespace mxflib
 		// Access functions for the reference resolving properties
 		// DRAGONS: These should be const, but can't make it work!
 		std::map<UUID, MDObjectPtr>& GetRefTargets(void) { return RefTargets; };
-		std::multimap<UUID, MDObjectPtr>& GetUnmatchedRefs(void) { return UnmatchedRefs;	};
+		std::multimap<UUID, MDObjectPtr>& GetUnmatchedRefs(void) { return UnmatchedRefs; };
+
+
+		//! Locate start of Essence Container
+		bool SeekEssence(void);
+
 
 // Sequential access to the Elements of the Body
 

@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: metadata.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -51,14 +51,16 @@ mxflib::Metadata::Metadata(std::string TimeStamp)
 	Init();
 }
 
+
 //! Common part of constructor
 void Metadata::Init(void)
 {
 	Object = new MDObject("Preface");
-	
+
 	// Even though it isn't used the preface needs an InstanceUID
-	// as it is defivef from GenerationInterchangeObject
-	Object->AddChild("InstanceUID")->ReadValue(DataChunk(new UUID));
+	// as it is defived from GenerationInterchangeObject
+	UUIDPtr ThisInstance = new UUID;
+	Object->AddChild("InstanceUID")->ReadValue(DataChunk(16, ThisInstance->GetValue()));
 
 	Object->AddChild("LastModifiedDate")->SetString(ModificationTime);
 	Object->AddChild("Version")->SetInt(258);
@@ -106,7 +108,52 @@ PackagePtr mxflib::Metadata::AddPackage(std::string PackageType, std::string Pac
 
 	if(BodySID) AddEssenceContainerData(PackageUMID, BodySID);
 
+	// Add this package to our "owned" packages
+	Packages.push_back(Ret);
+
 	return Ret;
+}
+
+
+//! Get a pointer to the primary package
+PackagePtr Metadata::GetPrimaryPackage(void)
+{
+	MDObjectPtr PrimaryPackage;
+
+	MDObjectPtr PackageRef = Child("PrimaryPackage");
+	if(PackageRef)
+	{
+		PrimaryPackage = PackageRef->GetLink();
+	}
+	else
+	{
+		MDObjectPtr Packages = Child("ContentStorage");
+		if(Packages) Packages = Packages["Packages"];
+		if(!Packages)
+		{
+			error("Could not locate a ContentStorage/Packages in the header metadata!\n");
+			return NULL;
+		}
+
+		// Look for the (first) material package
+		MDObject::iterator it = Packages->begin();
+		while(it != Packages->end())
+		{
+			MDObjectPtr ThisPackage = (*it).second->GetLink();
+			if(ThisPackage && (ThisPackage->Name() == "MaterialPackage"))
+			{
+				PrimaryPackage = ThisPackage;
+				break;
+			}
+			it++;
+		}
+	}
+
+	// Couldn't locate the primary package!
+	if(!PrimaryPackage)	return NULL;
+
+	// Get the contasining Package object
+	return Package::GetPackage(PrimaryPackage);
 }
 
 
@@ -140,7 +187,7 @@ bool SourceClip::MakeLink(TrackPtr SourceTrack, Int64 StartPosition /*=0*/)
 
 	SetInt64("StartPosition", StartPosition);
 	SetUint("SourceTrackID", SourceTrack->GetInt("TrackID"));
-	SetValue("SourcePackageID",SourceTrack->Parent["PackageUID"]);
+	SetValue("SourcePackageID",SourceTrack->GetParent()["PackageUID"]);
 
 	return true;
 }
@@ -215,7 +262,8 @@ bool Metadata::UpdateGenerations(MDObjectPtr Ident, std::string UpdateTime /*=""
 	bool Mod = false;
 
 	// GenerationUID for this update
-	UUIDPtr ThisGeneration = new UUID;
+	UUIDPtr ThisGeneration;
+	ThisGeneration = new UUID;
 
 	MDObjectPtr Identifications = Object["Identifications"];
 	if(Identifications->empty())
@@ -383,8 +431,12 @@ SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
 	// Copy the data definition from the sequence
 	Ret->AddChild("DataDefinition")->ReadValue(Sequence["DataDefinition"]->PutData().Data, 16);
 
+	// Add this sequence to the list of "owned" components
+	Components.push_back(SmartPtr_Cast(Ret, Component));
+//	Components.push_back(Ret);
+
 	// Record the track as the parent of the new SourceClip
-	Ret->Parent = this;
+	Ret->SetParent(this);
 
 	// Update the duration in the sequence
 	if(Duration < 0) 
@@ -432,7 +484,7 @@ TimecodeComponentPtr Track::AddTimecodeComponent(Uint16 FPS, bool DropFrame, Int
 	Ret->AddChild("DataDefinition")->ReadValue(Sequence["DataDefinition"]->PutData().Data, 16);
 
 	// Record the track as the parent of the new Timecode Component
-	Ret->Parent = this;
+	Ret->SetParent(this);
 
 	// Update the duration in the sequence
 	if(Duration < 0) 
@@ -448,8 +500,9 @@ TimecodeComponentPtr Track::AddTimecodeComponent(Uint16 FPS, bool DropFrame, Int
 }
 
 //! Add a DMSegment to a track
-/*! \param EventStart The start position of this Segemnt, -1 or omitted for static or timeline */
-/*! \param Duration The duration of this SourceClip, -1 or omitted for static */
+/*! \param EventStart The start position of this Segemnt, -1 or omitted for static or timeline
+ *  \param Duration The duration of this SourceClip, -1 or omitted for static 
+ */
 DMSegmentPtr Track::AddDMSegment(Int64 EventStart /*=-1*/,Int64 Duration /*=-1*/)
 {
 	DMSegmentPtr Ret = new DMSegment("DMSegment");
@@ -475,7 +528,7 @@ DMSegmentPtr Track::AddDMSegment(Int64 EventStart /*=-1*/,Int64 Duration /*=-1*/
 	Ret->AddChild("DataDefinition")->ReadValue(Sequence["DataDefinition"]->PutData().Data, 16);
 
 	// Record the track as the parent of the new DMSegment
-	Ret->Parent = this;
+	Ret->SetParent(this);
 
 	// Update the duration in the sequence
 	if(Duration >= 0) 
@@ -567,8 +620,11 @@ TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate,
 	// Add this track to the package
 	Child("Tracks")->AddChild("Track", false)->MakeLink(Ret->Object);
 
+	// Add this track to our "owned" tracks
+	Tracks.push_back(Ret);
+
 	// Record this package as the parent of the new track
-	Ret->Parent = this;
+	Ret->SetParent(this);
 
 	return Ret;
 }
@@ -586,11 +642,70 @@ void Package::UpdateDurations(void)
 		MDObjectPtr ThisLink = (*it).second->GetLink();
 		if(ThisLink)
 		{
-			TrackPtr ThisTrack = new Track(ThisLink);
-			ThisTrack->UpdateDuration();
+			TrackPtr ThisTrack = Track::Parse(ThisLink);
+			if(ThisTrack) ThisTrack->UpdateDuration();
 		}
 		it++;
 	}
+}
+
+//! Add an event track to the package
+/*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
+TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Int64 DefaultDuration, std::string TrackName /* = "" */ , Uint32 TrackID /* = 0 */)
+{
+	TrackPtr Ret = new Track("EventTrack");
+	if(!Ret) return Ret;
+
+	if(TrackName.length()) Ret->SetString("TrackName", TrackName);
+	Ret->SetInt("TrackNumber", TrackNumber);
+	Ret->SetInt64("EventOrigin", 0);
+
+	MDObjectPtr Ptr = Ret->AddChild("EventEditRate");
+	if(Ptr)
+	{
+		Ptr->SetInt("Numerator", EditRate.Numerator);
+		Ptr->SetInt("Denominator", EditRate.Denominator);
+	}
+
+	// Auto set the track ID if not supplied
+	if(TrackID == 0)
+	{
+		ASSERT(LastTrackID < 0xffffffff);
+
+		LastTrackID++;
+		TrackID = LastTrackID;
+	}
+	Ret->SetInt("TrackID", TrackID);
+
+	// Build a new sequence for this track
+	MDObjectPtr Sequence = new MDObject("Sequence");
+	ASSERT(Sequence);
+
+	// Initialise the sequence
+	Sequence->AddChild("DataDefinition")->ReadValue(DataDef->GetValue(), 16);
+
+	// Pass DefaultDuration on to the Sequence
+	if( DefaultDuration == DurationUnspecified )
+		Sequence->SetDValue("Length");
+	else
+		Sequence->SetInt64("Length", DefaultDuration);
+
+
+	Sequence->AddChild("StructuralComponents");
+
+	// Add the sequence
+	Ret->AddChild("Sequence")->MakeLink(Sequence);
+
+	// Add this track to the package
+	Child("Slots")->AddChild("Track", false)->MakeLink(Ret->Object);
+
+	// Add this track to our "owned" tracks
+	Tracks.push_back(Ret);
+
+	// Record this package as the parent of the new track
+	Ret->SetParent(this);
+
+	return Ret;
 }
 
 //! Add a static track to the package
@@ -627,8 +742,315 @@ TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string TrackN
 	// Add this track to the package
 	Child("Tracks")->AddChild("Track", false)->MakeLink(Ret->Object);
 
+	// Add this track to our "owned" tracks
+	Tracks.push_back(Ret);
+
 	// Record this package as the parent of the new track
-	Ret->Parent = this;
+	Ret->SetParent(this);
 
 	return Ret;
 }
+
+
+//! Return the containing "SourceClip" object for this MDObject
+/*! \return NULL if MDObject is not contained in a SourceClip object
+ */
+SourceClipPtr SourceClip::GetSourceClip(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? SourceClipPtr(dynamic_cast<SourceClip*>(Object->GetOuter())) : NULL;
+}
+
+
+//! Return the containing "TimecodeComponent" object for this MDObject
+/*! \return NULL if MDObject is not contained in a TimecodeComponent object
+ */
+TimecodeComponentPtr TimecodeComponent::GetTimecodeComponent(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? TimecodeComponentPtr(dynamic_cast<TimecodeComponent*>(Object->GetOuter())) : NULL;
+}
+
+
+//! Return the containing "DMSegment" object for this MDObject
+/*! \return NULL if MDObject is not contained in a DMSegment object
+ */
+DMSegmentPtr DMSegment::GetDMSegment(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? DMSegmentPtr(dynamic_cast<DMSegment*>(Object->GetOuter())) : NULL;
+}
+
+
+bool DMSegment::MakeLink(MDObjectPtr DMFramework)
+{
+	MDObjectPtr SourceFramework=Child("DMFramework");
+
+	if(!SourceFramework)
+	{
+		SourceFramework = AddChild("DMFramework");
+		// If this failed then exit with an error
+		if(!SourceFramework)
+		{
+			error("Attempt to reference %s from %s failed\n", FullName().c_str(), DMFramework->FullName().c_str());
+			return false;
+		}
+	}
+
+
+	return SourceFramework->MakeLink(DMFramework);
+}
+
+
+//! Return the containing "Track" object for this MDObject
+/*! \return NULL if MDObject is not contained in a Track object
+ */
+TrackPtr Track::GetTrack(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? TrackPtr(dynamic_cast<Track*>(Object->GetOuter())) : NULL;
+}
+
+
+//! Return the containing "Package" object for this MDObject
+/*! \return NULL if MDObject is not contained in a Package object
+ */
+PackagePtr Package::GetPackage(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? PackagePtr(dynamic_cast<Package*>(Object->GetOuter())) : NULL;
+}
+
+//! Return the containing "Metadata" object for this MDObject
+/*! \return NULL if MDObject is not contained in a Metadata object
+ */
+MetadataPtr Metadata::GetMetadata(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? MetadataPtr(dynamic_cast<Metadata*>(Object->GetOuter())) : NULL;
+}
+
+
+//! Parse an existing MDObject into a Metadata object
+MetadataPtr Metadata::Parse(MDObjectPtr BaseObject)
+{
+	MetadataPtr Ret;
+
+	// We can only build a Metadata object from a Preface
+	if(!BaseObject->IsA("Preface")) return Ret;
+
+	// If this is already part of a Metadata object then return that object
+	if(BaseObject->GetOuter()) return Metadata::GetMetadata(BaseObject);
+
+	// Build the basic Metadata object
+	Ret = new Metadata(BaseObject);
+
+	// Set the most recent modification time to now
+	// Not the value from the MDObject as anything we now do is a new modification
+	Ret->ModificationTime = Now2String();
+
+	// Locate the content storage set
+	MDObjectPtr ContentStorage = BaseObject["ContentStorage"];
+	if(ContentStorage) ContentStorage = ContentStorage->GetLink();
+
+	// Can't go any further if there is no content storage set!
+	// DRAGONS: Should this cause an error to be reported?
+	if(!ContentStorage) return Ret;
+
+	// Get the list of Packages
+	MDObjectPtr PackageList = ContentStorage["Packages"];
+
+	// Can't go any further if there is no package list in the content storage set!
+	// DRAGONS: Should this cause an error to be reported?
+	if(!PackageList) return Ret;
+
+	// Search for packages and parse them
+	MDObject::iterator it = PackageList->begin();
+	while(it != PackageList->end())
+	{
+		// Follow the link
+		MDObjectPtr LinkedPackage = (*it).second->GetLink();
+		
+		if(LinkedPackage)
+		{
+			// Parse this package
+			PackagePtr ThisPackage = Package::Parse(LinkedPackage);
+
+			// Add it to the list of packages for this metadata
+			if(ThisPackage) Ret->Packages.push_back(ThisPackage);
+		}
+
+		it++;
+	}
+
+	return Ret;
+}
+
+
+//! Parse an existing MDObject into a Package object
+PackagePtr Package::Parse(MDObjectPtr BaseObject)
+{
+	PackagePtr Ret;
+
+	// We can only build a Package object from a GenericPackage derived set
+	if(!BaseObject->IsA("GenericPackage")) return Ret;
+
+	// If this is already part of a Package object then return that object
+	if(BaseObject->GetOuter()) return Package::GetPackage(BaseObject);
+
+	// Build the basic Package object
+	Ret = new Package(BaseObject);
+
+	// Clear the LastTrackID - we will search for the highest value in the parsed tracks
+	Ret->LastTrackID = 0;
+
+	// Get the list of tracks
+	MDObjectPtr TrackList = Ret["Tracks"];
+
+	// Can't go any further if there is no track list
+	// DRAGONS: Should this cause an error to be reported?
+	if(!TrackList) return Ret;
+
+	// Search for tracks and parse them
+	MDObject::iterator it = TrackList->begin();
+	while(it != TrackList->end())
+	{
+		// Follow the link
+		MDObjectPtr LinkedTrack = (*it).second->GetLink();
+		
+		if(LinkedTrack)
+		{
+			// Parse this track
+			TrackPtr ThisTrack = Track::Parse(LinkedTrack);
+
+			if(ThisTrack) 
+			{
+				// Set the track's parent pointer
+				ThisTrack->SetParent(Ret);
+
+				// Get the ID of this track and update LastTrackID if required
+				Uint32 ThisID = ThisTrack->GetUint("TrackID");
+				if(ThisID > Ret->LastTrackID) Ret->LastTrackID = ThisID;
+
+				// Add it to the list of tracks for this package
+				Ret->Tracks.push_back(ThisTrack);
+			}
+		}
+
+		it++;
+	}
+
+	return Ret;
+}
+
+
+//! Parse an existing MDObject into a Track object
+TrackPtr Track::Parse(MDObjectPtr BaseObject)
+{
+	TrackPtr Ret;
+
+	// We can only build a Track object from a GenericTrack derived set
+	if(!BaseObject->IsA("GenericTrack")) return Ret;
+
+	// If this is already part of a Track object then return that object
+	if(BaseObject->GetOuter()) return Track::GetTrack(BaseObject);
+
+	// Build the basic Track object
+	Ret = new Track(BaseObject);
+
+	// Get the sequence
+	MDObjectPtr Sequence = Ret["Sequence"];
+	if(Sequence) Sequence = Sequence->GetLink();
+
+	// Can't go any further if there is no sequence
+	// DRAGONS: Should this cause an error to be reported?
+	if(!Sequence) return Ret;
+
+	// Get the list of components
+	MDObjectPtr ComponentList = Sequence["StructuralComponents"];
+
+	// Can't go any further if there is no component list
+	// DRAGONS: Should this cause an error to be reported?
+	if(!ComponentList) return Ret;
+
+	// Search for components and parse them
+	MDObject::iterator it = ComponentList->begin();
+	while(it != ComponentList->end())
+	{
+		// Follow the link
+		MDObjectPtr LinkedComponent = (*it).second->GetLink();
+		
+		if(LinkedComponent)
+		{
+			ComponentPtr ThisComponent;
+
+			// Parse all the known component types
+			if(LinkedComponent->IsA("SourceClip")) ThisComponent = SourceClip::Parse(LinkedComponent);
+			else if(LinkedComponent->IsA("TimecodeComponent")) ThisComponent = TimecodeComponent::Parse(LinkedComponent);
+			else if(LinkedComponent->IsA("DMSegment")) ThisComponent = DMSegment::Parse(LinkedComponent);
+
+			if(ThisComponent)
+			{
+				// Set the component's parent pointer
+				ThisComponent->SetParent(Ret);
+
+				// Add it to the list of components for this track
+				Ret->Components.push_back(ThisComponent);
+			}
+		}
+
+		it++;
+	}
+
+	return Ret;
+}
+
+
+//! Parse an existing MDObject into a SourceClip object
+SourceClipPtr SourceClip::Parse(MDObjectPtr BaseObject)
+{
+	SourceClipPtr Ret;
+
+	// We can only build a SourceClip object from a SourceClip
+	if(!BaseObject->IsA("SourceClip")) return Ret;
+
+	// If this is already part of a SourceClip object then return that object
+	if(BaseObject->GetOuter()) return SourceClip::GetSourceClip(BaseObject);
+
+	// Build the basic SourceClip object
+	Ret = new SourceClip(BaseObject);
+
+	return Ret;
+}
+
+
+//! Parse an existing MDObject into a TimecodeComponent object
+TimecodeComponentPtr TimecodeComponent::Parse(MDObjectPtr BaseObject)
+{
+	TimecodeComponentPtr Ret;
+
+	// We can only build a TimecodeComponent object from a TimecodeComponent
+	if(!BaseObject->IsA("TimecodeComponent")) return Ret;
+
+	// If this is already part of a TimecodeComponent object then return that object
+	if(BaseObject->GetOuter()) return TimecodeComponent::GetTimecodeComponent(BaseObject);
+
+	// Build the basic TimecodeComponent object
+	Ret = new TimecodeComponent(BaseObject);
+
+	return Ret;
+}
+
+
+//! Parse an existing MDObject into a DMSegment object
+DMSegmentPtr DMSegment::Parse(MDObjectPtr BaseObject)
+{
+	DMSegmentPtr Ret;
+
+	// We can only build a DMSegment object from a DMSegment
+	if(!BaseObject->IsA("DMSegment")) return Ret;
+
+	// If this is already part of a DMSegment object then return that object
+	if(BaseObject->GetOuter()) return DMSegment::GetDMSegment(BaseObject);
+
+	// Build the basic DMSegment object
+	Ret = new DMSegment(BaseObject);
+
+	return Ret;
+}
+
+

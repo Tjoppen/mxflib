@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.cpp,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: primer.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -188,7 +188,7 @@ Uint32 Primer::WritePrimer(DataChunk &Buffer)
 	Uint64 PrimerLen = Uint64(size()) * 18 + 8;
 
 	// Re-size buffer to the probable final size
-	Buffer.ResizeBuffer(Buffer.Size + 16 + 4 + PrimerLen);
+	Buffer.ResizeBuffer((Uint32)(Buffer.Size + 16 + 4 + PrimerLen));
 
 	// Lookup the type to get the key - Static so only need to lookup once
 	static MDOTypePtr PrimerType = MDOType::Find("Primer");

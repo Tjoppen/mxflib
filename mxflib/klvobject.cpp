@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: klvobject.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -46,52 +46,199 @@ KLVObject::KLVObject(ULPtr ObjectUL)
 //! Initialise newly built KLVObject
 void KLVObject::Init(void)
 {
-	IsConstructed = true;
-	SourceOffset = 0;
-	KLSize = 0;
-	SourceFile = NULL;
+	ValueLength = 0;
+	DataBase = 0;
 
-	ObjectName = "";
+//	ObjectName = "";
 }
 
 
 //! Get text that describes where this item came from
 std::string KLVObject::GetSource(void) 
 { 
-	if(SourceFile) return SourceFile->Name; else return "memory buffer"; 
+	if(Source.File) return Source.File->Name; else return "memory buffer"; 
 }
 
-//! Get a GCElementKind structure
-GCElementKind KLVObject::GetGCElementKind(void)
+
+//! Base verion: Read the key and length fot this KLVObject from the current source
+/*! \return The number of bytes read (i.e. KLSize)
+ *
+ *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+ *           It is therefore vital that the function does not call any "virtual" KLVObject
+ *           functions, directly or indirectly.
+ */
+Int32 KLVObject::Base_ReadKL(void)
 {
-	GCElementKind ret;
-
-	const Uint8 DegenerateGCLabel[12] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
-	if( memcmp(TheUL->GetValue(), DegenerateGCLabel, 12) == 0 )
+	if(!Source.File)
 	{
-		ret.IsValid =			true;
-		ret.Item =				(TheUL->GetValue())[12];
-		ret.Count =				(TheUL->GetValue())[13];
-		ret.ElementType = (TheUL->GetValue())[14];
-		ret.Number =			(TheUL->GetValue())[15];
+		error("KLVObject::Base_ReadKL() called with no SourceFile defined\n");
+		return 0;
 	}
-	else
-		ret.IsValid =			false;
 
-	return ret;
+	// Read the key
+	Source.File->Seek(Source.Offset);
+	TheUL = Source.File->ReadKey();
+
+	// Abort now if now valid key
+	if(!TheUL) return 0;
+
+	// Read the length
+	ValueLength = Dest.OuterLength = Source.OuterLength = Source.File->ReadBER();
+
+	// Work out the size of the key and length
+	Source.KLSize = (Uint32)(Source.File->Tell() - Source.Offset);
+	
+	// Initially set the destination KLSize target to match the source
+	Dest.KLSize = Source.KLSize;
+
+	return Source.KLSize;
 }
 
-//! Get a reference to the data chunk (const to prevent setting!!)
-DataChunkPtr& KLVObject::GetData(void)
-{
-	if( Data ) return Data;
-	else
-	{
-		Data = new DataChunk( KLSize );
-		SourceFile->Seek( SourceOffset );
-		SourceFile->Read( Data->Data, KLSize );
-		return Data;
-	}
-};
 
+
+//! Base verion: Read data from a specified position in the KLV value field into the DataChunk
+/*! \param Offset Offset from the start of the KLV value from which to start reading
+ *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+ *  \return The number of bytes read
+ *
+ *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+ *           It is therefore vital that the function does not call any "virtual" KLVObject
+ *           functions, directly or indirectly.
+ */
+Length KLVObject::Base_ReadDataFrom(Position Offset, Length Size /*=-1*/)
+{
+	// Delagate to ReadHandler if defined
+	if(ReadHandler) return ReadHandler->ReadData(this, Offset, Size);
+
+	if(Source.Offset < 0)
+	{
+		error("Call to KLVObject::Base_ReadDataFrom() with no read handler defined and DataBase undefined\n");
+		return 0;
+	}
+
+	if(!Source.File)
+	{
+		error("Call to KLVObject::Base_ReadDataFrom() with no read handler defined and source file not set\n");
+		return 0;
+	}
+
+	// Initially plan to read all the bytes available
+	Length BytesToRead = Source.OuterLength - Offset;
+
+	// Limit to specified size if > 0 and if < available
+	if( (Size > 0) && (Size < BytesToRead)) BytesToRead = Size;
+
+	// Don't do anything if nothing to read
+	if(BytesToRead <= 0) 
+	{
+		Data.Resize(0);
+		return 0;
+	}
+
+	// Seek to the start of the requested data
+	Source.File->Seek(Source.Offset + Source.KLSize + Offset);
+
+	// Resize the chunk
+	// Discarding old data first (by setting Size to 0) prevents old data being 
+	// copied needlessly if the buffer is reallocated to increase its size
+	Data.Size = 0;
+	Data.Resize((Uint32)BytesToRead);
+
+	// Read into the buffer (only as big as the buffer is!)
+	Length Bytes = (Length)Source.File->Read(Data.Data, Data.Size);
+
+	// Resize the buffer if something odd happened (such as an early end-of-file)
+	if(Bytes != BytesToRead) Data.Resize((Uint32)Bytes);
+
+	return Bytes;
+}
+
+
+//! Base verion: Write the key and length of the current DataChunk to the destination file
+/*! The key and length will be written to the source file as set by SetSource.
+ *  If LenSize is zero the length will be formatted to match KLSize (if possible!)
+ *
+ *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+ *           It is therefore vital that the function does not call any "virtual" KLVObject
+ *           functions, directly or indirectly.
+ */
+Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/, Length NewLength /*=-1*/)
+{
+	if(!Dest.File)
+	{
+		error("Call to KLVObject::Base_WriteKL() with destination file not set\n");
+		return 0;
+	}
+
+	if(Dest.Offset < 0)
+	{
+		error("Call to KLVObject::Base_WriteKL() with destination file location undefined\n");
+		return 0;
+	}
+
+	// Seek to the start of the KLV space
+	Dest.File->Seek(Dest.Offset);
+
+	// Write the key
+	Int32 Bytes = (Int32)Dest.File->Write(TheUL->GetValue(), TheUL->Size());
+
+	if(LenSize == 0) 
+	{
+		Bytes = Dest.KLSize - Bytes;		// Work out how many bytes we should use for the length
+		if(Bytes > 0) LenSize = Bytes;
+	}
+
+	// Decide what length to write (Use Dest.OuterLength unless something else is supplied)
+	if(NewLength < 0) NewLength = Dest.OuterLength;
+
+	// Write the length
+	Dest.File->WriteBER(NewLength, LenSize);
+
+	// Work out the new KLSize
+	Dest.KLSize =(Uint32)( Dest.File->Tell() - Dest.Offset);
+
+	// Return the number of bytes we wrote
+	return Dest.KLSize;
+}
+
+
+//! Base verion: Write data from a given buffer to a given location in the destination file
+/*! \param Buffer Pointer to data to be written
+ *  \param Offset The offset within the KLV value field of the first byte to write
+ *  \param Size The number of bytes to write
+ *  \return The number of bytes written
+ *
+ *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+ *           It is therefore vital that the function does not call any "virtual" KLVObject
+ *           functions, directly or indirectly.
+ */
+Length KLVObject::Base_WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size)
+{
+	// Don't write zero bytes
+	if(Size == 0) return 0;
+
+	if(!Dest.File)
+	{
+		error("Call to KLVObject::Base_WriteDataTo() with destination file not set\n");
+		return 0;
+	}
+
+	if(Dest.Offset < 0)
+	{
+		error("Call to KLVObject::Base_WriteDataTo() with destination file location undefined\n");
+		return 0;
+	}
+
+	if(Dest.KLSize < 0)
+	{
+		error("Call to KLVObject::Base_WriteDataTo() before call to KLVObject::Base_WriteKL()\n");
+		return 0;
+	}
+
+	// Seek to the start of the requested data
+	Dest.File->Seek(Dest.Offset + Dest.KLSize + Offset);
+
+	// Write from the specified buffer
+	return (Length)Dest.File->Write(Buffer, (Uint32)Size);
+}
 

@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: partition.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -60,7 +60,7 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 
 		if(RefType == DICT_REF_TARGET)
 		{
-			if((*it).second->Value->size() != 16)
+			if((*it).second->Value->GetData().Size != 16)
 			{
 				error("Metadata Object \"%s/%s\" should be a reference target (a UUID), but has size %d\n",
 					  NewObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
@@ -161,10 +161,10 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 			DictRefType Ref = (*it).second->GetRefType();
 			if((Ref == DICT_REF_STRONG) || (Ref == DICT_REF_WEAK))
 			{
-				if((*it).second->Value->size() != 16)
+				if((*it).second->Value->GetData().Size != 16)
 				{
 					error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
-						  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->size());
+						  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
 				}
 				else
 				{
@@ -197,12 +197,12 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 
 
 //! Read a full set of header metadata from this partition's source file (including primer)
-/*!  \ret The number of bytes read (<b>including</b> any preceeding filler)
- *   \ret 0 if no header metadata in this partition
+/*!  \return The number of bytes read (<b>including</b> any preceeding filler)
+ *   \return 0 if no header metadata in this partition
  */
-Uint64 mxflib::Partition::ReadMetadata(void)
+Length mxflib::Partition::ReadMetadata(void)
 {
-	Uint64 MetadataSize = GetInt64("HeaderByteCount");
+	Length MetadataSize = GetInt64("HeaderByteCount");
 	if(MetadataSize == 0) return 0;
 
 	MXFFilePtr ParentFile = Object->GetParentFile();
@@ -216,7 +216,7 @@ Uint64 mxflib::Partition::ReadMetadata(void)
 	// Find the start of the metadata 
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the pack
 	ParentFile->Seek(Object->GetLocation() + 16);
-	Uint64 Len = ParentFile->ReadBER();
+	Length Len = ParentFile->ReadBER();
 	ParentFile->Seek(ParentFile->Tell() + Len);
 
 	return ReadMetadata(ParentFile, MetadataSize);
@@ -226,11 +226,11 @@ Uint64 mxflib::Partition::ReadMetadata(void)
 //! Read a full set of header metadata from a file (including primer)
 /*! \note The value of "Size" does not include the size of any filler before
  *        the primer, but the return value does
- *  \ret The number of bytes read (<b>including</b> any preceeding filler)
+ *  \return The number of bytes read (<b>including</b> any preceeding filler)
  */
-Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
+Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 {
-	Uint64 Bytes = 0;
+	Length Bytes = 0;
 
 	// Clear any existing metadata
 	ClearMetadata();
@@ -239,7 +239,7 @@ Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 	if(Size == 0) return 0;
 
 	// Record the position of the current item
-	Uint64 Location = File->Tell();
+	Position Location = File->Tell();
 
 	// Check for a leading filler item
 	{
@@ -253,18 +253,13 @@ Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 
 		MDOTypePtr FirstType = MDOType::Find(FirstUL);
 
-		if(FirstType->Name() == "KLVFill")
+		if(FirstType && FirstType->Name() == "KLVFill")
 		{
 			// Skip over the filler, recording how far we went
-			Uint64 NewLocation = File->ReadBER();
+			Position NewLocation = File->ReadBER();
 			NewLocation += File->Tell();
 			Bytes = NewLocation - Location;
 			Location = NewLocation;
-		}
-		else if(FirstType->Name() != "Primer")
-		{
-			error("First KLV following a partition pack (and any trailing filler) must be a Primer, however %s found at 0x%s in %s\n", 
-				  FirstType->Name().c_str(), Int64toHexString(Location,8).c_str(), File->Name.c_str());
 		}
 	}
 
@@ -285,7 +280,7 @@ Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 
 	while(Size)
 	{
-		Uint64 BytesAtItemStart = Bytes;
+		Length BytesAtItemStart = Bytes;
 		if(Size < 16)
 		{
 			error("Less than 16-bytes of header metadata available after reading 0x%s bytes at 0x%s in file \"%s\"\n", 
@@ -314,43 +309,43 @@ Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 			break;
 		}
 
-		Uint64 Length = *BuffPtr++;
+		Length Len = *BuffPtr++;
 		Size--;
 		Bytes++;
-		if(Length >= 0x80)
+		if(Len >= 0x80)
 		{
-			Uint32 i = Length & 0x7f;
+			Uint32 i = (Uint32)Len & 0x7f;
 			if(Size < i)
 			{
 				error("Incomplete BER length at 0x%s in \"%s\"\n", Int64toHexString(File->Tell(),8).c_str(), File->Name.c_str() );
 				break;
 			}
 
-			Length = 0;
+			Len = 0;
 			while(i--) 
 			{
-				Length = ((Length<<8) + *(BuffPtr++));
+				Len = ((Len<<8) + *(BuffPtr++));
 				Size--;
 				Bytes++;
 			}
 		}
 
 		// DRAGONS: KLV Size limit!!
-		if(Length > 0xffffffff)
+		if(Len > 0xffffffff)
 		{
 			error("Current implementation KLV size limit of 0xffffffff bytes exceeded at 0x%s in file \"%s\"\n", 
 				  Int64toHexString(Location + Bytes,8).c_str(), File->Name.c_str() );
 			break;
 		}
 
-		if(Size < Length)
+		if(Size < Len)
 		{
 			error("KLV length is %s but available data size is only %s after reading 0x%s of header metadata at 0x%s in \"%s\"\n", 
-				  Uint64toString(Length).c_str(), Uint64toString(Size).c_str(), Int64toHexString(Bytes, 8).c_str(),
+				  Uint64toString(Len).c_str(), Uint64toString(Size).c_str(), Int64toHexString(Bytes, 8).c_str(),
 				  Int64toHexString(Location + Bytes,8).c_str(), File->Name.c_str() );
 
 			// Try reading what we have
-			Length = Size;
+			Len = Size;
 		}
 
 		// Check for the primer until we have found it
@@ -359,7 +354,7 @@ Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 			if(NewItem->Name() == "Primer")
 			{
 				PartitionPrimer = new Primer;
-				Uint32 ThisBytes = PartitionPrimer->ReadValue(BuffPtr, Length);
+				Uint32 ThisBytes = PartitionPrimer->ReadValue(BuffPtr, (Uint32)Len);
 				Size -= ThisBytes;
 				Bytes += ThisBytes;
 				BuffPtr += ThisBytes;
@@ -372,19 +367,19 @@ Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 		// Skip any filler items
 		if(NewItem->Name() == "KLVFill")
 		{
-			Size -= Length;
-			Bytes += Length;
-			BuffPtr += Length;
+			Size -= Len;
+			Bytes += Len;
+			BuffPtr += Len;
 			
 			// Don't add the filler
 			continue;
 		}
 		
-		if(Length)
+		if(Len)
 		{
-			NewItem->SetParent(File, BytesAtItemStart + Location, Bytes - BytesAtItemStart);
+			NewItem->SetParent(File, BytesAtItemStart + Location,(Uint32)( Bytes - BytesAtItemStart));
 
-			Uint32 ThisBytes = NewItem->ReadValue(BuffPtr, Length, PartitionPrimer);
+			Uint32 ThisBytes = NewItem->ReadValue(BuffPtr,(Uint32) Len, PartitionPrimer);
 
 			Size -= ThisBytes;
 			Bytes += ThisBytes;
@@ -417,8 +412,8 @@ MDObjectListPtr mxflib::Partition::ReadIndex(void)
 	// Find the start of the index table
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the metadata
 	ParentFile->Seek(Object->GetLocation() + 16);
-	Uint64 Len = ParentFile->ReadBER();
-	Uint64 Location = ParentFile->Tell() + Len;
+	Length Len = ParentFile->ReadBER();
+	Position Location = ParentFile->Tell() + Len;
 
 	ParentFile->Seek(Location);
 	ULPtr FirstUL = ParentFile->ReadKey();
@@ -489,6 +484,122 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 }
 
 
+//! Read raw index table data from this partition's source file
+DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
+{
+	DataChunkPtr Ret;
+
+	Uint64 IndexSize = GetInt64("IndexByteCount");
+	if(IndexSize == 0) return Ret;
+
+	MXFFilePtr ParentFile = Object->GetParentFile();
+
+	if(!ParentFile)
+	{
+		error("Call to Partition::ReadIndexChunk() on a partition that is not read from a file\n");
+		return Ret;
+	}
+
+	Uint64 MetadataSize = GetInt64("HeaderByteCount");
+
+	// Find the start of the index table
+	// DRAGONS: not the most efficient way - we could store a pointer to the end of the metadata
+	ParentFile->Seek(Object->GetLocation() + 16);
+	Length Len = ParentFile->ReadBER();
+	Position Location = ParentFile->Tell() + Len;
+
+	ParentFile->Seek(Location);
+	ULPtr FirstUL = ParentFile->ReadKey();
+	if(!FirstUL)
+	{
+		error("Error reading first KLV after %s at 0x%s in %s\n", FullName().c_str(), 
+			  Int64toHexString(GetLocation(),8).c_str(), GetSource().c_str());
+		return Ret;
+	}
+
+	MDOTypePtr FirstType = MDOType::Find(FirstUL);
+	if(FirstType->Name() == "KLVFill")
+	{
+		// Skip over the filler
+		Len = ParentFile->ReadBER();
+		Location = ParentFile->Tell() + Len;
+	}
+
+	// Move to the start of the index table segments
+	ParentFile->Seek(Location + MetadataSize);
+
+	// Read the specified number of bytes
+	Ret = ParentFile->Read(IndexSize);
+
+	/* Remove any trailing filler */
+
+	// Scan backwards from the end of the index data
+	if(Ret->Size >= 16)
+	{
+		Uint32 Count = Ret->Size - 16;
+		Uint8 *p = &Ret->Data[Count - 16];
+
+		// Find the KLVFill key for comparison
+		// TODO: This should use the UL headerfile when available
+		MDOTypePtr FillType = MDOType::Find("KLVFill");
+		ASSERT(FillType);
+		Uint8 FillKey[16];
+		memcpy(FillKey, FillType->GetGlobalKey().Data, 16);
+
+		// Do the scan (slightly optimized)
+		while(Count--)
+		{
+			if(*p == 0x06)
+			{
+				if(memcmp(p, FillKey, 16) == 0)
+				{
+					Ret->Resize((Uint32)(p - Ret->Data));
+					break;
+				}
+			}
+			p++;
+		}
+	}
+
+	return Ret;
+}
+
+
+
+//! Locate start of Essence Container
+/*! Moves the file pointer for the parent file to the start of the essence container in this partition
+ *  \note If there is no essence in this partition the pointer will be moved to the start of the following partition (or the start of the RIP if this is the footer)
+ */
+bool mxflib::Partition::SeekEssence(void)
+{
+	MXFFilePtr File = Object->GetParentFile();
+	if(!File) { error("Call to Partition::SeekEssence() on a non-file partition\n"); return false; }
+
+	Position BodyLocation = 0;
+
+	Length MetadataSize = GetInt64("HeaderByteCount");
+	Length IndexSize = GetInt64("IndexByteCount");
+
+	// Skip over Partition Pack (and any trailing filler)
+	File->Seek( Object->GetLocation() + 16 );
+	Length Len = File->ReadBER();
+	BodyLocation = SkipFill( File->Tell() + Len );
+	if(!BodyLocation) return false;
+
+	// Skip over Metadata (and any trailing filler)
+	BodyLocation += MetadataSize;
+
+	// Skip over Index (and any trailing filler)
+	BodyLocation += IndexSize;
+
+	// Perform the seek
+	File->Seek(BodyLocation);
+
+	return true;
+}
+
+
+
 // Sequential access to the Elements of the Body
 
 // goto start of body...set the member variables _BodyLocation, _NextBodyLocation
@@ -506,7 +617,7 @@ bool mxflib::Partition::StartElements()
 
 	// skip over Partition Pack (and any leading Fill on Header)
 	PF->Seek( Object->GetLocation() + 16 );
-	Uint64 Len = PF->ReadBER();
+	Length Len = PF->ReadBER();
 	_NextBodyLocation = SkipFill( PF->Tell() + Len );
 	if( !_NextBodyLocation ) return false;
 
@@ -526,7 +637,7 @@ KLVObjectPtr mxflib::Partition::NextElement()
 	_BodyLocation = _NextBodyLocation;
 
 	// skip the present Object
-  _NextBodyLocation = Skip( _NextBodyLocation );
+	_NextBodyLocation = Skip( _NextBodyLocation );
 
 	// skip any trailing KLVFill
 	_NextBodyLocation = SkipFill( _NextBodyLocation );
@@ -540,12 +651,8 @@ KLVObjectPtr mxflib::Partition::NextElement()
 	else
 	{
 		PF->Seek( _BodyLocation );
-		ULPtr ElementUL = PF->ReadKey();
-
-		KLVObjectPtr pObj = new KLVObject(ElementUL);
-
-		Uint64 Len = PF->ReadBER();
-		pObj->SetSource(PF, PF->Tell(), Len);
+		
+		KLVObjectPtr pObj = PF->ReadKLV();
 
 		return pObj; 
 	}
@@ -563,7 +670,7 @@ Uint64 mxflib::Partition::Skip( Uint64 start )
 	if(!FirstUL) return 0;
 
 	// do the skip
-	Uint64 Len = PF->ReadBER();
+	Length Len = PF->ReadBER();
 	PF->Seek( PF->Tell() + Len );
 
 	Uint64 ret = PF->Tell();
@@ -572,14 +679,10 @@ Uint64 mxflib::Partition::Skip( Uint64 start )
 	ULPtr NextUL = PF->ReadKey();
 	if(!NextUL) return 0;
 
-	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
-	if( memcmp(NextUL->GetValue(), DegeneratePartition, 13) == 0 )
-	{
-		// we've found a Partition Pack - end of Body
-		return 0;
-	}
-	else
-		return ret;
+	// Is this a partition pack?
+	if(IsPartitionKey(NextUL->GetValue())) return 0;
+
+	return ret;
 }
 
 // skip over any KLVFill
@@ -598,7 +701,7 @@ Uint64 mxflib::Partition::SkipFill( Uint64 start )
 	if(FirstType && FirstType->Name() == "KLVFill")
 	{
 		// Skip over the KLVFill
-		Uint64 Len = PF->ReadBER();
+		Length Len = PF->ReadBER();
 		PF->Seek( PF->Tell() + Len );
 	}
 	else
@@ -613,15 +716,41 @@ Uint64 mxflib::Partition::SkipFill( Uint64 start )
 	ULPtr NextUL = PF->ReadKey();
 	if(!NextUL) return 0;
 
-	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
-	if( memcmp(NextUL->GetValue(), DegeneratePartition, 13) == 0 )
+	// Is this a partition pack?
+	if(IsPartitionKey(NextUL->GetValue()))
 	{
 		Uint8 byte14 = (NextUL->GetValue())[13];
 		if( byte14 == 2 || byte14 == 3 || byte14 == 4 )	return 0;
-		// we've found a Partition Pack - end of Body
+		// we've found a Partition Pack - end of Body -- DRAGONS:?? Not true!!
+
 		if( byte14 == 0x11 )	return 0;
 		// we've found a RIP - end of Body
 	}
 
 	return ret;
 }
+
+
+//! Parse the current metadata sets into higher-level sets
+MetadataPtr Partition::ParseMetadata(void)
+{
+	MetadataPtr Ret;
+
+	// Locate the preface
+	MDObjectList::iterator it = TopLevelMetadata.begin();
+	while(it != TopLevelMetadata.end())
+	{
+		// If we find the preface, parse it
+		if((*it)->IsA("Preface"))
+		{
+			Ret = Metadata::Parse(*it);
+			break;
+		}
+
+		it++;
+	}
+
+	// If we failed to find the preface (or to parse it) this will be NULL
+	return Ret;
+}
+

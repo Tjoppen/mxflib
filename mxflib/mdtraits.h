@@ -1,7 +1,7 @@
 /*! \file	mdtraits.h
  *	\brief	Definition of traits for MDType definitions
  *
- *	\version $Id: mdtraits.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdtraits.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -44,6 +44,26 @@ namespace mxflib
 
 namespace mxflib
 {
+	//! Soft limit for strings returned by MDTraits
+	/*! \note This is a soft limit in that it is not enforced strictly.
+	 *        It is possible for string values to be returned that are longer than this value, but where
+	 *		  the string is built by several passes around a loop that loop should exit once this value
+	 *		  has been reached
+	 *
+     * TODO: Apply this limit to everywhere it is required!!
+	 */
+	extern Uint32 MDTraits_StringLimit;
+
+	//! Set the string size soft limit
+	inline void SetStringLimit(Uint32 StringLimit) { MDTraits_StringLimit = StringLimit; }
+
+	//! Get the current string size soft limit
+	inline Uint32 GetStringLimit(void) { return MDTraits_StringLimit; }
+}
+
+
+namespace mxflib
+{
 	// We need access to the MDValue class
 	class MDValue;
 	//! A smart pointer to an MDValue object
@@ -53,6 +73,10 @@ namespace mxflib
 	{
 	public:
 		MDTraits() {};
+
+		//! Does this trait take control of all sub-data and build values in the values own DataChunk?
+		/*! Normally any contained sub-types (such as array items or compound members) hold their own data */
+		virtual bool HandlesSubdata(void) const { return false; };
 
 	// Default implementations
 	protected:
@@ -203,6 +227,39 @@ namespace mxflib
 	{
 	protected:
 		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_UUID : public MDTraits_Raw
+	{
+	public:
+		//! Does this trait take control of all sub-data and build values in the values own DataChunk?
+		/*! The entire UUID is held locally */
+		virtual bool HandlesSubdata(void) const { return true; };
+
+	protected:
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_Label : public MDTraits_Raw
+	{
+	public:
+		//! Does this trait take control of all sub-data and build values in the values own DataChunk?
+		/*! The entire Label is held locally */
+		virtual bool HandlesSubdata(void) const { return true; };
+
+	protected:
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_UMID : public MDTraits_Raw
+	{
+	public:
+		//! Does this trait take control of all sub-data and build values in the values own DataChunk?
+		/*! The entire UMID is held locally */
+		virtual bool HandlesSubdata(void) const { return true; };
+
+	protected:
 		virtual std::string GetString(MDValuePtr Object);
 	};
 

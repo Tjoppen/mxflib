@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.4 2004/05/20 16:28:12 terabrit Exp $
+ *	\version $Id: helper.cpp,v 1.5 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -33,15 +33,18 @@ using namespace mxflib;
 
 
 //! Build a BER length
-/*! \param Length	The length to be converted to BER
+/*! \param Data		A pointer to the buffer to receive the length
+ *	\param MaxSize	The maximum length that can be written to the buffer
+ *	\param Length	The length to be converted to BER
  *	\param Size		The total number of bytes to use for BER length (or 0 for auto)
- *	\note If the size is specified it will be overridden for lengths
- *		  that will not fit. However an error message will be produced.
+ *	\return The number of bytes written
+ *	\note If the size is specified it will be overridden for lengths that will not fit in Size,
+ *        <b>providing</b> they will fit in MaxSize. However an error message will be produced.
  */
-DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
+Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0*/)
 {
 	// Mask showing forbidden bits for various sizes
-	static const Uint64 Masks[9] = { UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffff00), 
+	static const Uint64 Masks[9] = { UINT64_C(0xffffffffffffff80), UINT64_C(0xffffffffffffff00), 
 									 UINT64_C(0xffffffffffff0000), UINT64_C(0xffffffffff000000),
 									 UINT64_C(0xffffffff00000000), UINT64_C(0xffffff0000000000),
 									 UINT64_C(0xffff000000000000), UINT64_C(0xff00000000000000), 0 };
@@ -57,7 +60,7 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 		if(Length & Masks[Size-1])
 		{
 			error("BER size specified in call to MakeBER() is %d, however length 0x%s will not fit in that size\n",
-				  Size, Int64toHexString(Length, 8).c_str());
+				  Size, Int64toHexString(Length).c_str());
 
 			// Force a new size to be chosen
 			Size = 0;
@@ -72,23 +75,76 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 		else Size = 9;
 	}
 
+	if(Size >(Uint32) MaxSize)
+	{
+		error("Buffer size given to MakeBER() is %d, however length 0x%s will not fit in that size\n",
+			  MaxSize, Int64toHexString(Length).c_str());
+
+		// This will produce an invalid size!!!!
+		Size = MaxSize;
+	}
+
+	// Shortform encoding
+	if(Size == 1)
+	{
+		Data[0] =(Uint8) Length;
+		return 1;
+	}
+
 	// Buffer for building BER
-	Uint8 Buff[9];
-	Buff[0] = 0x80 + (Size-1);
-	
+	Data[0] = 0x80 + (Size-1);
+
 	// Subscript to write next byte
 	int i = Size-1;
-	
+
 	// More speed efficient to write backwards as no need to locate the start
 	while(i)
 	{
-		Buff[i] = Length & 0xff;
+		Data[i] = (Uint8)Length & 0xff;
 		Length >>= 8;
 		i--;
 	}
 
-	// Return as a DataChunk
-	return new DataChunk(Size, Buff);
+	// Return the number of bytes written
+	return Size;
+}
+
+
+//! Read a BER length
+/*! \param Data is a pointer to a pointer to the data so that the pointer will be updated to point to the first byte <b>after</b> the length.
+ *  \param MaxSize is the maximum number of bytes available to read the BER length. This function never reads from more than 9 bytes as SMPTE 377M forbids vast BER lengths.
+ *  \return The length, or -1 if the data was not a valid BER length
+ *  \note MaxSize is signed to allow calling code to end up with -ve available bytes!
+ */
+Length mxflib::ReadBER(Uint8 **Data, int MaxSize)
+{
+	if(MaxSize <= 0) return -1;
+
+	// Read the short-form length, or number of bytes for long-form
+	int Bytes = *((*Data)++);
+
+	// Return short-form length
+	if(Bytes < 128) return (Length)Bytes;
+
+	// 0x80 is not valid for MXF lengths (it is "length not specified" in BER)
+	if(Bytes == 128) return -1;
+
+	// Now we have the byte count
+	Bytes -= 128;
+
+	// Don't read passed the end of the available data!
+	// (We use >= not > as we have already processed one byte)
+	if(Bytes >= MaxSize) return -1;
+
+	// Read in each byte
+	Length Ret = 0;
+	while(Bytes--)
+	{
+		Ret <<= 8;
+		Ret += *((*Data)++);
+	}
+
+	return Ret;
 }
 
 
@@ -105,7 +161,7 @@ int mxflib::EncodeOID( Uint8* presult, Uint64 subid, int length )
 
 	do
 	{
-		*prev++ = (subid & 0x7f) | 0x80; // set msb of every byte
+		*prev++ = (Uint8)(subid & 0x7f) | 0x80; // set msb of every byte
 		subid >>= 7;
 		count++;
 	}
@@ -135,7 +191,7 @@ int mxflib::EncodeOID( Uint8* presult, Uint64 subid, int length )
 
 
 //! Build a new UMID
-UMIDPtr mxflib::MakeUMID(int Type)
+UMIDPtr mxflib::MakeUMID(int Type, const UUIDPtr AssetID)
 {
 	static const Uint8 UMIDBase[10] = { 0x06, 0x0a, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
 	Uint8 Buffer[32];
@@ -160,8 +216,19 @@ UMIDPtr mxflib::MakeUMID(int Type)
 	Buffer[14] = 0;
 	Buffer[15] = 0;
 
-	// Fill the material number with a GUID
-	MakeUUID(&Buffer[16]);
+	/* Fill the material number with a UUID (no swapping) */
+
+	// If no valid AssetID is provided, create a new one
+	if( ( !AssetID ) || ( AssetID->Size() != 16 ) )
+	{
+		Uint8 UUIDbuffer[16];
+		MakeUUID(UUIDbuffer);
+		memcpy( &Buffer[16], &UUIDbuffer[0], 16 );
+	}
+	else
+	{
+		memcpy( &Buffer[16], AssetID->GetValue(), AssetID->Size() );
+	}
 
 	return new UMID(Buffer);
 }
@@ -171,10 +238,10 @@ UMIDPtr mxflib::MakeUMID(int Type)
 DataChunkPtr mxflib::FileReadChunk(FileHandle InFile, Uint64 Size)
 {
 	DataChunkPtr Ret = new DataChunk;
-	Ret->Resize(Size);
+	Ret->Resize((Uint32)Size);
 
 	// Read the data (and shrink chunk to fit)
-	Ret->Resize(FileRead(InFile, Ret->Data, Size));
+	Ret->Resize((Uint32)FileRead(InFile, Ret->Data,(Uint32) Size));
 
 	return Ret;
 }
@@ -233,37 +300,144 @@ DataChunkPtr mxflib::Hex2DataChunk(std::string Hex)
 }
 
 
-// Find the specified XML file by searching the MXFLIB_DATA_DIR directory
-// then the configured MXFDATADIR path.
-// If no matching file is found, return NULL.
-// TODO: add an mxflib namespace global for command-line/runtime use.
-char *mxflib::lookupDataFilePath(const char *filename)
+namespace mxflib
 {
-	char *buf = new char[FILENAME_MAX];
+	//! The search path - note that "~" is used as a token for "not yet initialized"
+	std::string DictionaryPath = "~";
+}
 
-	// TODO: trap buffer overflows
+//! Set the search path to be used for dictionary files
+void mxflib::SetDictionaryPath(std::string NewPath)
+{
+	DictionaryPath = NewPath;
+}
 
-	// Try under MXFLIB_DATA_DIR env variable (if set)
-	if (getenv("MXFLIB_DATA_DIR"))
+//! Search for a file of a specified name in the current dictionary search path
+/*! If the filname is either absolute, or relative to "." or ".." then the 
+ *  paths are not searched - just the location specified by that filename.
+ *  \return the full path and name of the file, or "" if not found
+ */
+std::string mxflib::LookupDictionaryPath(const char *Filename)
+{
+	if(DictionaryPath == "~")
 	{
-		sprintf(buf, "%s%c%s", getenv("MXFLIB_DATA_DIR"), DIR_SEPARATOR, filename);
 
-		if (FileExists(buf))
-			return buf;
+#ifdef MXFDATADIR
+		// environment variable name may be specified at build time
+		char *env = getenv( MXFDATADIR );
+#else
+		// default environment variable name is MXFLIB_DATA_DIR
+		char *env = getenv( "MXFLIB_DATA_DIR" );
+#endif
+
+		// if environment variable not specified, use the platform default
+		if( !env ) DictionaryPath = std::string( DEFAULT_DICT_PATH );
+		else DictionaryPath = std::string(env);
 	}
 
-	// Try under MXFDATADIR compile-time macro
-	sprintf(buf, "%s%c%s", MXFDATADIR, DIR_SEPARATOR, filename);
-
-	if (FileExists(buf))
-		return buf;
-
-	// Finally, try as given
-	sprintf(buf, "%s", filename);
-
-	if (FileExists(buf))
-		return buf;
-
-	delete [] buf;
-	return NULL;
+	return SearchPath(DictionaryPath, Filename);
 }
+
+
+//! Search a path list for a specified file
+/*! If the filname is either absolute, or relative to "." or ".." then the 
+ *  paths are not searched - just the location specified by that filename.
+ *  \return the full path and name of the file, or "" if not found
+ */
+std::string mxflib::SearchPath(const char *Path, const char *Filename)
+{
+	// First check to see if the filename is either relative to . (or ..)
+	// or absolute in which case we don't search via the path
+	
+	bool NonPath = false;
+
+	if(*Filename == '.')
+	{
+		if(Filename[1] == DIR_SEPARATOR) NonPath = true;
+		else if((Filename[1] == '.') && (Filename[2] == DIR_SEPARATOR)) NonPath = true;
+	}
+	else if(IsAbsolutePath(Filename)) NonPath = true;
+
+	// Check the file without path if we should
+	if(NonPath)
+	{
+		if(FileExists(Filename)) return std::string(Filename);
+		return "";
+	}
+
+	// Buffer bug enough for the full path, directory seperator, filename and a terminating zero
+	char *Buffer = new char[strlen(Path) + strlen(Filename) + 2];
+
+	// Start searching all paths
+	const char *p = Path;
+	while(p && *p)
+	{
+		char *sep = strchr(p, PATH_SEPARATOR);
+
+		// No more path separators - this is the last path to check
+		if(!sep)
+		{
+			// Copy the whole of the remaining path
+			strcpy(Buffer, p );
+			
+			// Force the loop to stop at the end of this iteration
+			p = NULL;
+		}
+		else
+		{
+			// Copy the section until the next separator
+			strncpy(Buffer, p, sep - p);
+			Buffer[sep-p]='\0';
+
+			// Advance the pointer to the character following the separator
+			p = sep;
+			p++;
+		}
+
+		// Establish the length of this path
+		int len = strlen(Buffer);
+
+		// Don't search a null path
+		if(len == 0) continue;
+
+		// Add a directory separator if required
+		if(Buffer[len-1] != DIR_SEPARATOR)
+		{
+			Buffer[len++] = DIR_SEPARATOR;
+			Buffer[len] = '\0';
+		}
+
+		// Add the filename
+		strcat(Buffer, Filename);
+
+		if(FileExists(Buffer))
+		{
+			std::string Ret = std::string(Buffer);
+			delete[] Buffer;
+			return Ret;
+		}
+	}
+
+	// File not found in any of the paths supplied
+	delete[] Buffer;
+	return "";
+}
+
+
+// Is a given sequence of bytes a partition pack key?
+// We first check if byte 13 == 1 which will be true for all partition packs,
+// but is false for all GC sets and packs. Once this matches we can do a full memcmp.
+bool mxflib::IsPartitionKey(const Uint8 *Key)
+{
+	if(Key[12] != 1) return false;
+
+	// DRAGONS: This has version 1 hard coded as byte 8
+	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
+	if( memcmp(Key, DegeneratePartition, 13) == 0 )
+	{
+		return true;
+	}
+
+	return false;
+}
+

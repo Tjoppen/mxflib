@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: smartptr.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -39,8 +39,14 @@
 #ifndef MXFLIB__SMARTPTR_H
 #define MXFLIB__SMARTPTR_H
 
+// Pointer debug enable and disable
 //#define PTRDEBUG( x ) x
 #define PTRDEBUG( x )
+
+// Pointer checking enable and disable (takes a lot of CPU time)
+// If this is enabled the application code must instantiate and check PtrCheckList
+//#define PTRCHECK( x ) x
+#define PTRCHECK( x )
 
 
 // Ensure we know NULL
@@ -51,6 +57,8 @@ namespace mxflib
 	// Forward declaration of SmartPtr to allow it to be befreinded
 	template <class T> class SmartPtr;
 
+	// Forward declare ParentPtr to allow it to be used in RefCount<>
+	template <class T> class ParentPtr;
 
 	//! An interface for reference counting
 	/*! Classes may implement it themselves, or SmartPtr will
@@ -60,14 +68,27 @@ namespace mxflib
 	{
 		// Allow SmartPtr access to our internals
 		friend class SmartPtr<T>;
+		
+		// Allow ParentPtr access to our internals
+		friend class ParentPtr<T>;
 
 	protected:
 		// A number of pure virtual functions that the reference counter needs
 		
-		virtual void __IncRefCount() = 0;	//!< Increment the number of references
-		virtual void __DecRefCount() = 0;	//!< Decrement the number of references, if none left delete the object
-		virtual T * GetPtr() const = 0;		//!< Get a pointer to the object
+		virtual void __IncRefCount() = 0;				//!< Increment the number of references
+		virtual void __DecRefCount() = 0;				//!< Decrement the number of references, if none left delete the object
+		virtual T * GetPtr() = 0;						//!< Get a pointer to the object
+		virtual IRefCount<T> * GetRef() = 0;			//!< Get a pointer to the reference counter
+
+		virtual void AddRef(ParentPtr<T> &Ptr) = 0;		//!< Add a parent pointer to this object
+		virtual void DeleteRef(ParentPtr<T> &Ptr) = 0;	//!< Delete a parent pointer to this object
+		virtual void ClearParents(void) = 0;			//!< Clear all parent pointers
 	};
+
+	// Definitions for running memory leak tests
+	typedef std::pair<void*,std::string> PtrCheckListItemType;
+	typedef std::list<PtrCheckListItemType> PtrCheckListType;
+	PTRCHECK( extern PtrCheckListType PtrCheckList; )
 }
 
 
@@ -89,12 +110,15 @@ namespace mxflib
 	 */
 	template <class T> class RefCount : public IRefCount<T>
 	{
-    private:
-		int __m_counter;					//!< The actual reference count
-
 	protected:
+		int __m_counter;									//!< The actual reference count
+
+		typedef ParentPtr<T> LocalParent;					//!< Parent pointer to this type
+		typedef std::list<LocalParent*> LocalParentList;	//!< List of pointers to parent pointers
+		LocalParentList ParentPointers;						//!< List of parent pointers to this object
+
 		//! Increment the number of references
-		virtual void __IncRefCount() 
+		virtual void __IncRefCount()
 		{
 			__m_counter++;
 
@@ -117,9 +141,15 @@ namespace mxflib
 		}
 
 		//! Get a pointer to the object
-		virtual T * GetPtr() const
+		virtual T * GetPtr()
 		{
 			return ((T *)this);
+		}
+
+		//! Get a pointer to the object
+		virtual IRefCount<T>* GetRef()
+		{
+			return this;
 		}
 
 		//! Destroy the object
@@ -128,29 +158,118 @@ namespace mxflib
 		virtual void __DestroyRef() 
 		{ 
 			if(GetPtr()!=NULL)
+			{
+				// If we are "checking" locate and remove our entry
+				PTRCHECK
+				( 
+					PtrCheckListType::iterator it = PtrCheckList.begin();
+					while(it != PtrCheckList.end())
+					{
+						if((*it).first == (void*)this)
+						{
+							PtrCheckList.erase(it);
+							break;
+						}
+						it++;
+					}
+				)
+
 				delete GetPtr();
+			}
+		}
+
+		//! Add a parent pointer to this object
+		virtual void AddRef(ParentPtr<T> &Ptr)
+		{
+			PTRDEBUG( debug("Adding ParentPtr(0x%08x) to 0x%08x\n", (int)&Ptr, (int)this); )
+			ParentPointers.push_back(&Ptr);
+		}
+
+		//! Delete a parent pointer to this object
+		virtual void DeleteRef(ParentPtr<T> &Ptr)
+		{
+			typename LocalParentList::iterator it = ParentPointers.begin();
+			while(it != ParentPointers.end())
+			{
+				if((*it) == &Ptr)
+				{
+					PTRDEBUG( debug("Deleting ParentPtr(0x%08x) from 0x%08x\n", (int)&Ptr, (int)this); )
+					ParentPointers.erase(it);
+					return;
+				}
+				it++;
+			}
+			error("Tried to clear ParentPtr(0x%08x) from 0x%08x but that ParentPtr does not exist\n", (int)&Ptr, (int)this);
 		}
 
     protected:
 		//! Constructor for the RefCount class
 		RefCount()
 		{
+			// If we are "checking" add entry to the list
+			// We add to the start of the list as this gives the best chance of finding the
+			// item quickly when it is deleted (most objects are first-in-last-out)
+			PTRCHECK( PtrCheckList.push_front(PtrCheckListItemType((void*)this, PrintInfo())); )
+
 			// No references yet!
 			__m_counter = 0;
 
 			PTRDEBUG( debug("0x%08x Build new (zero) count\n", (int)this); )
 		}
 
-		virtual ~RefCount(){};
+
+		//! Clear all parent pointers when we are destroyed
+		virtual ~RefCount() { if(ParentPointers.size()) ClearParents(); }
+
+		//! Clear all parent pointers
+		virtual void ClearParents(void);
+
+		PTRCHECK
+		(
+		public:
+			virtual std::string PrintInfo(void)
+			{
+				char buffer[1024];
+				sprintf(&buffer[0], "Item size = %d :", sizeof(T));
+				for(int i=0; i<min(sizeof(T), 64); i++) sprintf(&buffer[strlen(buffer)], " %02x", ((Uint8*)(this))[i]);
+				return std::string(buffer);
+			}
+
+			void SetDebug(std::string str)
+			{
+				PtrCheckListType::iterator it = PtrCheckList.begin();
+				while(it != PtrCheckList.end())
+				{
+					if((*it).first == (void*)this)
+					{
+						PTRDEBUG( debug("Setting text to (%s)\n", str.c_str()); )
+						(*it).second = str;
+						return;
+					}
+					it++;
+				}
+			}
+		)
 	};
+
+	// Clear all parent pointers
+	template <class T> void mxflib::RefCount<T>::ClearParents(void)
+	{
+		typename LocalParentList::iterator it = ParentPointers.begin();
+		while(it != ParentPointers.end())
+		{
+			(*it)->ClearFromParent();
+			it++;
+		}
+	}
 }
 
 
-namespace mxflib 
+namespace mxflib
 {
 	//! Smart pointer with reference counting and auto object deletion
 	/*!	<b>Usage:</b>
-	 *	
+	 *
 	 *	1. In a program block
 	 *	<pre><tt>
 	 *	SmartPtr<MyClass> ptr1(new MyClass); // creates object 1
@@ -163,7 +282,7 @@ namespace mxflib
 	 *	ptr1->methodcall(...);
 	 *
 	 *	MyClass o1;
-	 *	// ptr1 = &o1;  // DON'T ! only memory allocated by new operator should be used
+	 *	// ptr1 = &amp;o1;  // DON'T ! only memory allocated by new operator should be used
 	 *
 	 *	CMyObject *o2 = new MyClass;
 	 *	ptr1 = o2;
@@ -194,9 +313,12 @@ namespace mxflib
 	 */
 	template <class T> class SmartPtr 
 	{
-	private:
+	protected:
 		IRefCount<T> *__m_refcount;		//!< Pointer to the reference counted object
 
+		//! Name to use when debugging this pointer
+		PTRDEBUG( std::string DebugName; )
+		
 		//! Default IRefCount implementation used by SmartPtr
 		/*! SmartPrt will automatically choose between its internal
 		 *	and the class' own implementation of IRefCount
@@ -244,12 +366,8 @@ namespace mxflib
 		}
 */
 
-/*	DRAGONS:  KLUDGE to fix gcc 3.3.x bug */
-void __Assign(void *ptr)
-{
-	// Always use the smart version... this won't work with classes not derived from RefCount<>
-	__Assign((IRefCount<T>*)ptr);
-};
+/*	DRAGONS:  KLUDGE to fix gcc 3.3.x bug - remove generic assign and force all smart pointer targets to be derived from IRefCount<> */
+/*	DRAGONS:  If this klidge is undone ParentPtr will need updating to ensure it works with non-RefCount versions */
 
 		//!	Assign a 'smart' object to this smart pointer
 		/*!	This method is picked over __Assign(void *ptr)
@@ -259,8 +377,10 @@ void __Assign(void *ptr)
 		 *	Assigning NULL will detatch this pointer from the
 		 *	current object
 		 */
-		void __Assign(IRefCount<T> *refcount)
+		virtual void __Assign(IRefCount<T> *refcount)
 		{
+			PTRDEBUG( if(DebugName.size()) debug("%s changing from 0x%08x to 0x%08x\n", DebugName.c_str(), (int)__m_refcount, (int)refcount); )
+
 			// Attach us to the new object first
 			// This is important in case we are assigned to
 			// the same thing we are already attatched to,
@@ -286,14 +406,14 @@ void __Assign(void *ptr)
 		}
 
 		//!	Construct a smart pointer to an object
-		SmartPtr(T * ptr)
+		SmartPtr(IRefCount<T> * ptr)
 		{
 			__m_refcount = NULL;
 			__Assign(ptr);
 		}
 
 		//!	Construct a smart pointer that takes its target from another smart pointer
-		SmartPtr(const SmartPtr &sp)
+		SmartPtr(const SmartPtr<T> &sp)
 		{
 			__m_refcount = NULL;
 			__Assign(sp.__m_refcount);
@@ -305,18 +425,25 @@ void __Assign(void *ptr)
 			__Assign((IRefCount<T> *)NULL);
 		}
 
-		//! Get the contained pointer, not really needed but...
+		//! Get the contained pointer
 		T *GetPtr() const
 		{
 			if(__m_refcount==NULL) return NULL;
 			return __m_refcount->GetPtr();
 		}
 
+		//! Get the contained object's refcount
+		IRefCount<T> *GetRef() const
+		{
+			if(__m_refcount==NULL) return NULL;
+			return __m_refcount->GetRef();
+		}
+
 		//! Assign another smart pointer
-		SmartPtr & operator = (const SmartPtr &sp) {__Assign(sp.__m_refcount); return *this;}
+		SmartPtr & operator = (const SmartPtr<T> &sp) {__Assign(sp.__m_refcount); return *this;}
 
 		//! Assign pointer or NULL
-		SmartPtr & operator = (T * ptr) {__Assign(ptr); return *this;}
+		SmartPtr & operator = (IRefCount<T> * ptr) {__Assign(ptr); return *this;}
 
 		//! Give access to members of T
 		T * operator ->()
@@ -358,7 +485,112 @@ void __Assign(void *ptr)
 
 		//! Comparison function to allow sorting by indexed value
 		bool operator<(SmartPtr &Other) { return this.operator<(*Other->GetPtr()); }
+
+		//! Get a cast version of the pointer
+		/*! This is used via the SmartPtr_Cast() Macro to allow MSVC 6 to work!!
+		 *	The reason for this is that MSVC 6 name mangling is only based on the function arguments so
+		 *  it cannot cope when two functions differ in the template type, but not the argument list!!
+		 *  The solution is a dummy argument that gets filled in by the macro (to avoid messy code!)
+		 */
+		template <class U> U* Cast(U*) { return dynamic_cast<U*>(GetPtr()); } 
+
+		//! Set the debug name
+		PTRDEBUG( void SetDebugName(std::string Name) { DebugName = Name; } )
 	};
 }
+
+
+namespace mxflib
+{
+	//! Parent pointer class - used to allow an object referenced by another object to make a returrn reference without forming a loop
+	/*! If ObjectA has a smart pointer to ObjectB it shares ownership of it (and so ObjectA is a parent of ObjectB).
+	 *  A child may not hold a smart pointer to a parent (or grand-parent etc.) otherwise a loop will be formed and
+	 *  these objects will never be deleted.  Child objects may reference parents using ParentPtr.
+	 */
+	template<class T> class ParentPtr : public SmartPtr<T>
+	{
+	protected:
+		//!	Assign a 'smart' object to this pointer
+		/*! Note that no reference counting is performed with this version.
+		 *  This prevents circular references keeping objects for ever.
+		 */
+		virtual void __Assign(IRefCount<T> *refcount)
+		{
+			PTRDEBUG( debug("Assigning parent pointer at 0x%08x to 0x%08x\n", (int)this, (int)refcount); )
+
+			// Remove us from the old parent's list of parent pointers
+			if(__m_refcount) __m_refcount->DeleteRef(*this);
+
+			// Make the new attachment
+			__m_refcount = refcount;
+
+			// Add us to the new parent's list of parent pointers (so we will be cleared if it is deleted)
+			if(refcount) refcount->AddRef(*this);
+		}
+
+	public:
+		//! Construct a parent pointer that points to nothing
+		ParentPtr()
+		{
+			__m_refcount = NULL;
+		}
+
+		//!	Construct a parent pointer from a smart pointer
+		ParentPtr(SmartPtr<T> ptr)
+		{
+			__m_refcount = NULL;
+			__Assign(ptr.GetRef());
+		}
+
+		//!	Construct a parent pointer to an object
+		ParentPtr(IRefCount<T> * ptr)
+		{
+			__m_refcount = NULL;
+			__Assign(ptr);
+		}
+
+		//! Copy construct
+		ParentPtr(ParentPtr &rhs)
+		{
+			__m_refcount = NULL;
+			__Assign(rhs.GetRef());
+		}
+
+		//! Destructor clears the pointer without decrementing the count
+		~ParentPtr()
+		{
+			// Remove us from the old parent's list of parent pointers
+			if(__m_refcount) __m_refcount->DeleteRef(*this);
+
+			__m_refcount = NULL;
+		}
+
+		//! Set value from a smart pointer
+		ParentPtr & operator=(const SmartPtr<T> &sp) { __Assign(sp.GetRef()); return *this;}
+
+		//! Set value from a parent pointer
+		ParentPtr & operator=(const ParentPtr<T> &sp) { __Assign(sp.__m_refcount); return *this;}
+
+		//! Set value from a pointer
+		ParentPtr & operator=(T *Ptr) { __Assign((IRefCount<T>*)Ptr); return *this; }
+
+		//! Clear the recorded value of this pointer
+		void Clear(void) 
+		{
+			// Remove us from the old parent's list of parent pointers
+			if(__m_refcount) __m_refcount->DeleteRef(*this);
+
+			__m_refcount = NULL; 
+		}
+
+		//! Clear the recorded value of this pointer
+		/*! This call <b>does not</b> remove us from the parent's list of parent pointers (called by the parent) */
+		void ClearFromParent(void) { __m_refcount = NULL; };
+	};
+}
+
+		 
+//! Macro to give typecast functionality even in MSVC 6
+#define SmartPtr_Cast(Ptr, Type) ( Ptr.Cast((Type*)NULL) )
 
 #endif // MXFLIB__SMARTPTR_H

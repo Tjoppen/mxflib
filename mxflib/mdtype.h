@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdtype.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -67,7 +67,7 @@ namespace mxflib
 	enum MDArrayClass					//!< Sub-classes of arrays
 	{
 		ARRAYARRAY,						//!< Just a normal array
-		ARRAYCOLLECTION					//!< A collection with count and size
+		ARRAYBATCH						//!< A batch with count and size
 	};
 }
 
@@ -155,6 +155,9 @@ namespace mxflib
 	//! A smart pointer to an MDType object
 	typedef SmartPtr<MDType> MDTypePtr;
 
+	//! A parent pointer to an MDType object
+	typedef ParentPtr<MDType> MDTypeParent;
+
 	//! A list of smart pointers to MDType objects
 	typedef std::list<MDTypePtr> MDTypeList;
 
@@ -175,11 +178,11 @@ namespace mxflib
 		std::string Name;				//!< Name of this MDType
 		MDTypeClass Class;				//!< Class of this MDType
 		MDArrayClass ArrayClass;		//!< Sub-class of array
-		MDTraits *Traits;				//!< Traints for this MDType
+		MDTraits *Traits;				//!< Traits for this MDType
 		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 
 	public:
-		MDTypePtr Base;					//!< Base class if this is a derived class, else NULL
+		MDTypeParent Base;					//!< Base class if this is a derived class, else NULL
 //		MDTypeList Children;			//!< Types contained in this if it is a compound
 ////		StringList ChildrenNames;		//!< Corresponding child names if it is a compound
 		StringList ChildOrder;			//!< Child names in order for compound types
@@ -196,6 +199,12 @@ namespace mxflib
 		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraits *TypeTraits)
 			: Name(TypeName) , Class(TypeClass) , ArrayClass(ARRAYARRAY) , Traits(TypeTraits) , Endian(false) {};
  
+		//! Prevent auto construction by NOT having an implementation to this constructor
+		MDType();
+
+		//! Prevent copy construction by NOT having an implementation to this copy constructor
+		MDType(const MDType &rhs);
+
 		//! Add a sub to a compound type
 		void AddSub(std::string SubName, MDTypePtr SubType);
 
@@ -208,6 +217,19 @@ namespace mxflib
 
 		//! Report the effective base type of this type
 		MDTypePtr EffectiveBase(void) const;
+
+		//! Report the effective size of this type
+		/*! /ret The size in bytes of a single instance of this type, or 0 if variable size
+		 */
+		Uint32 EffectiveSize(void) const;
+
+		//! Does this value's trait take control of all sub-data and build values in the our own DataChunk?
+		/*! Normally any contained sub-types (such as array items or compound members) hold their own data */
+		bool HandlesSubdata(void) const
+		{
+			if(Traits) return Traits->HandlesSubdata();
+			return false;
+		}
 
 		//! Endian access function (set)
 		void SetEndian(bool Val) { Endian = Val; };
@@ -264,8 +286,9 @@ namespace mxflib
 	{
 	public:
 		MDValuePtr() : SmartPtr<MDValue>() {};
-		MDValuePtr(MDValue * ptr) : SmartPtr<MDValue>(ptr) {};
-		
+//		MDValuePtr(MDValue * ptr) : SmartPtr<MDValue>(ptr) {};
+		MDValuePtr(IRefCount<MDValue> * ptr) : SmartPtr<MDValue>(ptr) {};
+
 		//! Child access operator that overcomes dereferencing problems with SmartPtrs
 		MDValuePtr operator[](int Index);
 
@@ -354,40 +377,7 @@ namespace mxflib
 		const DataChunk& GetData(void) { return (const DataChunk&) Data; };
 
 		//! Build a data chunk with all this items data (including child data)
-		const DataChunk PutData(void) 
-		{
-			DataChunk Ret;
-			if(size() == 0) 
-			{
-				Ret = GetData();
-			}
-			else
-			{
-				// Compounds must be written in the correct order
-				if(Type->EffectiveClass() == COMPOUND)
-				{
-					StringList::iterator it = Type->ChildOrder.begin();
-					while(it != Type->ChildOrder.end())
-					{
-						DataChunk SubItem = Child(*it)->PutData();
-						Ret.Set(SubItem.Size, SubItem.Data, Ret.Size);
-						it++;
-					}
-				}
-				else
-				{
-					MDValue::iterator it = begin();
-					while(it != end())
-					{
-						DataChunk SubItem = (*it).second->PutData();
-						Ret.Set(SubItem.Size, SubItem.Data, Ret.Size);
-						it++;
-					}
-				}
-			}
-
-			return Ret;
-		};
+		const DataChunk PutData(void);
 
 		//! Set data into the datachunk
 		// DRAGONS: This is dangerous!!
@@ -411,8 +401,18 @@ namespace mxflib
 // These simple inlines need to be defined after MDValue
 namespace mxflib
 {
-inline MDValuePtr MDValuePtr::operator[](int Index) { return operator->()->operator[](Index); };
-inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) { return operator->()->operator[](ChildName); };
+	inline MDValuePtr MDValuePtr::operator[](int Index) 
+	{ 
+		// TODO: We need to find a solution to this!
+		ASSERT(!(operator->()->GetType()->HandlesSubdata()));
+		return operator->()->operator[](Index); 
+	};
+	inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) 
+	{ 
+		// TODO: We need to find a solution to this!
+		ASSERT(!(operator->()->GetType()->HandlesSubdata()));
+		return operator->()->operator[](ChildName); 
+	};
 }
 
 

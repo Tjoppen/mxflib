@@ -3,7 +3,7 @@ Microsoft Developer Studio Workspace File, Format Version 6.00
 
 ###############################################################################
 
-Project: "all"=.\all.dsp - Package Owner=<4>
+Project: "all"=".\all.dsp" - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -27,7 +27,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxflib"=.\mxflib.dsp - Package Owner=<4>
+Project: "all+crypto"=".\all+crypto.dsp" - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -35,11 +35,17 @@ Package=<5>
 
 Package=<4>
 {{{
+    Begin Project Dependency
+    Project_Dep_Name all
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name mxfcrypt
+    End Project Dependency
 }}}
 
 ###############################################################################
 
-Project: "mxfsplit"=.\mxfsplit.dsp - Package Owner=<4>
+Project: "mxfcrypt"=".\mxfcrypt.dsp" - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -54,7 +60,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxfwrap"=.\mxfwrap.dsp - Package Owner=<4>
+Project: "mxfdump"=".\mxfdump.dsp" - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -69,7 +75,34 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxfdump"=.\mxfdump.dsp - Package Owner=<4>
+Project: "mxflib"=".\mxflib.dsp" - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "mxfsplit"=".\mxfsplit.dsp" - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name mxflib
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "mxfwrap"=".\mxfwrap.dsp" - Package Owner=<4>
 
 Package=<5>
 {{{

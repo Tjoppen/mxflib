@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.2 2004/04/26 18:29:10 asuraparaju Exp $
+ *	\version $Id: helper.h,v 1.3 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -93,8 +93,37 @@ namespace mxflib
 	}
 
 	//! Build a BER length
-//	class DataChunkPtr;
-	DataChunkPtr MakeBER(Uint64 Length, Uint32 Size = 0);
+	/*! \param Data		A pointer to the buffer to receive the length
+	 *	\param MazSize	The maximum length that can be written to the buffer
+	 *	\param Length	The length to be converted to BER
+	 *	\param Size		The total number of bytes to use for BER length (or 0 for auto)
+	 *	\return The number of bytes written
+	 *	\note If the size is specified it will be overridden for lengths that will not fit in Size,
+	 *        <b>providing</b> they will fit in MaxSize. However an error message will be produced.
+	 */
+	Uint32 MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size = 0);
+
+
+	//! Build a BER length
+	/*! \param Length	The length to be converted to BER
+	 *	\param Size		The total number of bytes to use for BER length (or 0 for auto)
+	 *	\note If the size is specified it will be overridden for lengths
+	 *		  that will not fit. However an error message will be produced.
+	 */
+	inline DataChunkPtr MakeBER(Uint64 Length, Uint32 Size = 0)
+	{
+		// Buffer for building BER
+		Uint8 Buff[9];
+
+		Uint32 Bytes = MakeBER(Buff, 9, Length, Size);
+
+		// Return as a DataChunk
+		return new DataChunk(Bytes, Buff);
+	}
+
+	//! Read a BER length
+	Length ReadBER(Uint8 **Data, int MaxSize);
+
 
 	//! Encode a Uint64 as a BER OID subid (7 bits per byte)
 	//! length > 0: length is maximum length of subid
@@ -104,7 +133,7 @@ namespace mxflib
 	int EncodeOID( Uint8* presult, Uint64 subid, int length );
 
 	//! Build a new UMID
-	UMIDPtr MakeUMID(int Type);
+	UMIDPtr MakeUMID(int Type, const UUIDPtr AssetID = NULL);
 
 	//! Read a "Chunk" from a non-MXF file
 	DataChunkPtr FileReadChunk(FileHandle InFile, Uint64 Size);
@@ -136,8 +165,32 @@ namespace mxflib
 	//! Set a data chunk from a hex string
 	DataChunkPtr Hex2DataChunk(std::string Hex);
 
-	// File path utility functions
-	char *lookupDataFilePath(const char *filename);
+	//! Set the search path to be used for dictionary files
+	void SetDictionaryPath(std::string NewPath);
+
+	//! Set the search path to be used for dictionary files
+	inline void SetDictionaryPath(const char *NewPath) { SetDictionaryPath(std::string(NewPath)); }
+
+	//! Search for a file of a specified name in the current dictionary search path
+	/*! If the filname is either absolute, or relative to "." or ".." then the 
+	 *  paths are not searched - just the location specified by that filename.
+	 *  \return the full path and name of the file, or "" if not found
+	 */
+	std::string LookupDictionaryPath(const char *Filename);
+	
+	//! Search for a file of a specified name in the current dictionary search path
+	inline std::string LookupDictionaryPath(std::string Filename) { return LookupDictionaryPath(Filename.c_str()); }
+
+	//! Search a path list for a specified file
+	/*! If the filname is either absolute, or relative to "." or ".." then the 
+	 *  paths are not searched - just the location specified by that filename.
+	 *  \return the full path and name of the file, or "" if not found
+	 */
+	std::string SearchPath(const char *Path, const char *Filename);
+
+	//! Search a path list for a specified file
+	inline std::string SearchPath(std::string Path, std::string Filename) { return SearchPath(Path.c_str(), Filename.c_str()); }
+
 
 	// File read primitives
 
@@ -164,6 +217,10 @@ namespace mxflib
 	
 	//! Read 64-bit signed integer (casts from unsigned version)
 	inline Int64 ReadI64(FileHandle Handle) { return (Int64)ReadU64(Handle); }
+
+
+	// Is a given sequence of bytes a partition pack key?
+	bool IsPartitionKey(const Uint8 *Key);
 }
 
 #endif // MXFLIB__HELPER_H

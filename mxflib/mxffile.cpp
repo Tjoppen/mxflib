@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: mxffile.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
  *
  */
 /*
@@ -156,10 +156,11 @@ bool mxflib::MXFFile::ReadRunIn()
 
 	// Perform search in memory
 	// Maximum size plus enough to test the following key
+	// TODO: What should we do here to ensure that this doesn't break stream sources?
 	Seek(0);
 	DataChunkPtr Search = Read(0x10000 + 11);
 
-	Uint64 Scan = Search->Size - 11;
+	Uint32 Scan = Search->Size - 11;
 	Uint8 *ScanPtr = Search->Data;
 	while(Scan)
 	{
@@ -220,7 +221,7 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 				Size = 0xffffffff;
 			}
 
-			Bytes = MemoryRead(Ret->Data, Size);
+			Bytes = MemoryRead(Ret->Data, (Uint32)Size);
 		}
 		else
 		{
@@ -234,7 +235,7 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 			Bytes = 0;
 		}
 
-		if(Bytes != Size) Ret->Resize(Bytes);
+		if(Bytes != Size) Ret->Resize((Uint32)Bytes);
 	}
 
 	return Ret;
@@ -256,11 +257,11 @@ Uint64 mxflib::MXFFile::Read(Uint8 *Buffer, Uint64 Size)
 				Size = 0xffffffff;
 			}
 
-			Ret = MemoryRead(Buffer, Size);
+			Ret = MemoryRead(Buffer,(Uint32) Size);
 		}
 		else
 		{
-			Ret = FileRead(Handle, Buffer, Size);
+			Ret = FileRead(Handle, Buffer, (Uint32)Size);
 		}
 
 		// Handle errors
@@ -302,7 +303,8 @@ bool mxflib::MXFFile::ReadRIP(void)
 
 	FileRIP.isGenerated = false;
 
-	Uint64 FileEnd = SeekEnd();
+	SeekEnd();
+	Uint64 FileEnd = Tell();
 
 	// File smaller than 20 bytes! No chance of a RIP
 	if(FileEnd < 20) return false;
@@ -324,7 +326,7 @@ bool mxflib::MXFFile::ReadRIP(void)
 	if(RIPKey->Size != 16) return false;
 
 	// Do a key lookup on this key
-	MDOTypePtr KeyType = MDOType::Find(new UL(RIPKey->Data));
+	MDOTypePtr KeyType = MDOType::Find(UL(RIPKey->Data));
 
 	// If not a known key type then not a valid RIP
 	if(!KeyType) return false;
@@ -390,6 +392,8 @@ bool mxflib::MXFFile::ReadRIP(void)
  *  - If the lookup shows this as a footer then the search is over and steps 2-5 of the above method are used
  *  - Otherwise the scan continues - if no footer is found within the maximum scan size then the scan is aborted
  *
+ *  TODO: There should be some way to scan without loading every partition into memory (it could be millions!)
+ *  TODO: We could read the IndexSID as we go and build an enhanced RIP or Greater-RIP
  */
 bool mxflib::MXFFile::ScanRIP(Uint64 MaxScan /* = 1024*1024 */ )
 {
@@ -473,7 +477,8 @@ Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
 	if(MaxScan < 20) return 0;
 
 	Uint64 ScanLeft = MaxScan;			// Number of bytes left to scan
-	Uint64 FileEnd = SeekEnd();			// The file end
+	SeekEnd();
+	Uint64 FileEnd = Tell();			// The file end
 	Uint64 ScanPos = FileEnd;			// Last byte of the current scan chunk
 
 	while(ScanLeft)
@@ -490,10 +495,8 @@ Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
 		if(ThisScan == 0) return 0;
 
 		// Read this chunk
-//printf("Scanning %d bytes at %d, file size = %d\n", int(ThisScan), int(ScanPos - ThisScan), int(FileEnd));
 		Seek(ScanPos - ThisScan);
 		DataChunkPtr Chunk = Read(ThisScan);
-//printf("Read %d bytes\n", int(Chunk->Size));
 
 		// Quit if the read failed
 		if(Chunk->Size != ThisScan) return 0;
@@ -526,7 +529,7 @@ Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
 
 					if(Key->Size == 16)
 					{
-						MDOTypePtr Type = MDOType::Find(new UL(Key->Data));
+						MDOTypePtr Type = MDOType::Find(UL(Key->Data));
 						if(Type)
 						{
 							if(Type->Name().find("Footer") != std::string::npos)
@@ -752,12 +755,11 @@ bool mxflib::MXFFile::BuildRIP(void)
 					}
 				}
 			}
-//else printf("Found %s at 0x%08x\n", UL(Key->Data).GetString().c_str(), (Uint32)Location);
 
 			Skip = ReadBER();
 			Uint64 NextPos = Tell() + Skip;
 			Seek(NextPos);
-			if( Tell() != NextPos)
+			if( (Skip < 0) || (Tell() != NextPos))
 			{
 				error("Unexpected end of file in KLV starting at 0x%s in file \"%s\" (Trying to skip from 0x%s to 0x%s)\n",
 					  Int64toHexString(Location,8).c_str(), Name.c_str(), Int64toHexString(NextPos - Skip,8).c_str(), Int64toHexString(NextPos,8).c_str());
@@ -784,28 +786,30 @@ bool mxflib::MXFFile::BuildRIP(void)
 }
 
 //! Read a BER length from the open file
-Uint64 mxflib::MXFFile::ReadBER(void)
+/*! \return -1 on error
+ */
+Length mxflib::MXFFile::ReadBER(void)
 {
-	DataChunkPtr Length = Read(1);
-	if(Length->Size < 1)
+	DataChunkPtr Len = Read(1);
+	if(Len->Size < 1)
 	{
 		error("Incomplete BER length in file \"%s\" at 0x%s\n", Name.c_str(), Int64toHexString(Tell(),8).c_str());
-		return false;
+		return -1;
 	}
 
-	Uint64 Ret = Length->Data[0];
+	Length Ret = Len->Data[0];
 	if(Ret >= 0x80)
 	{
-		Uint32 i = Ret & 0x7f;
-		Length = Read(i);
-		if(Length->Size != i)
+		Uint32 i = (Uint32)Ret & 0x7f;
+		Len = Read(i);
+		if(Len->Size != i)
 		{
 			error("Incomplete BER length in file \"%s\" at 0x%s\n", Name.c_str(), Int64toHexString(Tell(),8).c_str());
-			return false;
+			return -1;
 		}
 
 		Ret = 0;
-		Uint8 *p = Length->Data;
+		Uint8 *p = Len->Data;
 		while(i--) Ret = ((Ret<<8) + *(p++));
 	}
 
@@ -887,7 +891,7 @@ Uint32 MXFFile::FillerSize(bool ForceBER4, Uint64 FillPos, Uint32 KAGSize, Uint3
 	if(KAGSize == 0) KAGSize = 1;
 
 	// Work out how far into a KAG we are
-	Uint32 Offset = FillPos % KAGSize;
+	Uint32 Offset = (Uint32)(FillPos % KAGSize);
 
 	// Don't insert anything if we are already aligned and not padding
 	if((Offset == 0) && (MinSize == 0)) return 0;
@@ -977,7 +981,7 @@ Uint64 MXFFile::Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize /*=0*/)
 /*! \note Partition properties are updated from the linked metadata
  *	\return true if (re-)write was successful, else false
  */
-bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding)
+bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding, Uint32 MinPartitionSize)
 {
 	PrimerPtr ThisPrimer;
 	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = new Primer;
@@ -994,8 +998,12 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	{
 		if(IncludeMetadata) (*it)->WriteLinkedObjects(MetaBuffer, ThisPrimer);
 
+		const Uint8 PrefaceUL_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0D, 0x01, 0x01, 0x01, 0x01, 0x01, 0x2F, 0x00 };
+		const UL PrefaceUL = UL(PrefaceUL_Data);
+
 		// Update partition pack settings from the preface (if we find one)
-		if((*it)->Name() == "Preface")
+		// if((*it)->Name() == "Preface" || (*it)->Name() == "Header" )
+		if( *(*it)->GetType()->GetTypeUL() == PrefaceUL )
 		{
 			// Update OP label
 			MDObjectPtr DstPtr = ThisPartition["OperationalPattern"];
@@ -1033,15 +1041,17 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	// Align if required (not if re-writing)
 	if((!ReWrite) && (KAGSize > 1)) Align(KAGSize);
 
+	// Initialy we have no header data
+	Uint64 HeaderByteCount = 0;
+	
 	if(IncludeMetadata)
 	{
 		// Build the primer
 		ThisPrimer->WritePrimer(PrimerBuffer);
 
 		// Set size of header metadata (including the primer)
-		Uint64 HeaderByteCount = PrimerBuffer.Size + MetaBuffer.Size;
+		HeaderByteCount = PrimerBuffer.Size + MetaBuffer.Size;
 
-//#printf("Initial HeaderByteCount = 0x%08x\n", (int)HeaderByteCount);
 		if(ReWrite)
 		{
 			Uint64 Pos = Tell();
@@ -1058,7 +1068,11 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 			Uint64 OldHeaderByteCount = OldPartition->GetUint64("HeaderByteCount");
 
-			Padding = OldHeaderByteCount - HeaderByteCount;
+			// Record the required padding size to make the new partition match the old one
+			Padding =(Uint32)( OldHeaderByteCount - HeaderByteCount);
+			
+			// We can't obey a MinPartitionSize request
+			MinPartitionSize = 0;
 
 			// Minimum possible filler size is 17 bytes
 			if((HeaderByteCount > OldHeaderByteCount) || (Padding < 17))
@@ -1068,28 +1082,26 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 			}
 
 			HeaderByteCount += Padding;
-
-//#printf("Final (rewrite) HeaderByteCount = 0x%08x\n", (int)HeaderByteCount);
 		}
 		else
 		{
 			// Padding follows the header if no index data
-			if((Padding > 0) && (!IndexData))
+			if(((Padding > 0) || (MinPartitionSize > HeaderByteCount)) && (!IndexData))
 			{
-//#printf("Padding with %d\n", (int)Padding);
+				// Work out which of the two padding methods requires the greater padding
+				Length UsePadding = (Length)MinPartitionSize - (Length)HeaderByteCount;
+				if(UsePadding > (Length)Padding) Padding = (Uint32)UsePadding;
+
 				HeaderByteCount += FillerSize(HeaderByteCount, KAGSize, Padding);
 			}
 			// Otherwise just pad to the KAG
 			else if((!IsFooter) || (IndexData))
 			{
-//#printf("KAG is %d so adding %d\n", (int)KAGSize, FillerSize(HeaderByteCount, KAGSize) );
 				HeaderByteCount += FillerSize(HeaderByteCount, KAGSize);
 			}
-//#else printf("Nothing to pad in this footer\n");
 		}
 
 		ThisPartition->SetUint64("HeaderByteCount", HeaderByteCount);
-//#printf("Final (write) HeaderByteCount = 0x%08x\n", (int)HeaderByteCount);
 	}
 	else
 	{
@@ -1100,12 +1112,17 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	if(IndexData)
 	{
 		Uint64 IndexByteCount = IndexData->Size;
-//#printf("Initial IndexByteCount = 0x%08x\n", (int)IndexByteCount);
-	
-		if( (!IsFooter) || (Padding > 0) ) IndexByteCount += FillerSize(IndexByteCount, KAGSize, Padding);
+
+		if( (!IsFooter) || (Padding > 0) || (MinPartitionSize > HeaderByteCount) ) 
+		{
+			// Work out which of the two padding methods requires the greater padding
+			Length UsePadding = (Length)MinPartitionSize - (Length)(HeaderByteCount + IndexByteCount);
+			if(UsePadding > (Length)Padding) Padding = (Uint32)UsePadding;
+
+			IndexByteCount += FillerSize(IndexByteCount, KAGSize, Padding);
+		}
 
 		ThisPartition->SetUint64("IndexByteCount", IndexByteCount);
-//#printf("Final IndexByteCount = 0x%08x\n", (int)IndexByteCount);
 	}
 	else
 	{
@@ -1138,7 +1155,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	}
 
 	// If not a footer align to the KAG (add padding if requested even if it is a footer)
-	if( (!IsFooter) || (Padding > 0) )
+	if( (!IsFooter) || (Padding > 0))
 	{
 		if((KAGSize > 1) || (Padding > 0)) Align(KAGSize, Padding);
 	}
@@ -1156,7 +1173,7 @@ Uint32 MXFFile::MemoryWrite(Uint8 const *Data, Uint32 Size)
 	}
 
 	// Copy the data to the buffer
-	Buffer->Set(Size, Data, (BufferCurrentPos - BufferOffset));
+	Buffer->Set((Uint32)Size, Data, (Uint32)(BufferCurrentPos - BufferOffset));
 
 	// Update the pointer
 	BufferCurrentPos += Size;
@@ -1181,7 +1198,7 @@ Uint32 MXFFile::MemoryRead(Uint8 *Data, Uint32 Size)
 	}
 
 	// Work out how many bytes we can read
-	unsigned int MaxBytes = Buffer->Size - (BufferCurrentPos - BufferOffset);
+	unsigned int MaxBytes =(Uint32)( Buffer->Size - (Uint32)(BufferCurrentPos - BufferOffset));
 
 	// Limit our read to the max available
 	if(Size > MaxBytes) Size = MaxBytes;
@@ -1200,3 +1217,17 @@ else Size = 0;
 }
 
 
+
+//! Read a KLVObject from the file
+KLVObjectPtr MXFFile::ReadKLV(void)
+{
+	KLVObjectPtr Ret = new KLVObject();
+
+	// Set the the value details
+	Ret->SetSource(this);
+
+	// Read the key and length - returning NULL if no more valid KLVs
+	if(Ret->ReadKL() < 17) return NULL;
+
+	return Ret;
+}

@@ -1,10 +1,10 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_INIT(mxflib, alpha-0.4.0)
+AC_INIT(mxflib, beta-0.5.0)
 AC_CONFIG_SRCDIR([mxflib/mxffile.cpp])
 AC_CONFIG_HEADER([config.h])
-AM_INIT_AUTOMAKE(mxflib, alpha-0.4.0)
+AM_INIT_AUTOMAKE(mxflib, beta-0.5.0)
 
 # Create a .zip package in addition to .tar.gz when running "make dist"
 AM_INIT_AUTOMAKE(dist-zip)
@@ -65,7 +65,7 @@ AC_ARG_WITH(doxygen,
 AM_CONDITIONAL(HAVE_DOXYGEN, $HAVE_DOXYGEN)
 
 DEFAULT_INCLUDES=""
-CXXFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DMXFDATADIR=\\\"\$(datadir)/mxflib\\\" -g -Wall"
+CXXFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DDEFAULT_DICT_PATH=\\\"\$(datadir)/mxflib\\\" -g -Wall"
 AC_SUBST(UUIDLIB)
 AC_SUBST(DEFAULT_INCLUDES)
 AC_SUBST(CXXFLAGS)
