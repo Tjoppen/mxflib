@@ -24,7 +24,17 @@
  *	     distribution.
  */
 
+extern "C"
+{
+#include "Klv.h"						//!< The KLVLib header
+}
+
 #include "mxflib.h"
+
+extern "C"
+{
+#include "Endian.h"
+}
 
 // Use mxflib by default in library source
 using namespace mxflib;
@@ -36,16 +46,16 @@ using namespace mxflib;
 // Default trait implementations
 ////////////////////////////////
 
-void mxflib::MDTraits::SetInt(MDValuePtr Object, Int32 Val) { error("NO BODY!\n"); };
-void mxflib::MDTraits::SetInt64(MDValuePtr Object, Int64 Val) { error("NO BODY!\n"); };
-void mxflib::MDTraits::SetUint(MDValuePtr Object, Uint32 Val) { error("NO BODY!\n"); };
-void mxflib::MDTraits::SetUint64(MDValuePtr Object, Uint64 Val) { error("NO BODY!\n"); };
-void mxflib::MDTraits::SetString(MDValuePtr Object, std::string Val) { error("NO BODY!\n"); };
-Int32 mxflib::MDTraits::GetInt(MDValuePtr Object) { error("NO BODY!\n"); return 0;};
-Int64 mxflib::MDTraits::GetInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; };
-Uint32 mxflib::MDTraits::GetUint(MDValuePtr Object) { error("NO BODY!\n"); return 0; };
-Uint64 mxflib::MDTraits::GetUint64(MDValuePtr Object) { error("NO BODY!\n"); return 0; };
-std::string mxflib::MDTraits::GetString(MDValuePtr Object) { return std::string("Base"); };
+void mxflib::MDTraits::SetInt(MDValuePtr Object, Int32 Val) { error("NO BODY!\n"); }
+void mxflib::MDTraits::SetInt64(MDValuePtr Object, Int64 Val) { error("NO BODY!\n"); }
+void mxflib::MDTraits::SetUint(MDValuePtr Object, Uint32 Val) { error("NO BODY!\n"); }
+void mxflib::MDTraits::SetUint64(MDValuePtr Object, Uint64 Val) { error("NO BODY!\n"); }
+void mxflib::MDTraits::SetString(MDValuePtr Object, std::string Val) { error("NO BODY!\n"); }
+Int32 mxflib::MDTraits::GetInt(MDValuePtr Object) { error("NO BODY!\n"); return 0;}
+Int64 mxflib::MDTraits::GetInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
+Uint32 mxflib::MDTraits::GetUint(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
+Uint64 mxflib::MDTraits::GetUint64(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
+std::string mxflib::MDTraits::GetString(MDValuePtr Object) { return std::string("Base"); }
 
 Uint32 MDTraits::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
 {
@@ -101,22 +111,22 @@ Uint32 MDTraits::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, 
 *************************************/
 
 //! Set from an Int64
-void mxflib::MDTraits_BasicInt::SetInt64(MDValuePtr Object, Int64 Val) { SetInt(Object, (Int32)Val); };
+void mxflib::MDTraits_BasicInt::SetInt64(MDValuePtr Object, Int64 Val) { SetInt(Object, (Int32)Val); }
 
 //! Set from a Uint32
-void mxflib::MDTraits_BasicInt::SetUint(MDValuePtr Object, Uint32 Val) { SetInt(Object, (Int32)Val); };
+void mxflib::MDTraits_BasicInt::SetUint(MDValuePtr Object, Uint32 Val) { SetInt(Object, (Int32)Val); }
 
 //! Set from a Uint64
-void mxflib::MDTraits_BasicInt::SetUint64(MDValuePtr Object, Uint64 Val) { SetInt(Object, (Int32)Val); };
+void mxflib::MDTraits_BasicInt::SetUint64(MDValuePtr Object, Uint64 Val) { SetInt(Object, (Int32)Val); }
 
 //! Set from a string
-void mxflib::MDTraits_BasicInt::SetString(MDValuePtr Object, std::string Val) { SetInt(Object, (Int32)atoi(Val.c_str())); };
+void mxflib::MDTraits_BasicInt::SetString(MDValuePtr Object, std::string Val) { SetInt(Object, (Int32)atoi(Val.c_str())); }
 
 //! Get Int64
-Int64 mxflib::MDTraits_BasicInt::GetInt64(MDValuePtr Object) { return (Int64) GetInt(Object); };
+Int64 mxflib::MDTraits_BasicInt::GetInt64(MDValuePtr Object) { return (Int64) GetInt(Object); }
 
 //! Get Uint64
-Uint64 mxflib::MDTraits_BasicInt::GetUint64(MDValuePtr Object) { return (Uint64) GetUint(Object); };
+Uint64 mxflib::MDTraits_BasicInt::GetUint64(MDValuePtr Object) { return (Uint64) GetUint(Object); }
 
 //!	Get string from an integer
 std::string mxflib::MDTraits_BasicInt::GetString(MDValuePtr Object) 
@@ -124,7 +134,7 @@ std::string mxflib::MDTraits_BasicInt::GetString(MDValuePtr Object)
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%d", GetInt(Object));
 	return std::string(Buffer);
-};
+}
 
 Uint32 MDTraits_BasicInt::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
 {
@@ -211,7 +221,7 @@ void mxflib::MDTraits_Int8::SetInt(MDValuePtr Object, Int32 Val)
 	// Now we know the value will fit, set it
 	Int8 i = Val;
 	Object->SetData(1, (Uint8*)&i);
-};
+}
 
 //! Get Int32 from an Int8
 Int32 mxflib::MDTraits_Int8::GetInt(MDValuePtr Object) 
@@ -229,7 +239,7 @@ Int32 mxflib::MDTraits_Int8::GetInt(MDValuePtr Object)
 
 	// Return the value promoted to 32-bits
 	return (Int32) *((const Int8*)(Object->GetData().Data));
-};
+}
 
 //! Get Uint32 from an Int8
 /*! \note
@@ -252,7 +262,7 @@ Uint32 mxflib::MDTraits_Int8::GetUint(MDValuePtr Object)
 
 	// Return the value promoted to 32-bits
 	return (Uint32) *((const Uint8*)(Object->GetData().Data));
-};
+}
 
 
 /******************************
@@ -265,7 +275,7 @@ std::string MDTraits_Uint8::GetString(MDValuePtr Object)
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%u", GetUint(Object));
 	return std::string(Buffer);
-};
+}
 
 //! Read value from memory buffer
 Uint32 MDTraits_Uint8::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
@@ -300,7 +310,7 @@ void mxflib::MDTraits_Int16::SetInt(MDValuePtr Object, Int32 Val)
 	Uint16 i = Swap((Uint16)Val);
 
 	Object->SetData(2, (Uint8*)&i);
-};
+}
 
 //! Get Int32 from an Int16
 Int32 mxflib::MDTraits_Int16::GetInt(MDValuePtr Object) 
@@ -318,7 +328,7 @@ Int32 mxflib::MDTraits_Int16::GetInt(MDValuePtr Object)
 
 	// Build the 16-bit value
 	return ((Object->GetData().Data)[0] << 8) | (Object->GetData().Data)[1];
-};
+}
 
 //! Get Uint32 from an Int16
 Uint32 mxflib::MDTraits_Int16::GetUint(MDValuePtr Object) 
@@ -336,7 +346,7 @@ Uint32 mxflib::MDTraits_Int16::GetUint(MDValuePtr Object)
 
 	// Build the 16-bit value
 	return ((Object->GetData().Data)[0] << 8) | (Object->GetData().Data)[1];
-};
+}
 
 
 /*******************************
@@ -349,7 +359,7 @@ std::string MDTraits_Uint16::GetString(MDValuePtr Object)
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%u", GetUint(Object));
 	return std::string(Buffer);
-};
+}
 
 //! Read value from memory buffer
 Uint32 MDTraits_Uint16::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
@@ -384,7 +394,7 @@ void mxflib::MDTraits_Int32::SetInt(MDValuePtr Object, Int32 Val)
 	Uint32 i = Swap((Uint32)Val);
 
 	Object->SetData(4, (Uint8*)&i);
-};
+}
 
 //! Get Int32 from an Int32
 Int32 mxflib::MDTraits_Int32::GetInt(MDValuePtr Object) 
@@ -403,7 +413,7 @@ Int32 mxflib::MDTraits_Int32::GetInt(MDValuePtr Object)
 	// Build the 32-bit value
 	return ((Object->GetData().Data)[0] << 24) | ((Object->GetData().Data)[1] << 16)
 		 | ((Object->GetData().Data)[2] << 8) | (Object->GetData().Data)[3];
-};
+}
 
 //! Get Uint32 from an Int32
 Uint32 mxflib::MDTraits_Int32::GetUint(MDValuePtr Object)
@@ -411,7 +421,7 @@ Uint32 mxflib::MDTraits_Int32::GetUint(MDValuePtr Object)
 	// As the return value is the same size as our working variables
 	// the signed to unsigned conversion should be safe like this
 	return (Uint32)GetInt(Object);
-};
+}
 
 
 /*******************************
@@ -424,7 +434,7 @@ std::string MDTraits_Uint32::GetString(MDValuePtr Object)
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%u", GetUint(Object));
 	return std::string(Buffer);
-};
+}
 
 //! Read value from memory buffer
 Uint32 MDTraits_Uint32::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
@@ -460,34 +470,34 @@ void mxflib::MDTraits_Int64::SetInt64(MDValuePtr Object, Int64 Val)
 	Uint64 i = Swap((Uint64)Val);
 
 	Object->SetData(8, (Uint8*)&i);
-};
+}
 
 //! Set from an Int32
-void mxflib::MDTraits_Int64::SetInt(MDValuePtr Object, Int32 Val) { SetInt64(Object, (Int64)Val); };
+void mxflib::MDTraits_Int64::SetInt(MDValuePtr Object, Int32 Val) { SetInt64(Object, (Int64)Val); }
 
 //! Set from a Uint32
-void mxflib::MDTraits_Int64::SetUint(MDValuePtr Object, Uint32 Val) { SetUint64(Object, (Uint64)Val); };
+void mxflib::MDTraits_Int64::SetUint(MDValuePtr Object, Uint32 Val) { SetUint64(Object, (Uint64)Val); }
 
 //! Set from a Uint64
 /*! DRAGONS: Will this always work? This relies on the Uint64 -> Int64 -> Uint64
  *           conversion being valid for all values!
  */
-void mxflib::MDTraits_Int64::SetUint64(MDValuePtr Object, Uint64 Val) { SetInt64(Object, (Uint64)Val); };
+void mxflib::MDTraits_Int64::SetUint64(MDValuePtr Object, Uint64 Val) { SetInt64(Object, (Uint64)Val); }
 
 //! Set from a string
-void mxflib::MDTraits_Int64::SetString(MDValuePtr Object, std::string Val) { SetInt64(Object, ato_Int64(Val.c_str())); };
+void mxflib::MDTraits_Int64::SetString(MDValuePtr Object, std::string Val) { SetInt64(Object, ato_Int64(Val.c_str())); }
 
 //!	Get string from an integer
 std::string mxflib::MDTraits_Int64::GetString(MDValuePtr Object) 
 { 
 	return Int64toString(GetInt64(Object));
-};
+}
 
 //! Get Int
-Int32 mxflib::MDTraits_Int64::GetInt(MDValuePtr Object) { return (Int32) GetInt64(Object); };
+Int32 mxflib::MDTraits_Int64::GetInt(MDValuePtr Object) { return (Int32) GetInt64(Object); }
 
 //! Get Uint
-Uint32 mxflib::MDTraits_Int64::GetUint(MDValuePtr Object) { return (Uint32) GetUint64(Object); };
+Uint32 mxflib::MDTraits_Int64::GetUint(MDValuePtr Object) { return (Uint32) GetUint64(Object); }
 
 //! Get Int64
 Int64 mxflib::MDTraits_Int64::GetInt64(MDValuePtr Object) 
@@ -510,7 +520,7 @@ Int64 mxflib::MDTraits_Int64::GetInt64(MDValuePtr Object)
 		         | ((Object->GetData().Data)[6] << 8) | (Object->GetData().Data)[7];
 
 	return (Uint64(HiVal) << 32) | LoVal;
-};
+}
 
 //! Get Uint64
 Uint64 mxflib::MDTraits_Int64::GetUint64(MDValuePtr Object)
@@ -518,7 +528,7 @@ Uint64 mxflib::MDTraits_Int64::GetUint64(MDValuePtr Object)
 	// As the return value is the same size as our working variables
 	// the signed to unsigned conversion should be safe like this
 	return (Uint64)GetInt64(Object);
-};
+}
 
 
 /*******************************
@@ -529,7 +539,7 @@ Uint64 mxflib::MDTraits_Int64::GetUint64(MDValuePtr Object)
 std::string mxflib::MDTraits_Uint64::GetString(MDValuePtr Object) 
 { 
 	return Uint64toString(GetUint64(Object));
-};
+}
 
 //! Read value from memory buffer
 Uint32 MDTraits_Uint64::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
@@ -548,7 +558,7 @@ std::string MDTraits_ISO7::GetString(MDValuePtr Object)
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%c", GetInt(Object));
 	return std::string(Buffer);
-};
+}
 
 //! Set an ISO7 from a string
 void MDTraits_ISO7::SetString(MDValuePtr Object, std::string Val)
@@ -568,7 +578,7 @@ std::string MDTraits_UTF16::GetString(MDValuePtr Object)
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%c", GetInt(Object));
 	return std::string(Buffer);
-};
+}
 
 //! Set a UTF16 from a string
 void MDTraits_UTF16::SetString(MDValuePtr Object, std::string Val)
@@ -654,7 +664,7 @@ void MDTraits_BasicArray::SetString(MDValuePtr Object, std::string Val)
 			it--;
 		}
 
-		if(Comma == std::string::npos)
+		if(Comma == (int)std::string::npos)
 		{
 			(*it).second->SetString(std::string(Val,LastComma+1, std::string::npos));
 			return;
@@ -990,7 +1000,7 @@ void MDTraits_RawArray::SetString(MDValuePtr Object, std::string Val)
 {
 	MDValue::iterator it;
 
-	int Index = 0;
+	unsigned int Index = 0;
 	int Value = -1;
 	const char *p = Val.c_str();
 
@@ -1081,10 +1091,10 @@ void MDTraits_RawArrayArray::SetString(MDValuePtr Object, std::string Val)
 	for(;;)
 	{
 		OpenBracket = Val.find("{",CloseBracket+1);
-		if(OpenBracket == std::string::npos) return;
+		if(OpenBracket == (int)std::string::npos) return;
 
 		CloseBracket = Val.find("}",OpenBracket+1);
-		if(CloseBracket == std::string::npos) return;
+		if(CloseBracket == (int)std::string::npos) return;
 
 		// If we are already at the end of the list, add another
 		if(it == Object->end()) 
@@ -1108,8 +1118,6 @@ void MDTraits_RawArrayArray::SetString(MDValuePtr Object, std::string Val)
 std::string MDTraits_BasicCompound::GetString(MDValuePtr Object)
 {
 	std::string Ret;
-
-	int ChildNum = 0;
 
 	StringList::iterator it = Object->EffectiveType()->ChildOrder.begin();
 	StringList::iterator itend = Object->EffectiveType()->ChildOrder.end();
@@ -1147,12 +1155,12 @@ void MDTraits_BasicCompound::SetString(MDValuePtr Object, std::string Val)
 	for(;;)
 	{
 		OpenQuote = Val.find("\"",CloseQuote+1);
-		if(OpenQuote == std::string::npos) return;
+		if(OpenQuote == (int)std::string::npos) return;
 
 		// DRAGONS: Should add code here to allow out-of-order items
 
 		CloseQuote = Val.find("\"",OpenQuote+1);
-		if(CloseQuote == std::string::npos) return;
+		if(CloseQuote == (int)std::string::npos) return;
 
 		// If we are already at the end of the list, we have too much data!
 		if(it == itend) 
