@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
 					printf( "\n Bytestream Order:\n" );
 					for(i=0; i<Duration; i++)
 					{
-						int j;
+						Uint32 j;
 						for(j=0; j<Streams; j++)
 						{
 							IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
 					printf( "\n Presentation Order:\n" );
 					for(i=0; i<Duration; i++)
 					{
-						int j;
+						Uint32 j;
 						for(j=0; j<Streams; j++)
 						{
 							IndexPosPtr Pos = Table->Lookup(Start + i,j);

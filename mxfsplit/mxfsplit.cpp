@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.3 2004/03/19 03:10:13 terabrit Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.4 2004/03/28 20:06:29 matt-beard Exp $
  *
  */
 /*
@@ -328,7 +328,7 @@ static void DumpIndex( PartitionPtr ThisPartition )
 			printf( "\n Bytestream Order:\n" );
 			for(i=0; i<Duration; i++)
 			{
-				int j;
+				Uint32 j;
 				for(j=0; j<Streams; j++)
 				{
 					IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
@@ -341,7 +341,7 @@ static void DumpIndex( PartitionPtr ThisPartition )
 			printf( "\n Presentation Order:\n" );
 			for(i=0; i<Duration; i++)
 			{
-				int j;
+				Uint32 j;
 				for(j=0; j<Streams; j++)
 				{
 					IndexPosPtr Pos = Table->Lookup(Start + i,j);
