@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.4.2.1 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: system.h,v 1.4.2.2 2004/06/14 18:04:26 matt-beard Exp $
  *
  */
 /*
@@ -184,7 +184,7 @@ namespace mxflib
 #define IsCommandLineSwitchPrefix(x) ( (x == '/') || (x == '-'))
 
 }
-#else
+#else // _MSC_VER
 namespace mxflib
 {
 	typedef long long Int64;			//!< Signed 64-bit integer
@@ -203,6 +203,8 @@ namespace mxflib
 #include <sys/timeb.h>		//!< for _timeb
 
 #define DIR_SEPARATOR		'\\'
+#define PATH_SEPARATOR		';'
+#define DEFAULT_DICT_PATH	".\\"
 
 namespace mxflib
 {
@@ -240,6 +242,15 @@ namespace mxflib
 	inline void MakeUUID(Uint8 *Buffer)
 	{
 		CoCreateGuid(reinterpret_cast<GUID*>(Buffer));
+	}
+
+	//! Determine if the spacified filename refers to an absolute path
+	inline bool IsAbsolutePath(const char *Filename)
+	{
+		if(*Filename == '\\') return true;
+		if(*Filename == '/') return true;
+		if(*Filename != '\0' && Filename[1] == ':') return true;
+		return false;
 	}
 }
 #endif // _WIN32
@@ -338,6 +349,9 @@ namespace mxflib
 #ifndef _WIN32
 
 #define DIR_SEPARATOR		'/'
+#define PATH_SEPARATOR		':'
+#define #DEFAULT_DICT_PATH	"/usr/local/share/mxflib/"
+
 
 	/******** 64-bit file-I/O ********/
 #ifndef MXFLIB_NO_FILE_IO
@@ -412,6 +426,14 @@ namespace mxflib
 		Buffer[7] |= 0x40;
 	}
 #endif // HAVE_UUID_GENERATE
+
+	//! Determine if the spacified filename refers to an absolute path
+	inline bool IsAbsolutePath(const char *Filename)
+	{
+		if(*Filename == '/') return true;
+		return false;
+	}
+
 #endif // _WIN32
 }
 
