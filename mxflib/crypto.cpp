@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.4 2004/12/18 20:20:10 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.5 2005/02/05 13:16:37 matt-beard Exp $
  *
  */
 /*
@@ -1404,7 +1404,7 @@ bool KLVEObject::WriteFooter(void)
 	}
 
 	// Resize the buffer to exactly the amount of data we built
-	ASSERT((p - Buffer->Data) == FooterLength);
+	ASSERT((Uint32)(p - Buffer->Data) == FooterLength);
 	Buffer->Resize((int)(p - Buffer->Data));
 
 	// Write the footer
