@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.4 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.5 2004/01/06 14:24:00 terabrit Exp $
  *
  */
 /*
@@ -629,7 +629,7 @@ namespace mxflib
 		typedef std::list<WrappingConfigPtr> WrappingConfigList;
 
 		// DRAGONS: Currently destroys PDList to preserve the essence handler
-		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::WrapType::None)
+		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
 			WrappingConfigPtr Ret;
 
@@ -651,7 +651,7 @@ namespace mxflib
 						Ret = new WrappingConfig;
 
 						// Only accept wrappings of the specified type
-						if(ForceWrap != WrappingOption::WrapType::None)
+						if(ForceWrap != WrappingOption::None)
 						{
 							if((*it2)->ThisWrapType != ForceWrap)
 							{
