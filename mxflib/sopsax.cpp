@@ -1,11 +1,11 @@
 /*! \file	sopSAX.pp
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.cpp,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: sopsax.cpp,v 1.2 2004/04/26 18:29:33 asuraparaju Exp $
  *
  */
 /*
- *	Copyright (c) BBC R&D 2001
+ *	Copyright (c) BBC R&D 2004
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -51,7 +51,7 @@ static void sopGetItem(FILE *xmlFile, char *Buffer, int Max);
 ** sopSAXParseFile() - Parse an XML file (not re-entrant due to static data)
 */
 
-void sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename)
+bool sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename)
 {
 	FILE *xmlFile;
 	int ElementNesting;
@@ -67,8 +67,11 @@ void sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename)
 	if(sax == NULL)
 	{
 		fprintf(stderr, "Cannot parse file with no handler\n");
-		return;
+		return false;
 	}
+
+	if (filename == NULL)
+		return false;
 
 	xmlFile = fopen(filename, "rb");
 
@@ -77,7 +80,7 @@ void sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename)
 		if(sax->fatalError != NULL) sax->fatalError(UserData, 
 			"Cannot open file %s", filename);
 
-		return;
+		return false;
 	}
 
 	ElementNesting = 0;
@@ -286,7 +289,7 @@ void sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename)
 
 	fclose(xmlFile);
 
-	return;
+	return true;
 }
 
 

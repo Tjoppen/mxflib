@@ -1,7 +1,7 @@
 /*! \file	sopSAX.h
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: sopsax.h,v 1.2 2004/04/26 18:29:33 asuraparaju Exp $
  *
  */
 /*
@@ -54,6 +54,6 @@ struct sopSAXHandlerStruct
 
 
 /* Function Prototypes */
-void sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename);
+bool sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename);
 
 #endif /* _SOPSAX_H */
