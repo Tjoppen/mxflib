@@ -1,3 +1,16 @@
+Changes for 0.5.2.1.2(Development)
+==================================
+
+Optional compile-time dictionary (run-time dictionary still preferred)
+Autogen from xmldict.xml and types.xml with new dictconvert project
+See mxfdump.cpp for how to use (#define COMPILED_DICT)
+
+OPtional use of Expat to get wide character support (#define HAVE_EXPAT)
+Needs ../expat/lib/* static libraries from expat 1.95.8
+
+UInt (still legacy support for Uint)
+
+
 
 Release Notes for mxflib version 0.5-Beta
 =========================================
