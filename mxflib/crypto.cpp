@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.1.2.6 2004/10/16 20:51:06 terabrit Exp $
+ *	\version $Id: crypto.cpp,v 1.1.2.7 2004/10/19 16:38:52 matt-beard Exp $
  *
  */
 /*
@@ -256,7 +256,9 @@ bool KLVEObject::LoadData(void)
 	}
 
 	// Read the PlaintextOffset
-	PlaintextOffset = GetU64(p);
+	// DRAGONS: The format used in the file is Uint64, but as KLVObject used "Length" (Int64) for its lengths
+	//          we impose a limit of 2^63 bytes on Plaintext offset and keep everything signed internally
+	PlaintextOffset = (Length)GetU64(p);
 
 	// Update pointer and count
 	p += 8;
@@ -323,7 +325,7 @@ bool KLVEObject::LoadData(void)
 		Bytes -= 8;
 	}
 
-	if((Int64)PlaintextOffset > ValueLength)
+	if(PlaintextOffset > ValueLength)
 	{
 		warning("Invalid AS-DCP data: PlaintextOffset(%s) > SourceLength(%s) in %s\n", Int64toString(PlaintextOffset).c_str(), Int64toString(ValueLength).c_str(), GetSourceLocation().c_str());
 		PlaintextOffset = ValueLength;
@@ -462,7 +464,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	}
 
 	// If all the requested bytes are encrypted read-and-decrypt
-	if(Offset >= (Int64)PlaintextOffset) 
+	if(Offset >= PlaintextOffset) 
 	{
 //@'@printf("Data starts in encrypted area\n");
 		// Check if an attempt is being made to random access the encrypted data - and barf if this is so
@@ -476,7 +478,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	}
 
 	// If all the bytes requested are plaintext use the base read
-	if( (Size > 0) && ((Offset + Size) < (Int64)PlaintextOffset) )
+	if( (Size > 0) && ((Offset + Size) < PlaintextOffset) )
 	{
 //@'@printf("Data is all plaintext\n");
 		Length Ret = Base_ReadDataFrom(DataOffset + Offset, Size);
@@ -492,7 +494,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 //@'@printf("Data starts in plaintext area\n");
 	// Check if an attempt is being made to random access the encrypted data - and barf if this is so
 	// DRAGONS: It is possible to re-load the initial IV to allow a "rewind" but this is not implemented
-	if(CurrentReadOffset > (Int64)PlaintextOffset)
+	if(CurrentReadOffset > PlaintextOffset)
 	{
 		error("Attempt to perform random-access reading of an encrypted KLV value field\n");
 		return 0;
@@ -821,7 +823,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 	}
 
 	// If all the requested bytes are to be encrypted encrypt-and-write
-	if(Offset >= (Int64)PlaintextOffset) 
+	if(Offset >= PlaintextOffset) 
 	{
 //@'@printf("All data is to be encrypted\n");
 		// Check if an attempt is being made to random access the encrypted data - and barf if this is so
@@ -836,7 +838,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 
 
 	// If all the bytes requested are plaintext use the base write
-	if( (Size > 0) && ((Offset + Size) < (Int64)PlaintextOffset) )
+	if( (Size > 0) && ((Offset + Size) < PlaintextOffset) )
 	{
 //@'@printf("All data is plaintext\n");
 		Length Ret = Base_WriteDataTo(Buffer, DataOffset + Offset, Size);
@@ -864,7 +866,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 
 	// Check if an attempt is being made to random access the encrypted data - and barf if this is so
 	// DRAGONS: It is possible to re-set the initial IV to allow a "rewind" but this is not implemented
-	if(CurrentWriteOffset >(Int64) PlaintextOffset)
+	if(CurrentWriteOffset > PlaintextOffset)
 	{
 		error("Attempt to perform random-access writing of an encrypted KLV value field\n");
 		return 0;
@@ -1139,10 +1141,10 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	// ** Write PlaintextOffset **
 
 	// First adjust if required
-	if((Int64)PlaintextOffset > ValueLength) PlaintextOffset = ValueLength;
+	if(PlaintextOffset > ValueLength) PlaintextOffset = ValueLength;
 
 	pBuffer += MakeBER(pBuffer, 4, 8, 4);
-	PutU64(PlaintextOffset, pBuffer); pBuffer += 8;
+	PutU64((Uint64)PlaintextOffset, pBuffer); pBuffer += 8;
 
 
 	// ** Write SourceKey **
