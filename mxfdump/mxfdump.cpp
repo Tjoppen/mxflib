@@ -72,13 +72,13 @@ int main(int argc, char *argv[])
 	LoadTypes("types.xml");
 	MDOType::LoadDict("xmldict.xml");
 
-	if(argc - num_options < 2)
+	if (argc - num_options < 2)
 	{
 		printf("\nUsage:   test [-b] [-i] [-v] <filename>\n\n");
 		printf("Options: -b Dump body partitions (rather than just header and footer)\n");
 		printf("         -i Dump full index tables (can be lengthy)\n");
 		printf("         -v Verbose mode - shows lots of debug info\n");
-		return -1;
+		return 1;
 	}
 
 	MXFFilePtr TestFile = new MXFFile;
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 	// Get a RIP (however possible)
 	TestFile->GetRIP();
 
-	int PartitionNumber = 0;
+	unsigned int PartitionNumber = 0;
 	RIP::iterator it = TestFile->FileRIP.begin();
 	while(it != TestFile->FileRIP.end())
 	{
