@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.3 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.4 2004/12/18 20:33:15 matt-beard Exp $
  *
  */
 /*
@@ -550,9 +550,9 @@ Uint32 MDValue::ReadValue(const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
 
 
 //! Build a data chunk with all this items data (including child data)
-const DataChunk MDValue::PutData(void) 
+DataChunkPtr MDValue::PutData(void) 
 {
-	DataChunk Ret;
+	DataChunkPtr Ret = new DataChunk;
 
 	MDTypePtr EffType = EffectiveType();
 	if(EffType->GetArrayClass() == ARRAYBATCH)
@@ -562,7 +562,7 @@ const DataChunk MDValue::PutData(void)
 		PutU32(Type->EffectiveSize(), &Buffer[4]);
 
 		// Set the header
-		Ret.Set(8, Buffer);
+		Ret->Set(8, Buffer);
 	}
 
 	// If the size is zero we don't have any sub items
@@ -570,7 +570,7 @@ const DataChunk MDValue::PutData(void)
 	if(size() == 0 || (Type->HandlesSubdata())) 
 	{
 		// If we are part of a batch this appends the data, otherwise it simply sets it to be the same
-		Ret.Append(GetData());
+		Ret->Append(GetData());
 	}
 	else
 	{
@@ -580,8 +580,8 @@ const DataChunk MDValue::PutData(void)
 			StringList::iterator it = Type->ChildOrder.begin();
 			while(it != Type->ChildOrder.end())
 			{
-				DataChunk SubItem = Child(*it)->PutData();
-				Ret.Append(SubItem.Size, SubItem.Data);
+				DataChunkPtr SubItem = Child(*it)->PutData();
+				Ret->Append(SubItem->Size, SubItem->Data);
 				it++;
 			}
 		}
@@ -590,8 +590,8 @@ const DataChunk MDValue::PutData(void)
 			MDValue::iterator it = begin();
 			while(it != end())
 			{
-				DataChunk SubItem = (*it).second->PutData();
-				Ret.Append(SubItem.Size, SubItem.Data);
+				DataChunkPtr SubItem = (*it).second->PutData();
+				Ret->Append(SubItem->Size, SubItem->Data);
 				it++;
 			}
 		}
