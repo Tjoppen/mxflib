@@ -157,107 +157,107 @@ SOURCE=..\..\mxflib\sopsax.cpp
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
-SOURCE=..\..\datachunk.h
+SOURCE=..\..\mxflib\datachunk.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\debug.h
+SOURCE=..\..\mxflib\debug.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\deftypes.h
+SOURCE=..\..\mxflib\deftypes.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\endian.h
+SOURCE=..\..\mxflib\endian.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\esp_dvdif.h
+SOURCE=..\..\mxflib\esp_dvdif.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\esp_mpeg2ves.h
+SOURCE=..\..\mxflib\esp_mpeg2ves.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\esp_wavepcm.h
+SOURCE=..\..\mxflib\esp_wavepcm.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\essence.h
+SOURCE=..\..\mxflib\essence.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\forward.h
+SOURCE=..\..\mxflib\forward.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\helper.h
+SOURCE=..\..\mxflib\helper.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\index.h
+SOURCE=..\..\mxflib\index.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\klvobject.h
+SOURCE=..\..\mxflib\klvobject.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mdobject.h
+SOURCE=..\..\mxflib\mdobject.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mdtraits.h
+SOURCE=..\..\mxflib\mdtraits.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mdtype.h
+SOURCE=..\..\mxflib\mdtype.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\metadata.h
+SOURCE=..\..\mxflib\metadata.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mxffile.h
+SOURCE=..\..\mxflib\mxffile.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mxflib.h
+SOURCE=..\..\mxflib\mxflib.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\partition.h
+SOURCE=..\..\mxflib\partition.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\primer.h
+SOURCE=..\..\mxflib\primer.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\rip.h
+SOURCE=..\..\mxflib\rip.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\smartptr.h
+SOURCE=..\..\mxflib\smartptr.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\sopsax.h
+SOURCE=..\..\mxflib\sopsax.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\system.h
+SOURCE=..\..\mxflib\system.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\types.h
+SOURCE=..\..\mxflib\types.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\waveheader.h
+SOURCE=..\..\mxflib\waveheader.h
 # End Source File
 # End Group
 # Begin Group "Documentation"
