@@ -1,10 +1,15 @@
 
-Release Notes for mxflib version 0.2.1-Alpha
+Release Notes for mxflib version 0.2.2-Alpha
 ============================================
 
-This version adds index table support.
-Currently the index table loading is inefficient, but lookup is fast.
-It also fixes a few bugs in 0.2-Alpha.
+A few minor bug-fixes
+
+
+Changes since version 0.2.1-Alpha
+=================================
+
+* Fixed problem where mxffile::Seek() returned the wrong value in files with a run-in
+* Revised the front page of the documentation
 
 
 Changes since version 0.2-Alpha
