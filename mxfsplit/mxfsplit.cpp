@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.1 2004/01/06 14:38:15 terabrit Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.2 2004/01/20 12:36:34 marcvdb Exp $
  *
  */
 /*
@@ -411,7 +411,10 @@ static void DumpBody( PartitionPtr ThisPartition )
 				{
 					if( !Quiet ) printf( " NEW" );
 
-					fp = fopen( filename, "wb" );
+                    // @modif 20/01/2004 | replaced "wb" by "w+b" | marcvdb@users.sourceforge.net
+                    // This prevented the reloading of the files and thus always wrote the 
+                    // the default wave header
+					fp = fopen( filename, "w+b" );
 					if( !fp ) if( !Quiet ) printf( " ERROR");
 
 					StreamFile sf;
