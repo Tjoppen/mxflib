@@ -137,10 +137,8 @@ namespace mxflib
 // These simple inlines need to be defined after Partition
 namespace mxflib
 {
-inline MDObjectPtr PartitionPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; };
-inline MDObjectPtr PartitionPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; };
+inline MDObjectPtr PartitionPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
+inline MDObjectPtr PartitionPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
 }
 
-#endif MXFLIB__PARTITION_H
-
-
+#endif // MXFLIB__PARTITION_H
