@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.8 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.9 2004/01/06 14:25:01 terabrit Exp $
  *
  */
 /*
@@ -256,6 +256,19 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	// Read the offset to the previous key-frame
 	Ret->KeyFrameOffset = GetI8(Ptr);
 	Ptr++;
+
+	// Index the start of the keyframe index entry
+	if( Ret->KeyFrameOffset > EditUnit - Segment->StartPosition )
+	{
+		// Key Frame is in a different Index Table Segment
+		Ret->KeyLocation = ~0;
+	}
+	else
+	{
+		Uint8 *PKF = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition - Ret->KeyFrameOffset) * IndexEntrySize];
+		PKF += 3;
+		Ret->KeyLocation = GetI64(PKF);
+	}
 
 	// Read the flags for this frame
 	Ret->Flags = GetU8(Ptr);
@@ -539,6 +552,22 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
 	// Calculate the new size to see if it is too big for a 2-byte local local set length
 	int NewSize = (EntryCount * Parent->IndexEntrySize) + (Count * Size);
 	if(NewSize > 0xffff) return false;
+
+	// diagnostics
+	printf("\nAddIndexEntries() %d, %d:\n", Size, Count);
+	Uint8 *p = (Uint8*)Entries;
+	int i, j;
+	for(i=0; i<Count && i<35; i++)
+	{
+		printf( " %3d: %2d %3d  0x%02x  0x", i, (int)(char)p[0], (int)(char)p[1], p[2] );
+
+		for(j=3; j<11 && j<Size; j++) printf("%02x", p[j]);
+
+		for(j=11; j<Size; j++) printf(" 0x%02x%02x", p[j], p[j+1] );
+
+		p+=Size;
+		printf("\n");
+	}
 
 	// Add this entry to the end of the Index Entry Array
 /*printf("AddIndexEntries() %d, %d:\n", Size, Count);

@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.7 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: index.h,v 1.8 2004/01/06 14:25:01 terabrit Exp $
  *
  */
 /*
@@ -63,6 +63,7 @@ namespace mxflib
 								 *         Location does not index the requested edit unit */
 		bool Offset;			//!< true if there is a temporal offset (stored in PosOffset, only set if Exact = true)
 		Int8 KeyFrameOffset;	//!< The offset in edit units to the previous key frame
+		Int64 KeyLocation;		//!< The location of the start of the keyframe edit unit in the essence container
 		Uint8 Flags;			//!< The flags for this edit unit (zero if ThisPos is not the requested edit unit)
 	};
 
@@ -185,7 +186,7 @@ namespace mxflib
 
 	public:
 		//! Construct an IndexTable with no CBRDeltaArray
-		IndexTable() : EditUnitByteCount(0), BaseDeltaCount(0) { EditRate.Numerator=0; EditUnitByteCount=0; NSL=0; NPE=0; IndexEntrySize=11; };
+		IndexTable() : EditUnitByteCount(0) , BaseDeltaCount(0) { EditRate.Numerator=0; EditUnitByteCount=0; NSL=0; NPE=0; IndexEntrySize=11; };
 
 		//! Free any memory used by BaseDeltaArray when this IndexTable is destroyed
 		~IndexTable() 
