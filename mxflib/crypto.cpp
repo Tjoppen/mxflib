@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.1.2.1 2004/05/26 18:01:37 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.1.2.2 2004/06/14 17:04:59 matt-beard Exp $
  *
  */
 /*
@@ -74,6 +74,29 @@ DataChunkPtr KLVEObject::GetDecryptIV(void)
 KLVEObject::KLVEObject(ULPtr ObjectUL)
 	: KLVObject(ObjectUL)
 {
+	Init();
+}
+
+
+//! Construct a KLVEObject linked to an encrypted KLVObject
+KLVEObject::KLVEObject(KLVObjectPtr Object)
+	: KLVObject(Object->TheUL)
+{
+	// Copy all properties from the original KLVObject
+	// Note: TheUL is handled by KLVObject constructor call above
+
+	IsConstructed = Object->IsConstructed;
+	SourceOffset = Object->SourceOffset;
+	KLSize = Object->KLSize;
+	SourceFile = Object->SourceFile;
+	ValueLength = Object->ValueLength;
+	ReadHandler = Object->ReadHandler;
+
+	// Copy any data already loaded
+	// DRAGONS: Is this a wise thing???
+	Data.Set(Object->Data);
+
+	// Initialize the KLVEObject specifics
 	Init();
 }
 
@@ -249,7 +272,7 @@ bool KLVEObject::LoadData(void)
 	Bytes -= 16;
 
 	// Check that we have enough left for the IV and Check Value
-	if(Bytes < 16)
+	if(Bytes < 32)
 	{
 		error("Invalid AS-DCP data in %s\n", GetSource().c_str());
 		return false;
@@ -316,8 +339,8 @@ Uint32 KLVEObject::GetGCTrackNumber(void)
  */
 Length KLVEObject::ReadData(Position Start /*=0*/, Length Size /*=0*/)
 {
-	// Don't even bother if we have no decryption wrapper
-	if(!Decrypt) return 0;
+	// Don't decrypt if we have no decryption wrapper
+	if(!Decrypt) return KLVObject::ReadData(Start, Size);
 
 	// Load the header if required (and if we can!)
 	if(!DataLoaded) if(!LoadData()) return 0;
@@ -360,15 +383,39 @@ Length KLVEObject::ReadData(Position Start /*=0*/, Length Size /*=0*/)
 }
 
 
-
-//! Write data from the current DataChunk to the source file
-/*! \note The data in the chunk will be written to the specified position 
- *  <B>regardless of the position from where it was origanally read</b>
- */
-Length KLVEObject::WriteData(Uint8 *Buffer, Position Start /*=0*/, Length Size /*=0*/)
+//! Write data from a specified buffer to the source file
+Length KLVEObject::WriteData(const Uint8 *Buffer, Position Start /*=0*/, Length Size /*=0*/)
 {
-	// Don't even bother if we have no encryption wrapper
-	if(!Encrypt) return 0;
+//[Future?]	// Delagate to WriteHandler if defined
+//[Future?]	if(WriteHandler) return WriteHandler->WriteData(this, Start, Size);
+
+	// Don't write zero bytes
+	if(Size == 0) return 0;
+
+	if(SourceOffset < 0)
+	{
+		error("Call to KLVEObject::WriteData() with DataBase undefined\n");
+		return 0;
+	}
+
+	if(!SourceFile)
+	{
+		error("Call to KLVEObject::WriteData() with source file not set\n");
+		return 0;
+	}
+
+	// Seek to the start of the requested data
+	SourceFile->Seek(SourceOffset + KLSize + DataOffset + Start);
+
+	return WriteData(SourceFile, Buffer, Size);
+}
+
+
+//! Write data from the a buffer to a specified source file
+Length KLVEObject::WriteData(MXFFilePtr &File, const Uint8 *Buffer, Length Size /*=0*/)
+{
+	// Don't encrypt if we have no encryption wrapper
+	if(!Encrypt) return KLVObject::WriteData(File, Buffer, Size);
 
 	if(DataOffset == 0) 
 	{
@@ -417,11 +464,121 @@ Length KLVEObject::WriteData(Uint8 *Buffer, Position Start /*=0*/, Length Size /
 	if(!NewData) return 0;
 
 	// Write the encrypted data
-	Size = KLVObject::WriteData(NewData->Data, DataOffset + Start, Size);
+	Size = KLVObject::WriteData(File, NewData->Data, Size);
 
 	// Chain the IV for next time...
 	EncryptionIV = Encrypt->GetIV();
 
 	return Size;
+}
+
+
+//! Write the key and length of the current DataChunk to the source file
+/*! This function writes the entire header - not just the Key and Length
+ */
+Uint32 KLVEObject::WriteKL(Uint32 LenSize /*=0*/)
+{
+	if(SourceOffset < 0)
+	{
+		error("Call to KLVEObject::WriteData() with DataBase undefined\n");
+		return 0;
+	}
+
+	if(!SourceFile)
+	{
+		error("Call to KLVEObject::WriteData() with source file not set\n");
+		return 0;
+	}
+
+	// Seek to the start of the KLV space
+	SourceFile->Seek(SourceOffset);
+
+	// Write to the source file
+	return WriteKL(SourceFile, LenSize);
+}
+
+
+//! Write the key and length of the current DataChunk to the specified file
+/*! This function writes the entire header - not just the Key and Length
+ */
+Uint32 KLVEObject::WriteKL(MXFFilePtr &File, Uint32 LenSize /*=0*/)
+{
+	// Start off with the actual KL
+	Uint32 KLBytes = KLVObject::WriteKL(File, LenSize);
+
+	Uint32 HeaderBytes = 0;
+
+
+	// ** Write ContextID **
+
+	HeaderBytes += File->WriteBER(16);
+	if(!ContextID)
+	{
+		error("KLVEObject::WriteKL() called without a valid ContextID\n");
+
+		// Write a dummy value rather than just discarding all the data
+		const Uint8 DummyData[16] = { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0 };
+		HeaderBytes += File->Write(DummyData, 16);
+	}
+	else
+	{
+		HeaderBytes += File->Write(ContextID->GetValue(), 16);
+	}
+
+
+	// ** Write PlaintextOffset **
+
+	HeaderBytes += File->WriteBER(8);
+	File->WriteU64(PlaintextOffset); HeaderBytes += 8;
+
+
+	// ** Write SourceKey **
+
+	HeaderBytes += File->WriteBER(16);
+	if(!SourceKey)
+	{
+		error("KLVEObject::WriteKL() called without a valid SourceKey\n");
+
+		// Write a dummy value rather than just discarding all the data
+		const Uint8 DummyData[16] = { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0 };
+		HeaderBytes += File->Write(DummyData, 16);
+	}
+	else
+	{
+		HeaderBytes += File->Write(SourceKey->GetValue(), 16);
+	}
+
+
+	// ** Write SourceLength **
+
+	DataChunkPtr Len = MakeBER(SourceLength, SourceLengthFormat);
+	HeaderBytes += File->WriteBER(Len->Size);
+	HeaderBytes += File->Write(Len);
+
+
+	// ** Write IV **
+
+	HeaderBytes += File->WriteBER(16);
+	HeaderBytes += File->Write(IV, 16);
+
+
+	// ** Write Check **
+
+//##
+//## DRAGONS: We should generate the check value here!!!
+//##
+
+	HeaderBytes += File->WriteBER(16);
+	HeaderBytes += File->Write(Check, 16);
+
+	// Set up the data offset
+	DataOffset = HeaderBytes;
+
+	
+//##
+//## DRAGONS: We have not done the AS-DCP footer...
+//##
+
+	return KLBytes + HeaderBytes;
 }
 
