@@ -1,5 +1,8 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
+ *
+ *	\version $Id: mxfwrap.cpp,v 1.15 2004/04/28 11:26:54 terabrit Exp $
+ *
  */
 /*
  *	Copyright (c) 2003, Matt Beard
@@ -35,7 +38,7 @@ using namespace mxflib;
 using namespace std;
 
 // base library version
-std::string ProductVersion = "Unreleased mxflib 0.3.3.2";
+const char* BaseVersion = "based on mxflib 0.3.3.2";
 
 // DMStiny
 #ifdef DMStiny
@@ -45,8 +48,9 @@ std::string ProductVersion = "Unreleased mxflib 0.3.3.2";
 #else
 // Product GUID and version text for this release
 Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x53 };
-std::string CompanyName = "FreeMXF.org";
-std::string ProductName = "mxfwrap file wrapper";
+string CompanyName = "freeMXF.org";
+string ProductName = "mxfwrap file wrapper";
+string ProductVersion = BaseVersion;
 #endif
 
 //! Debug flag for KLVLib
@@ -222,7 +226,7 @@ ULPtr OP2bUL = new UL(OP2b_Data);
 
 int main(int argc, char *argv[])
 {
-	printf("Simple MXF wrapping application\n\n");
+	fprintf( stderr, "MXFlib File Wrapper\n" );
 
 	// Build an essence parser
 	EssenceParser EssParse;
@@ -526,7 +530,7 @@ bool ParseCommandLine(int &argc, char **argv)
 				if(tolower(p[1])=='d')
 				{
 					char *name="DMStiny.xml"; // default name
-					if( p[2]=='=' )	name=p[3]; // explicit name
+					if( p[2]=='=' )	name=p+3; // explicit name
 					DMStinyDict = new char[ 1+strlen(name) ];
 					strcpy( DMStinyDict, name );
 				}
@@ -534,9 +538,9 @@ bool ParseCommandLine(int &argc, char **argv)
 				else if(tolower(p[1])=='m' )
 				{
 					char *name=""; // default name = none
-					if( p[2]=='=' )	name=p[3]; // explicit name
+					if( p[2]=='=' )	name=p+3; // explicit name
 					DMStinyMaterial = new char[ 1+strlen(name) ];
-					strcpy( DMStinyMaterial, p[3] );
+					strcpy( DMStinyMaterial, name );
 				}
 			}
 #endif
@@ -593,7 +597,7 @@ bool ParseCommandLine(int &argc, char **argv)
 		printf("   -td         = Enable DMStiny with default dictionary DMStiny.xml\n");
 		printf("   -td=<name>  = Enable DMStiny with explicit dictionary\n");
 		printf("   -tm         = Enable DMStiny Material metadata\n");
-		printf("   -tm=<name>  = Enable DMStiny with explicit MAterial package instance metadata\n");
+		printf("   -tm=<name>  = Enable DMStiny with explicit Material package instance metadata\n");
 #endif
 
 		return false;
@@ -873,16 +877,21 @@ int Process(	int OutFileNum,
 	ASSERT(MData);
 	ASSERT(MData->Object);
 
+	// 377M MultipleDescriptor (D.5) requires an EssenceContainer label (D.1), which must be this
+	// degenerate label (see mxfIG FAQ). Therefore the degenerate value must also appear in the
+	// Header (A.1) and partition pack...
+	// also, explicitly required by AS-CNN sec 2.1.6
+
 	// DRAGONS: Why is this here? It unconditionally adds "Used to describe multiple wrappings not
 	//          otherwise covered under the MXF Generic Container node" to all MXF files!!
 
-	// REMOVED: // Assume we are doing GC
-	// REMOVED: ULPtr GCUL = new UL( mxflib::GCMulti_Data );
-	// REMOVED: MData->AddEssenceType( GCUL );
+	// Assume we are doing GC
+	ULPtr GCUL = new UL( mxflib::GCMulti_Data );
+	MData->AddEssenceType( GCUL );
 
 	// DMStiny
 	#ifdef DMStiny
-		// DMStinyIDs.h contains const char DMStinyFrameworkName = "name";
+		// DMStiny.cpp contains const char DMStinyFrameworkName = "name";
 		if( DMStinyDict )	MData->AddDMScheme( MDOType::Find(DMStinyFrameworkName)->GetUL() );
 	#endif
 
@@ -913,7 +922,7 @@ int Process(	int OutFileNum,
 	// DMStiny
 	#ifdef DMStiny
 		// DMStiny::AdjustMaterialUMID() conforms to any special material numbering scheme
-		if( DMStinyMaterial )	AdjustMaterialUMID( pUMID );
+		if( DMStinyMaterial )	AdjustMaterialUMID( pUMID, DMStinyMaterial );
 	#endif
 
 	PackagePtr MaterialPackage = MData->AddMaterialPackage("A Material Package", pUMID);
