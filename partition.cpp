@@ -4,11 +4,12 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.10 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.11 2004/01/06 14:16:01 terabrit Exp $
  *
  */
 /*
  *	Copyright (c) 2003, Matt Beard
+ *	Portions Copyright (c) 2003, Metaglue Corporation
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -487,3 +488,139 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 	return Ret;
 }
 
+
+// Sequential access to the Elements of the Body
+
+// goto start of body...set the member variables _BodyLocation, _NextBodyLocation
+bool mxflib::Partition::StartElements()
+{
+	_BodyLocation = 0;
+
+	if(!Object->GetParentFile()) { error("Call to Partition::StartElements() on a non-file partition\n"); return NULL; }
+
+	MXFFilePtr PF = Object->GetParentFile();
+
+	Uint64 MetadataSize = GetInt64("HeaderByteCount");
+	Uint64 IndexSize = GetInt64("IndexByteCount");
+
+	// skip over Partition Pack (and any leading Fill on Header)
+	PF->Seek( Object->GetLocation() + 16 );
+	Uint64 Len = PF->ReadBER();
+	_NextBodyLocation = SkipFill( PF->Tell() + Len );
+	if( !_NextBodyLocation ) return false;
+
+	// skip over Metadata (and any leading Fill on Index)
+	_NextBodyLocation = SkipFill( _NextBodyLocation + MetadataSize );
+	if( !_NextBodyLocation ) return false;
+
+	// skip over Index (and any leading Fill on Body)
+	_NextBodyLocation = SkipFill( _NextBodyLocation + IndexSize );
+
+	return NULL != _NextBodyLocation;
+}
+
+// goto _NextBodyLocation
+KLVObjectPtr mxflib::Partition::NextElement()
+{
+	_BodyLocation = _NextBodyLocation;
+
+	// skip the present Object
+  _NextBodyLocation = Skip( _NextBodyLocation );
+
+	// skip any trailing KLVFill
+	_NextBodyLocation = SkipFill( _NextBodyLocation );
+
+	if(!Object->GetParentFile()) { error("Call to Partition::StartElements() on a non-file partition\n"); return NULL; }
+
+	MXFFilePtr PF = Object->GetParentFile();
+
+	// construct a new Object
+	if( !_BodyLocation ) return 0;
+	else
+	{
+		PF->Seek( _BodyLocation );
+		ULPtr ElementUL = PF->ReadKey();
+
+		KLVObjectPtr pObj = new KLVObject(ElementUL);
+
+		Uint64 Len = PF->ReadBER();
+		pObj->SetSource(PF, PF->Tell(), Len);
+
+		return pObj; 
+	}
+}
+
+// skip over a KLV packet
+Uint64 mxflib::Partition::Skip( Uint64 start )
+{
+	if( !start ) return 0;
+
+	MXFFilePtr PF = Object->GetParentFile();
+
+	PF->Seek( start );
+	ULPtr FirstUL = PF->ReadKey();
+	if(!FirstUL) return 0;
+
+	// do the skip
+	Uint64 Len = PF->ReadBER();
+	PF->Seek( PF->Tell() + Len );
+
+	Uint64 ret = PF->Tell();
+
+	// check in case we've hit the next Partition Pack
+	ULPtr NextUL = PF->ReadKey();
+	if(!NextUL) return 0;
+
+	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
+	if( memcmp(NextUL->GetValue(), DegeneratePartition, 13) == 0 )
+	{
+		// we've found a Partition Pack - end of Body
+		return 0;
+	}
+	else
+		return ret;
+}
+
+// skip over any KLVFill
+// DRAGONS: does not iterate - only copes with single KLVFill
+Uint64 mxflib::Partition::SkipFill( Uint64 start )
+{
+	if( !start ) return 0;
+
+	MXFFilePtr PF = Object->GetParentFile();
+
+	PF->Seek( start );
+	ULPtr FirstUL = PF->ReadKey();
+	if(!FirstUL) return 0;
+
+	MDOTypePtr FirstType = MDOType::Find(FirstUL);
+	if(FirstType && FirstType->Name() == "KLVFill")
+	{
+		// Skip over the KLVFill
+		Uint64 Len = PF->ReadBER();
+		PF->Seek( PF->Tell() + Len );
+	}
+	else
+	{
+		// was not KLVFill, so stay where we are
+		PF->Seek( start );
+	}
+
+	Uint64 ret = PF->Tell();
+
+	// check in case we've hit the next Partition Pack
+	ULPtr NextUL = PF->ReadKey();
+	if(!NextUL) return 0;
+
+	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
+	if( memcmp(NextUL->GetValue(), DegeneratePartition, 13) == 0 )
+	{
+		Uint8 byte14 = (NextUL->GetValue())[13];
+		if( byte14 == 2 || byte14 == 3 || byte14 == 4 )	return 0;
+		// we've found a Partition Pack - end of Body
+		if( byte14 == 0x11 )	return 0;
+		// we've found a RIP - end of Body
+	}
+
+	return ret;
+}
