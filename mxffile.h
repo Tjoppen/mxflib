@@ -85,8 +85,8 @@ namespace mxflib
 		//			where in the file they claim to be. This allows us to modify seeks
 		//			so that they find the data originally at that part of the file even
 		//			though they are now in a different position
-		Uint64 Seek(Uint64 Position) { return isOpen ? (Uint64) mxflib::FileSeek(Handle, Position+RunInSize) : 0; };
-		Uint64 SeekEnd(void) { return isOpen ? (Uint64) mxflib::FileSeekEnd(Handle) : 0; };
+		Uint64 Seek(Uint64 Position) { return isOpen ? Uint64(mxflib::FileSeek(Handle, Position+RunInSize)-RunInSize) : 0; };
+		Uint64 SeekEnd(void) { return isOpen ? Uint64(mxflib::FileSeekEnd(Handle)-RunInSize) : 0; };
 
 		//! Determine if the file pointer is at the end of the file
 		bool Eof(void) { return mxflib::FileEof(Handle) ? true : false; };
