@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.3 2004/12/18 20:42:19 matt-beard Exp $
  *
  */
 /*
@@ -366,18 +366,21 @@ namespace mxflib
 		
 		void ReadValue(const char *ChildName, const DataChunk &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
 
+		void ReadValue(const char *ChildName, DataChunkPtr &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
+
 		// DRAGONS: These should probably be private and give access via MDTraits
 		// to prevent users tinkering!
 		Uint32 MakeSize(Uint32 NewSize);
 
 		Uint32 ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
+		Uint32 ReadValue(DataChunkPtr &Chunk) { return ReadValue(Chunk->Data, Chunk->Size); };
 		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, int Count=0);
 
 		//! Get a reference to the data chunk (const to prevent setting!!)
 		const DataChunk& GetData(void) { return (const DataChunk&) Data; };
 
 		//! Build a data chunk with all this items data (including child data)
-		const DataChunk PutData(void);
+		DataChunkPtr PutData(void);
 
 		//! Set data into the datachunk
 		// DRAGONS: This is dangerous!!
