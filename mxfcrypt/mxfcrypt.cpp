@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
- *	\brief	MXF e/decrypt utility for MXFLib
+ *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.1.2.3 2004/07/05 17:53:12 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.1.2.4 2004/08/18 18:43:02 matt-beard Exp $
  *
  */
 /*
@@ -49,6 +49,10 @@ Uint8 ProductGUID_Data[16] = { 0x84, 0x63, 0x41, 0xf2, 0x37, 0xdd, 0xde, 0x40, 0
 string CompanyName = "freeMXF.org";
 string ProductName = "mxfcrypt file de/encrypt utility";
 string ProductVersion = BaseVersion;
+
+//! Plaintext offset to use when encrypting
+int PlaintextOffset = 0;
+
 
 // ============================================================================
 //! Basic encryption class - currently does AES encryption
@@ -135,6 +139,28 @@ DataChunkPtr BasicEncrypt::Encrypt(Uint32 Size, const Uint8 *Data)
 
 	AES_cbc_encrypt(Data, Ret->Data, Size, &CurrentKey, CurrentIV, AES_ENCRYPT);
 
+/*static int calls = 1;
+printf("Calls = %d\n", calls);
+if((calls == 750) || (calls == 751))
+{
+//  calls--;
+  printf("Encrypt:\n");
+  Uint32 count = Size;
+  const Uint8 *p = Data;
+  Uint8 *p2 = Ret->Data;
+  int i;
+  while(count)
+  {
+	  printf("  %08x:", Size - count);
+	  for(i=0; i<16; i++) printf(" %02x", *p++);
+	  printf(" ->");
+	  for(i=0; i<16; i++) printf(" %02x", *p2++);
+	  printf("\n");
+	  count -= 16;
+  }
+}
+calls++;
+*/
 	return Ret;
 }
 
@@ -172,6 +198,10 @@ bool Encrypt_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 	// Set an encryption wrapper
 	BasicEncrypt *Enc = new BasicEncrypt;
 	KLVE->SetEncrypt(Enc);
+//@'@PlaintextOffset = rand() % (10 * 10240);
+//@'@if((rand() % 8) == 0) PlaintextOffset = 0;
+//@'@printf("PlaintextOffset = %d\n", PlaintextOffset);
+	KLVE->SetPlaintextOffset(PlaintextOffset);
 
 	// ##@@##@@
 	// ##@@##@@ Set a dummy encryption key...
@@ -308,6 +338,28 @@ DataChunkPtr BasicDecrypt::Decrypt(Uint32 Size, const Uint8 *Data)
 
 	AES_cbc_encrypt(Data, Ret->Data, Size, &CurrentKey, CurrentIV, AES_DECRYPT);
 
+/*static int calls = 1;
+printf("Calls = %d\n", calls);
+if(calls == 661)
+{
+//  calls--;
+  printf("Decrypt:\n");
+  Uint32 count = Size;
+  const Uint8 *p = Data;
+  Uint8 *p2 = Ret->Data;
+  int i;
+  while(count)
+  {
+	  printf("  %08x:", Size - count);
+	  for(i=0; i<16; i++) printf(" %02x", *p++);
+	  printf(" ->");
+	  for(i=0; i<16; i++) printf(" %02x", *p2++);
+	  printf("\n");
+	  count -= 16;
+  }
+}
+calls++;
+*/
 	return Ret;
 }
 
@@ -410,6 +462,7 @@ bool DebugMode = false;
 //! Flag for decrypt rather than encrypt
 bool DecryptMode = false;
 
+#include <time.h>
 
 int main(int argc, char *argv[])
 {
@@ -423,8 +476,18 @@ int main(int argc, char *argv[])
 			num_options++;
 			if((argv[i][1] == 'v') || (argv[i][1] == 'V'))
 				DebugMode = true;
-			if((argv[i][1] == 'd') || (argv[i][1] == 'D'))
+			else if((argv[i][1] == 'd') || (argv[i][1] == 'D'))
 				DecryptMode = true;
+			else if((argv[i][1] == 'p') || (argv[i][1] == 'P'))
+			{
+				if((argv[i][2] != '=') && (argv[i][2] != ':'))
+				{
+					error("-p option syntax = -p=<plaintextbytes>\n");
+					return 1;
+				}
+				PlaintextOffset = atoi(&argv[i][3]);
+				printf("\nPlaintext Offset = %d\n", PlaintextOffset);
+			}
 		}
 	}
 
@@ -457,7 +520,7 @@ int main(int argc, char *argv[])
 
 	// Warn if the header is not closed
 	// TODO: Should really nip to the footer
-	if(HeaderPartition->Name().find("Closed") != std::string::npos)
+	if(HeaderPartition->Name().find("Closed") == std::string::npos)
 	{
 		warning("Header is Open - Some essence may not be processed\n");
 	}
