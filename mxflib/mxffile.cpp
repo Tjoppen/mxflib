@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.1.2.2 2004/06/14 18:00:07 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.1.2.3 2004/06/26 18:07:38 matt-beard Exp $
  *
  */
 /*
@@ -61,8 +61,6 @@ bool mxflib::MXFFile::Open(std::string FileName, bool ReadOnly /* = false */ )
 
 	if(!FileValid(Handle)) return false;
 
-printf("%s open on %d\n", FileName.c_str(), Handle);
-
 	isOpen = true;
 
 	return ReadRunIn();
@@ -83,8 +81,6 @@ bool mxflib::MXFFile::OpenNew(std::string FileName)
 	Handle = FileOpenNew(FileName.c_str());
 
 	if(!FileValid(Handle)) return false;
-
-printf("%s open on %d\n", FileName.c_str(), Handle);
 
 	isOpen = true;
 
@@ -1210,28 +1206,13 @@ else Size = 0;
 //! Read a KLVObject from the file
 KLVObjectPtr MXFFile::ReadKLV(void)
 {
-	KLVObjectPtr Ret;
-	
-	// Record the starting position
-	Position Pos = Tell();
-
-	// Read the key
-	ULPtr Key = ReadKey();
-
-	// If we couldn't read the key return a NULL ptr
-	if(!Key) return Ret;
-
-	// Read the length
-	Length Len = ReadBER();
-
-	// If we couldn't read the length return a NULL ptr
-	if(Len < 0) return Ret;
-
-	// Now it is safe to build the object
-	Ret = new KLVObject(Key);
+	KLVObjectPtr Ret = new KLVObject();
 
 	// Set the the value details
-	Ret->SetSource(this, Pos, Tell() - Pos, Len);
+	Ret->SetSource(this);
+
+	// Read the key and length - returning NULL if no more valid KLVs
+	if(Ret->ReadKL() < 17) return NULL;
 
 	return Ret;
 }
