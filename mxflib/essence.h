@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.2 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.3 2004/05/18 18:30:09 matt-beard Exp $
  *
  */
 /*
@@ -751,7 +751,9 @@ namespace mxflib
 		virtual ~GCReadHandler_Base();
 
 		//! Handle a "chunk" of data that has been read from the file
-		virtual void HandleData(GCReaderPtr Caller, KLVObjectPtr Object) = 0;
+		/*! \return true if all OK, false on error 
+		 */
+		virtual bool HandleData(GCReaderPtr Caller, KLVObjectPtr Object) = 0;
 	};
 
 	// Smart pointer for the base GCReader read handler
@@ -761,58 +763,100 @@ namespace mxflib
 	class GCReader
 	{
 	protected:
-		Position CurrentFileOffset;					//!< The offset of the start of the current KLV within the file
-		Position CurrentOffset;						//!< The offset of the start of the current KLV within the data stream
-		Position NextOffset;						//!< Calculated start of next KLV - or zero if not known
+		MXFFilePtr File;								//!< File from which to read
+		Position FileOffset;							//!< The offset of the start of the current (or next) KLV within the file. Current KLV during HandleData() and next at other times.
+		Position StreamOffset;							//!< The offset of the start of the current KLV within the data stream
 
-		bool StopNow;								//!< True if no more KLVs should be read - set by StopReading() and ReadFromFile() with SingleKLV=true
+		bool StopNow;									//!< True if no more KLVs should be read - set by StopReading() and ReadFromFile() with SingleKLV=true
+		bool StopCalled;								//!< True if StopReading() called while processing the current KLV
+		bool PushBackRequested;							//!< True if StopReading() called with PushBackKLV = true
+
+		GCReadHandlerPtr DefaultHandler;				//!< The default handler to receive all KLVs without a specific handler
+		GCReadHandlerPtr FillerHandler;					//!< The hanlder to receive all filler KLVs
+		GCReadHandlerPtr EncryptionHandler;				//!< The hanlder to receive all encrypted KLVs
+
+		std::map<Uint32, GCReadHandlerPtr> Handlers;	//!< Map of read handlers indexed by track number
 
 	public:
 		//! Create a new GCReader, optionally with a given default item handler and filler handler
 		/*! \note The default handler receives all KLVs without a specific handler (except fillers)
 		 *        The filler handler receives all filler KLVs
 		 */
-		GCReader( GCReadHandlerPtr DefaultHandler = NULL, GCReadHandlerPtr FillerHandler = NULL );
+		GCReader( MXFFilePtr File, GCReadHandlerPtr DefaultHandler = NULL, GCReadHandlerPtr FillerHandler = NULL );
 
 		//! Set the default read handler 
 		/*! This handler receives all KLVs without a specific data handler assigned
 		 *  including KLVs that do not appear to be standard GC KLVs.  If not default handler
 		 *  is set KLVs with no specific handler will be discarded.
 		 */
-		void SetDefaultHandler(GCReadHandlerPtr DefaultHandler = NULL);
+		void SetDefaultHandler(GCReadHandlerPtr DefaultHandler = NULL)
+		{
+			this->DefaultHandler = DefaultHandler;
+		}
 
 		//! Set the filler handler
 		/*! If no filler handler is set all filler KLVs are discarded
 		 *  \note Filler KLVs are <b>never</b> sent to the default handler
 		 *        unless it is also set as the filler handler
 		 */
-		void SetFillerHandler(GCReadHandlerPtr FillerHandler = NULL);
+		void SetFillerHandler(GCReadHandlerPtr FillerHandler = NULL)
+		{
+			this->FillerHandler = FillerHandler;
+		}
 
 		//! Set encryption handler
 		/*! This handler will receive all encrypted KLVs and after decrypting them will
 		 *  resubmit the decrypted version for handling using function HandleData()
 		 */
-		void SetEncryptionHandler(GCReadHandlerPtr EncryptionHandler = NULL);
+		void SetEncryptionHandler(GCReadHandlerPtr EncryptionHandler = NULL)
+		{
+			this->EncryptionHandler = EncryptionHandler;
+		}
 
 		//! Set data handler for a given track number
-		void SetDataHandler(Uint32 TrackNumber, GCReadHandlerPtr DataHandler = NULL);
+		void SetDataHandler(Uint32 TrackNumber, GCReadHandlerPtr DataHandler = NULL)
+		{
+			if(DataHandler)
+			{
+				Handlers[TrackNumber] = DataHandler;
+			}
+			else
+			{
+				Handlers.erase(TrackNumber);
+			}
+		}
 
-		//! Read from file
+		//! Read from file - and specify a start location
+		/*! All KLVs are dispatched to handlers
+		 *  Stops reading at the next partition pack unless SingleKLV is true when only one KLV is dispatched
+		 *  \param FilePos Location within the file to start this read
+		 *  \param StreamPos Stream offset of the first KLV to be read
+		 *  \param SingleKLV True if only a single KLV is to be read
+		 *  \return true if all went well, false end-of-file, an error occured or StopReading() was called
+		 */
+		bool ReadFromFile(Position FilePos, Position StreamPos, bool SingleKLV = false)
+		{
+			FileOffset = FilePos;					// Record the file location
+			StreamOffset = StreamPos;				// Record the stream location
+
+			ReadFromFile(SingleKLV);				// Then do a "continue" read
+		}
+
+		//! Read from file - continuing from a previous read
 		/*! All KLVs are dispatched to handlers
 		 *  Stops reading at the next partition pack unless SingleKLV is true when only one KLV is dispatched
 		 *  \return true if all went well, false end-of-file, an error occured or StopReading() was called
 		 */
-		bool ReadFromFile(MXFFilePtr File, bool SingleKLV = false);
+		bool ReadFromFile(bool SingleKLV = false);
 
 		//! Set the offset of the start of the next KLV within this GC stream
 		/*! Generally this will only be called as a result of parsing a partition pack
 		 *  \note The offset will start at zero and increment automatically as data is read.
 		 *        If a seek is performed the offset will need to be adjusted.
 		 */
-		void SetCurrentOffset(Position NewOffset) 
+		void SetStreamOffset(Position NewOffset) 
 		{ 
-			CurrentOffset = NewOffset; 
-			NextOffset = 0; 
+			StreamOffset = NewOffset; 
 		};
 
 
@@ -821,8 +865,9 @@ namespace mxflib
 		//! Force a KLVObject to be handled
 		/*! \note This is not the normal way that the GCReader is used, but allows the encryption handler
 		/*        to push the decrypted data back to the GCReader to pass to the appropriate handler
+		 *  \return true if all OK, false on error 
 		 */
-		void HandleData(KLVObjectPtr Object);
+		bool HandleData(KLVObjectPtr Object);
 
 		//! Stop reading even though there appears to be valid data remaining
 		/*! This function can be called from a handler if it detects that the current KLV is either the last
@@ -832,7 +877,7 @@ namespace mxflib
 		void StopReading(bool PushBackKLV = false);
 
 		//! Get the offset of the start of the current KLV within this GC stream
-		Position GetCurrentOffset(void);
+		Position GetStreamOffset(void) { return StreamOffset; };
 	};
 }
 
@@ -844,9 +889,21 @@ namespace mxflib
 	class BodyReader : public RefCount<BodyReader>
 	{
 	protected:
+		MXFFilePtr File;						//!< File from which to read
+		Position CurrentPos;					//!< Current position within file
+		
+		bool NewPos;							//!< The value of CurrentPos has been updated by a seek - therefore reading must be reinitialized!
 		bool SeekInited;						//!< True once the per SID seek system has been initialized
+		bool AtPartition;						//!< Are we (to our knowledge) at the start of a partition pack?
+		bool AtEOF;								//!< Are we (to our knowledge) at the end of the file?
+		
+		Uint32 CurrentBodySID;					//!< The currentBodySID being processed
+		
 		GCReadHandlerPtr GCRDefaultHandler;		//!< Default handler to use for new GCReaders
 		GCReadHandlerPtr GCRFillerHandler;		//!< Filler handler to use for new GCReaders
+		GCReadHandlerPtr GCREncryptionHandler;	//!< Encryption handler to use for new GCReaders
+
+		std::map<Uint32, GCReaderPtr> Readers;	//!< Map of GCReaders indexed by BodySID
 
 	public:
 		//! Construct a body reader and associate it with an MXF file
@@ -865,23 +922,35 @@ namespace mxflib
 		//! Set the default handler for all new GCReaders
 		/*! Each time a new GCReader is created this default handler will be used if no other is specified
 		 */
-		void SetDefaultHandler(GCReadHandlerPtr DefaultHandler = NULL);
+		void SetDefaultHandler(GCReadHandlerPtr DefaultHandler = NULL) { GCRDefaultHandler = DefaultHandler; };
 
 		//! Set the filler handler for all new GCReaders
 		/*! Each time a new GCReader is created this filler handler will be used if no other is specified
 		 */
-		void SetFillerHandler(GCReadHandlerPtr FillerHandler = NULL);
+		void SetFillerHandler(GCReadHandlerPtr FillerHandler = NULL) { GCRFillerHandler = FillerHandler; };
 
 		//! Set the encryption handler for all new GCReaders
 		/*! Each time a new GCReader is created this encryption handler will be used
 		 */
-		void SetEncryptionHandler(GCReadHandlerPtr EncryptionHandler = NULL);
+		void SetEncryptionHandler(GCReadHandlerPtr EncryptionHandler = NULL) { GCREncryptionHandler = EncryptionHandler; };
 
 		//! Make a GCReader for the specified BodySID
-		void MakeGCReader(Uint32 BodySID, GCReadHandlerPtr DefaultHandler = NULL, GCReadHandlerPtr FillerHandler = NULL);
+		/*! \return true on success, false on error (such as there is already a GCReader for this BodySID)
+		 */
+		bool MakeGCReader(Uint32 BodySID, GCReadHandlerPtr DefaultHandler = NULL, GCReadHandlerPtr FillerHandler = NULL);
 
 		//! Get a pointer to the GCReader used for the specified BodySID
-		GCReaderPtr GetGCReader(Uint32 BodySID);
+		GCReaderPtr GetGCReader(Uint32 BodySID)
+		{
+			// See if we have a GCReader for this BodySID
+			std::map<Uint32, GCReaderPtr>::iterator it = Readers.find(BodySID);
+
+			// If not found return NULL
+			if(it == Readers.end()) return NULL;
+
+			// Return the pointer
+			return (*it).second;
+		}
 
 		//! Read from file
 		/*! All KLVs are dispatched to handlers
@@ -891,11 +960,23 @@ namespace mxflib
 		 */
 		bool ReadFromFile(bool SingleKLV = false);
 
+		//! Resync after possible loss or corruption of body data
+		/*! Searches for the next partition pack and moves file pointer to that point
+		 *  \return false if an error (or EOF found)
+		 */
+		bool Resync();
+
+		//! Are we currently at the start of a partition pack?
+		bool IsAtPartition(void);
+
+		//! Are we currently at the end of the file?
+		bool Eof(void);
+
 
 		/*** Functions for use by read handlers ***/
 
-		//! Get the BodySID of the most recent read
-		Uint32 GetBodySID(void);
+		//! Get the BodySID of the current location (0 if not known)
+		Uint32 GetBodySID(void) { return CurrentBodySID; }
 
 
 	protected:
