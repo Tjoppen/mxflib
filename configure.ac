@@ -48,6 +48,24 @@ AC_CHECK_HEADER([uuid/uuid.h],
 # Under _WIN32 AC_CHECK_LIB is not reliable (you get false negatives)
 AC_CHECK_HEADER([windows.h], [UUIDLIB="-lole32"])
 
+# Check for optional features requested by --enable-feature
+have_openssl=no
+AC_ARG_ENABLE(crypt,
+[  --enable-crypt          enable building of mxfcrypt],
+[	if test "$enableval" = "yes"; then
+		dnl openssl provides the AES routines used by mxfcrypt
+		have_openssl=no
+		AC_CHECK_HEADER([openssl/aes.h],
+			[AC_CHECK_LIB(crypto, AES_set_encrypt_key,
+				[ have_openssl=yes] )]
+			)
+		if test x"$have_openssl" = "xno" ; then
+			AC_MSG_WARN([*** OpenSSL not available - mxfcrypt will not be built ***])
+		fi
+	fi
+])
+AM_CONDITIONAL(HAVE_OPENSSL, test x"$have_openssl" = "xyes")
+
 # Check for doxygen (needed for building docs)
 AC_ARG_WITH(doxygen,
 	[  --without-doxygen       don't autogenerate doxygen documentation],
@@ -79,7 +97,8 @@ AC_CONFIG_FILES([Makefile
                  mxfdump/Makefile
                  mxflib/Makefile
                  mxfsplit/Makefile
-                 mxfwrap/Makefile])
+                 mxfwrap/Makefile
+                 mxfcrypt/Makefile])
 AM_MISSING_PROG([AUTOM4TE], [autom4te])
 
 AC_OUTPUT
