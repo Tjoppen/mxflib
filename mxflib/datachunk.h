@@ -1,7 +1,7 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.h,v 1.1.2.2 2004/05/26 18:04:14 matt-beard Exp $
+ *	\version $Id: datachunk.h,v 1.1.2.3 2004/06/26 17:52:24 matt-beard Exp $
  *
  */
 /*
@@ -77,76 +77,31 @@ namespace mxflib
 		};
 
 		//! Resize the data chunk, preserving contents
-		void Resize(Uint32 NewSize)
-		{
-			if(Size == NewSize) return;
-
-			// Simple truncate or resize within the existing buffer size
-			if(DataSize >= NewSize) 
-			{
-				Size = NewSize;
-				return;
-			}
-
-			Uint32 AllocSize = NewSize;
-			if(AllocationGranularity)
-			{
-//debug("AllocGran = %u, NewSize = %u, ", AllocationGranularity, NewSize);
-				// Apply allocation granularity
-				AllocSize = (NewSize-1) / AllocationGranularity;
-//debug("AllocSize = %u, ", AllocSize);
-				AllocSize = (AllocSize+1) * AllocationGranularity;
-//debug("AllocSize = %u\n", AllocSize);
-			}
-
-			Uint8 *NewData = new Uint8[AllocSize];
-			if(Size) memcpy(NewData, Data, Size);
-			
-//debug("Changing Buffer @ 0x%08x -> 0x%08x (0x%04x)\n", (int)Data, (int)NewData, (int)AllocSize);
-			if((!ExternalBuffer) && (Data)) delete[] Data;
-			ExternalBuffer = false;
-			
-			Data = NewData;
-			DataSize = AllocSize;
-			Size = NewSize;
-		}
+		void Resize(Uint32 NewSize);
 
 		//! Resize the data buffer, preserving contents
 		/*! The buffer is resized to <b>at least</b> NewSize, but Size remains unchanged */
-		void ResizeBuffer(Uint32 NewSize)
-		{
-			if(DataSize >= NewSize) return;
-
-			if(AllocationGranularity)
-			{
-				// Apply allocation granularity
-				NewSize = (NewSize-1) / AllocationGranularity;
-				NewSize = (NewSize+1) * AllocationGranularity;
-			}
-
-			Uint8 *NewData = new Uint8[NewSize];
-			if(Size) memcpy(NewData, Data, Size);
-
-//debug("Changing Buffer @ 0x%08x -> 0x%08x (0x%04x)+\n", (int)Data, (int)NewData, (int)NewSize);
-			if((!ExternalBuffer) && (Data)) delete[] Data;
-			ExternalBuffer = false;
-			
-			Data = NewData;
-			DataSize = NewSize;
-		}
+		void ResizeBuffer(Uint32 NewSize);
 
 		//! Steal the buffer belonging to this data chunk
 		/*! The buffer is detached and ownership moves to the caller.
 		 *	It is the caller's responsibility to free the buffer with <b>delete[]</b> at a later point.
-		 *	The data chunk will not be empty after the call, but the ownership will be transferred
+		 *	If MakeEmpty is false the data chunk will not be empty after the call, but the 
+		 *  ownership will still be transferred
 		 *	\return pointer to the buffer or NULL if no buffer or not owned by this object
 		 */
-		Uint8 *StealBuffer(void)
+		Uint8 *StealBuffer(bool MakeEmpty = false)
 		{
 //debug("StealBuffer @ 0x%08x\n", (int)Data);
 			if(ExternalBuffer) return NULL;
 
-			ExternalBuffer = true;
+			if(MakeEmpty)
+			{
+				Size = 0;
+				Data = NULL;
+			}
+			else
+				ExternalBuffer = true;
 
 			return Data;
 		}
@@ -205,18 +160,8 @@ namespace mxflib
 			return Ret;
 		};
 */
-		std::string GetString(void)
-		{
-			std::string Ret;
-			unsigned i;
-			for(i=0; i<Size; i++) 
-			{
-				if(i != 0) Ret += " ";
-				Ret += Int2HexString(Data[i], 2);
-			}
-
-			return Ret;
-		};
+		//! Get a (hex) string representation of the data in the buffer
+		std::string GetString(void);
 
 		//! Allocation granularity access functions
 		void SetGranularity(Uint32 Gran) { AllocationGranularity = Gran; };
@@ -229,61 +174,21 @@ namespace mxflib
 		 *		  important that the value of property <tt><b>Data</b></tt> is checked
 		 *		  before assuming the external buffer is still in use.
 		 */
-		void SetBuffer(Uint8 *Buffer, Uint32 BuffSize, Uint32 AllocatedSize = 0)
-		{
-//debug("Setting Buffer @ 0x%08x -> 0x%08x\n", (int)Data, (int)Buffer);
-			if((!ExternalBuffer) && (Data)) delete[] Data;
-
-			Size = BuffSize;
-			Data = Buffer;
-
-			if(AllocatedSize == 0) DataSize = BuffSize;
-			else DataSize = AllocatedSize;
-
-			ExternalBuffer = true;
-		}
+		void SetBuffer(Uint8 *Buffer, Uint32 BuffSize, Uint32 AllocatedSize = 0);
 
 		//! Transfer ownership of a data buffer from another DataChunk
 		/*! This is a very efficient way to set one DataChunk to the value of another.
 		 *  However it partially destroys the source DataChunk by stealing its buffer.
 		 *  \return true on success, false on failure
 		 */
-		bool TakeBuffer(DataChunk &OldOwner)
-		{
-			Uint32 BuffSize = OldOwner.Size;
-			Uint32 AllocatedSize = OldOwner.DataSize;
-
-			// Steal the old buffer
-			Uint8 *Buffer = OldOwner.StealBuffer();
-
-			// Fail if the old owner does not own its buffer!
-			if(!Buffer) return false;
-
-			SetBuffer(Buffer, BuffSize, AllocatedSize);
-
-			return true;
-		}
+		bool TakeBuffer(DataChunk &OldOwner);
 
 		//! Transfer ownership of a data buffer from another DataChunk (via a smart pointer)
 		/*! This is a very efficient way to set one DataChunk to the value of another.
 		 *  However it partially destroys the source DataChunk by stealing its buffer.
 		 *  \return true on success, false on failure
 		 */
-		bool TakeBuffer(DataChunkPtr &OldOwner)
-		{
-			Uint32 BuffSize = OldOwner->Size;
-			Uint32 AllocatedSize = OldOwner->DataSize;
-
-			// Steal the old buffer
-			Uint8 *Buffer = OldOwner->StealBuffer();
-
-			// Fail if the old owner does not own its buffer!
-			if(!Buffer) return false;
-
-			SetBuffer(Buffer, BuffSize, AllocatedSize);
-
-			return true;
-		}
+		bool TakeBuffer(DataChunkPtr &OldOwner);
 	};
 }
 
