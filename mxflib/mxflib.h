@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: mxflib.h,v 1.1.2.1 2004/05/26 20:43:18 matt-beard Exp $
  *
  */
 /*
@@ -53,8 +53,6 @@ namespace mxflib {}
 #include <mxflib/mdtype.h>
 #include <mxflib/deftypes.h>
 
-#include <mxflib/klvobject.h>
-
 #include <mxflib/mdobject.h>
 
 #include <mxflib/metadata.h>
@@ -66,6 +64,10 @@ namespace mxflib {}
 #include <mxflib/index.h>
 
 #include <mxflib/essence.h>
+
+#include <mxflib/klvobject.h>
+
+#include <mxflib/crypto.h>
 
 #include <mxflib/esp_mpeg2ves.h>
 #include <mxflib/esp_wavepcm.h>
