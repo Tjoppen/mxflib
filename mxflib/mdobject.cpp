@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.2.2.5 2004/09/02 22:20:13 terabrit Exp $
+ *	\version $Id: mdobject.cpp,v 1.2.2.6 2004/10/10 18:38:25 terabrit Exp $
  *
  */
 /*
@@ -124,11 +124,11 @@ MDOTypePtr MDOType::Find(std::string BaseType)
 /*! \return Pointer to the object
  *  \return NULL if there is no type with that UL
  */
-MDOTypePtr MDOType::Find(ULPtr BaseUL)
+MDOTypePtr MDOType::Find(const UL& BaseUL)
 {
 	MDOTypePtr theType;
 
-	std::map<UL, MDOTypePtr>::iterator it = ULLookup.find(UL(BaseUL));
+	std::map<UL, MDOTypePtr>::iterator it = ULLookup.find(BaseUL);
 
 	if(it != ULLookup.end())
 	{
@@ -189,7 +189,7 @@ MDObject::MDObject(std::string BaseType)
 
 		ASSERT(Type);
 
-		ObjectName = "Unknown (" + BaseType + ")";
+		ObjectName = "Unknown"; // add " g:type=\"" + BaseType + "\"";
 	}
 
 	IsConstructed = true;
@@ -234,9 +234,9 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 /*! Builds a "blank" metadata object of a specified type
  *	\note packs are built with defaut values
  */
-MDObject::MDObject(ULPtr UL) 
+MDObject::MDObject(ULPtr BaseUL) 
 {
-	Type = MDOType::Find(UL);
+	Type = MDOType::Find(BaseUL);
 	if(Type)
 	{
 		ObjectName = Type->Name();
@@ -245,7 +245,7 @@ MDObject::MDObject(ULPtr UL)
 	{
 		Type = MDOType::Find("Unknown");
 
-		ObjectName = "Unknown (" + UL->GetString() + ")";
+		ObjectName = "Unknown"; // add " g:uid=\"" + BaseUL->GetString() + "\"";
 
 		ASSERT(Type);
 
@@ -254,11 +254,14 @@ MDObject::MDObject(ULPtr UL)
 #define ParseDark true
 		if(ParseDark)
 		{
-			static MDOTypePtr Preface = MDOType::Find("Preface");
+			const Uint8 PrefaceUL_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0D, 0x01, 0x01, 0x01, 0x01, 0x01, 0x2F, 0x00 };
+			const UL PrefaceUL = UL(PrefaceUL_Data);
+
+			static MDOTypePtr Preface = MDOType::Find( PrefaceUL );
 
 			ASSERT(Preface);
 
-			if(memcmp(Preface->GetTypeUL()->GetValue(), UL->GetValue(), 6) == 0)
+			if(memcmp(Preface->GetTypeUL()->GetValue(), BaseUL->GetValue(), 6) == 0)
 			{
 				Type = MDOType::Find("DefaultObject");
 				ASSERT(Type);
@@ -271,7 +274,7 @@ MDObject::MDObject(ULPtr UL)
 	KLSize = 0;
 	Parent = NULL;
 	ParentFile = NULL;
-	TheUL = UL;
+	TheUL = BaseUL;
 	TheTag = 0;
 
 	Outer = NULL;
@@ -327,13 +330,12 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 		if(TheUL)
 		{
 			// Tag found, but UL unknown
-			ObjectName = "Unknown (" + Tag2String(BaseTag) + " -> " + TheUL->GetString() + ")";
+			ObjectName = "Unknown"; // add " g:tag=\"" + Tag2String(BaseTag) + "\" g:uid=\"" + TheUL->GetString() + "\"";
 		}
 		else
 		{
 			// Tag not found, build a blank UL
-			TheUL = new UL();
-			ObjectName = "Unknown (" + Tag2String(BaseTag) + ")";
+			ObjectName = "Unknown"; // add " g:tag=\"" + Tag2String(BaseTag) + "\"";
 		}
 	}
 	else
@@ -1907,7 +1909,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 		case DICT_STATE_START:
 			if(strcmp(name, "MXFDictionary") != 0)
 			{
-				SAX_error(State, "Expected outer tag <MXFDictionary> got <%s>", name);
+				SAX_error(State, "Expected outer tag <MXFDictionary> got <%s/>", name);
 				State->State = DICT_STATE_ERROR;
 			}
 			else
@@ -1946,7 +1948,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 
 						if(!BaseType)
 						{
-							SAX_error(State, "Cannot find base type '%s' for <%s>", val, name);
+							SAX_error(State, "Cannot find base type '%s' for <%s/>", val, name);
 						}
 						else
 						{
@@ -2047,7 +2049,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 						else if(strcasecmp(val,"toxic") == 0) Use = DICT_USE_TOXIC;
 						else
 						{
-							SAX_warning(State, "Unknown use value use=\"%s\" in <%s>", val, name);
+							SAX_warning(State, "Unknown use value use=\"%s\" in <%s/>", val, name);
 							Use = DICT_USE_OPTIONAL;
 						}
 
@@ -2062,7 +2064,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 						else if(strcasecmp(val,"weak") == 0) RefType = DICT_REF_WEAK;
 						else
 						{
-							SAX_warning(State, "Unknown ref value ref=\"%s\" in <%s>\n", val, name);
+							SAX_warning(State, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
 							RefType = DICT_REF_NONE;
 						}
 
@@ -2143,7 +2145,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 							else if(strcasecmp(val,"subArray") == 0) DType = DICT_TYPE_ARRAY;
 							else
 							{
-								SAX_warning(State, "Unknown type \"%s\" in <%s>", val, name);
+								SAX_warning(State, "Unknown type \"%s\" in <%s/>", val, name);
 							}
 
 							// Set the container type
@@ -2227,7 +2229,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 					}
 					else
 					{
-						SAX_warning(State, "Unexpected attribute '%s' in <%s>", attr, name);
+						SAX_warning(State, "Unexpected attribute '%s' in <%s/>", attr, name);
 					}
 				}
 			}
@@ -2242,7 +2244,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 			if(Dict->GlobalKey.Size != 16)
 			{
 				// Zero byte keys are fine for abstract base classes
-				if(Dict->GlobalKey.Size != 0) SAX_error(State, "Global key is not 16 bytes long for <%s>", name);
+				if(Dict->GlobalKey.Size != 0) SAX_error(State, "Global key is not 16 bytes long for <%s/>", name);
 			}
 			else
 			{
@@ -2265,7 +2267,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 				}
 				else
 				{
-					SAX_warning(State, "Default value for <%s> ignored as it is an unknown type", name);
+					SAX_warning(State, "Default value for <%s/> ignored as it is an unknown type", name);
 				}
 			}
 
@@ -2284,14 +2286,14 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 				}
 				else
 				{
-					SAX_warning(State, "Distinguished value for <%s> ignored as it is an unknown type", name);
+					SAX_warning(State, "Distinguished value for <%s/> ignored as it is an unknown type", name);
 				}
 			}
 			break;
 		}
 
 		case DICT_STATE_END:
-			SAX_error(State, "Unexpected outer tag after <MXFDictionary> completed -> <%s>", name);
+			SAX_error(State, "Unexpected outer tag after <MXFDictionary/> completed -> <%s/>", name);
 			State->State = DICT_STATE_ERROR;
 			break;
 
@@ -2518,7 +2520,7 @@ void MDOType::SAX_warning(void *user_data, const char *msg, ...)
 	// DRAGONS: How do we prevent bursting?
 	char Buffer[10240];
 	vsprintf(Buffer, msg, args);
-	warning("XML WARNING: %s\n", Buffer);
+	warning("<!-- XML WARNING: %s -->\n", Buffer);
 
     va_end(args);
 }
