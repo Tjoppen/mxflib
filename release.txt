@@ -1,5 +1,5 @@
 
-Release Notes for mxflib version 0.3-Alpha
+Release Notes for mxflib version 0.2.1-Alpha
 ==========================================
 
 Changes since version 0.2-Alpha
