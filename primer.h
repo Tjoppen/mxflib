@@ -56,8 +56,11 @@ namespace mxflib
 	//! Holds local tag to metadata definition UL mapping
 	class Primer : public Primer_Root, public RefCount<Primer>
 	{
+	protected:
 		Tag NextDynamic;						//! Next dynamic tag to try
 		std::map<UL, Tag> TagLookup;			//! Reverse lookup for locating a tag for a given UL
+
+		static PrimerPtr StaticPrimer;			//! Primer for use when no primer is available (such as for index tables)
 
 	public:
 		Primer() { NextDynamic = 0xffff; };
@@ -66,7 +69,11 @@ namespace mxflib
 		//! Write this primer to a memory buffer
 		Uint32 WritePrimer(DataChunk &Buffer);
 
+		//! Determine the tag to use for a given UL
 		Tag Lookup(ULPtr ItemUL, Tag TryTag = 0);
+
+		//! Determine the tag to use for a given UL - when no primer is availabe
+		static Tag StaticLookup(ULPtr ItemUL, Tag TryTag = 0);
 
 		//! Insert a new child type
 		std::pair<iterator, bool> insert(value_type Val) 

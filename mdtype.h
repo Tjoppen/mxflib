@@ -326,6 +326,21 @@ namespace mxflib
 		Uint64 GetUint64(void) { return Type->Traits->GetUint64(this); };
 		std::string GetString(void)	{ return Type->Traits->GetString(this); };
 
+		// Child value access
+		// DRAGONS: May need to add code to check inside "optimised" compounds
+		Int32 GetInt(const char *ChildName, Int32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt(); else return Default; };
+		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt64(); else return Default; };
+		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint(); else return Default; };
+		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint64(); else return Default; };
+		std::string GetString(const char *ChildName, std::string Default = "") { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetString(); else return Default; };
+		void SetInt(const char *ChildName, Int32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt(Val); };
+		void SetInt64(const char *ChildName, Int64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt64(Val); };
+		void SetUint(const char *ChildName, Uint32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint(Val); };
+		void SetUint64(const char *ChildName, Uint64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint64(Val); };
+		void SetString(const char *ChildName, std::string Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetString(Val); };
+		
+		void ReadValue(const char *ChildName, const DataChunk &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
+
 		// DRAGONS: These should probably be private and give access via MDTraits
 		// to prevent users tinkering!
 		Uint32 MakeSize(Uint32 NewSize);

@@ -40,6 +40,8 @@ namespace mxflib
 	typedef Int64 Position;				//!< Position within an MXF file
 
 	typedef Uint16 Tag;					//!< 2-byte tag for local sets
+
+	typedef std::pair<Uint32, Uint32> U32Pair;
 }
 
 // Some string conversion utilities
@@ -67,7 +69,7 @@ namespace mxflib
 		void Set(const Uint8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
 		const Uint8 *GetValue(void) const { return Ident; };
 		int Size(void) const { return SIZE; };
-		
+
 		bool operator!(void) const
 		{
 			int i;
@@ -100,10 +102,10 @@ namespace mxflib
 
 }
 
-
-
 #include <list>
-namespace mxflib
+
+
+/*namespace mxflib
 {
 	//! Draft version of Vector base type (DRAGONS)
 	template <class T> class Vector : public std::list<T>
@@ -112,16 +114,16 @@ namespace mxflib
 	public:
 	};
 }
-
+*/
 
 namespace mxflib
 {
 	typedef Identifier<16> UL;
-
 //	typedef Vector<UL> ULVector;
 
 	//! A smart pointer to a UL object
 	typedef SmartPtr<UL> ULPtr;
+	typedef std::list<ULPtr> ULList;
 }
 
 namespace mxflib

@@ -37,6 +37,7 @@ namespace mxflib
 	//! Smart pointer to an index table segment
 	class IndexSegment;
 	typedef SmartPtr<IndexSegment> IndexSegmentPtr;
+	typedef std::list<IndexSegmentPtr> IndexSegmentList;
 }
 
 
@@ -68,47 +69,32 @@ namespace mxflib
 		Uint32	ElementDelta;
 	};
 
-/*	struct IndexSubItem
-	{
-		Uint64 Location;		//!< The location of the start of this sub-item relative to the start of the essence container
-		Rational PosOffset;		//!< The temporal offset for this sub-item (undefined if Offset = false)
-		bool Offset;			//!< true if this sub-item has a PosOffset
-		Int8 TemporalOffset;	//!< Offset in edit units from Display Order to Coded Order (0 if this sub-item not re-ordered)
-		Int8 AnchorOffset;		//!< Offset in edit units to previous Anchor Frame. Zero if this is an anchor frame.
-	};
-	class IndexEntry : public RefCount<IndexEntry>
-	{
-	public:
-		int	SubItemCount;
-		IndexSubItem *SubItemArray;
-
-		Uint8 Flags;			//!< The flags for this edit unit
-
-		//! Construct an IndexEntry with no SubItemArray
-		IndexEntry() : SubItemCount(0) {};
-
-		//! Free any memory used by DeltaArray when this IndexEntry is destroyed
-		~IndexEntry() 
-		{ 
-			if(SubItemCount) delete[] SubItemArray; 
-		};
-	};
-
-	//! Smart pointer to an index entry
-	typedef SmartPtr<IndexEntry> IndexEntryPtr;
-
-	//! Map of edit unit positions to index entries
-	typedef std::map<Position, IndexEntryPtr> IndexEntryMap;
-*/
-
 	//! Map of edit unit positions to index table segemnts
 	typedef std::map<Position, IndexSegmentPtr> IndexSegmentMap;
 
+	//! Class for holding index entries that may be out of order
+	class IndexEntry : public RefCount<IndexEntry>
+	{
+	public:
+		int TemporalOffset;
+		int AnchorOffset;
+		Uint8 Flags;
+		Uint64 StreamOffset;
+	};
+
+	//! Smart pointer to index entry
+	typedef SmartPtr<IndexEntry> IndexEntryPtr;
+
+	// Map of edit unit with index entries
+	typedef std::map<Int64, IndexEntryPtr> IndexEntryMap;
+	//typedef SmartPtr<IndexEntryMap> IndexEntryMapPtr;
+
+	//! Class that holds an index table
 	class IndexTable : public RefCount<IndexTable>
 	{
 	public:
-//		Uint32 IndexSID;
-//		Uint32 BodySID;
+		Uint32 IndexSID;
+		Uint32 BodySID;
 		Rational EditRate;
 
 		//! Byte count for each and every edit unit, if CBR, else zero
@@ -127,13 +113,19 @@ namespace mxflib
 		int NPE;			//!< NPE as defined in SMPTE-337M (number of PosTable entries)
 		int IndexEntrySize;	//!< Size of each index entry (11 + 4*NSL + 8*NPE)
 
+		//! Map of index entries that may be out of order
+		/*! The entries will be built into segments by function xxx() */
+		IndexEntryMap IndexOrderEntryMap;
+		IndexEntryMap EssenceOrderEntryMap;
+	
 	public:
 		//! Construct an IndexTable with no CBRDeltaArray
-		IndexTable() : BaseDeltaCount(0), EditUnitByteCount(0) { EditRate.Denominator=0; EditUnitByteCount=0; NSL=0; NPE=0; IndexEntrySize=11; };
+		IndexTable() : BaseDeltaCount(0), EditUnitByteCount(0) { EditRate.Numerator=0; EditUnitByteCount=0; NSL=0; NPE=0; IndexEntrySize=11; };
 
-		//! Free any memory used by CBRDeltaArray when this IndexTable is destroyed
+		//! Free any memory used by BaseDeltaArray when this IndexTable is destroyed
 		~IndexTable() 
 		{ 
+//printf("Deleting IndexTable at 0x%08x: Count = %d, Array = 0x%08x\n", this, BaseDeltaCount, BaseDeltaArray);
 			if(BaseDeltaCount) delete[] BaseDeltaArray; 
 		};
 
@@ -174,7 +166,10 @@ namespace mxflib
 
 			BaseDeltaCount = DeltaCount;
 			if(!DeltaCount) return;
-			
+
+			// Build the new array
+			BaseDeltaArray = new DeltaEntry[DeltaCount];
+
 			// Slice numbers start at zero, PosTable numbers start at 1
 			NSL = 0;
 			NPE = 0;
@@ -185,7 +180,9 @@ namespace mxflib
 				if((i != 0) && (DeltaArray[i] == 0)) NSL++;
 
 				BaseDeltaArray[i].ElementDelta = DeltaArray[i];
-				BaseDeltaArray[i].PosTableIndex = 0;
+//				BaseDeltaArray[i].PosTableIndex = 0;
+//### HACK!!
+BaseDeltaArray[i].PosTableIndex = -1;
 				BaseDeltaArray[i].Slice = NSL;
 			}
 
@@ -199,11 +196,67 @@ namespace mxflib
 		//! Create a new empty index table segment
 		IndexSegmentPtr AddSegment(Int64 StartPosition);
 
+		//! Add a single index entry creating segments as required
+		bool AddIndexEntry(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags, Uint64 StreamOffset, 
+						   int SliceCount = 0, Uint32 *SliceOffsets = NULL, 
+						   int PosCount = 0, Rational *PosTable = NULL);
+
+//#####
+//##### DRAGONS: Should Lookup also check the pending items?
+//#####
 		//! Perform an index table look-up
-		IndexPosPtr Lookup(Position EditUnit, Uint32 SubItem = 0, bool Reorder = false);
+		IndexPosPtr Lookup(Position EditUnit, Uint32 SubItem = 0, bool Reorder = true);
+
+		//! Fudge to correct index entry
+		void Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags);
 
 		//! Free memory by purging the specified range from the index
 		void Purge(Uint64 FirstPosition, Uint64 LastPosition);
+
+		//! Write this index table to a memory buffer
+		Uint32 WriteIndex(DataChunk &Buffer);
+
+		//! Add a new index entry that may be out of order
+		/*! The entry is added to IndexOrderEntryMap and EssenceOrderEntryMap */
+		void AddNewEntry(Int64 IndexOrder, Int64 EssenceOrder, IndexEntryPtr NewEntry)
+		{
+			IndexOrderEntryMap.insert(IndexEntryMap::value_type(IndexOrder, NewEntry));
+			EssenceOrderEntryMap.insert(IndexEntryMap::value_type(EssenceOrder, NewEntry));
+		}
+
+		//! Get the "new" index entry in IndexOrderEntryMap (i.e. by indexed order)
+		IndexEntryPtr IndexEntryByIndexOrder(Int64 Pos)
+		{
+			IndexEntryMap::iterator it = IndexOrderEntryMap.find(Pos);
+
+			if(it == IndexOrderEntryMap.end()) return NULL;
+
+			return (*it).second;
+		}
+
+		//! Get the "new" index entry in EssenceOrderEntryMap (i.e. by essence order)
+		IndexEntryPtr IndexEntryByEssenceOrder(Int64 Pos)
+		{
+			IndexEntryMap::iterator it = EssenceOrderEntryMap.find(Pos);
+
+			if(it == EssenceOrderEntryMap.end()) return NULL;
+
+			return (*it).second;
+		}
+
+		void CommitIndexEntries(void)
+		{
+			IndexEntryMap::iterator it = IndexOrderEntryMap.begin();
+
+			while(it != IndexOrderEntryMap.end())
+			{
+				AddIndexEntry((*it).first, (*it).second->TemporalOffset, (*it).second->AnchorOffset, (*it).second->Flags, (*it).second->StreamOffset);
+				IndexOrderEntryMap.erase(it);
+				it = IndexOrderEntryMap.begin();
+			}
+
+			EssenceOrderEntryMap.clear();
+		}
 	};
 }
 
@@ -212,6 +265,9 @@ namespace mxflib
 {
 	class IndexSegment : public RefCount<IndexSegment>
 	{
+	private:
+		static PrimerPtr IndexPrimer;
+
 	public:
 		//! Table that owns this segment
 		IndexTablePtr Parent;
@@ -234,9 +290,12 @@ namespace mxflib
 
 	private:
 		//! Private constructor to force construction via AddIndexSegmentToIndexTable()
-		IndexSegment() : EntryCount(0) {};
+		IndexSegment() : EntryCount(0) { };
 
 	public:
+		//! Destructor cleans up the segment
+		~IndexSegment() { if(DeltaCount) delete[] DeltaArray; };
+
 		//! Index segment pseudo-constructor
 		/*! \note <b>Only</b> call this from IndexTable::AddSegment() because it adds the segment to its SegmentMap */
 		static IndexSegmentPtr AddIndexSegmentToIndexTable(IndexTablePtr ParentTable, Int64 IndexStartPosition);

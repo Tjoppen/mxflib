@@ -96,6 +96,18 @@ Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
 }
 
 
+//! Primer for use when no primer is available (such as for index tables)
+PrimerPtr Primer::StaticPrimer;
+
+//! Determine the tag to use for a given UL - when no primer is availabe
+Tag Primer::StaticLookup(ULPtr ItemUL, Tag TryTag /*=0*/)
+{
+	if(!StaticPrimer) StaticPrimer = MDOType::MakePrimer();
+
+	return StaticPrimer->Lookup(ItemUL, TryTag);
+}
+
+
 //! Determine the tag to use for a given UL
 /*! If the UL has not yet been used the correct static or dynamic tag will 
  *	be determined and added to the primer
@@ -187,9 +199,9 @@ Uint32 Primer::WritePrimer(DataChunk &Buffer)
 	Bytes = PrimerDict->KeyLen;
 
 	// Add the length
-	DataChunk BER = MakeBER(PrimerLen);
-	Buffer.Append(BER);
-	Bytes += BER.Size;
+	DataChunkPtr BER = MakeBER(PrimerLen);
+	Buffer.Append(*BER);
+	Bytes += BER->Size;
 
 	// Add the vector header
 	Uint8 Temp[4];

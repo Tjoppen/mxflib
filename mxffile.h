@@ -53,9 +53,14 @@ namespace mxflib
 	class MXFFile : public RefCount<MXFFile>
 	{
 	private:
-		bool isOpen;
-		KLVFile Handle;
-		Uint64 RunInSize;			// Size of run-in in physical file
+		bool isOpen;				//! True when the file is open
+		bool isMemoryFile;			//! True is the file is a "memory file"
+		KLVFile Handle;				//! File hanlde
+		Uint64 RunInSize;			//! Size of run-in in physical file
+
+		DataChunkPtr Buffer;		//! Memory file buffer pointer
+		Uint64 BufferOffset;		//! Offset of the start of the buffer from the start of the memory file
+		Uint64 BufferCurrentPos;	//! Offset of the current position from the start of the memory file
 
 		//DRAGONS: There should probably be a property to say that in-memory values have changed?
 		//DRAGONS: Should we have a flush() function
@@ -65,11 +70,12 @@ namespace mxflib
 		std::string Name;
 
 	public:
-		MXFFile() : isOpen(false) {};
+		MXFFile() : isOpen(false), isMemoryFile(false) {};
 		~MXFFile() { if(isOpen) Close(); };
 
 		bool Open(std::string FileName, bool ReadOnly = false );
 		bool OpenNew(std::string FileName);
+		bool OpenMemory(DataChunkPtr Buff = NULL, Uint64 Offset = 0);
 		bool Close(void);
 
 		bool ReadRunIn(void);
@@ -81,7 +87,12 @@ namespace mxflib
 		bool GetRIP(Uint64 MaxScan = 1024*1024);
 
 		//! Report the position of the file pointer
-		Uint64 Tell(void) { return isOpen ? (Uint64(mxflib::FileTell(Handle))-RunInSize) : 0; };
+		Uint64 Tell(void) 
+		{ 
+			if(!isOpen) return 0;
+			if(isMemoryFile) return BufferCurrentPos-RunInSize;
+			return Uint64(mxflib::FileTell(Handle))-RunInSize;
+		}
 
 		//! Move the file pointer and report its new position
 		// DRAGONS: This is where we need to insert code to handle file discontinuities
@@ -90,11 +101,48 @@ namespace mxflib
 		//			where in the file they claim to be. This allows us to modify seeks
 		//			so that they find the data originally at that part of the file even
 		//			though they are now in a different position
-		Uint64 Seek(Uint64 Position) { return isOpen ? Uint64(mxflib::FileSeek(Handle, Position+RunInSize)-RunInSize) : 0; };
-		Uint64 SeekEnd(void) { return isOpen ? Uint64(mxflib::FileSeekEnd(Handle)-RunInSize) : 0; };
+		Uint64 Seek(Uint64 Position)
+		{ 
+			if(!isOpen) return 0;
+			if(isMemoryFile)
+			{
+				BufferCurrentPos = Position+RunInSize;
+				return Position;
+			}
+
+			return Uint64(mxflib::FileSeek(Handle, Position+RunInSize)-RunInSize);
+		}
+
+		Uint64 SeekEnd(void)
+		{ 
+			if(!isOpen) return 0;
+			if(isMemoryFile)
+			{
+				error("MXFFile::SeekEnd() not supported on memory files\n");
+
+				// Seek to the end of the current buffer
+				BufferCurrentPos = BufferOffset + Buffer->Size;
+				return Tell();
+			}
+
+			return Uint64(mxflib::FileSeekEnd(Handle)-RunInSize);
+		}
+
 
 		//! Determine if the file pointer is at the end of the file
-		bool Eof(void) { return mxflib::FileEof(Handle) ? true : false; };
+		bool Eof(void) 
+		{ 
+			if(!isOpen) return true;
+			if(isMemoryFile)
+			{
+				error("MXFFile::Eof() not supported on memory files\n");
+
+				// Return true if at the end of the current buffer
+				if((BufferCurrentPos - BufferOffset) <= Buffer->Size) return true; else return false;
+			}
+		
+			return mxflib::FileEof(Handle) ? true : false; 
+		};
 
 		DataChunkPtr Read(Uint64 Size);
 
@@ -167,15 +215,18 @@ namespace mxflib
 
 				DataChunk Buffer;
 				RIPObject->WriteObject(Buffer);
-				FileWrite(Handle, Buffer.Data, Buffer.Size);
+
+				Write(Buffer.Data, Buffer.Size);
 			}
 		}
 
 		//! Calculate the size of a filler to align to a specified KAG
-		Uint32 MXFFile::FillerSize(Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize = 0);
+		Uint32 FillerSize(Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize = 0) { return FillerSize(false, FillPos, KAGSize, MinSize); };
+		Uint32 FillerSize(bool ForceBER4, Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize = 0);
 
 		//! Write a filler to align to a specified KAG
-		Uint64 Align(Uint32 KAGSize, Uint32 MinSize = 0);
+		Uint64 Align(Uint32 KAGSize, Uint32 MinSize = 0) { return Align(false, KAGSize, MinSize); };
+		Uint64 Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize = 0);
 
 		ULPtr ReadKey(void);
 		Uint64 ReadBER(void);
@@ -186,13 +237,23 @@ namespace mxflib
 		 *	\note If the size is specified it will be overridden for lengths
 		 *		  that will not fit. However an error message will be produced.
 		 */
-		Uint32 WriteBER(Uint64 Length, Uint32 Size = 0) { DataChunk BER = MakeBER(Length, Size); Write(BER); return BER.Size; };
+		Uint32 WriteBER(Uint64 Length, Uint32 Size = 0) { DataChunkPtr BER = MakeBER(Length, Size); Write(*BER); return BER->Size; };
 
 		//! Write raw data
-		Uint64 Write(Uint8 *Buffer, Uint32 Size) { return FileWrite(Handle, Buffer, Size); };
+		Uint64 Write(Uint8 *Buffer, Uint32 Size) 
+		{ 
+			if(isMemoryFile) return MemoryWrite(Buffer, Size);
+
+			return FileWrite(Handle, Buffer, Size); 
+		};
 
 		//! Write the contents of a DataChunk
-		Uint64 Write(DataChunk &Data) { return FileWrite(Handle, Data.Data, Data.Size); };
+		Uint64 Write(DataChunk &Data) 
+		{ 
+			if(isMemoryFile) return MemoryWrite(Data.Data, Data.Size);
+
+			return FileWrite(Handle, Data.Data, Data.Size); 
+		};
 
 		//! Write 8-bit unsigned integer
 		void WriteU8(Uint8 Val) { unsigned char Buffer[1]; PutU8(Val, Buffer); FileWrite(Handle, Buffer, 1); }
@@ -221,8 +282,24 @@ namespace mxflib
 		//! Read 64-bit signed integer (casts from unsigned version)
 		Int64 ReadI64(void) { return (Int64)ReadU64(); }
 
-		protected:
-			Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan);
+		// Set a new buffer into this memory file
+		void SetMemoryBuffer(DataChunkPtr Buff, Uint32 Offset)
+		{
+			if(isMemoryFile)
+			{
+				Buffer = Buff;
+				BufferOffset = Offset;
+			}
+		}
+
+	protected:
+		Uint64 ScanRIP_FindFooter(Uint64 MaxScan);
+
+		//! Write to memory file buffer
+		Uint32 MemoryWrite(Uint8 const *Data, Uint32 Size);
+
+		//! Read from a memory file buffer
+		Uint32 MemoryRead(Uint8 *Data, Uint32 Size);
 	};
 };
 

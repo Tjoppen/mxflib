@@ -60,6 +60,22 @@ namespace mxflib
 	inline Int8 GetI8(unsigned char *src) { return (Int8)GetU8(src); }
 	inline Int16 GetI16(unsigned char *src) { return (Int16)GetU16(src); }
 	inline Int32 GetI32(unsigned char *src) { return (Int32)GetU32(src); }
-	inline Int64 GetI64(unsigned char *src) { return (Int64)GetU8(src); }
+	inline Int64 GetI64(unsigned char *src) { return (Int64)GetU64(src); }
+
+	/*
+	** GetUxx_LE() - Get LITTLE ENDIAN unsigned xx-bit integer
+	*/
+	inline Uint8 GetU8_LE(unsigned char *src) { return (Uint8) *src; }
+	inline Uint16 GetU16_LE(unsigned char *src) { return GetU8_LE(src) | (GetU8_LE(&src[1]) << 8); }
+	inline Uint32 GetU32_LE(unsigned char *src) { return GetU16_LE(src) | (GetU16_LE(&src[2]) << 16); }
+	inline Uint64 GetU64_LE(unsigned char *src) { return GetU32_LE(src) | (GetU32_LE(&src[4]) << 32); }
+
+	/*
+	** GetIxx_LE() - Signed versions of GetUxx_LE()
+	*/
+	inline Int8 GetI8_LE(unsigned char *src) { return (Int8)GetU8_LE(src); }
+	inline Int16 GetI16_LE(unsigned char *src) { return (Int16)GetU16_LE(src); }
+	inline Int32 GetI32_LE(unsigned char *src) { return (Int32)GetU32_LE(src); }
+	inline Int64 GetI64_LE(unsigned char *src) { return (Int64)GetU64_LE(src); }
 }
 

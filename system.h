@@ -11,6 +11,9 @@
  *<br>
  *	Systems currently supported:
  *	- Microsoft Visual C++
+ *<br>
+ *<br>
+ *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  */
 /*
  *	Copyright (c) 2003, Matt Beard
@@ -65,6 +68,7 @@ namespace mxflib
 		int		msBy4;
 	};
 }
+
 
 
 /************************************************/
@@ -139,11 +143,13 @@ namespace mxflib
 	};
 
 	/******** 64-bit file-I/O ********/
+
 #include <io.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/timeb.h>
 
+#ifndef MXFLIB_NO_FILE_IO
 	typedef int FileHandle;
 	inline Uint64 FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET); }
 	inline Uint64 FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END); }
@@ -157,6 +163,9 @@ namespace mxflib
 	inline bool FileEof(FileHandle file) { return eof(file) ? true : false; }
 	inline Uint64 FileTell(FileHandle file) { return _telli64(file); }
 	inline void FileClose(FileHandle file) { close(file); }
+#endif //MXFLIB_NO_FILE_IO
+
+
 
 	/********* Acurate time *********/
 	inline full_time GetTime(void)
@@ -182,6 +191,32 @@ namespace mxflib
 
 /************************************************/
 /************************************************/
+
+
+/*****************************************************/
+/*     Declarations for client supplied file-I/O     */
+/*****************************************************/
+// If File-I/O is supplied by the caller FileHandle will be defined as a Uint32
+// The caller may need to do something fancy to cope with this
+//
+#ifdef MXFLIB_NO_FILE_IO
+namespace mxflib
+{
+	typedef Uint32 FileHandle;
+	Uint64 FileSeek(FileHandle file, Uint64 offset);
+	Uint64 FileSeekEnd(FileHandle file);
+	Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size);
+	Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size);
+	Uint8 FileGetc(FileHandle file);
+	FileHandle FileOpen(const char *filename);
+	FileHandle FileOpenRead(const char *filename);
+	FileHandle FileOpenNew(const char *filename);
+	bool FileValid(FileHandle file);
+	bool FileEof(FileHandle file);
+	Uint64 FileTell(FileHandle file);
+	void FileClose(FileHandle file);
+}
+#endif // MXFLIB_NO_FILE_IO
 
 
 #endif MXFLIB__SYSTEM_H

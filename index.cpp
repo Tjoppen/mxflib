@@ -28,6 +28,7 @@
 
 using namespace mxflib;
 
+
 //! Free memory by purging the specified range from the index
 /*! DRAGONS: This function needs testing, also it could be improved to purge partial segments as well */
 void IndexTable::Purge(Uint64 FirstPosition, Uint64 LastPosition)
@@ -51,12 +52,69 @@ void IndexTable::Purge(Uint64 FirstPosition, Uint64 LastPosition)
 };
 
 
+//! Add a single index entry creating segments as required
+bool IndexTable::AddIndexEntry(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags, Uint64 StreamOffset, 
+				   int SliceCount /*=0*/, Uint32 *SliceOffsets /*=NULL*/, int PosCount /*=0*/, Rational *PosTable /*=NULL*/)
+{
+	// Find the correct segment  - one starting with this edit unit, or the nearest before it
+	IndexSegmentMap::iterator it = SegmentMap.find(EditUnit);
+	if(it == SegmentMap.end()) 
+	{ 
+		it = SegmentMap.lower_bound(EditUnit); 
+		if(!SegmentMap.empty())
+		{
+			it--;
+		}
+	}
+
+	// DRAGONS: will the above work as intended?
+
+	// Build a segment pointer for ease of working (very slight inefficiency)
+	IndexSegmentPtr Segment;
+
+	// If this position is before the start of the index table we must add a new segment
+	if((it == SegmentMap.end()) || ((*it).first > EditUnit))
+	{
+		Segment = AddSegment(EditUnit);
+	}
+	else
+	{
+		Segment = (*it).second;
+	}
+
+	// If this position is greater than the current free slot at the end of the segment we must add a new segment
+	if(EditUnit > (Segment->StartPosition + Segment->EntryCount))
+	{
+		Segment = AddSegment(EditUnit);
+	}
+
+	// If this position already exists in the segment we must replace it
+	if(EditUnit < (Segment->StartPosition + Segment->EntryCount))
+	{
+//		@@Replace entry
+		// DRAGONS: Need to add replace!
+		error("Replacing index entries is not yet implemented\n");
+	}
+
+	// Add this entry to the end of the current segment
+	if(Segment->AddIndexEntry(TemporalOffset, KeyFrameOffset, Flags, StreamOffset, SliceCount, SliceOffsets, PosCount, PosTable))
+	{
+		return true;
+	}
+
+	// Adding the entry didn't work - possibly because the segment is full
+	// Try adding a new segment and adding the entry to it
+	Segment = AddSegment(EditUnit);
+	return Segment->AddIndexEntry(TemporalOffset, KeyFrameOffset, Flags, StreamOffset, SliceCount, SliceOffsets, PosCount, PosTable);
+}
+
+
 //! Perform an index table look-up
 /*! Note that the return value is relative to the start of the EC in frame-wrapping,
  *  but relative to the start of the value of the first KLV in the first edit unit
  *  in the essence container in clip-wrapping
  */
-IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool Reorder /* =false */)
+IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool Reorder /* =true */)
 {
 	IndexPosPtr Ret = new IndexPos;
 
@@ -97,11 +155,11 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 
 	// Find the correct segment  - one starting with this edit unit, or the nearest before it
 	IndexSegmentMap::iterator it = SegmentMap.find(EditUnit);
-	if(it == SegmentMap.end()) { it = SegmentMap.lower_bound(EditUnit); if(it != SegmentMap.end()) it--; }
+	if(it == SegmentMap.end()) { if(!SegmentMap.empty()) { it = SegmentMap.lower_bound(EditUnit); it--; } }
 
 	// DRAGONS: will the above work as intended?
 
-	// If the this position is before the start of the index table, return the start of the essence
+	// If this position is before the start of the index table, return the start of the essence
 	if((it == SegmentMap.end()) || ((*it).first > EditUnit))
 	{
 		Ret->ThisPos = 0;
@@ -117,9 +175,23 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 	// Build a segment pointer for ease of reading (very slight inefficiency)
 	IndexSegmentPtr Segment = (*it).second;
 
+	// Return start of file if we found a useless index entry (shouldn't happen!)
+	if(Segment->EntryCount == 0)
+	{
+		error("IndexTableSegment contains no index entries!\n");
+
+		Ret->ThisPos = 0;
+		Ret->Location = 0;
+		Ret->Exact = false;
+		Ret->Offset = false;
+		Ret->KeyFrameOffset = 0;
+		Ret->Flags = 0;
+
+		return Ret;
+	}
+
 	// If the nearest (or lower) index point is before this edit unit, set the result accordingly
-	// Also return this if we found a useless index entry (shouldn't happen!)
-	if((Segment->EntryCount == 0) || (Segment->StartPosition + Segment->EntryCount - 1) < EditUnit)
+	if((Segment->StartPosition + Segment->EntryCount - 1) < EditUnit)
 	{
 		Ret->ThisPos = Segment->StartPosition + Segment->EntryCount - 1;
 		
@@ -154,12 +226,15 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 		return Lookup(EditUnit + TemporalOffset, SubItem, false);
 	}
 
+	// We are in the correct edit unit, so record the fact
+	Ret->ThisPos = EditUnit;
+
 	// Read the offset to the previous key-frame
 	Ret->KeyFrameOffset = GetI8(Ptr);
 	Ptr++;
 
 	// Read the flags for this frame
-	Ret->Flags = GetI8(Ptr);
+	Ret->Flags = GetU8(Ptr);
 	Ptr++;
 
 	// Read the location of the start of the edit unit
@@ -449,15 +524,72 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 		it++;
 	}
 }
-#endif
+#endif // 0
 
 
 //! Add an index table segment from an "IndexSegment" MDObject
+/*! DRAGONS: Not the most efficient way to do this */
 IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 {
-// DRAGONS GRANDIS: ### NEED TO COMPLETE ###
+	IndexSegmentPtr Ret;
 
-	return NULL;
+	// DRAGONS: Must complete this!
+	warning("Index table reading not complete!\n");
+
+	Int64 StartPosition = Segment->GetInt64("IndexStartPosition");
+	Ret = AddSegment(StartPosition);
+	SegmentMap.insert(IndexSegmentMap::value_type(StartPosition, Ret));
+
+	MDObjectPtr Ptr = Segment["DeltaEntryArray"];
+	if(!Ptr)
+	{
+		Ret->DeltaCount = 0;
+	}
+	else
+	{
+		Ret->DeltaCount = Ptr->size();
+
+		error("DeltaEntryArray reading not yet supported - assuming simple version\n");
+{
+	Uint32 ZeroDelta = 0;
+	DefineDeltaArray(1, &ZeroDelta);
+}
+
+	}
+
+	// DRAGONS - must copy delta array into parent
+
+	// Copy index entry bits...
+	NSL = Segment->GetUint("SliceCount");
+	NPE = Segment->GetUint("PosTableCount");
+	// Calculate the size of each IndexEntry
+	IndexEntrySize = (11 + 4*NSL + 8*NPE);
+
+	Ptr = Segment["IndexEntryArray"];
+	if(!Ptr)
+	{
+		Ret->EntryCount = 0;
+		error("No IndexEntryArray - is this a CBR index? (not currently supported)\n");
+	}
+	else
+	{
+		DataChunk Entries;
+		Ptr->WriteObject(Entries);
+
+		if(Entries.Size >= 28)
+		{
+			Ret->EntryCount = GetU32(&Entries.Data[20]);
+			Uint32 EntrySize = GetU32(&Entries.Data[24]);
+			
+			if(EntrySize != IndexEntrySize)
+			{
+				error("IndexEntryArray items should be %d bytes, but are %d\n", IndexEntrySize, EntrySize);
+			}
+			else Ret->AddIndexEntries(Ret->EntryCount, IndexEntrySize, &Entries.Data[28]);
+		}
+	}
+
+	return Ret;
 }
 
 //! Create a new empty index table segment
@@ -472,7 +604,7 @@ IndexSegmentPtr IndexTable::AddSegment(Int64 StartPosition)
 
 
 //! Add a single index entry
-/*! \return true if the entry was added OK, false if an error occured or the segment would be too bit (sizeof(IndexEntryArray) > 65535)
+/*! \return true if the entry was added OK, false if an error occured or the segment would be too big (sizeof(IndexEntryArray) > 65535)
 */
 bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags, Uint64 StreamOffset, 
 								 int SliceCount /*=0*/, Uint32 *SliceOffsets /*=NULL*/,
@@ -567,6 +699,7 @@ IndexSegmentPtr IndexSegment::AddIndexSegmentToIndexTable(IndexTablePtr ParentTa
 	Segment->Parent = ParentTable;
 	Segment->StartPosition = IndexStartPosition;
 	Segment->DeltaCount = ParentTable->BaseDeltaCount;
+	Segment->DeltaArray = new DeltaEntry[Segment->DeltaCount];
 	if(ParentTable->BaseDeltaCount) 
 	{
 		memcpy(Segment->DeltaArray, ParentTable->BaseDeltaArray, ParentTable->BaseDeltaCount * sizeof(DeltaEntry));
@@ -575,3 +708,112 @@ IndexSegmentPtr IndexSegment::AddIndexSegmentToIndexTable(IndexTablePtr ParentTa
 	return Segment;
 };
 
+
+//! Write this index table to a memory buffer
+Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
+{
+	// Force a bit of space into the buffer then clear the size
+	Buffer.ResizeBuffer(4096);
+	Buffer.Resize(0);
+
+	IndexSegmentMap::iterator it = SegmentMap.begin();
+	while(it != SegmentMap.end())
+	{
+		IndexSegmentPtr Segment = (*it).second;
+
+		MDObjectPtr ThisSegment = new MDObject("IndexTableSegment");
+		if(!ThisSegment)
+		{
+			error("Couldn't build \"IndexTableSegment\" - index table not written\n");
+			return Buffer.Size;
+		}
+
+		MDObjectPtr Ptr;
+		Ptr = ThisSegment->AddChild("IndexEditRate");
+		if(Ptr)
+		{
+			Ptr->SetInt("Numerator", EditRate.Numerator);
+			Ptr->SetInt("Denominator", EditRate.Denominator);
+		}
+
+		ThisSegment->SetInt64("IndexStartPosition", Segment->StartPosition);
+		ThisSegment->SetInt64("IndexDuration", Segment->EntryCount);
+		ThisSegment->SetUint("EditUnitByteCount", EditUnitByteCount);
+		ThisSegment->SetUint("IndexSID", IndexSID);
+		ThisSegment->SetUint("BodySID", BodySID);
+
+		// DRAGONS: This assumes constant NSL and NPE...
+		ThisSegment->SetUint("SliceCount", NSL);
+		ThisSegment->SetUint("PosTableCount", NPE);
+
+		// DRAGONS: A bit clunky!
+		// DRAGONS: What if on this platform sizeof(DeltaEntry) != 6 ?
+		Uint8 Buf[8];
+		DataChunk Deltas;
+		PutU32(NSL, Buf);
+		PutU32(sizeof(DeltaEntry), &Buf[4]);
+		Deltas.Set(8, Buf);
+		Deltas.Set(NSL * sizeof(DeltaEntry), (Uint8*)Segment->DeltaArray, 8);
+
+		ThisSegment->SetValue("DeltaEntryArray", Deltas);
+
+		// DRAGONS: A bit clunky!
+		DataChunk Entries;
+		PutU32(Segment->EntryCount, Buf);
+		PutU32(IndexEntrySize, &Buf[4]);
+		Entries.Set(8, Buf);
+		Entries.Set(IndexEntrySize * Segment->EntryCount, Segment->IndexEntryArray.Data, 8);
+
+		ThisSegment->SetValue("IndexEntryArray", Entries);
+
+		// Add this segment to the buffer
+		{
+			DataChunk Seg;
+			ThisSegment->WriteObject(Seg, MDOType::GetStaticPrimer());
+			Buffer.Set(Seg.Size, Seg.Data, Buffer.Size);
+		}
+
+		it++;
+	}
+
+	return Buffer.Size;
+}
+
+
+//! Fudge to correct index entry
+void IndexTable::Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags)
+{
+	IndexPosPtr Ret = new IndexPos;
+
+	// Find the correct segment  - one starting with this edit unit, or the nearest before it
+	IndexSegmentMap::iterator it = SegmentMap.find(EditUnit);
+	if(it == SegmentMap.end()) { if(!SegmentMap.empty()) { it = SegmentMap.lower_bound(EditUnit); it--; } }
+
+	// If this position is before the start of the index table do nothing
+	if((it == SegmentMap.end()) || ((*it).first > EditUnit)) return;
+
+	// Build a segment pointer for ease of reading (very slight inefficiency)
+	IndexSegmentPtr Segment = (*it).second;
+
+	// Do nothing if we found a useless index entry (shouldn't happen!)
+	if(Segment->EntryCount == 0) return;
+
+	// If the nearest (or lower) index point is before this edit unit, do nothing
+	if((Segment->StartPosition + Segment->EntryCount - 1) < EditUnit) return;
+
+	// Index the start of the correct index entry
+	Uint8 *Ptr = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition) * IndexEntrySize];
+
+	// Write the new temporal offset
+	PutI8(TemporalOffset, Ptr);
+	Ptr++;
+
+	// Write the new offset to the previous key-frame
+	PutI8(KeyFrameOffset, Ptr);
+	Ptr++;
+
+	// Write the new flags for this frame
+	PutU8(Flags,Ptr);
+	
+	return;
+}

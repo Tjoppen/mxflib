@@ -160,12 +160,15 @@ private:
 		//! Internal class to ensure dictionary is freed at application end
 		class DictManager
 		{
+		protected:
+			static PrimerPtr StaticPrimer;
 		public:
 			DictEntry *MainDict;		//!< The KLVLib dictionary entry of the root entry
 		public:
 			DictManager() { MainDict = NULL; };
 			void Load(const char *DictFile);
 			PrimerPtr MakePrimer(void);
+			PrimerPtr GetStaticPrimer(void) { return StaticPrimer; };
 			~DictManager();
 		};
 
@@ -180,6 +183,7 @@ private:
 
 		//! Build a primer
 		static PrimerPtr MakePrimer(void) { return DictMan.MakePrimer(); };
+		static PrimerPtr GetStaticPrimer(void) { return DictMan.GetStaticPrimer(); };
 
 		static MDOTypePtr Find(std::string BaseType);
 		static MDOTypePtr Find(ULPtr BaseUL);
@@ -307,20 +311,77 @@ namespace mxflib
 		/* Child value access */
 		// For set functions AddChild is used (without replace option)
 		// to ensure that the child exists and to set the modified flag
-		void SetInt(const char *ChildName, Int32 Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetInt(Val); };
-		void SetInt64(const char *ChildName, Int64 Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetInt64(Val); };
-		void SetUint(const char *ChildName, Uint32 Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetUint(Val); };
-		void SetUint64(const char *ChildName, Uint64 Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetUint64(Val); };
-		void SetString(const char *ChildName, std::string Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetString(Val); };
+		void SetInt(const char *ChildName, Int32 Val) 
+		{ 
+			MDObjectPtr Ptr = AddChild(ChildName);
+			if (Ptr) Ptr->SetInt(Val); else if(Value) Value->SetInt(ChildName, Val);
+		};
+		void SetInt64(const char *ChildName, Int64 Val) 
+		{ 
+			MDObjectPtr Ptr = AddChild(ChildName);
+			if (Ptr) Ptr->SetInt64(Val); else if(Value) Value->SetInt64(ChildName, Val);
+		};
+		void SetUint(const char *ChildName, Uint32 Val) 
+		{ 
+			MDObjectPtr Ptr = AddChild(ChildName);
+			if (Ptr) Ptr->SetUint(Val); else if(Value) Value->SetUint(ChildName, Val);
+		};
+		void SetUint64(const char *ChildName, Uint64 Val) 
+		{ 
+			MDObjectPtr Ptr = AddChild(ChildName);
+			if (Ptr) Ptr->SetUint64(Val); else if(Value) Value->SetUint64(ChildName, Val);
+		};
+		void SetString(const char *ChildName, std::string Val) 
+		{ 
+			MDObjectPtr Ptr = AddChild(ChildName);
+			if (Ptr) Ptr->SetString(Val); else if(Value) Value->SetString(ChildName, Val);
+		};
+
 		bool SetDValue(const char *ChildName) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) return Ptr->SetDValue(); else return false; };
-		void SetValue(const char *ChildName, DataChunk &Source) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->ReadValue(Source); }
-		void SetValue(const char *ChildName, MDObjectPtr Source) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->ReadValue(Source->Value->PutData()); }
-		Int32 GetInt(const char *ChildName, Int32 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt(); else return Default; };
-		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt64(); else return Default; };
-		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint(); else return Default; };
-		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint64(); else return Default; };
-		std::string GetString(const char *ChildName, std::string Default = "") { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetString(); else return Default; };
+		
+		void SetValue(const char *ChildName, const DataChunk &Source) 
+		{ 
+			MDObjectPtr Ptr = AddChild(ChildName); 
+			if (Ptr) Ptr->ReadValue(Source); else if(Value) Value->ReadValue(ChildName, Source);
+		};
+		void SetValue(const char *ChildName, MDObjectPtr Source) 
+		{ 
+			MDObjectPtr Ptr = AddChild(ChildName); 
+			if (Ptr) Ptr->ReadValue(Source->Value->PutData()); else if(Value) Value->ReadValue(ChildName, Source->Value->PutData());
+		};
+		
+		Int32 GetInt(const char *ChildName, Int32 Default = 0) 
+		{ 
+			MDObjectPtr Ptr = operator[](ChildName);
+			if (Ptr) return Ptr->GetInt(); else if(Value) return Value->GetInt(ChildName, Default); else return Default; 
+		};
+
+		Int64 GetInt64(const char *ChildName, Int64 Default = 0) 
+		{ 
+			MDObjectPtr Ptr = operator[](ChildName); 
+			if (Ptr) return Ptr->GetInt64(); else if(Value) return Value->GetInt64(ChildName, Default); else return Default; 
+		};
+
+		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) 
+		{ 
+			MDObjectPtr Ptr = operator[](ChildName); 
+			if (Ptr) return Ptr->GetUint(); else if(Value) return Value->GetUint(ChildName, Default); else return Default; 
+		};
+
+		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) 
+		{ 
+			MDObjectPtr Ptr = operator[](ChildName); 
+			if (Ptr) return Ptr->GetUint64(); else if(Value) return Value->GetUint64(ChildName, Default); else return Default; 
+		};
+
+		std::string GetString(const char *ChildName, std::string Default = 0)
+		{ 
+			MDObjectPtr Ptr = operator[](ChildName); 
+			if (Ptr) return Ptr->GetString(); else if(Value) return Value->GetString(ChildName, Default); else return Default; 
+		};
+
 		bool IsDValue(const char *ChildName) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->IsDValue(); else return false; };
+
 		void SetInt(MDOTypePtr ChildType, Int32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt(Val); };
 		void SetInt64(MDOTypePtr ChildType, Int64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt64(Val); };
 		void SetUint(MDOTypePtr ChildType, Uint32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetUint(Val); };

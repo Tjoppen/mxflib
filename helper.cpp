@@ -35,13 +35,13 @@ using namespace mxflib;
  *	\note If the size is specified it will be overridden for lengths
  *		  that will not fit. However an error message will be produced.
  */
-DataChunk mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
+DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 {
 	// Mask showing forbidden bits for various sizes
-	static Uint64 Masks[9] = { 0xffffffffffffffff, 0xffffffffffffff00, 
-							   0xffffffffffff0000, 0xffffffffff000000,
-							   0xffffffff00000000, 0xffffff0000000000,
-							   0xffff000000000000, 0xff00000000000000, 0 };
+	static const Uint64 Masks[9] = { 0xffffffffffffffff, 0xffffffffffffff00, 
+									 0xffffffffffff0000, 0xffffffffff000000,
+									 0xffffffff00000000, 0xffffff0000000000,
+									 0xffff000000000000, 0xff00000000000000, 0 };
 	if(Size > 9)
 	{
 		error("Maximum BER size is 9 bytes, however %d bytes specified in call to WriteBER()\n", Size);
@@ -85,14 +85,14 @@ DataChunk mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 	}
 
 	// Return as a DataChunk
-	return DataChunk(Size, Buff);
+	return new DataChunk(Size, Buff);
 }
 
 
-// Build a new UMID
+//! Build a new UMID
 UMIDPtr mxflib::MakeUMID(int Type)
 {
-	static Uint8 UMIDBase[10] = { 0x06, 0x0a, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
+	static const Uint8 UMIDBase[10] = { 0x06, 0x0a, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
 	Uint8 Buffer[32];
 
 	// Set the non-varying base of the UMID
@@ -118,3 +118,15 @@ UMIDPtr mxflib::MakeUMID(int Type)
 	return new UMID(Buffer);
 }
 
+
+//! Read a "Chunk" from a non-MXF file
+DataChunkPtr mxflib::FileReadChunk(FileHandle InFile, Uint64 Size)
+{
+	DataChunkPtr Ret = new DataChunk;
+	Ret->Resize(Size);
+
+	// Read the data (and shrink chunk to fit)
+	Ret->Resize(FileRead(InFile, Ret->Data, Size));
+
+	return Ret;
+}

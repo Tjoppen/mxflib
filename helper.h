@@ -90,11 +90,64 @@ namespace mxflib
 	}
 
 	//! Build a BER length
-	class DataChunk;
-	DataChunk MakeBER(Uint64 Length, Uint32 Size = 0);
+//	class DataChunkPtr;
+	DataChunkPtr MakeBER(Uint64 Length, Uint32 Size = 0);
 
-	// Build a new UMID
+	//! Build a new UMID
 	UMIDPtr MakeUMID(int Type);
+
+	//! Read a "Chunk" from a non-MXF file
+	DataChunkPtr FileReadChunk(FileHandle InFile, Uint64 Size);
+
+	//! Read a RIFF chunk header (from an open file)
+	/*! The Chunk ID is read as a big-endian Uint32 and returned as the first
+	 *	part of the returned pair. The chunk size is read as a little-endian
+	 *	number and returned as the second part of the returned pair
+	 *	\return <0,0> if the header counld't be read
+	 */
+	inline U32Pair ReadRIFFHeader(FileHandle InFile)
+	{
+		U32Pair Ret;
+
+		Uint8 Buffer[8];
+		if(FileRead(InFile, Buffer, 8) < 8)
+		{
+			Ret.first = 0;
+			Ret.second = 0;
+			return Ret;
+		}
+
+		Ret.first = GetU32(Buffer);
+		Ret.second = GetU32_LE(&Buffer[4]);
+
+		return Ret;
+	}
+
+	// File read primitaves
+
+	//! Read 8-bit unsigned integer
+	inline Uint8 ReadU8(FileHandle Handle) { unsigned char Buffer[1]; if(FileRead(Handle, Buffer, 1) == 1) return GetU8(Buffer); else return 0; }
+
+	//! Read 16-bit unsigned integer
+	inline Uint16 ReadU16(FileHandle Handle) { unsigned char Buffer[2]; if(FileRead(Handle, Buffer, 2) == 2) return GetU16(Buffer); else return 0; }
+
+	//! Read 32-bit unsigned integer
+	inline Uint32 ReadU32(FileHandle Handle) { unsigned char Buffer[4]; if(FileRead(Handle, Buffer, 4) == 4) return GetU32(Buffer); else return 0; }
+
+	//! Read 64-bit unsigned integer
+	inline Uint64 ReadU64(FileHandle Handle) { unsigned char Buffer[8]; if(FileRead(Handle, Buffer, 8) == 8) return GetU64(Buffer); else return 0; }
+
+	//! Read 8-bit signed integer (casts from unsigned version)
+	inline Int8 ReadI8(FileHandle Handle) { return (Int8)ReadU8(Handle); }
+
+	//! Read 16-bit signed integer (casts from unsigned version)
+	inline Int16 ReadI16(FileHandle Handle) { return (Int16)ReadU16(Handle); }
+	
+	//! Read 32-bit signed integer (casts from unsigned version)
+	inline Int32 ReadI32(FileHandle Handle) { return (Int32)ReadU32(Handle); }
+	
+	//! Read 64-bit signed integer (casts from unsigned version)
+	inline Int64 ReadI64(FileHandle Handle) { return (Int64)ReadU64(Handle); }
 }
 
 #endif MXFLIB__HELPER_H

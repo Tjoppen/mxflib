@@ -69,6 +69,10 @@ namespace mxflib
 		MDObjectPtr operator[](MDOTypePtr ChildType);
 	};
 
+	//! A list of package pointers
+	typedef std::list<PackagePtr> PackageList;
+
+
 	class Track;
 	//! A smart pointer to a Track object (with operator[] overload)
 	class TrackPtr : public SmartPtr<Track>
@@ -129,6 +133,9 @@ namespace mxflib
 
 		//! Make a link to a specified track
 		bool MakeLink(TrackPtr SourceTrack, Int64 StartPosition = 0);
+
+		//! Make a link to a UMID and TrackID
+		bool MakeLink(UMIDPtr LinkUMID, Uint32 LinkTrackID, Int64 StartPosition = 0);
 	};
 };
 
@@ -164,6 +171,7 @@ namespace mxflib
 	public:
 		Track(std::string BaseType) { Object = new MDObject(BaseType); };
 		Track(MDOTypePtr BaseType) { Object = new MDObject(BaseType); };
+		Track(MDObjectPtr Obj) { Object = Obj; };
 		Track(ULPtr BaseUL) { Object = new MDObject(BaseUL); };
 
 		//! Add a SourceClip to a track
@@ -196,39 +204,42 @@ namespace mxflib
 		Package(ULPtr BaseUL) : LastTrackID(0) { Object = new MDObject(BaseUL); };
 
 		//! Add a timeline track to the package
-		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string EditRate, std::string TrackName = "", Uint32 TrackID = 0);
+		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, std::string TrackName = "", Uint32 TrackID = 0);
 
-		TrackPtr AddPictureTrack(std::string EditRate, std::string TrackName = "Picture Track", Uint32 TrackID = 0) { return AddPictureTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddPictureTrack(Uint32 TrackNumber, std::string EditRate, std::string TrackName = "Picture Track", Uint32 TrackID = 0)
+		TrackPtr AddPictureTrack(Rational EditRate, std::string TrackName = "Picture Track", Uint32 TrackID = 0) { return AddPictureTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddPictureTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Picture Track", Uint32 TrackID = 0)
 		{
-			static Uint8 PictureDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x01, 0x00, 0x00, 0x00 };
-			static ULPtr PictureDD = new UL(PictureDD_Data);
+			static const Uint8 PictureDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x01, 0x00, 0x00, 0x00 };
+			static const ULPtr PictureDD = new UL(PictureDD_Data);
 			return AddTrack(PictureDD, TrackNumber, EditRate, TrackName, TrackID);
 		};
 
-		TrackPtr AddSoundTrack(std::string EditRate, std::string TrackName = "Sound Track", Uint32 TrackID = 0) { return AddSoundTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddSoundTrack(Uint32 TrackNumber, std::string EditRate, std::string TrackName = "Sound Track", Uint32 TrackID = 0)
+		TrackPtr AddSoundTrack(Rational EditRate, std::string TrackName = "Sound Track", Uint32 TrackID = 0) { return AddSoundTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddSoundTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Sound Track", Uint32 TrackID = 0)
 		{
-			static Uint8 SoundDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x02, 0x00, 0x00, 0x00 };
-			static ULPtr SoundDD = new UL(SoundDD_Data);
+			static const Uint8 SoundDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x02, 0x00, 0x00, 0x00 };
+			static const ULPtr SoundDD = new UL(SoundDD_Data);
 			return AddTrack(SoundDD, TrackNumber, EditRate, TrackName, TrackID);
 		};
 
-		TrackPtr AddDataTrack(std::string EditRate, std::string TrackName = "Data Track", Uint32 TrackID = 0) { return AddDataTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddDataTrack(Uint32 TrackNumber, std::string EditRate, std::string TrackName = "Data Track", Uint32 TrackID = 0)
+		TrackPtr AddDataTrack(Rational EditRate, std::string TrackName = "Data Track", Uint32 TrackID = 0) { return AddDataTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddDataTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Data Track", Uint32 TrackID = 0)
 		{
-			static Uint8 DataDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x03, 0x00, 0x00, 0x00 };
-			static ULPtr DataDD = new UL(DataDD_Data);
+			static const Uint8 DataDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x03, 0x00, 0x00, 0x00 };
+			static const ULPtr DataDD = new UL(DataDD_Data);
 			return AddTrack(DataDD, TrackNumber, EditRate, TrackName, TrackID);
 		};
 
-		TrackPtr AddTimecodeTrack(std::string EditRate, std::string TrackName = "Timecode Track", Uint32 TrackID = 0) { return AddTimecodeTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddTimecodeTrack(Uint32 TrackNumber, std::string EditRate, std::string TrackName = "Timecode Track", Uint32 TrackID = 0)
+		TrackPtr AddTimecodeTrack(Rational EditRate, std::string TrackName = "Timecode Track", Uint32 TrackID = 0) { return AddTimecodeTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddTimecodeTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Timecode Track", Uint32 TrackID = 0)
 		{
-			static Uint8 TCDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00 };
-			static ULPtr TCDD = new UL(TCDD_Data);
+			static const Uint8 TCDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00 };
+			static const ULPtr TCDD = new UL(TCDD_Data);
 			return AddTrack(TCDD, TrackNumber, EditRate, TrackName, TrackID);
 		};
+
+		//! Update the duration field in each sequence in each track for this package
+		void UpdateDurations(void);
 	};
 }
 
@@ -257,9 +268,25 @@ namespace mxflib
 		}
 
 		//! Add an essence type UL to the listed essence types
+		/*! Only added if it does not already appear in the list */
 		void AddEssenceType(ULPtr ECType)
 		{
-			Object->Child("EssenceContainers")->AddChild("EssenceContainer",false)->ReadValue(ECType->GetValue(), 16);
+			DataChunk ECTypeValue;
+			ECTypeValue.Set(16, ECType->GetValue());
+
+			// Get a list of known containers
+			MDObjectListPtr ECTypeList = Object->Child("EssenceContainers")->ChildList("EssenceContainer");
+
+			// Scan the list to see if we already have this type
+			MDObjectList::iterator it = ECTypeList->begin();
+			while(it != ECTypeList->end())
+			{
+				if(ECTypeValue == (*it)->PutData()) return;
+				it++;
+			}
+
+			// New type, so add it
+			Object->Child("EssenceContainers")->AddChild("EssenceContainer",false)->SetValue(ECTypeValue);
 		}
 
 		//! Set the operational pattern property of the preface
@@ -270,8 +297,8 @@ namespace mxflib
 		}
 
 		// Add a material package to the metadata
-		PackagePtr AddMatarialPackage(UMIDPtr PackageUMID) { return AddPackage("MaterialPackage", "", PackageUMID); };
-		PackagePtr AddMatarialPackage(std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("MaterialPackage", PackageName, PackageUMID); };
+		PackagePtr AddMaterialPackage(UMIDPtr PackageUMID) { return AddPackage("MaterialPackage", "", PackageUMID); };
+		PackagePtr AddMaterialPackage(std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("MaterialPackage", PackageName, PackageUMID); };
 
 		// Add a top-level file package to the metadata
 		PackagePtr AddFilePackage(Uint32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); };

@@ -1,16 +1,22 @@
 
-Release Notes for mxflib version 0.3-Alpha
+Release Notes for mxflib version 0.3.5-Alpha
 ============================================
 
-The first version with file writing!  
 
-No index table writing yet and essence writing is up to the application.
+Changes since version 0.3-Alpha
+===============================
 
-A Sample application "mpegwrap" is included.
+* Fixed "silly" bug in integer traits on big-endian platforms!
+* Fixed bug in parsing MPEG headers where LoadIntra and LoadNonIntra
+  were 1 bit out of place.
+* Essence parsing is now performed in special EssenceParser classes
+* Project mpegwrap has been replaced by project mxfwrap
+* Static local variables in functions have been removed or made const
+  to make thread-safety easier
 
 
 Changes since version 0.2.2-Alpha
-============================================
+=================================
 
 * Fixed "silly" bug in PutIxx() which only wrote 1 byte!
 * Fixed a problem where sparse index table lookups didn't work

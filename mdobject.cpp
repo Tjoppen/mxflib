@@ -37,6 +37,65 @@
 using namespace mxflib;
 
 
+
+//! Static primer to use for index tables
+PrimerPtr MDOType::DictManager::StaticPrimer;
+
+
+// Map used to convert KLVLib "DictType" enum to text string of type name
+typedef std::map<DictType, char *> KLVLib_XLateType;
+static KLVLib_XLateType KLVLib_XLate;
+
+
+//! Initialise the table used to convert KLVLib "DictType" enum to text string of type name
+void InitDictType2Text(void)
+{
+	if(KLVLib_XLate.empty())
+	{
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_NONE,"Unknown"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_U8,"Uint8"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I8,"Int8"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_U16,"Uint16"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I16,"Int16"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_U32,"Uint32"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I32,"Int32"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_U64,"Uint64"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I64,"Int64"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_ISO7,"ISO7"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UTF8,"UTF8"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UTF16,"UTF16"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UUID,"UUID"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UMID,"UMID"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_LABEL,"Label"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_TIMESTAMP,"TimeStamp"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_VERTYPE,"VersionType"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_RATIONAL,"Rational"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_BOOLEAN,"Boolean"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_ISO7STRING,"ISO7String"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UTF16STRING,"UTF16String"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_IEEEFLOAT64,"Float64"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_UINT8STRING,"Uint8Array")); // DRAGONS: Is this right?
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_PRODUCTVERSION,"ProductVersion"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_RAW,"Uint8Array"));
+		KLVLib_XLate.insert(KLVLib_XLateType::value_type(DICT_TYPE_I32ARRAY,"Int32Array"));
+	}
+}
+
+
+//! Convert KLVLib "DictType" enum to text string of type name
+/*! \return Pointer to a string constant.
+ *  \return "" if the DictType is not known or is a container (e.g. a pack)
+ */
+char *DictType2Text(DictType Type)
+{
+	KLVLib_XLateType::iterator it = KLVLib_XLate.find(Type);
+	
+	if(it == KLVLib_XLate.end()) return "";
+
+	return (*it).second;
+}
+
+
 //! MDDict constructor
 /*! Loads the dictionary from the specified file
 */
@@ -130,6 +189,7 @@ void MDOType::DictManager::Load(const char *DictFile)
 		}
 	}
 
+/*
 	// DRAGONS: Some debug!
 	MDOTypeList::iterator it = TopTypes.begin();
 	while(it != TopTypes.end())
@@ -154,6 +214,13 @@ void MDOType::DictManager::Load(const char *DictFile)
 
 		it++;
 	}
+*/
+
+	// Build a static primer (for use in index tables)
+	StaticPrimer = MakePrimer();
+
+	// Initialise the map that converts KLVLib dictionary type enums to type names
+	InitDictType2Text();
 }
 
 
@@ -190,54 +257,6 @@ PrimerPtr MDOType::DictManager::MakePrimer(void)
 	}
 
 	return Ret;
-}
-
-
-
-//! Convert KLVLib "DictType" enum to text string of type name
-/*! \return Pointer to a string constant.
- *  \return "" if the DictType is not known or is a container (e.g. a pack)
- */
-char *DictType2Text(DictType Type)
-{
-	typedef std::map<DictType, char *> XLateType;
-	static XLateType XLate;
-
-	if(XLate.empty())
-	{
-		XLate.insert(XLateType::value_type(DICT_TYPE_NONE,"Unknown"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_U8,"Uint8"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_I8,"Int8"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_U16,"Uint16"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_I16,"Int16"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_U32,"Uint32"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_I32,"Int32"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_U64,"Uint64"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_I64,"Int64"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_ISO7,"ISO7"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_UTF8,"UTF8"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_UTF16,"UTF16"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_UUID,"UUID"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_UMID,"UMID"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_LABEL,"Label"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_TIMESTAMP,"TimeStamp"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_VERTYPE,"VersionType"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_RATIONAL,"Rational"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_BOOLEAN,"Boolean"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_ISO7STRING,"ISO7String"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_UTF16STRING,"UTF16String"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_IEEEFLOAT64,"Float64"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_UINT8STRING,"Uint8Array")); // DRAGONS: Is this right?
-		XLate.insert(XLateType::value_type(DICT_TYPE_PRODUCTVERSION,"ProductVersion"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_RAW,"Uint8Array"));
-		XLate.insert(XLateType::value_type(DICT_TYPE_I32ARRAY,"Int32Array"));
-	}
-
-	XLateType::iterator it = XLate.find(Type);
-	
-	if(it == XLate.end()) return "";
-
-	return (*it).second;
 }
 
 
@@ -470,6 +489,7 @@ MDOTypePtr MDOType::Find(ULPtr BaseUL)
 
 //! Find the MDOType object that defines a type with a specified Tag
 /*! The tag is looked up in the supplied primer
+ *	\note if BasePrimer is NULL then a standard dictionary lookup of known static tags is performed
  *  \return Pointer to the object
  *  \return NULL if there is no type with that UL
  */
@@ -477,16 +497,33 @@ MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 {
 	MDOTypePtr theType;
 
-	Primer::iterator it = BasePrimer->find(BaseTag);
-
-	if(it != BasePrimer->end())
+	if(BasePrimer)
 	{
-		UL BaseUL = (*it).second;
-		std::map<UL, MDOTypePtr>::iterator it2 = ULLookup.find(UL(BaseUL));
+		Primer::iterator it = BasePrimer->find(BaseTag);
 
-		if(it2 != ULLookup.end())
+		if(it != BasePrimer->end())
 		{
-			theType = (*it2).second;
+			UL BaseUL = (*it).second;
+			std::map<UL, MDOTypePtr>::iterator it2 = ULLookup.find(UL(BaseUL));
+
+			if(it2 != ULLookup.end())
+			{
+				theType = (*it2).second;
+			}
+		}
+	}
+	else
+	{
+		// See if we know this static tag
+		if(BaseTag < 0x8000)
+		{
+			Uint8 Key[2];
+			Key[0] = BaseTag >> 8;
+			Key[1] = BaseTag & 0xff;
+
+			DictEntry *Dict = FindDictByLocalKey(DictMan.MainDict, 2, Key, NULL);
+
+			if(Dict) return MDOType::Find(new UL(Dict->GlobalKey));
 		}
 	}
 
@@ -606,39 +643,58 @@ MDObject::MDObject(ULPtr UL)
  */
 MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 {
-	Primer::iterator it = BasePrimer->find(BaseTag);
-
-	if(it == BasePrimer->end())
+	// Try and find the tag in the primer
+	if(BasePrimer) 
 	{
-		error("Metadata object with Tag \"%s\" doesn't exist in specified Primer\n", Tag2String(BaseTag).c_str());
+		Primer::iterator it = BasePrimer->find(BaseTag);
 
+	// Didn't find it!!
+		if(it == BasePrimer->end())
+		{
+			error("Metadata object with Tag \"%s\" doesn't exist in specified Primer\n", Tag2String(BaseTag).c_str());
+			
+			// See if we know this tag anyway
+			Type = MDOType::Find(BaseTag, NULL);
+
+			// If it is a "known" static then use it (but still give the error)
+			if(Type) TheUL = Type->TypeUL;
+		}
+		else
+		{
+			// It was found in the primer, so lookup the type from the UL
+			TheUL = new UL((*it).second);
+			Type = MDOType::Find(TheUL);
+		}
+	}
+	else
+	{
+		// No primer supplied - see if we know this tag anyway
+		Type = MDOType::Find(BaseTag, NULL);
+		if(Type) TheUL = Type->TypeUL;
+	}
+
+	// If it was unknown build an "Unknown" and set a meaningful name
+	if(!Type)
+	{
 		Type = MDOType::Find("Unknown");
 
 		ASSERT(Type);
 
-		// DRAGONS: What do we do if the UL is unknown!!
-		TheUL = new UL();
-
-		ObjectName = "Unknown (" + Tag2String(BaseTag) + ")";
-	}
-	else
-	{
-		TheUL = new UL((*it).second);
-
-		Type = MDOType::Find(TheUL);
-
-		if(Type)
+		if(TheUL)
 		{
-			ObjectName = Type->Name();
+			// Tag found, but UL unknown
+			ObjectName = "Unknown (" + Tag2String(BaseTag) + " -> " + TheUL->GetString() + ")";
 		}
 		else
 		{
-			Type = MDOType::Find("Unknown");
-
-			ASSERT(Type);
-
-			ObjectName = "Unknown (" + Tag2String(BaseTag) + " -> " + TheUL->GetString() + ")";
+			// Tag not found, build a blank UL
+			TheUL = new UL();
+			ObjectName = "Unknown (" + Tag2String(BaseTag) + ")";
 		}
+	}
+	else
+	{
+		ObjectName = Type->Name();
 	}
 
 	IsConstructed = true;
@@ -1018,8 +1074,9 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			if(Size <= 8) Size = 0; else Size -= 8;
 			if((ItemSize*Count) != Size)
 			{
-				warning("Malformed batch found, item size = %u, count = %u, but bytes = %u\n",
-						ItemSize, Count, (Size));
+				error("Malformed batch found in %s at 0x%s in %s - item size = %u, count = %u, but bytes = %u\n", 
+					  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str(),
+					  ItemSize, Count, Size);
 
 				// Prevent us reading off the end of the buffer
 				if(Size < (ItemSize*Count))	Count = Size / ItemSize;
@@ -1037,7 +1094,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 		{
 			if(Type->empty())
 			{
-				error("Object %s is a multiple, but has no contained types\n", Name().c_str());
+				error("Object %s at 0x%s in %s is a multiple, but has no contained types\n", FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
 				return Bytes;
 			}
 
@@ -1176,13 +1233,6 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 			// Start with an empty list
 			clear();
-
-			ASSERT(UsePrimer);
-			if(!UsePrimer)
-			{
-				error("No Primer supplier when reading set %s in MDObject::ReadValue()\n", FullName().c_str());
-				return 0;
-			}
 
 			// Scan until out of data
 			while(Size)
@@ -1719,9 +1769,9 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 
 	case DICT_LEN_BER:
 		{
-			DataChunk BER = MakeBER(Length, Size);
-			Buffer.Append(BER);
-			return BER.Size;
+			DataChunkPtr BER = MakeBER(Length, Size);
+			Buffer.Append(*BER);
+			return BER->Size;
 		}
 
 	case DICT_LEN_1_BYTE:		
@@ -1785,14 +1835,18 @@ Uint32 MDObject::WriteKey(DataChunk &Buffer, DictKeyFormat Format, PrimerPtr Use
 	case DICT_KEY_2_BYTE:
 		{ 
 			ASSERT(UsePrimer);
-			
+
 			if(!TheUL)
 			{
 				error("Call to WriteKey() for %s, but the UL is not known\n", FullName().c_str());
 				return 0;
 			}
 
-			Tag UseTag = UsePrimer->Lookup(TheUL,TheTag);
+
+			Tag UseTag;
+			if(UsePrimer) UseTag = UsePrimer->Lookup(TheUL, TheTag);
+			else UseTag = Primer::StaticLookup(TheUL, TheTag);
+
 			Uint8 Buff[2];
 			PutU16(UseTag, Buff);
 

@@ -24,12 +24,14 @@
  *	     distribution.
  */
 
-#include <stdexcept>
-
 #include "mxflib.h"
 
 // Use mxflib by default in library source
 using namespace mxflib;
+
+// Standard library includes
+#include <stdexcept>
+
 
 // Default trait implementations
 ////////////////////////////////
@@ -314,11 +316,8 @@ Int32 mxflib::MDTraits_Int16::GetInt(MDValuePtr Object)
 		return 0;
 	}
 
-	// Build the 16-bit value in a Uint to prevent possible sign problems
-	Uint16 Val = ((Object->GetData().Data)[1] << 8) | (Object->GetData().Data)[0];
-	
-	// Endian swap (if required) and convert to signed, then promote to 32-bit
-	return (Int32) ((Int16)Swap(Val));
+	// Build the 16-bit value
+	return ((Object->GetData().Data)[0] << 8) | (Object->GetData().Data)[1];
 };
 
 //! Get Uint32 from an Int16
@@ -336,10 +335,7 @@ Uint32 mxflib::MDTraits_Int16::GetUint(MDValuePtr Object)
 	}
 
 	// Build the 16-bit value
-	Uint16 Val = ((Object->GetData().Data)[1] << 8) | (Object->GetData().Data)[0];
-	
-	// Endian swap (if required) then promote to 32-bit
-	return (Int32) Swap(Val);
+	return ((Object->GetData().Data)[0] << 8) | (Object->GetData().Data)[1];
 };
 
 
@@ -404,12 +400,9 @@ Int32 mxflib::MDTraits_Int32::GetInt(MDValuePtr Object)
 		return 0;
 	}
 
-	// Build the 32-bit value in a Uint to prevent possible sign problems
-	Uint32 Val = ((Object->GetData().Data)[3] << 24) | ((Object->GetData().Data)[2] << 16)
-		       | ((Object->GetData().Data)[1] << 8) | (Object->GetData().Data)[0];
-	
-	// Endian swap (if required) and convert to signed
-	return (Int32) ((Int32)Swap(Val));
+	// Build the 32-bit value
+	return ((Object->GetData().Data)[0] << 24) | ((Object->GetData().Data)[1] << 16)
+		 | ((Object->GetData().Data)[2] << 8) | (Object->GetData().Data)[3];
 };
 
 //! Get Uint32 from an Int32
@@ -511,15 +504,12 @@ Int64 mxflib::MDTraits_Int64::GetInt64(MDValuePtr Object)
 	}
 
 	// Build the 64-bit value using Uint32s to prevent possible sign problems
-	Uint32 HiVal = ((Object->GetData().Data)[7] << 24) | ((Object->GetData().Data)[6] << 16)
-		         | ((Object->GetData().Data)[5] << 8) | (Object->GetData().Data)[4];
-	Uint32 LoVal = ((Object->GetData().Data)[3] << 24) | ((Object->GetData().Data)[2] << 16)
-		         | ((Object->GetData().Data)[1] << 8) | (Object->GetData().Data)[0];
+	Uint32 HiVal = ((Object->GetData().Data)[0] << 24) | ((Object->GetData().Data)[1] << 16)
+		         | ((Object->GetData().Data)[2] << 8) | (Object->GetData().Data)[3];
+	Uint32 LoVal = ((Object->GetData().Data)[4] << 24) | ((Object->GetData().Data)[5] << 16)
+		         | ((Object->GetData().Data)[6] << 8) | (Object->GetData().Data)[7];
 
-	Uint64 Val = (Uint64(HiVal) << 32) | LoVal;
-
-	// Endian swap (if required) and convert to signed
-	return (Int64) ((Int64)Swap(Val));
+	return (Uint64(HiVal) << 32) | LoVal;
 };
 
 //! Get Uint64

@@ -142,6 +142,17 @@ bool SourceClip::MakeLink(TrackPtr SourceTrack, Int64 StartPosition /*=0*/)
 }
 
 
+//! Make a link to a UMID and TrackID
+bool SourceClip::MakeLink(UMIDPtr LinkUMID, Uint32 LinkTrackID, Int64 StartPosition /*=0*/)
+{
+	SetInt64("StartPosition", StartPosition);
+	SetUint("SourceTrackID", LinkTrackID);
+	SetValue("SourcePackageID", DataChunk(32, LinkUMID->GetValue()));
+
+	return true;
+}
+
+
 //! Set the duration for this Timecode Component and update the track's sequence duration
 /*! \param Duration The duration of this Timecode Component, -1 or omitted for unknown */
 void TimecodeComponent::SetDuration(Int64 Duration /*=-1*/)
@@ -473,15 +484,21 @@ Int64 Track::UpdateDuration(void)
 
 //! Add a timeline track to the package
 /*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
-TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string EditRate, std::string TrackName /*=""*/, Uint32 TrackID /*=0*/)
+TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, std::string TrackName /*=""*/, Uint32 TrackID /*=0*/)
 {
 	TrackPtr Ret = new Track("Track");
 	if(!Ret) return Ret;
 
 	if(TrackName.length()) Ret->SetString("TrackName", TrackName);
 	Ret->SetInt("TrackNumber", TrackNumber);
-	Ret->SetString("EditRate", EditRate);
 	Ret->SetInt64("Origin", 0);
+
+	MDObjectPtr Ptr = Ret->AddChild("EditRate");
+	if(Ptr)
+	{
+		Ptr->SetInt("Numerator", EditRate.Numerator);
+		Ptr->SetInt("Denominator", EditRate.Denominator);
+	}
 
 	// Auto set the track ID if not supplied
 	if(TrackID == 0)
@@ -514,3 +531,22 @@ TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string EditRa
 	return Ret;
 }
 
+
+//! Update the duration field in each sequence in each track for this package
+void Package::UpdateDurations(void)
+{
+	MDObjectPtr Tracks = Child("Tracks");
+	if(!Tracks) return;
+
+	MDObjectNamedList::iterator it = Tracks->begin();
+	while(it != Tracks->end())
+	{
+		MDObjectPtr ThisLink = (*it).second->GetLink();
+		if(ThisLink)
+		{
+			TrackPtr ThisTrack = new Track(ThisLink);
+			ThisTrack->UpdateDuration();
+		}
+		it++;
+	}
+}

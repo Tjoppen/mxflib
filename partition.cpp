@@ -289,13 +289,13 @@ Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 			break;
 		}
 
-		// Sanity check the keys
+/*		// Sanity check the keys
 		if((BuffPtr[0] != 6) || (BuffPtr[1] != 0x0e))
 		{
 			error("Invalid KLV key found at 0x%s in file \"%s\"\n", Int64toHexString(File->Tell(),8).c_str(), File->Name.c_str() );
 			break;
 		}
-
+*/
 		// Build an object (it may come back as an "unknown")
 		MDObjectPtr NewItem = new MDObject(new UL(BuffPtr));
 		ASSERT(NewItem);
@@ -448,7 +448,7 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 	while(Size)
 	{
 		Uint64 Location = File->Tell();
-		MDObjectPtr NewIndex = File->ReadObject(PartitionPrimer);
+		MDObjectPtr NewIndex = File->ReadObject(NULL);
 		if(NewIndex)
 		{
 			if((NewIndex->Name() == "IndexTableSegment") || (NewIndex->Name() == "V10IndexTableSegment"))
@@ -468,7 +468,7 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 		}
 
 		Uint64 Bytes = File->Tell() - Location;
-		if(Bytes < Size) break;
+		if(Bytes > Size) break;
 
 		Size -= Bytes;
 	}

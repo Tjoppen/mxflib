@@ -44,9 +44,6 @@ void DumpObject(MDObjectPtr Object, std::string Prefix);
 
 
 
-//################### DEBUG ######################
-bool MakeFile(void);
-
 
 
 int main(int argc, char *argv[])
@@ -55,12 +52,7 @@ int main(int argc, char *argv[])
 
 	if(argc < 2)
 	{
-LoadTypes("types.xml");
-MDOType::LoadDict("XMLDict.xml");
-//DebugMode = true;
-
-MakeFile();
-//		printf("\nUsage:  Test <filename>\n");
+		printf("\nUsage:  Test <filename>\n");
 		return -1;
 	}
 
@@ -270,9 +262,9 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 		else
 		{
 			if(Object->Value)
-if(Object->Name().find("Unknown") == std::string::npos)
+//if(Object->Name().find("Unknown") == std::string::npos)
 				printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
-else printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
+//else			printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 			else
 				printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 		}
@@ -289,42 +281,6 @@ else printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 }
 
 
-bool MakeFile(void)
-{
-//=========================
-/*{
-	MXFFilePtr Out = new MXFFile;
-	Out->OpenNew("Test.mxf");
-	Out->WritePartition(ThisPartition);
-	Out->Close();
-}*/
-//=========================
-
-	std::string Now = Now2String();
-	MetadataPtr MData = new Metadata(Now);
-	ASSERT(MData);
-
-	PackagePtr MaterialPackage = MData->AddMatarialPackage("Material Package");
-	MData->SetPrimaryPackage(MaterialPackage);
-
-//	MaterialPackage->AddPictureTrack();
-//	MaterialPackage->AddTrack(NULL, 0x12345678, "Picture");
-
-	// ==== Build a file ====
-
-	PartitionPtr ThisPartition = new Partition("ClosedCompleteHeader");
-	ASSERT(ThisPartition);
-	ThisPartition->SetKAG(256);			// Everything else can stay at default
-
-	ThisPartition->AddMetadata(MData);
-
-	MXFFilePtr Out = new MXFFile;
-	Out->OpenNew("Test.mxf");
-	Out->WritePartition(ThisPartition);
-	Out->Close();
-
-	return true;
-}
 
 
 

@@ -41,6 +41,9 @@ bool mxflib::MXFFile::Open(std::string FileName, bool ReadOnly /* = false */ )
 {
 	if(isOpen) Close();
 
+	// Set to be a normal file
+	isMemoryFile = false;
+
 	// Record the name
 	Name = FileName;
 
@@ -66,6 +69,9 @@ bool mxflib::MXFFile::OpenNew(std::string FileName)
 {
 	if(isOpen) Close();
 
+	// Set to be a normal file
+	isMemoryFile = false;
+
 	// Record the name
 	Name = FileName;
 
@@ -77,6 +83,28 @@ bool mxflib::MXFFile::OpenNew(std::string FileName)
 
 	// No run-in yet
 	RunInSize = 0;
+
+	return true;
+}
+
+
+bool mxflib::MXFFile::OpenMemory(DataChunkPtr Buff /*=NULL*/, Uint64 Offset /*=0*/)
+{
+	if(isOpen) Close();
+
+	// Set to be a memory file
+	isMemoryFile = true;
+
+	if(Buff) Buffer = Buff;
+	else Buffer = new DataChunk();
+
+	// If no granularity set use 64k
+	if(!Buffer->GetGranularity()) Buffer->SetGranularity(64 * 1024);
+
+	BufferOffset = Offset;
+
+	// Start at the start of the stream
+	BufferCurrentPos = 0;
 
 	return true;
 }
@@ -138,7 +166,7 @@ bool mxflib::MXFFile::ReadRunIn()
 		RunInSize++;
 	}
 
-	error("Cannot find valid key in first 65536 bytes of file \"%s\"\n", Name);
+	error("Cannot find valid key in first 65536 bytes of file \"%s\"\n", Name.c_str());
 	Seek(0);
 	return false;
 }
@@ -147,7 +175,17 @@ bool mxflib::MXFFile::ReadRunIn()
 //! Close the file
 bool mxflib::MXFFile::Close(void)
 {
-	if(isOpen) FileClose(Handle);
+	if(isOpen) 
+	{
+		if(isMemoryFile)
+		{
+			Buffer = NULL;
+		}
+		else
+		{
+			FileClose(Handle);
+		}
+	}
 
 	isOpen = false;
 
@@ -162,7 +200,22 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 
 	if(Size)
 	{
-		Uint64 Bytes = FileRead(Handle, Ret->Data, Size);
+		Uint64 Bytes;
+
+		if(isMemoryFile)
+		{
+			if(Size > 0xffffffff)
+			{
+				error("Memory file reading is limited to 4Gb\n");
+				Size = 0xffffffff;
+			}
+
+			Bytes = MemoryRead(Ret->Data, Size);
+		}
+		else
+		{
+			Bytes = FileRead(Handle, Ret->Data, Size);
+		}
 
 		// Handle errors
 		if(Bytes == (Uint64)-1)
@@ -176,6 +229,7 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 
 	return Ret;
 }
+
 
 //! Get a RIP for the open MXF
 /*! The RIP is read using ReadRIP() if possible.
@@ -723,13 +777,14 @@ ULPtr mxflib::MXFFile::ReadKey(void)
 	// If we couldn't read 16-bytes then bug out (this may be valid)
 	if(Key->Size != 16) return Ret;
 
+/*
 	// Sanity check the keys
 	if((Key->Data[0] != 6) || (Key->Data[1] != 0x0e))
 	{
 		error("Invalid KLV key found at 0x%s in file \"%s\"\n", Int64toHexString(Location, 8).c_str(), Name.c_str());
 		return Ret;
 	}
-
+*/
 	// Build the UL
 	Ret = new UL(Key->Data);
 
@@ -754,6 +809,7 @@ void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer
 	{
 		ThisPartition->SetInt64("FooterPartition", CurrentPosition);
 		ThisPartition->SetUint("BodySID", 0);
+		ThisPartition->SetUint64("BodyOffset", 0);
 	}
 
 	// Find the current partition at this location, or the nearest after it
@@ -772,12 +828,14 @@ void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer
 	FileRIP.AddPartition(NULL, CurrentPosition, ThisPartition->GetUint("BodySID"));
 
 	ThisPartition->WriteObject(Buffer, UsePrimer);
-	FileWrite(Handle, Buffer.Data, Buffer.Size);
+
+	Write(Buffer.Data, Buffer.Size);
 };
 
 
 //! Calculate the size of a filler to align to a specified KAG
-Uint32 MXFFile::FillerSize(Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize /*=0*/)
+/*! Note: Maximum supported filler size is 0x00ffffff bytes */
+Uint32 MXFFile::FillerSize(bool ForceBER4, Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize /*=0*/)
 {
 	if(KAGSize == 0) KAGSize = 1;
 
@@ -795,20 +853,37 @@ Uint32 MXFFile::FillerSize(Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize /*=0*/
 
 	// Adjust so that the filler can fit
 	// Note that for very small KAGs the filler may be several KAGs long
-	while(Fill < 17) Fill += KAGSize;
+	if(ForceBER4)
+	{
+		while(Fill < 20) Fill += KAGSize;
+	}
+	else
+	{
+		while(Fill < 17) Fill += KAGSize;
+	}
+
+	if(Fill > 0x00ffffff)
+	{
+		error("Maximum supported filler is 0x00ffffff bytes long, "
+			  "but attempt to fill from 0x%s to KAG of 0x%08x with "
+			  "MinSize=0x%08x requires a filler of size 0x%08x\n",
+			  Int64toHexString(FillPos, 8).c_str(), KAGSize, MinSize, Fill);
+		Fill = 0x00ffffff;
+	}
 
 	return Fill;
 }
 
 
 //! Write a filler to align to a specified KAG
-/*! \return The position after aligning */
-Uint64 MXFFile::Align(Uint32 KAGSize, Uint32 MinSize /*=0*/)
+/*! \return The position after aligning
+ */
+Uint64 MXFFile::Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize /*=0*/)
 {
 	if(KAGSize == 0) KAGSize = 1;
 
 	// Work out how big a filler we need
-	Uint32 Fill = FillerSize(Tell(), KAGSize, MinSize);
+	Uint32 Fill = FillerSize(ForceBER4, Tell(), KAGSize, MinSize);
 
 	// Nothing to do!
 	if(Fill == 0) return Tell();
@@ -822,7 +897,7 @@ Uint64 MXFFile::Align(Uint32 KAGSize, Uint32 MinSize /*=0*/)
 
 	// Calculate filler length for shortform BER length
 	Fill -= 17;
-	if(Fill <= 3)
+	if((!ForceBER4) && (Fill < 3))
 	{
 		WriteU8(Fill);
 	}
@@ -830,16 +905,7 @@ Uint64 MXFFile::Align(Uint32 KAGSize, Uint32 MinSize /*=0*/)
 	{
 		// Adjust for 4-byte BER length
 		Fill -= 3;
-		if(Fill <= 0x00ffffff)
-		{
-			Write(MakeBER(Fill, 4));
-		}
-		else
-		{
-			// Must fit in 5-byte BER as we are only working with a Uint32
-			Fill -= 1;
-			Write(MakeBER(Fill, 5));
-		}
+		Write(*MakeBER(Fill, 4));
 	}
 
 	// Write the filler value
@@ -994,5 +1060,55 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 	return true;
 };
+
+
+Uint32 MXFFile::MemoryWrite(Uint8 const *Data, Uint32 Size)
+{
+	if(BufferCurrentPos < BufferOffset)
+	{
+		error("Cannot currently write to a memory file before the buffer start\n");
+		return 0;
+	}
+
+	// Copy the data to the buffer
+	Buffer->Set(Size, Data, (BufferCurrentPos - BufferOffset));
+
+	// Update the pointer
+	BufferCurrentPos += Size;
+
+	// Return the number of bytes written
+	return Size;
+}
+
+
+Uint32 MXFFile::MemoryRead(Uint8 *Data, Uint32 Size)
+{
+	if(BufferCurrentPos < BufferOffset)
+	{
+		error("Cannot currently read from a memory file before the buffer start\n");
+		return 0;
+	}
+
+	if((BufferCurrentPos - BufferOffset) <= Buffer->Size)
+	{
+		error("Cannot currently read beyond the end of a memory file buffer\n");
+		return 0;
+	}
+
+	// Work out how many bytes we can read
+	int MaxBytes = Buffer->Size - (BufferCurrentPos - BufferOffset);
+
+	// Limit our read to the max available
+	if(Size < MaxBytes) Size = MaxBytes;
+
+	// Copy the data from the buffer
+	memcpy(Data, &Buffer->Data[BufferCurrentPos - BufferOffset], Size);
+
+	// Update the pointer
+	BufferCurrentPos += Size;
+
+	// Return the number of bytes read
+	return Size;
+}
 
 

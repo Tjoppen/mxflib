@@ -46,27 +46,32 @@ namespace mxflib
 	{
 	private:
 		Uint32 DataSize;
+		Uint32 AllocationGranularity;			// Granulatiry of new memory allocations
+		bool ExternalBuffer;
 
 	public:
 		Uint32 Size;
 		Uint8 *Data;
 
 		//! Construct an empty data chunk
-		DataChunk() : DataSize(0), Size(0) , Data(NULL) {};
+		DataChunk() : DataSize(0), Size(0) , Data(NULL), AllocationGranularity(0), ExternalBuffer(false) {};
 
 		//! Construct a data chunk with a pre-allocated buffer
-		DataChunk(Uint64 BufferSize) : DataSize(0), Size(0) , Data(NULL) { Resize(BufferSize); };
+		DataChunk(Uint64 BufferSize) : DataSize(0), Size(0) , Data(NULL), AllocationGranularity(0), ExternalBuffer(false) { Resize(BufferSize); };
 
 		//! Construct a data chunk with contents
-		DataChunk(Uint64 MemSize, const Uint8 *Buffer) : DataSize(0), Size(0), Data(NULL) { Set(MemSize, Buffer); };
+		DataChunk(Uint64 MemSize, const Uint8 *Buffer) : DataSize(0), Size(0), Data(NULL), AllocationGranularity(0), ExternalBuffer(false) { Set(MemSize, Buffer); };
 
 		//! Construct a data chunk from an identifier
-		template<int SIZE> DataChunk(const Identifier<SIZE> *ID)  : DataSize(0), Size(0) , Data(NULL) { Set(ID->Size(), ID->GetValue() ); };
+		template<int SIZE> DataChunk(const Identifier<SIZE> *ID)  : DataSize(0), Size(0) , Data(NULL), AllocationGranularity(0), ExternalBuffer(false) { Set(ID->Size(), ID->GetValue() ); };
 
 		//! Data chunk copy constructor
-		DataChunk(const DataChunk &Chunk) : DataSize(0), Size(0) , Data(NULL) { Set(Chunk.Size, Chunk.Data); };
+		DataChunk(const DataChunk &Chunk) : DataSize(0), Size(0) , Data(NULL), AllocationGranularity(0), ExternalBuffer(false) { Set(Chunk.Size, Chunk.Data); };
 
-		~DataChunk() { if(Data) delete[] Data; };
+		~DataChunk() 
+		{ 
+			if((!ExternalBuffer) && (Data)) delete[] Data; 
+		};
 
 		//! Resize the data chunk, preserving contents
 		void Resize(Uint32 NewSize)
@@ -79,11 +84,27 @@ namespace mxflib
 				return;
 			}
 
-			Uint8 *NewData = new Uint8[NewSize];
+			Uint32 AllocSize = NewSize;
+			if(AllocationGranularity)
+			{
+//debug("AllocGran = %u, NewSize = %u, ", AllocationGranularity, NewSize);
+				// Apply allocation granularity
+				Uint32 AllocSize = (NewSize-1) / AllocationGranularity;
+//debug("AllocSize = %u, ", AllocSize);
+				AllocSize = (AllocSize+1) * AllocationGranularity;
+//debug("AllocSize = %u\n", AllocSize);
+			}
+
+			Uint8 *NewData = new Uint8[AllocSize];
 			if(Size) memcpy(NewData, Data, Size);
-			if(Data) delete[] Data;
+			
+//debug("Changing Buffer @ 0x%08x -> 0x%08x (0x%04x)\n", (int)Data, (int)NewData, (int)AllocSize);
+			if((!ExternalBuffer) && (Data)) delete[] Data;
+			ExternalBuffer = false;
+			
 			Data = NewData;
-			DataSize = Size = NewSize;
+			DataSize = AllocSize;
+			Size = NewSize;
 		}
 
 		//! Resize the data buffer, preserving contents
@@ -92,11 +113,38 @@ namespace mxflib
 		{
 			if(DataSize >= NewSize) return;
 
+			if(AllocationGranularity)
+			{
+				// Apply allocation granularity
+				NewSize = (NewSize-1) / AllocationGranularity;
+				NewSize = (NewSize+1) * AllocationGranularity;
+			}
+
 			Uint8 *NewData = new Uint8[NewSize];
 			if(Size) memcpy(NewData, Data, Size);
-			if(Data) delete[] Data;
+
+//debug("Changing Buffer @ 0x%08x -> 0x%08x (0x%04x)+\n", (int)Data, (int)NewData, (int)NewSize);
+			if((!ExternalBuffer) && (Data)) delete[] Data;
+			ExternalBuffer = false;
+			
 			Data = NewData;
 			DataSize = NewSize;
+		}
+
+		//! Steal the buffer belonging to this data chunk
+		/*! The buffer is detached and ownership moves to the caller.
+		 *	It is the caller's responsibility to free the buffer with <b>delete[]</b> at a later point.
+		 *	The data chunk will not be empty after the call, but the ownership will be transferred
+		 *	\return pointer to the buffer or NULL if no buffer or not owned by this object
+		 */
+		Uint8 *StealBuffer(void)
+		{
+//debug("StealBuffer @ 0x%08x\n", (int)Data);
+			if(ExternalBuffer) return NULL;
+
+			ExternalBuffer = true;
+
+			return Data;
 		}
 
 		//! Set some data into a data chunk (expanding it if required)
@@ -108,6 +156,7 @@ namespace mxflib
 		//! Set some data into a data chunk (expanding it if required)
 		void Set(Uint32 MemSize, const Uint8 *Buffer, Uint32 Start = 0)
 		{
+//debug("Set MemSize = 0x%04x, Start = 0x%04x\n", (int)MemSize, (int)Start);
 			if(Size < (MemSize + Start)) Resize(MemSize + Start);
 
 			memcpy(&Data[Start], Buffer, MemSize);
@@ -164,6 +213,30 @@ namespace mxflib
 
 			return Ret;
 		};
+
+		//! Allocation granularity access functions
+		void SetGranularity(Uint32 Gran) { AllocationGranularity = Gran; };
+		Uint32 GetGranularity(void) { return AllocationGranularity; };
+
+		//! Set an external buffer as the data buffer
+		/*! \note If an external buffer has been set for a DataChunk it may not
+		 *		  stay as the buffer in use. This is because there may not be
+		 *		  enough room in the buffer to hold new data. Therefore it is
+		 *		  important that the value of property <tt><b>Data</b></tt> is checked
+		 *		  before assuming the external buffer is still in use.
+		 */
+		void SetBuffer(Uint8 *Buffer, Uint32 BuffSize, Uint32 AllocatedSize = 0)
+		{
+//debug("Setting Buffer @ 0x%08x -> 0x%08x\n", (int)Data, (int)Buffer);
+			if((!ExternalBuffer) && (Data)) delete[] Data;
+
+			Size = BuffSize;
+
+			if(AllocatedSize == 0) DataSize = BuffSize;
+			else DataSize = AllocatedSize;
+
+			ExternalBuffer = true;
+		}
 	};
 }
 

@@ -34,6 +34,8 @@ namespace mxflib {}
 
 #include "debug.h"
 
+#include "forward.h"
+
 #include "endian.h"
 
 #include "smartptr.h"
@@ -48,15 +50,6 @@ namespace mxflib {}
 #include "mdtype.h"
 #include "deftypes.h"
 
-// DRAGONS: Probably need a special header full of smart pointer defs!
-namespace mxflib
-{
-	class MXFFile;
-
-	//! A smart pointer to an MXFFile object
-	typedef SmartPtr<MXFFile> MXFFilePtr;
-}
-
 #include "klvobject.h"
 
 #include "mdobject.h"
@@ -68,6 +61,12 @@ namespace mxflib
 #include "mxffile.h"
 
 #include "index.h"
+
+#include "essence.h"
+
+#include "esp_mpeg2ves.h"
+#include "esp_wavepcm.h"
+#include "esp_dvdif.h"
 
 #endif MXFLIB__MXFLIB_H
 
