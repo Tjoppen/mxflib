@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.7 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: system.h,v 1.8 2004/12/18 20:35:15 matt-beard Exp $
  *
  */
 /*
@@ -437,7 +437,7 @@ namespace mxflib
 		Buffer[8] &= 0x3f;
 		Buffer[8] |= 0x80;
 
-		// Set version bits (varsion "0100" = random or pseudo-random)
+		// Set version bits (version "0100" = random or pseudo-random)
 		Buffer[7] &= 0x0f;
 		Buffer[7] |= 0x40;
 	}
