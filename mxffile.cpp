@@ -225,7 +225,7 @@ bool mxflib::MXFFile::ReadRIP(void)
 		it++;
 		if(it == PartitionArray->end())
 		{
-			error("Unexpected end of pack in RIP at %s", RIPObject->GetSourceLocation().c_str());
+			error("Unexpected end of pack in RIP at %s\n", RIPObject->GetSourceLocation().c_str());
 			break;
 		}
 
@@ -557,8 +557,8 @@ bool mxflib::MXFFile::BuildRIP(void)
 			Uint64 NextPos = PreSkip + Skip;
 			if( Seek(NextPos) != NextPos)
 			{
-				error("Unexpected end of file in partition starting at 0x%s in file \"%s\"\n",
-					  Int64toHexString(Location,8).c_str(), Name.c_str());
+				error("Unexpected end of file in partition starting at 0x%s in file \"%s\" (Trying to skip from 0x%s to 0x%s)\n",
+					  Int64toHexString(Location,8).c_str(), Name.c_str(), Int64toHexString(PreSkip,8).c_str(), Int64toHexString(NextPos,8).c_str());
 				return false;
 			}
 
@@ -615,11 +615,11 @@ bool mxflib::MXFFile::BuildRIP(void)
 			Uint64 NextPos = Tell() + Skip;
 			if( Seek(NextPos) != NextPos)
 			{
-				error("Unexpected end of file in KLV starting at 0x%s in file \"%s\"\n",
-					  Int64toHexString(Location,8).c_str(), Name.c_str());
+				error("Unexpected end of file in KLV starting at 0x%s in file \"%s\" (Trying to skip from 0x%s to 0x%s)\n",
+					  Int64toHexString(Location,8).c_str(), Name.c_str(), Int64toHexString(NextPos - Skip,8).c_str(), Int64toHexString(NextPos,8).c_str());
 				return false;
 			}
-			
+
 			if(Eof()) break;
 		}
 
