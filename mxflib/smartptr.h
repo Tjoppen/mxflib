@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: smartptr.h,v 1.3 2005/03/25 13:15:12 terabrit Exp $
  *
  */
 /*
@@ -550,7 +550,7 @@ namespace mxflib
 		}
 
 		//! Copy construct
-		ParentPtr(ParentPtr &rhs)
+		ParentPtr(const ParentPtr &rhs)
 		{
 			__m_refcount = NULL;
 			__Assign(rhs.GetRef());
