@@ -10,6 +10,8 @@
  *			These classes are currently wrappers around KLVLib structures
  */
 /*
+ *	$Id: mdobject.h,v 1.15 2003/11/25 18:44:45 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -38,8 +40,8 @@
 // Include the KLVLib header
 extern "C"
 {
-#include "Klv.h"						//!< The KLVLib header
-#include "Dict.h"
+#include <Klv.h>						//!< The KLVLib header
+#include <Dict.h>
 }
 
 
