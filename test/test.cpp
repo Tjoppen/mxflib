@@ -84,9 +84,9 @@ MakeFile();
 	RIP::iterator it = TestFile->FileRIP.begin();
 	while(it != TestFile->FileRIP.end())
 	{
-		printf("\nPartition at 0x%s is for BodySID 0x%04x\n", Int64toHexString((*it)->ByteOffset,8).c_str(), (*it)->BodySID);
+		printf("\nPartition at 0x%s is for BodySID 0x%04x\n", Int64toHexString((*it).second->ByteOffset,8).c_str(), (*it).second->BodySID);
 
-		TestFile->Seek((*it)->ByteOffset);
+		TestFile->Seek((*it).second->ByteOffset);
 		PartitionPtr ThisPartition = TestFile->ReadPartition();
 		if(ThisPartition)
 		{
@@ -168,13 +168,13 @@ MakeFile();
 	if(TestFile->ReadRIP())
 	{
 		printf("\nRead RIP\n");
-		PartitionInfoList::iterator it = TestFile->FileRIP.begin();
+		PartitionInfoMap::iterator it = TestFile->FileRIP.begin();
 		while(it != TestFile->FileRIP.end())
 		{
-			printf("  BodySID 0x%04x is at 0x%s", (*it)->BodySID, Int64toHexString((*it)->ByteOffset,8).c_str());
+			printf("  BodySID 0x%04x is at 0x%s", (*it).second->BodySID, Int64toHexString((*it).second->ByteOffset,8).c_str());
 
-			if((*it)->ThePartition)
-				printf(" type %s\n", (*it)->ThePartition->Name().c_str());
+			if((*it).second->ThePartition)
+				printf(" type %s\n", (*it).second->ThePartition->Name().c_str());
 			else
 				printf(" and is not loaded\n");
 
@@ -185,13 +185,13 @@ MakeFile();
 	if(TestFile->ScanRIP())
 	{
 		printf("\nScanned RIP\n");
-		PartitionInfoList::iterator it = TestFile->FileRIP.begin();
+		PartitionInfoMap::iterator it = TestFile->FileRIP.begin();
 		while(it != TestFile->FileRIP.end())
 		{
-			printf("  BodySID 0x%04x is at 0x%s", (*it)->BodySID, Int64toHexString((*it)->ByteOffset,8).c_str());
+			printf("  BodySID 0x%04x is at 0x%s", (*it).second->BodySID, Int64toHexString((*it).second->ByteOffset,8).c_str());
 
-			if((*it)->ThePartition)
-				printf(" type %s\n", (*it)->ThePartition->Name().c_str());
+			if((*it).second->ThePartition)
+				printf(" type %s\n", (*it).second->ThePartition->Name().c_str());
 			else
 				printf(" and is not loaded\n");
 
@@ -270,7 +270,9 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 		else
 		{
 			if(Object->Value)
+if(Object->Name().find("Unknown") == std::string::npos)
 				printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+else printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 			else
 				printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 		}
@@ -305,7 +307,7 @@ bool MakeFile(void)
 	PackagePtr MaterialPackage = MData->AddMatarialPackage("Material Package");
 	MData->SetPrimaryPackage(MaterialPackage);
 
-	MaterialPackage->AddPictureTrack(0x12345678);
+//	MaterialPackage->AddPictureTrack();
 //	MaterialPackage->AddTrack(NULL, 0x12345678, "Picture");
 
 	// ==== Build a file ====
