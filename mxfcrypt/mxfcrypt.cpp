@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.1.2.5 2004/11/05 16:50:12 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.1.2.6 2004/11/11 10:14:54 matt-beard Exp $
  *
  */
 /*
@@ -35,7 +35,7 @@ using namespace mxflib;
 #include <stdlib.h>
 
 // Include AES encryption from OpenSSL
-#include "aes.h"
+#include "openssl\aes.h"
 
 
 using namespace std;
