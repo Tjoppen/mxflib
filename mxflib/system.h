@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.5 2004/05/06 15:07:27 stuart_hc Exp $
+ *	\version $Id: system.h,v 1.6 2004/05/12 17:09:33 matt-beard Exp $
  *
  */
 /*
@@ -117,19 +117,13 @@ namespace mxflib
 	/******** ENDIAN SWAPPING ********/
 	inline Uint16 Swap(Uint16 Val) 
 	{
-		if (!littleEndian)
-			return Val;
-		else	
-			return ((Val & 0xff00) >> 8) | ((Val & 0x00ff) << 8); 
+		return ((Val & 0xff00) >> 8) | ((Val & 0x00ff) << 8); 
 	};
 
 	inline Int16 Swap(Int16 Val) { return (Int16)Swap((Uint16)Val); };
 	
 	inline Uint32 Swap(Uint32 Val) 
 	{ 
-		if (!littleEndian)
-			return Val;
-
 		return ( ((Val & 0xff000000) >> 24)
 			   | ((Val & 0x00ff0000) >> 8)
 			   | ((Val & 0x0000ff00) << 8)
@@ -139,9 +133,6 @@ namespace mxflib
 
 	inline Uint64 Swap(Uint64 Val) 
 	{ 
-		if (!littleEndian)
-			return Val;
-
 		Uint32 MSW = (Uint32)((Val & 0xffffffff00000000) >> 32);
 		Uint32 LSW = (Uint32)(Val & 0x00000000ffffffff);
 
