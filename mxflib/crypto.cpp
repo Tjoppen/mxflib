@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.1.2.3 2004/06/26 18:06:11 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.1.2.4 2004/07/05 14:46:48 matt-beard Exp $
  *
  */
 /*
@@ -74,8 +74,6 @@ DataChunkPtr KLVEObject::GetDecryptIV(void)
 KLVEObject::KLVEObject(ULPtr ObjectUL)
 	: KLVObject(ObjectUL)
 {
-	OuterLength = 0;
-
 	Init();
 }
 
@@ -93,7 +91,7 @@ KLVEObject::KLVEObject(KLVObjectPtr &Object)
 	DestFile = Object->DestFile;
 	DestOffset = Object->DestOffset;
 	ValueLength = Object->ValueLength;
-	OuterLength = ValueLength;
+	OuterLength = Object->OuterLength;
 	ReadHandler = Object->ReadHandler;
 
 	// Initially ensume that the KLVObject contains plaintext
@@ -173,9 +171,6 @@ Int32 KLVEObject::ReadKL(void)
 {
 	// Read the actual KL
 	Base_ReadKL();
-
-	// Record the "Outer" length
-	OuterLength = ValueLength;
 
 	// Force loading of AS-DCP header data if we are decrypting
 	if(Decrypt)
@@ -390,7 +385,8 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	// Load the header if required (and if we can!)
 	if(!DataLoaded) if(!LoadData()) return 0;
 
-	// FIXME: We should check the IV and Check here -- and trim padding
+	// Don't try reading off the end
+	if(Offset >= ValueLength) return 0;
 
 	// FIXME: We need some way to update the IV and ensure we only read/decrypt on 16-byte boundaries!!
 
@@ -404,7 +400,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 		}
 
 		// Initialize the decryption engine with the specified Initialization Vector
-		Decrypt->SetIV(16, Data.Data);
+		Decrypt->SetIV(16, Data.Data, true);
 
 		// Decrypt the check value...
 		DataChunkPtr PlainCheck = Decrypt->Decrypt(16, &Data.Data[16]);
@@ -419,7 +415,15 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	}
 
 	// Read the encrypted data (and reset size to what we actually read)
-	Size = Base_ReadDataFrom(DataOffset + Offset, Size);
+	Length NewSize = Base_ReadDataFrom(DataOffset + Offset, Size);
+
+	// Resize if less bytes than requested were actualy read
+	if(NewSize != Size)
+	{
+		Size = NewSize;
+		Data.Resize(Size);
+		if(Size == 0) return 0;
+	}
 
 	// See if we can decrypt this in place...
 	if(Decrypt->CanDecryptInPlace(Size))
@@ -429,6 +433,14 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 			Data.Resize(0);
 			return 0;
 		}
+
+		// Remove any padding if required
+		if(Offset + Size > ValueLength)
+		{
+			Size = ValueLength - Offset;
+			Data.Resize(Size);
+		}
+
 		return Size;
 	}
 
@@ -442,6 +454,13 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 
 	// Take over the buffer from the decrypted data
 	Data.TakeBuffer(NewData);
+
+	// Remove any padding if required
+	if(Offset + Size > ValueLength)
+	{
+		Size = ValueLength - Offset;
+		Data.Resize(Size);
+	}
 
 	return Size;
 }
@@ -717,11 +736,8 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	// Set the length to be the size of the header plus the size of the encrypted data
 	OuterLength = DataOffset + EncryptedLength;
 
-	// Start off with the actual KL (but substituting the outer length via a quick shuffle!)
-	Length Temp = ValueLength;
-	ValueLength = OuterLength;
-	Uint32 KLBytes = Base_WriteKL(LenSize);
-	ValueLength = Temp;
+	// Start off with the actual KL - using the OuterLength to include the header
+	Uint32 KLBytes = Base_WriteKL(LenSize, OuterLength);
 
 	// Then write the header
 	DestFile->Write(Buffer, DataOffset);
