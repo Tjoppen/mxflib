@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.8 2004/07/21 10:46:53 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.9 2004/09/06 00:08:13 matt-beard Exp $
  *
  */
 /*
@@ -55,6 +55,9 @@ namespace mxflib
 	class EssenceSource : RefCount<EssenceSource>
 	{
 	public:
+		//! Virtual destructor to allow polymorphism
+		virtual ~EssenceSource() { };
+
 		//! Get the size of the essence data in bytes
 		/*! \note There is intentionally no support for an "unknown" response */
 		virtual Uint64 GetEssenceDataSize(void) = 0;
@@ -66,9 +69,13 @@ namespace mxflib
 		 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 		 */
 		virtual DataChunkPtr GetEssenceData(Uint64 Size = 0, Uint64 MaxSize = 0) = 0;
-
-		virtual ~EssenceSource() { };
 	};
+
+	// Smart pointer to an EssenceSource object
+	typedef SmartPtr<EssenceSource> EssenceSourcePtr;
+
+	// List of smart pointer to EssenceSource objects
+	typedef std::list<EssenceSourcePtr> EssenceSourceList;
 }
 
 
@@ -562,6 +569,86 @@ namespace mxflib
 
 namespace mxflib
 {
+	//! Base class for handlers to receive notification of the next file about to be opened
+	class NewFileHandler : public RefCount<NewFileHandler>
+	{
+	public:
+		virtual ~NewFileHandler();
+
+		//! Receive notification of a new file about to be opened
+		/*! \param FileName - reference to a std::string containing the name of the file about to be opened - <b>may be changed by this function if required</b>
+		 */
+		virtual void NewFile(std::string &FileName) = 0;
+	};
+
+	//! Smart pointer to a NewFileHandler
+	typedef SmartPtr<NewFileHandler> NewFileHandlerPtr;
+
+	//! File parser
+	class FileParser : public RefCount<FileParser>
+	{
+	protected:
+		NewFileHandlerPtr Handler;
+		std::string BaseFileName;
+		bool IsFileList;
+		int ListOrigin;
+		int ListIncrement;
+
+	public:
+		//! Construct a FileParser and optionally set a single source filename
+		FileParser(std::string FileName = "") 
+		{ 
+			BaseFileName = FileName; 
+			IsFileList = false; 
+		}
+
+		//! Set a single source filename
+		void SetFileName(std::string &FileName) { BaseFileName = FileName; IsFileList = false; }
+
+		//! Set a source file list
+		void SetFileList(std::string &FileList, int Origin = 0, int Increment = 1)
+		{
+			BaseFileName = FileList;
+			IsFileList = true;
+			ListOrigin = Origin;
+			ListIncrement = Increment;
+		}
+
+		//! Set a handler to receive notification of all file open actions
+		void SetNewFileHandler(NewFileHandlerPtr &NewHandler) { Handler = NewHandler; }
+
+		//!####
+		EssenceStreamDescriptorList IdentifyEssence(void);
+
+		//!####
+		WrappingOptionList IdentifyWrappingOptions(EssenceStreamDescriptor Descriptor);
+
+		//! Read a number of wrapping items from the specified stream and return them in a data chunk
+		/*! If frame or line mapping is used the parameter Count is used to
+		 *	determine how many items are read. In frame wrapping it is in
+		 *	units of EditRate, as specified in the call to Use(), which may
+		 *  not be the frame rate of this essence
+		 *	\note This is going to take a lot of memory in clip wrapping! 
+		 */
+		DataChunkPtr Read(Uint32 Stream, Uint64 Count = 1);
+
+		//! Build an EssenceSource to read a number of wrapping items from the specified stream
+		EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(Uint32 Stream, Uint64 Count = 1);
+
+		//! Write a number of wrapping items from the specified stream to an MXF file
+		/*! If frame or line mapping is used the parameter Count is used to
+		 *	determine how many items are read. In frame wrapping it is in
+		 *	units of EditRate, as specified in the call to Use(), which may
+		 *  not be the frame rate of this essence stream
+		 *	\note This is the only safe option for clip wrapping
+		 *	\return Count of bytes transferred
+		 */
+		Uint64 Write(Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1);
+	};
+}
+
+namespace mxflib
+{
 	//! Pair containing a pointer to an essence parser and its associated essence descriptors
 	typedef std::pair<EssenceSubParserBase*, EssenceStreamDescriptorList> ParserDescriptorPair;
 
@@ -945,6 +1032,372 @@ namespace mxflib
 	/*! \return 0 if not a valid GC Key
 	 */
 	Uint32 GetGCTrackNumber(ULPtr TheUL);
+}
+
+
+/* BodyWriter and related classes */
+
+namespace mxflib
+{
+	//! Class holding data relating to a stream to be written by BodyWriter
+	/*! Sub-streams can be added as pointers to their essence sources as this class is derived from EssenceSourceList.
+	 *  Sub-streams will be written in the same generic container as this stream.
+	 *  This stream's essence source will appear as the first "child" when the EssenceSourceList is scanned
+	 */
+	class BodyStream : public RefCount<BodyStream>, public EssenceSourceList
+	{
+	public:
+		//! Define the action required next for this stream
+		enum StateType
+		{
+			BodyStreamStart = 0,									//!< This stream has not yet done anything - state unknown
+			BodyStreamHeadIndex,									//!< Next action: Write a "header" index table - if required in an isolated partition following the header
+			BodyStreamPreBodyIndex,									//!< Next action: Write an isolated index table before the next body partition
+			BodyStreamBodyWithIndex,								//!< Next action: Write a body partition with an index table
+			BodyStreamBodyNoIndex,									//!< Next action: Write a body partition without index table
+			BodyStreamPostBodyIndex,								//!< Next action: Write an isolated index table after a body partition
+			BodyStreamFootIndex,									//!< Next action: Write a "footer" index table - if required in an isolated partition before the footer
+			BodyStreamDone											//!< All done - no more actions required
+		};
+
+		//! The index table type or types of this stream
+		enum IndexType
+		{
+			StreamIndexNone = 0,									//!< No index table will be written
+			StreamIndexFullFooter = 1,								//!< A full index table will be written in the footer if possible (or an isolated partition just before the footer if another index is going to use the footer)
+			StreamIndexFullFooterIsolated = 2,						//!< A full index table will be written in an isolated partition just before the footer
+			StreamIndexSparseFooter = 8,							//!< A sparse index table will be written in the footer if possible (or an isolated partition just before the footer if another index is going to use the footer)
+			StreamIndexSparseFooterIsolated = 16,					//!< A sparse index table will be written in an isolated partition just before the footer
+			StreamIndexSprinkled = 64,								//!< A full index table will be sprinkled through the file, one chunk in each of this essence's body partitions, and one in or just before the footer
+			StreamIndexSprinkledIsolated = 128,						//!< A full index table will be sprinkled through the file, one chunk in an isolated partition following each of this essence's body partitions
+			StreamIndexCBRHeader = 256,								//!< A CBR index table will be written in the header (or an isolated partition following the header if another index table exists in the header)
+			StreamIndexCBRHeaderIsolated = 512,						//!< A CBR index table will be written in an isolated partition following the header
+			StreamIndexCBRFooter = 1024,							//!< A CBR index table will be written in the footer if possible (or an isolated partition just before the footer if another index is going to use the footer)
+			StreamIndexCBRFooterIsolated = 2048,					//!< A CBR index table will be written in an isolated partition just before the footer
+			StreamIndexCBRBody = 4096,								//!< A CBR index table will be written in each body partition for this stream
+			StreamIndexCBRIsolated = 8192,							//!< A CBR index table will be written in an isolated body partition following each partition of this stream
+			StreamIndexCBRPreIsolated = 16384						//!< A CBR index table will be written in an isolated body partition before each partition of this stream
+		};
+
+		//! Wrapping types for streams
+		enum WrapType
+		{
+			StreamWrapOther = 0,									//!< Other non-standard wrapping types - the essence source will supply one KLVs worth at a time (??)
+			StreamWrapFrame,										//!< Frame wrapping
+			StreamWrapClip											//!< Clip wrapping
+		};
+
+	protected:
+		EssenceSourcePtr Source;									//!< The essence source for this stream
+		EssenceSourceList SubStreams;								//!< Sources for each sub-stream
+		EssenceSourceList::iterator SubStream_it;					//!< Current sub-stream
+		bool SubStreamRestart;										//!< Flag true when the sub-stream iterator needs moving to the top of the list next time
+
+		StateType State;											//!< The state of this stream
+
+		IndexType StreamIndex;										//!< The index type(s) of this stream
+		IndexType FooterIndexFlags;									//!< Set of flags for tracking footer index tables
+
+		Uint32 BodySID;												//!< BodySID to use for this stream
+
+		WrapType StreamWrap;										//!< The wrapping type of this stream
+
+		GCWriterPtr StreamWriter;									//!< The writer for this stream
+
+		IndexManagerPtr IndexMan;									//!< The index manager for this stream
+		std::list<Position> SparseList;								//!< List of edit units to include in sparse index tables
+
+		//! Prevent NULL construction
+		BodyStream();
+
+		//! Prevent copy construction
+		BodyStream(BodyStream &);
+
+	public:
+		//! Construct an body stream object with a given essence source
+		BodyStream(Uint32 SID, EssenceSourcePtr &EssSource)
+		{
+			BodySID = SID;
+			Source = EssSource;
+			State = BodyStreamStart;
+			StreamIndex = StreamIndexNone;
+			FooterIndexFlags = StreamIndexNone;
+			StreamWrap = StreamWrapOther;
+			SubStreamRestart = true;
+			
+			// Set the master stream as one of the essence streams
+			push_back(Source);
+		}
+
+		//! Get the essence source for this stream
+		EssenceSourcePtr &GetSource(void) { return Source; }
+
+		//! Get the number of sub-streams (includes the master stream)
+		size_type SubStreamCount(void) { return size(); }
+
+		//! Add a new sub-stream
+		void AddSubStream(EssenceSourcePtr &SubSource) { push_back(SubSource); }
+
+		//! Set the stream's state
+		void SetState(StateType NewState) { State = NewState; }
+
+		//! Get the current state
+		StateType GetState(void) 
+		{
+			if(State == BodyStreamStart) GetNextState();
+			return State;
+		}
+
+		//! Get the next state
+		/*! Sets State to the next state
+		 *  \return The next state (now the current state)
+		 */
+		StateType GetNextState(void);
+
+		//! Set the index type(s) to the desired value
+		/*! \note This sets the complete value, it doesn't just add an option - to add "X" use SetIndexType(GetIndexType() && "X");
+		 */
+		void SetIndexType(IndexType NewIndexType) { StreamIndex = NewIndexType; }
+
+		//! Get the index type(s)
+		IndexType GetIndexType(void) { return StreamIndex; }
+
+		//! Set the footer index flags to the desired value
+		/*! \note This sets the complete value, it doesn't just add an option - to add "X" use SetFooterIndex(GetFooterIndex() && "X");
+		 */
+		void SetFooterIndex(IndexType NewIndexType) { FooterIndexFlags = NewIndexType; }
+
+		//! Get the footer index flags
+		IndexType GetFooterIndex(void) { return FooterIndexFlags; }
+
+		//! Set the wrapping type for this stream
+		void SetWrapType(WrapType NewWrapType) { StreamWrap = NewWrapType; }
+
+		//! Get the wrapping type of this stream
+		WrapType GetWrapType(void) { return StreamWrap; }
+	};
+
+	//! Smart pointer to a BodyStream
+	typedef SmartPtr<BodyStream> BodyStreamPtr;
+
+	// Forward declare BodyWriterPtr to allow it to be used in BodyWriterHandler
+	class BodyWriter;
+	typedef SmartPtr<BodyWriter> BodyWriterPtr;
+
+	//! Base class for partition candler callbacks
+	class BodyWriterHandler : public RefCount<BodyWriterHandler>
+	{
+	public:
+		//! Virtual destructor to allow polymorphism
+		virtual ~BodyWriterHandler();
+
+		//! Handler called before writing a partition pack
+		/*! \param Caller - A pointer to the calling BodyWriter
+		 *  \param BodySID - The Stream ID of the essence in this partition (0 if none)
+		 *  \param IndexSID - The Stream ID of the index data in this partition (0 if none)
+		 *  \note If metadata is to be written the partition type must be set accordingly by the handler - otherwise closed and complete will be used
+		 *  \return true if metadata should be written with this partition pack
+		 */
+		virtual bool HandlerPartition(BodyWriterPtr &Caller, Uint32 BodySID, Uint32 IndexSID) = 0;
+	};
+
+	//! Smart pointer to a BodyWriterHandler
+	typedef SmartPtr<BodyWriterHandler> BodyWriterHandlerPtr;
+
+
+	//! Body writer class - manages multiplexing of essence
+	class BodyWriter : public RefCount<BodyWriter>
+	{
+	protected:
+		//! Class for holding info relating to a stream
+		/*! This class holds medium-term info about a stream in comparision to BodyStream which holds
+		 *  long-term info. This is because odd interleaving may cause a stream to be added and removed
+		 *  from the writer during the course of the file.  Data that needs to survive through the whole
+		 *  file lives in BodyStream and data relating to this phase lives in StreamInfo.
+		 *  \note This class has public internals because it is basically a glorified struct!
+		 */
+		class StreamInfo : public RefCount<StreamInfo>
+		{
+		public:
+			bool Active;											//!< True if active - set false once finished
+			BodyStreamPtr Stream;									//!< The stream in question
+			Length StopAfter;										//!< Number of edit units to output (or zero for no limit). Decremented each time data is written (unless zero).
+
+		public:
+			//! Construct an "empty" StreamInfo
+			StreamInfo() { Active = false; }
+
+			//! Copy constructor
+			StreamInfo(const StreamInfo &rhs) 
+			{ 
+				Active = rhs.Active;
+				Stream = rhs.Stream;
+				StopAfter = rhs.StopAfter;
+			}
+		};
+
+		//! Smart pointer to a StreamInfo
+		typedef SmartPtr<StreamInfo> StreamInfoPtr;
+
+		//! Type for list of streams to write
+		/*! The list is kept in the order that the BodySIDs are added
+		 */
+		typedef std::list<StreamInfoPtr> StreamInfoList;
+
+		//! Destination file
+		MXFFilePtr File;
+		
+		//! List of streams to write
+		StreamInfoList StreamList;
+
+		//! Partition pack to use when one is required
+		PartitionPtr BasePartition;
+
+		BodyWriterHandlerPtr PartitionHandler;					//!< The body partition handler
+		BodyWriterHandlerPtr FooterHandler;						//!< The footer partition handler
+
+		Uint32 MinPartitionSize;								//!< The minimum size of the non-essence part of the next partition
+		Uint32 MinPartitionFiller;								//!< The minimum size of filler before the essence part of the next partition
+
+		//! The current BodySID, or 0 if not known (will move back to the start of the list)
+		Uint32 CurrentBodySID;
+
+		//! Iterator for the current (or previous) stream data. Only valid if CurrentBodySID != 0
+		StreamInfoList::iterator CurrentStream;
+
+
+		/* Details about the pending partition, set but not yet written
+		 * This is because the value of BodySID depends on whether any
+		 * essence is going to be written in this partition which won't
+		 * be known for certain until we are about to write the essence
+		 */
+
+		//! Flag set when a partition pack is ready to be written
+		bool PartitionWritePending;
+
+		//! Flag set when the next partition will include metadata
+		bool PendingMetadata;
+
+		//! Pointer to a chunk of index table data for the pendinf partition or NULL if none is required
+		DataChunkPtr PendingIndexData;
+
+		//! BodySID of the essence or index data already written or pending for this partition
+		/*! This is used to determine if particular essence can be added to this partition.
+		 *  Set to zero if none yet written.
+		 */
+		Uint32 PartitionBodySID;
+
+		//! Prevent NULL construction
+		BodyWriter();
+
+		//! Prevent copy construction
+		BodyWriter(BodyWriter &);
+
+	public:
+		//! Construct a body writer for a specified file
+		BodyWriter(MXFFilePtr &DestFile)
+		{
+			File = DestFile;
+
+			MinPartitionSize = 0;
+			MinPartitionFiller = 0;
+
+			PartitionWritePending = false;
+			PartitionBodySID = 0;
+		}
+
+		//! Clear any stream details ready to call AddStream()
+		/*! This allows previously used streams to be removed before a call to WriteBody() or WriteNext()
+		 */
+		void ClearStreams(void) { StreamList.clear(); CurrentBodySID = 0; }
+
+		//! Add a stream to the list of those to write
+		/*! \param Stream - The stream to write
+		 *  \param StopAfter - If > 0 the writer will stop writing this stream at the earliest opportunity after (at least) this number of edit units have been written
+		 *  Streams will be written in the order that they were offered and the list is kept in this order.
+		 *	\return false if unable to add this stream (for example this BodySID already in use)
+		 */
+		bool AddStream(BodyStreamPtr &Stream, Length StopAfter = 0);
+
+		//! Set the template partition pack to use when partition packs are required
+		/*! The byte counts and SIDs will be updated are required before writing.
+		 *  FooterPosition will not be updated so it must either be 0 or the correct value.
+		 *  Any associated metadata will be written for the header and if the handler (called just before the write) requests it.
+		 *  \note The original object given will be modified - not a copy of it
+		 */
+		bool SetPartition(PartitionPtr &ThePartition) { BasePartition = ThePartition; }
+
+		//! Get a pointer to the current template partition pack
+		PartitionPtr GetPartition(void) { return BasePartition; }
+
+		//! Write the file header
+		/*! No essence will be written, but CBR index tables will be written if required.
+		 *  The partition will not be "ended" if only the header partition is written
+		 *  meaning that essence will be added by the next call to WritePartition()
+		 */
+		void WriteHeader(bool IsClosed, bool IsComplete);
+
+		//! End the current partition
+		/*! Once "ended" no more essence will be added, even if otherwise valid.
+		 *  A new partition will be started by the next call to WritePartition()
+		 *  \note This function will also flush any pending partition writes
+		 */
+		void EndPartition(void);
+
+		//! Write stream data
+		/*! \param Duration - If > 0 the stop writing at the earliest opportunity after (at least) this number of edit units have been written for each stream
+		 *  \note Streams that have finished or hit thier own StopAfter value will be regarded as having written enough when judging whether to stop
+		 */
+		void WriteBody(Length Duration = 0);
+
+		//! Write the next partition or continue the current one (if not complete)
+		/*! Will stop at the point where the next partition will start, or (if Duration > 0) at the earliest opportunity after (at least) Duration edit units have been written
+		 */
+		void WritePartition(Length Duration = 0);
+
+		//! Set a handler to be called before writing a partition pack
+		/*! Will be called before a body partition is written
+		 */
+		void SetPartitionHandler(BodyWriterHandlerPtr &NewBodyHandler) { PartitionHandler = NewBodyHandler; }
+
+		//! Set a handler to be called before writing the footer
+		/*! Will be called before a footer partition is written
+		 */
+		void SetFooterHandler(BodyWriterHandlerPtr &NewFooterHandler) { FooterHandler = NewFooterHandler; }
+
+		//! Set the minumum size of the non-essence part of the next partition
+		/*! This will cause a filler KLV to be added (if required) after the partition pack, any header metadata and index table segments
+		 *  in order to reach the specified size.  This is useful for reserving space for future metadata updates.
+		 *  This value is read after calling the partition handlers so this function may safely be used in the handlers.
+		 *  \note The size used will be the minimum size that satisfies the following:
+		 *  - All required items are included (partition pack, metadata if required, index if required)
+		 *  - The total size, excluding essence, is at least as big as the value specified by SetPartitionSize()
+		 *  - The filler following the last non-essence item is at least as big as the value specified by SetPartitionFiller()
+		 *  - The KAGSize value is obeyed
+		 */
+		void SetPartitionSize(Uint32 PartitionSize) { MinPartitionSize = PartitionSize; }
+
+		//! Set the minumum size of filler between the non-essence part of the next partition and any following essence
+		/*! If non-zero this will cause a filler KLV to be added after the partition pack, any header metadata and index table segments
+		 *  of at least the size specified.  This is useful for reserving space for future metadata updates.
+		 *  This value is read after calling the partition handlers so this function may safely be used in the handlers.
+		 *  \note The size used will be the minimum size that satisfies the following:
+		 *  - All required items are included (partition pack, metadata if required, index if required)
+		 *  - The total size, excluding essence, is at least as big as the value specified by SetPartitionSize()
+		 *  - The filler following the last non-essence item is at least as big as the value specified by SetPartitionFiller()
+		 *  - The KAGSize value is obeyed
+		 */
+		void SetPartitionFiller(Uint32 PartitionFiller) { MinPartitionFiller = PartitionFiller; }
+
+	protected:
+		//! Move to the next active stream
+		/*! \note Will set CurrentBodySID to 0 if no more active streams
+		 */
+		void SetNextStream(void);
+	};
+
+	//! Smart pointer to a BodyWriter
+	typedef SmartPtr<BodyWriter> BodyWriterPtr;
 }
 
 
