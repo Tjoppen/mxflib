@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.1.2.1 2004/10/10 18:30:27 terabrit Exp $
+ *	\version $Id: types.h,v 1.1.2.2 2004/10/10 18:34:28 terabrit Exp $
  *
  */
 /*
