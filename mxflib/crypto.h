@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.7 2004/07/05 14:43:25 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.8 2004/08/18 18:29:16 matt-beard Exp $
  *
  */
 /*
@@ -232,6 +232,13 @@ namespace mxflib
 	class KLVEObject : public KLVObject
 	{
 	protected:
+		/* Some useful constants */
+		//! The AS-DCP encryption system adds 32 bytes to the start of the encrypted data
+		enum { EncryptionOverhead = 32 };
+
+		//! The AS-DCP encryption system forces all encrypted data to be in multiples of 16 bytes
+		enum { EncryptionGranularity = 16 };
+
 		EncryptPtr	Encrypt;						//!< Pointer to the encryption wrapper
 		DecryptPtr	Decrypt;						//!< Pointer to the decryption wrapper
 
@@ -247,12 +254,16 @@ namespace mxflib
 
 		DataChunkPtr EncryptionIV;					//!< Encryption IV if one has been specified
 
-		/* Some useful constants */
-		//! The AS-DCP encryption system adds 32 bytes to the start of the encrypted data
-		enum { EncryptionOverhead = 32 };
+		Position CurrentReadOffset;					//!< The location of the next read (if reading in sequence) - used to detect random access attempts
+		Position CurrentWriteOffset;				//!< The location of the next write (if writing in sequence) - used to detect random access attempts
 
-		//! The AS-DCP encryption system forces all encrypted data to be in multiples of 16 bytes
-		enum { EncryptionGranularity = 16 };
+		int PreDecrypted;							//!< Number of extra bytes decrypted last time that are buffer for the next read
+		Uint8 PreDecryptBuffer[EncryptionGranularity];
+													//!< Left over bytes from decrypting the last chunk - these will be returned first with the next read call
+
+		int AwaitingEncryption;						//!< Number of left over bytes not encrypted last time that are buffer for the next write
+		Uint8 AwaitingEncryptionBuffer[EncryptionGranularity];
+													//!< Left over bytes from encrypting the last chunk - these will be written first at the next write call
 
 	public:
 		//** KLVEObject Specifics **//
@@ -286,6 +297,11 @@ namespace mxflib
 		//! Get the Initialization Vector that will be used for the next decryption
 		virtual DataChunkPtr GetDecryptIV(void);
 
+		//! Set the plaintext offset to use when encrypting
+		void SetPlaintextOffset(Uint64 Offset) { PlaintextOffset = Offset; }
+
+		//! Get the plaintext offset of the encrypted data
+		Uint64 GetPlaintextOffset(void) { return PlaintextOffset; }
 
 		//** Construction / desctruction **//
 		KLVEObject(ULPtr ObjectUL);				//!< Construct a new KLVEObject
@@ -394,7 +410,7 @@ namespace mxflib
 		 *  \note As there may be a need for the implementation to know where within the value field
 		 *        this data lives, there is no WriteData(Buffer, Size) function.
 		 */
-		virtual Length WriteDataTo(Uint8 *Buffer, Position Offset, Length Size);
+		virtual Length WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size);
 
 		//! Get the length of the value field
 		virtual Length GetLength(void) 
@@ -429,6 +445,34 @@ namespace mxflib
 		 * \return true if all loaded OK, false on error
 		 */
 		bool LoadData(void);
+
+		//! Read data from a specified position in the encrypted portion of the KLV value field into the DataChunk
+		/*! \param Offset Offset from the start of the KLV value from which to start reading
+		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \return The number of bytes read
+		 *	The IV must have already been set.
+		 *  Only encrypted parts of the value may be read using this function (i.e. Offset >= PlaintextOffset)
+		 */
+		Length ReadCryptoDataFrom(Position Offset, Length Size = -1);
+
+		//! Read an integer set of chunks from a specified position in the encrypted portion of the KLV value field into the DataChunk
+		/*! \param Offset Offset from the start of the KLV value from which to start reading
+		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \return The number of bytes read
+		 *	The IV must have already been set, Size must be a multiple of 16 as must (Offset - PlaintextOffset). 
+		 *  Only encrypted parts of the value may be read using this function (i.e. Offset >= PlaintextOffset)
+		 */
+		Length ReadChunkedCryptoDataFrom(Position Offset, Length Size);
+	
+		//! Write encrypted data from a given buffer to a given location in the destination file
+		/*! \param Buffer Pointer to data to be written
+		 *  \param Offset The offset within the KLV value field of the first byte to write
+		 *  \param Size The number of bytes to write
+		 *  \return Size if all OK, else != Size.  This may not equal the actual number of bytes written.
+		 *	The IV must have already been set.
+		 *  Only encrypted parts of the value may be written using this function (i.e. Offset >= PlaintextOffset)
+		 */
+		Length WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Length Size);
 	};
 
 	// Smart pointer to a KLVEObject (callot point to KLVObjects)
