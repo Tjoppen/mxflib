@@ -24,7 +24,7 @@ Done
 ]])
 
 AT_CHECK([wc -c ../../mxfwrap_wav.mxf | sed 's/  */ /g'], 0,
-[[ 20605 ../../mxfwrap_wav.mxf
+[[ 20619 ../../mxfwrap_wav.mxf
 ]])
 
 AT_CLEANUP
