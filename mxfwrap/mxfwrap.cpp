@@ -872,9 +872,12 @@ int Process(	int OutFileNum,
 	ASSERT(MData);
 	ASSERT(MData->Object);
 
-	// Assume we are doing GC
-	ULPtr GCUL = new UL( mxflib::MDGC_Data );
-	MData->AddEssenceType( GCUL );
+	// DRAGONS: Why is this here? It unconditionally adds "Used to describe multiple wrappings not
+	//          otherwise covered under the MXF Generic Container node" to all MXF files!!
+
+	// REMOVED: // Assume we are doing GC
+	// REMOVED: ULPtr GCUL = new UL( mxflib::MDGC_Data );
+	// REMOVED: MData->AddEssenceType( GCUL );
 
 	// DMStiny
 	#ifdef DMStiny
@@ -885,6 +888,7 @@ int Process(	int OutFileNum,
 	// Set the OP label
 	// If we are writing OP-Atom we write the header as OP1a initially as another process
 	// may try to read the file before it is complete and then it will NOT be a valid OP-Atom file
+	// DRAGONS: This should be OPxx which matches the number of file packages...
 	if(OPAtom) MData->SetOP(OP1aUL); else MData->SetOP(OPUL);
 
 	// Work out the edit rate from the descriptor
