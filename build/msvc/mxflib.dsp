@@ -157,6 +157,10 @@ SOURCE=..\..\mxflib\sopsax.cpp
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
+SOURCE=..\..\mxflib\crypto.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\mxflib\datachunk.h
 # End Source File
 # Begin Source File
