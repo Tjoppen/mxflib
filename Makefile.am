@@ -5,6 +5,7 @@ EXTRA_DIST = dox.bat \
 			build/msvc/all.dsp \
 			build/msvc/mxfdump.dsp \
 			build/msvc/mxfwrap.dsp \
+			build/msvc/mxfcrypt.dsp \
 			build/msvc/mxfsplit.dsp
 
 if HAVE_DOXYGEN
