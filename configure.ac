@@ -1,10 +1,13 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_INIT(mxflib, alpha-0.3.3)
+AC_INIT(mxflib, alpha-0.4.0)
 AC_CONFIG_SRCDIR([mxflib/mxffile.cpp])
 AC_CONFIG_HEADER([config.h])
-AM_INIT_AUTOMAKE(mxflib, alpha-0.3.3)
+AM_INIT_AUTOMAKE(mxflib, alpha-0.4.0)
+
+# Create a .zip package in addition to .tar.gz when running "make dist"
+AM_INIT_AUTOMAKE(dist-zip)
 
 # Checks for programs.
 AC_PROG_CXX
