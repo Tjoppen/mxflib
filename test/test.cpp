@@ -24,7 +24,7 @@
  *	     distribution.
  */
 
-#include <mxflib.h>
+#include <mxflib/mxflib.h>
 
 using namespace mxflib;
 
@@ -34,16 +34,12 @@ using namespace mxflib;
 using namespace std;
 
 //! Debug flag for KLVLib
-extern "C" int Verbose = 0;
+int Verbose = 0;
 
-//! Debug flag for MXFLib
-bool DebugMode = false;
+//! local Debug flag set by command-line arg
+static bool DebugMode = false;
 
-void DumpObject(MDObjectPtr Object, std::string Prefix);
-
-
-
-
+static void DumpObject(MDObjectPtr Object, std::string Prefix);
 
 
 int main(int argc, char *argv[])
@@ -139,11 +135,11 @@ int main(int argc, char *argv[])
 					int i;
 					for(i=0; i<Duration; i++)
 					{
-						int j;
+						Uint32 j;
 						for(j=0; j<Streams; j++)
 						{
 							IndexPosPtr Pos = Table->Lookup(Start + i,j);
-							printf("  EditUnit %d for stream %d is at 0x%s", (int)(Start + i), j, Int64toHexString(Pos->Location,8).c_str());
+							printf("  EditUnit %lld for stream %d is at 0x%s", Start + i, j, Int64toHexString(Pos->Location,8).c_str());
 							printf(", Flags=%02x", Pos->Flags);
 							if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
 						}
