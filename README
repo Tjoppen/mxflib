@@ -1,0 +1,80 @@
+README for MXFLib
+=================
+
+MXFLib is a C++ library providing support for the MXF file format.
+Included wih the library are a number of simple example applications.
+
+MXFLib is released under the zlib license.  See the file "license.txt"
+for full details.
+
+
+Documentation
+=============
+
+HTML documentation on the MXFLib library internals is generated using doxygen
+from the source code and released as a separate file on sourceforge such as
+mxflib-alpha0_3_1-docs.zip.  You can also build the documentation using:
+  make docs (GNU/Linux, Unix)        dox.bat (MS Windows)
+
+
+Compilation from source code
+============================
+
+MXFLib currently depends upon KLVLib.
+
+Building using MSVC++ under MS Windows:
+  Get the klvlib source code and unpack it parallel to mxflib.
+  Open mxflib/build/msvc/mxflib.dsw
+  Build the mxflib, mxfwrap and test projects.
+
+Building on GNU/Linux and Unix platforms:
+  Get the klvlib source code and unpack it parallel to mxflib.  Then,
+
+    a) cd klvlib
+       make && make install
+
+    b) cd ../mxflib
+       make
+
+  If you do not wish to install klvlib files (by default in /use/local), then
+  after step (a) do:
+    b) cd ../mxflib
+       make KLVINC=../klvlib KLVLIB=../klvlib
+
+
+Testing MXFLib
+==============
+
+You must have types.xml and xmldict.xml in the current directory to run the
+following commands.
+
+Find an MPEG-2 Elementary stream file and run
+    mxfwrap/mxfwrap -a -f -i sample.m2v sample.mxf
+
+You can test the newly created MXF file with
+    test/mxftest -i sample.mxf
+
+
+Portability Issues
+==================
+
+- Do not use GCC 3.3
+    Version 0.3.2-Alpha was the first release to be ported to GCC.  However,
+    GCC version 3.3, 3.3.1 and 3.3.2 are known to create code that crashes at
+    runtime for this version of MXFLib.  GCC 3.2.x and 3.1.x are known to work.
+
+- Your platform must have a UUID generation function
+    MS Windows provides CoCreateGuid().  On GNU/Linux the e2fsprogs library
+    provides uuid_generate().  Only these two functions are supported in
+    mxflib/system.h - if your platform provides a different function you
+    will need to add support for it in mxflib/system.h.
+
+- MXFLib requires an ISO C99 and ISO C++ (1998) compliant compiler (except
+  for MSVC++)
+    Solaris 7, 8 and 9 do not ship with an ISO C99 conforming freestanding
+    implementation.  Notably /usr/include/stdint.h is missing.
+
+    A quick fix is to (in the mxflib source directory):
+      sed 's/^#pragma ident.*//' /usr/include/sys/inttypes.h > stdint.h
+
+    A longer fix is to install glibc 2.3 and GCC 3.2.
