@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.14 2003/12/18 17:51:56 matt-beard Exp $
+ *	\version $Id: types.h,v 1.15 2004/01/06 14:18:55 terabrit Exp $
  *
  */
 /*
@@ -211,5 +211,5 @@ namespace mxflib
 	};
 }
 
-#endif MXFLIB__TYPES_H
+#endif // MXFLIB__TYPES_H
 

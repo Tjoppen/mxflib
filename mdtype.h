@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.16 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.17 2004/01/06 14:18:55 terabrit Exp $
  *
  */
 /*
@@ -174,9 +174,9 @@ namespace mxflib
 	private:
 		std::string Name;				//!< Name of this MDType
 		MDTypeClass Class;				//!< Class of this MDType
-		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 		MDArrayClass ArrayClass;		//!< Sub-class of array
 		MDTraits *Traits;
+		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 
 	public:
 		MDTypePtr Base;					//!< Base class if this is a derived class, else NULL
@@ -194,9 +194,8 @@ namespace mxflib
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
 		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraits *TypeTraits)
-			: Name(TypeName) , Class(TypeClass) , Traits(TypeTraits)
-			, Endian(false) , ArrayClass(ARRAYARRAY) {};
-
+			: Name(TypeName) , Class(TypeClass) , ArrayClass(ARRAYARRAY) , Traits(TypeTraits) , Endian(false) {};
+ 
 		//! Add a sub to a compound type
 		void AddSub(std::string SubName, MDTypePtr SubType);
 
@@ -417,5 +416,5 @@ inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) { return o
 }
 
 
-#endif MXFLIB__MDTYPE_H
+#endif // MXFLIB__MDTYPE_H
 
