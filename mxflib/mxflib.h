@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.1.2.1 2004/05/26 20:43:18 matt-beard Exp $
+ *	\version $Id: mxflib.h,v 1.1.2.2 2004/06/26 17:51:18 matt-beard Exp $
  *
  */
 /*
@@ -33,21 +33,35 @@
 //! Namespace for all MXFLib items
 namespace mxflib {}
 
+
+//! Include system specifics first to allow any required compiler set-up
 #include <mxflib/system.h>
+
+
+// Required std::headers
+
+#include <list>
+#include <map>
+
+
 
 #include <mxflib/debug.h>
 
-#include <mxflib/forward.h>
+#include <mxflib/smartptr.h>
 
 #include <mxflib/endian.h>
 
-#include <mxflib/smartptr.h>
-
 #include <mxflib/types.h>
+
+#include <mxflib/datachunk.h>
+
+#include <mxflib/forward.h>
+
+
+
 
 #include <mxflib/helper.h>
 
-#include <mxflib/datachunk.h>
 
 #include <mxflib/mdtraits.h>
 #include <mxflib/mdtype.h>
