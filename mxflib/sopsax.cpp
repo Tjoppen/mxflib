@@ -1,7 +1,7 @@
 /*! \file	sopSAX.cpp
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.cpp,v 1.4 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: sopsax.cpp,v 1.5 2005/03/25 13:15:50 terabrit Exp $
  *
  */
 /*
@@ -34,6 +34,9 @@
 #include "sopsax.h"
 #include <mxflib/mxflib.h>
 
+using namespace mxflib;
+
+
 /* Local Prototypes */
 static int sopSkipToClose(FILE *xmlFile);
 static int sopGetCharNonQ(FILE *xmlFile);
@@ -51,7 +54,7 @@ static void sopGetItem(FILE *xmlFile, char *Buffer, int Max);
 ** sopSAXParseFile() - Parse an XML file (not re-entrant due to static data)
 */
 
-bool sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename)
+bool mxflib::sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename)
 {
 	FILE *xmlFile;
 	int ElementNesting;

@@ -1,7 +1,7 @@
 /*! \file	sopSAX.h
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.h,v 1.2 2004/04/26 18:29:33 asuraparaju Exp $
+ *	\version $Id: sopsax.h,v 1.3 2005/03/25 13:15:50 terabrit Exp $
  *
  */
 /*
@@ -30,30 +30,33 @@
 #ifndef _SOPSAX_H
 #define _SOPSAX_H
 
-typedef struct sopSAXHandlerStruct sopSAXHandler;
-typedef sopSAXHandler *sopSAXHandlerPtr;
-
-
-/* Function pointer definitions */
-typedef void (*startElementSAXFunc) (void *, const char *, const char **);
-typedef void (*endElementSAXFunc) (void *, const char *);
-typedef void (*warningSAXFunc) (void *, const char *msg, ...);
-typedef void (*errorSAXFunc) (void *, const char *msg, ...);
-typedef void (*fatalErrorSAXFunc) (void *, const char *msg, ...);
-
-
-/* Handler structure */
-struct sopSAXHandlerStruct
+namespace mxflib
 {
+	typedef struct sopSAXHandlerStruct sopSAXHandler;
+	typedef sopSAXHandler *sopSAXHandlerPtr;
+
+
+	/* Function pointer definitions */
+	typedef void (*startElementSAXFunc) (void *, const char *, const char **);
+	typedef void (*endElementSAXFunc) (void *, const char *);
+	typedef void (*warningSAXFunc) (void *, const char *msg, ...);
+	typedef void (*errorSAXFunc) (void *, const char *msg, ...);
+	typedef void (*fatalErrorSAXFunc) (void *, const char *msg, ...);
+
+
+	/* Handler structure */
+	struct sopSAXHandlerStruct
+	{
 	startElementSAXFunc startElement;		/* startElement */
 	endElementSAXFunc endElement;			/* endElement */
     warningSAXFunc warning;					/* warning */
     errorSAXFunc error;						/* error */
     fatalErrorSAXFunc fatalError;			/* fatalError */
-};
+	};
 
 
-/* Function Prototypes */
-bool sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename);
+	/* Function Prototypes */
+	bool sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename);
+}
 
 #endif /* _SOPSAX_H */
