@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.20 2004/12/03 18:00:44 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.21 2005/02/05 13:35:19 matt-beard Exp $
  *
  */
 /*
@@ -1480,6 +1480,7 @@ int Process(	int OutFileNum,
 		// Now update the partition we are about to write (the one with the metadata)
 		ThisPartition->ChangeType("ClosedCompleteHeader");
 		ThisPartition->SetUint64("FooterPartition", FooterPos);
+		ThisPartition->SetKAG(OldHeader->GetUint("KAGSize"));
 		ThisPartition->SetUint("IndexSID", OldHeader->GetUint("IndexSID"));
 		ThisPartition->SetUint64("BodySID", OldHeader->GetUint("BodySID"));
 
