@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.7 2004/03/28 18:32:58 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.8 2004/04/26 14:41:37 matt-beard Exp $
  *
  */
 /*
@@ -73,9 +73,10 @@ namespace mxflib
 }
 
 
+
 namespace mxflib
 {
-	// Multiple Descriptor Generic Container Label
+	//! Default "Multiple Essence Types in the Generic Container" Label
 	const Uint8 MDGC_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x03, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x7F, 0x01, 0x00 };
 }
 
