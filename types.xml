@@ -21,7 +21,7 @@
 		<Boolean detail="Boolean" base="Uint8"/>
 		<ISO7 detail="ISO 7-Bit Coded Character" base="Uint8" ref="ISO/IEC 646:1991"/>
 		<Length detail="Length in Edit Units" base="Int64"/>
-		<Position detail="Position measured in Edit Units" base="Uint64"/>
+		<Position detail="Position measured in Edit Units" base="Int64"/>
 		<RGBACode detail="Enumerated value specifying component in an RGBALayoutItem" base="Uint8"/>
 	</Interpretation>
 
@@ -33,6 +33,8 @@
 		<Int64Array detail="Array of Int64" base="Int64" type="Array"/>
 		<Uint8Array detail="Array of Uint8" base="Uint8" type="Array"/>
 		<ISO7String detail="ISO 7-Bit coded string" base="ISO7" type="Array"/>
+		<Int32Batch detail="Batch of Int32 values" base="Int32" type="Batch"/>
+		<Uint32Batch detail="Batch of Uint32 values" base="Uint32" type="Batch"/>
 	</Multiple>
 
 	<Interpretation>
@@ -52,8 +54,6 @@
 
 	<Multiple>
 		<AUIDArray detail="Array of AUIDs" base="AUID" type="Array"/>
-<!--		<UUIDArray detail="Array of UUIDs" base="UUID" type="Array"/> -->
-<!--		<UUIDBatch detail="Batch of UUIDs" base="UUID" type="Collenction"/> -->
 		<LabelBatch detail="Batch of SMPTE Universal Labels" base="Label" type="Batch"/>
 		<StrongRefArray detail="Array of StrongRefs" base="StrongRef" type="Array"/>
 		<StrongRefBatch detail="Batch of StrongRefs" base="StrongRef" type="Batch"/>
@@ -63,8 +63,8 @@
 
 	<Compound>
 		<Rational detail="Rational">
-			<Numerator detail="Numerator" type="Uint32"/>
-			<Denominator detail="Denominator" type="Uint32"/>
+			<Numerator detail="Numerator" type="Int32"/>
+			<Denominator detail="Denominator" type="Int32"/>
 		</Rational>
 		<TimeStamp detail="Date and Time">
 			<Year detail="Year" type="Uint16"/>
@@ -95,24 +95,6 @@
 	<Multiple>
 		<RationalArray detail="Array of Rational" base="Rational" type="Array"/>
 		<RGBALayout detail="Specifies the type, order and size of the components within the pixel" base="RGBALayoutItem" type="Array" size="8"/>
-	</Multiple>
-
-	<!-- SOME FUDGES!! -->
-	<Compound>
-		<PartitionItem detail="Partition Data in RIP">
-			<BodySID detail="Stream ID of the Body in this partition" type="Uint32"/>
-			<ByteOffset detail="Byte offset from file start (1st byte of the file which is numbered 0) to the 1st byte of the Partition Pack Key" type="Uint64"/>
-		</PartitionItem>
-		<LocalTagEntryItem detail="Local tag to UL or UUID mapping in Primer">
-			<LocalTag detail="The value of the Local Tag" type="Uint16"/>
-			<UID detail="The UID of which the local tag is an alias" type="Label"/>
-		</LocalTagEntryItem>
-	</Compound>
-	<Multiple>
-		<Int32Batch detail="Batch of Int32 values" base="Int32" type="Batch"/>
-		<Uint32Batch detail="Batch of Uint32 values" base="Uint32" type="Batch"/>
-		<PartitionArray detail="Batch of PartitionItems in RIP" base="PartitionItem" type="Array"/>
-		<LocalTagEntryBatch detail="Batch of LocalTagEntryItems in RIP" base="LocalTagEntryItem" type="Batch"/>
 	</Multiple>
 
 	<!-- TODO 

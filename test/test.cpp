@@ -63,12 +63,12 @@ int main(int argc, char *argv[])
 
 	LoadTypes("types.xml");
 	MDOType::LoadDict("XMLDict.xml");
-//	PrimerPtr OurPrimer = MDOType::MakePrimer();
 
 	MXFFilePtr TestFile = new MXFFile;
 	TestFile->Open(argv[1], true);
 
-	TestFile->BuildRIP();
+	// Get a RIP (however possible)
+	TestFile->GetRIP();
 
 	RIP::iterator it = TestFile->FileRIP.begin();
 	while(it != TestFile->FileRIP.end())
@@ -81,31 +81,127 @@ int main(int argc, char *argv[])
 		{
 			DumpObject(MDObjectPtr(ThisPartition),"");
 
-			MDObjectPtr Ptr = ThisPartition["HeaderByteCount"];
-			
-			if(Ptr)
+			if(ThisPartition->ReadMetadata() == 0)
 			{
-				Uint64 MetadataSize = Ptr->GetInt64();
-				if(MetadataSize == 0)
+				printf("No header metadata in this partition\n");
+			}
+			else
+			{
+				printf("\nHeader Metadata:\n");
+				
+				MDObjectList::iterator it2 = ThisPartition->TopLevelMetadata.begin();
+				while(it2 != ThisPartition->TopLevelMetadata.end())
 				{
-					printf("No header metadata in this partition\n");
+					DumpObject(*it2,"  ");
+					it2++;
 				}
-				else
-				{
-					printf("\nHeader Metadata:\n");
-					ThisPartition->ReadMetadata(TestFile, MetadataSize);
+			}
 
-					MDObjectList::iterator it2 = ThisPartition->TopLevelMetadata.begin();
-					while(it2 != ThisPartition->TopLevelMetadata.end())
+			// Read any index table segments!
+			MDObjectListPtr Segments = ThisPartition->ReadIndex();
+			if(Segments->empty())
+			{
+				printf("No index table in this partition\n");
+			}
+			else
+			{
+				IndexTablePtr Table = new IndexTable;
+
+				MDObjectList::iterator it = Segments->begin();
+
+				while(it != Segments->end())
+				{
+					Table->AddSegment(*it);
+				
+					// Demonstrate this new segment
+					
+					Uint32 Streams = 1;
+					MDObjectPtr DeltaEntryArray = (*it)["DeltaEntryArray"];
+					if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
 					{
-						DumpObject(*it2,"  ");
-						it2++;
+						Streams = DeltaEntryArray->size() / DeltaEntryArray->GetType()->size();
+						if(Streams == 0) Streams = 1;	// Fix for bad DeltaEntryArray
 					}
+
+					Position Start = (*it)->GetInt64("IndexStartPosition");
+					Length Duration = (*it)->GetInt64("IndexDuration");
+					
+					if(Duration == 0) printf("CBR Index Table Segment (covering whole Essense Container) :\n");
+					else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
+
+					if(Duration < 1) Duration = 4;		// Could be CBR
+					if(Duration > 10) Duration = 10;	// Don't go mad!
+
+					int i;
+					for(i=0; i<Duration; i++)
+					{
+						int j;
+						for(j=0; j<Streams; j++)
+						{
+							IndexPosPtr Pos = Table->Lookup(Start + i,j);
+							printf("  EditUnit %d for stream %d is at 0x%s", (int)(Start + i), j, Int64toHexString(Pos->Location,8).c_str());
+							printf(", Flags=%02x", Pos->Flags);
+							if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
+						}
+					}
+
+					it++;
 				}
 			}
 		}
 
 		it++;
+	}
+
+	if(TestFile->ReadRIP())
+	{
+		printf("\nRead RIP\n");
+		PartitionInfoList::iterator it = TestFile->FileRIP.begin();
+		while(it != TestFile->FileRIP.end())
+		{
+			printf("  BodySID 0x%04x is at 0x%s", (*it)->BodySID, Int64toHexString((*it)->ByteOffset,8).c_str());
+
+			if((*it)->ThePartition)
+				printf(" is a %s\n", (*it)->ThePartition->Name().c_str());
+			else
+				printf(" is not loaded\n");
+
+			it++;
+		}
+	}
+
+	if(TestFile->ScanRIP())
+	{
+		printf("\nScanned RIP\n");
+		PartitionInfoList::iterator it = TestFile->FileRIP.begin();
+		while(it != TestFile->FileRIP.end())
+		{
+			printf("  BodySID 0x%04x is at 0x%s", (*it)->BodySID, Int64toHexString((*it)->ByteOffset,8).c_str());
+
+			if((*it)->ThePartition)
+				printf(" is a %s\n", (*it)->ThePartition->Name().c_str());
+			else
+				printf(" is not loaded\n");
+
+			it++;
+		}
+	}
+
+	if(TestFile->BuildRIP())
+	{
+		printf("\nBuilt RIP\n");
+		PartitionInfoList::iterator it = TestFile->FileRIP.begin();
+		while(it != TestFile->FileRIP.end())
+		{
+			printf("  BodySID 0x%04x is at 0x%s", (*it)->BodySID, Int64toHexString((*it)->ByteOffset,8).c_str());
+
+			if((*it)->ThePartition)
+				printf(" is a %s\n", (*it)->ThePartition->Name().c_str());
+			else
+				printf(" is not loaded\n");
+
+			it++;
+		}
 	}
 
 	TestFile->Close();
@@ -139,10 +235,10 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 		else
 			printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 
-		MDObjectList::iterator it = Object->Children.begin();
-		while(it != Object->Children.end())
+		MDObjectNamedList::iterator it = Object->begin();
+		while(it != Object->end())
 		{
-			DumpObject((*it), Prefix + "  ");
+			DumpObject((*it).second, Prefix + "  ");
 			it++;
 		}
 	}
@@ -156,6 +252,7 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 // Debug and error messages
 #include <stdarg.h>
 
+#ifdef MXFLIB_DEBUG
 //! Display a general debug message
 void mxflib::debug(const char *Fmt, ...)
 {
@@ -167,6 +264,7 @@ void mxflib::debug(const char *Fmt, ...)
 	vprintf(Fmt, args);
 	va_end(args);
 }
+#endif MXFLIB_DEBUG
 
 //! Display a warning message
 void mxflib::warning(const char *Fmt, ...)
@@ -189,3 +287,4 @@ void mxflib::error(const char *Fmt, ...)
 	vprintf(Fmt, args);
 	va_end(args);
 }
+

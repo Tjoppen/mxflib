@@ -74,7 +74,7 @@
 		<IndexSID detail="Stream Identifier (SID) of Index Stream" use="decoder required" type="Uint32" minLength="4" maxLength="4" key="3f 06" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00"/>
 		<BodySID detail="Stream Identifier (SID) of Essence Container Stream" use="decoder required" type="Uint32" minLength="4" maxLength="4" key="3f 07" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00"/>
 		<SliceCount detail="Number of slices minus 1 (NSL)" use="decoder required" type="Uint8" minLength="1" maxLength="1" key="3f 08" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 01 00 00 00" default="0"/>
-		<PosTableCount detail="Number of PosTable Entries minus 1 (NPE)" use="optional" type="Uint8" minLength="1" maxLength="1" key="3f 08" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 01 07 00 00 00" default="0"/>
+		<PosTableCount detail="Number of PosTable Entries minus 1 (NPE)" use="optional" type="Uint8" minLength="1" maxLength="1" key="3f 0e" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 01 07 00 00 00" default="0"/>
 	</IndexTableSegmentBase>
 	<V10IndexTableSegment base="IndexTableSegmentBase" detail="A segment of an Index Table (v10)" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 02 01 01 10 00 00">
 		<V10DeltaEntryArray detail="Map Elements onto Slices" use="optional" type="subVector" key="3f 09" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 01 06 00 00 00">

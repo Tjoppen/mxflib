@@ -1,0 +1,26 @@
+
+Release Notes for mxflib version 0.3-Alpha
+==========================================
+
+Changes since version 0.2-Alpha
+===============================
+
+* New child value access functions added to MDObject, with (optional)
+  default values for missing children.
+* MDObject is now derived from MDObjectNamedList which contains all
+  children, rather than containing a property which lists children
+* Added "fudge" code to deal with arrays that are not the last item
+  in a "fixed length" pack.
+* Fixed bug in reading arrays with > 1 type per entry, they were
+  erroneously read in alphabetical order!
+* Fixed bug where MDOTypes where added to ChildOrder twice
+
+Changes since version 0.1-Alpha
+===============================
+
+* Each MDObject stores information about where it came from which can be
+  read using functions Location() and Source()
+* Code now handles differences in HeaderByteCount between version 10 and 
+  version 11a.
+* Rational and TimeStamp compounds have their own traits
+* Various minor bugs cleaned up
