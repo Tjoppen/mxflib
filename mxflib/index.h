@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: index.h,v 1.2 2004/05/09 12:00:33 stuart_hc Exp $
  *
  */
 /*
@@ -444,7 +444,7 @@ namespace mxflib
 //		Position ManagedDataBase;			//!< Edit Unit of first entry in the ManagedData array
 		int ManagedDataEntrySize;			//!< Size of each entry in the ManagedData array (depends on number of sub streams)
 //		IndexData *ManagedData;				//!< Array of IndexData structures, one per managed entry (or NULL if not allocated)
-//											/*!< \note This array is allocated and freed with malloc()/calloc() and free() as elements are variable in size */
+//											//!< \note This array is allocated and freed with malloc()/calloc() and free() as elements are variable in size
 
 		std::map<Position, IndexData*> ManagedData;
 											//!< Map of IndexData entries for all recorded edit units
@@ -514,7 +514,7 @@ namespace mxflib
 		Rational GetEditRate(void) { return EditRate; };
 
 		//! Add a sub-stream
-		/*! \ret Sub-stream ID or 0 if error */
+		/*! \return Sub-stream ID or 0 if error */
 		int AddSubStream(int PosTableIndex, Uint32 ElementSize);
 
 		//! Update the PosTableIndex for a given stream
