@@ -144,6 +144,7 @@ namespace mxflib
 			SequencePos = 0;
 			DataStart = 0;
 			DataSize = 0;
+			CurrentPos = 0;
 		}
 
 		//! Build a new parser of this type and return a pointer to it
@@ -182,7 +183,6 @@ namespace mxflib
 		virtual bool SetEditRate(Uint32 Stream, Rational EditRate)
 		{
 			return CalcWrappingSequence(EditRate);
-			SequencePos = 0;
 		}
 
 
