@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdtype.h,v 1.1.2.1 2004/10/20 15:10:19 matt-beard Exp $
  *
  */
 /*
@@ -175,7 +175,7 @@ namespace mxflib
 		std::string Name;				//!< Name of this MDType
 		MDTypeClass Class;				//!< Class of this MDType
 		MDArrayClass ArrayClass;		//!< Sub-class of array
-		MDTraits *Traits;				//!< Traints for this MDType
+		MDTraits *Traits;				//!< Traits for this MDType
 		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 
 	public:
@@ -208,6 +208,14 @@ namespace mxflib
 
 		//! Report the effective base type of this type
 		MDTypePtr EffectiveBase(void) const;
+
+		//! Does this value's trait take control of all sub-data and build values in the our own DataChunk?
+		/*! Normally any contained sub-types (such as array items or compound members) hold their own data */
+		bool HandlesSubdata(void) const
+		{
+			if(Traits) return Traits->HandlesSubdata();
+			return false;
+		}
 
 		//! Endian access function (set)
 		void SetEndian(bool Val) { Endian = Val; };
@@ -357,7 +365,9 @@ namespace mxflib
 		const DataChunk PutData(void) 
 		{
 			DataChunk Ret;
-			if(size() == 0) 
+			// If the size is zero we don't have any sub items
+			// Otherwise we may not need to use them because the traits may build in our data
+			if(size() == 0 || (Type->HandlesSubdata())) 
 			{
 				Ret = GetData();
 			}
@@ -411,8 +421,18 @@ namespace mxflib
 // These simple inlines need to be defined after MDValue
 namespace mxflib
 {
-inline MDValuePtr MDValuePtr::operator[](int Index) { return operator->()->operator[](Index); };
-inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) { return operator->()->operator[](ChildName); };
+	inline MDValuePtr MDValuePtr::operator[](int Index) 
+	{ 
+		// TODO: We need to find a solution to this!
+		ASSERT(!(operator->()->GetType()->HandlesSubdata()));
+		return operator->()->operator[](Index); 
+	};
+	inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) 
+	{ 
+		// TODO: We need to find a solution to this!
+		ASSERT(!(operator->()->GetType()->HandlesSubdata()));
+		return operator->()->operator[](ChildName); 
+	};
 }
 
 
