@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.6 2004/06/22 12:47:00 bakerian Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.7 2004/06/26 18:12:04 matt-beard Exp $
  *
  */
 /*
@@ -33,12 +33,15 @@ using namespace mxflib;
 
 
 //! Build a BER length
-/*! \param Length	The length to be converted to BER
+/*! \param Data		A pointer to the buffer to receive the length
+ *	\param MazSize	The maximum length that can be written to the buffer
+ *	\param Length	The length to be converted to BER
  *	\param Size		The total number of bytes to use for BER length (or 0 for auto)
- *	\note If the size is specified it will be overridden for lengths
- *		  that will not fit. However an error message will be produced.
+ *	\return The number of bytes written
+ *	\note If the size is specified it will be overridden for lengths that will not fit in Size,
+ *        <b>providing</b> they will fit in MaxSize. However an error message will be produced.
  */
-DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
+Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0*/)
 {
 	// Mask showing forbidden bits for various sizes
 	static const Uint64 Masks[9] = { UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffff00), 
@@ -57,7 +60,7 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 		if(Length & Masks[Size-1])
 		{
 			error("BER size specified in call to MakeBER() is %d, however length 0x%s will not fit in that size\n",
-				  Size, Int64toHexString(Length, 8).c_str());
+				  Size, Int64toHexString(Length).c_str());
 
 			// Force a new size to be chosen
 			Size = 0;
@@ -72,23 +75,38 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 		else Size = 9;
 	}
 
+	if(Size > MaxSize)
+	{
+		error("Buffer size given to MakeBER() is %d, however length 0x%s will not fit in that size\n",
+			  MaxSize, Int64toHexString(Length).c_str());
+
+		// This will produce an invalid size!!!!
+		Size = MaxSize;
+	}
+
+	// Shortform encoding
+	if(Size == 1)
+	{
+		Data[0] = Length;
+		return 1;
+	}
+
 	// Buffer for building BER
-	Uint8 Buff[9];
-	Buff[0] = 0x80 + (Size-1);
-	
+	Data[0] = 0x80 + (Size-1);
+
 	// Subscript to write next byte
 	int i = Size-1;
-	
+
 	// More speed efficient to write backwards as no need to locate the start
 	while(i)
 	{
-		Buff[i] = Length & 0xff;
+		Data[i] = Length & 0xff;
 		Length >>= 8;
 		i--;
 	}
 
-	// Return as a DataChunk
-	return new DataChunk(Size, Buff);
+	// Return the number of bytes written
+	return Size;
 }
 
 
@@ -283,6 +301,7 @@ void mxflib::SetDictionaryPath(std::string NewPath)
 	DictionaryPath = NewPath;
 }
 
+#define MXF_DATA_DIR PATH
 
 #ifndef DICT_DIR_ENV 
 #define DICT_DIR_ENV MXF_DATA_DIR
@@ -301,10 +320,10 @@ std::string mxflib::LookupDictionaryPath(const char *Filename)
 	// line beneath need to be removed when it is fixed.
 	if(DictionaryPath == "~")
 	{
-		char *env = getenv( STRINGIZE(MXF_DATA_DIR) );
+		char *env = STRINGIZE_GETENV(DICT_DIR_ENV);
 		
 		if(env) DictionaryPath = std::string(env);
-		else DictionaryPath = std::string( STRINGIZE(DEFAULT_DICT_PATH) );
+		else DictionaryPath = std::string( DEFAULT_DICT_PATH );
 	}
 	*/
 
