@@ -2,7 +2,7 @@
  *	\brief	Implementation of traits for MDType definitions
  */
 /*
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -1229,303 +1229,105 @@ Uint32 MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const Uint8 *Buffer,
 }
 
 
-/*	virtual void SetInt64(MDValuePtr Object, Int64 Val);
-		virtual void SetUint(MDValuePtr Object, Uint32 Val);
-		virtual void SetUint64(MDValuePtr Object, Uint64 Val);
-		virtual void SetString(MDValuePtr Object, std::string Val);
-		virtual Int32 GetInt(MDValuePtr Object);
-		virtual Int64 GetInt64(MDValuePtr Object);
-		virtual Uint32 GetUint(MDValuePtr Object);
-		virtual Uint64 GetUint64(MDValuePtr Object);
-		virtual std::string GetString(MDValuePtr Object);
-*/
-#if 0
-
-// Default trait implementations
-////////////////////////////////
-
-void MDTraits::fSetInt(MDValuePtr Object, Int32 Val) { error("NO BODY!\n"); };
-void MDTraits::fSetInt64(MDValuePtr Object, Int64 Val) { error("NO BODY!\n"); };
-void MDTraits::fSetUint(MDValuePtr Object, Uint32 Val) { error("NO BODY!\n"); };
-void MDTraits::fSetUint64(MDValuePtr Object, Uint64 Val) { error("NO BODY!\n"); };
-void MDTraits::fSetString(MDValuePtr Object, std::string Val) { error("NO BODY!\n"); };
-Int32 MDTraits::fGetInt(MDValuePtr Object) { error("NO BODY!\n"); return 0;};
-Int64 MDTraits::fGetInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; };
-Uint32 MDTraits::fGetUint(MDValuePtr Object) { error("NO BODY!\n"); return 0; };
-Uint64 MDTraits::fGetUint64(MDValuePtr Object) { error("NO BODY!\n"); return 0; };
-std::string MDTraits::fGetString(MDValuePtr Object) { return std::string("Base"); };
-
-
-// Extended trait implementations
-/////////////////////////////////
-
-/*****************************
-**   Int8 Implementations   **
-*****************************/
-
-//! Set Int8 from an Int32
-void mxflib::Int8_SetInt(MDValuePtr Object, Int32 Val) 
-{ 
-	if(Object->GetData().Size != 1)
-	{
-		Object->MakeSize(1);
-		
-		if(Object->GetData().Size != 1)
-		{
-			error("Tried to set an MDValue to a 1-byte value, but could not set length to 1\n");
-			return;
-		}
-	}
-
-	// Now we know the value will fit, set it
-	Int8 i = Val;
-	Object->SetData(1, (Uint8*)&i);
-};
-
-//! Set Int8 from an Int64
-void mxflib::Int8_SetInt64(MDValuePtr Object, Int64 Val) { Int8_SetInt(Object, (Int32)Val); };
-
-//! Set Int8 from a Uint32
-void mxflib::Int8_SetUint(MDValuePtr Object, Uint32 Val) { Int8_SetInt(Object, (Int32)Val); };
-
-//! Set Int8 from a Uint64
-void mxflib::Int8_SetUint64(MDValuePtr Object, Uint64 Val) { Int8_SetInt(Object, (Int32)Val); };
-
-//! Set Int8 from a string
-void mxflib::Int8_SetString(MDValuePtr Object, std::string Val) {	Int8_SetInt(Object, (Int32)atoi(Val.c_str())); };
-
-//! Get Int32 from an Int8
-Int32 mxflib::Int8_GetInt(MDValuePtr Object) 
-{ 
-	int Size = Object->GetData().Size;
-
-	// Deal with a NULL variable
-	if(Size == 0) return 0;
-
-	if(Size != 1)
-	{
-		error("Tried to read a 1-byte value from an MDValue that has size %d\n", Size);
-		return 0;
-	}
-
-	// Return the value promoted to 32-bits
-	return (Int32) *((const Int8*)(Object->GetData()));
-};
-
-//! Get Int64 from an Int8
-Int64 mxflib::Int8_GetInt64(MDValuePtr Object) { return (Int64) Int8_GetInt(Object); };
-
-//! Get Uint32 from an Int8
-/*! \note
- *	This function will return 128 through 255 for bit values 10000000 through 11111111
- *	even though an Int8 cannot store them. This is as opposed to the option of returning
- *  0xffffff80 through 0xffffffff for those values.
- */
-Uint32 mxflib::Int8_GetUint(MDValuePtr Object)
-{ 
-	int Size = Object->GetData().Size;
-
-	// Deal with a NULL variable
-	if(Size == 0) return 0;
-
-	if(Size != 1)
-	{
-		error("Tried to read a 1-byte value from an MDValue that has size %d\n", Size);
-		return 0;
-	}
-
-	// Return the value promoted to 32-bits
-	return (Uint32) *((const Uint8*)(Object->GetData()));
-};
-
-//! Get Uint64 from an Int8
-/*! /note like mxflib::Int8_GetUint this function will returns 128 through 255 for -ve values
- */
-Uint64 mxflib::Int8_GetUint64(MDValuePtr Object) { return (Uint64) Int8_GetUint(Object); };
-
-//!	Get string from an Int8
-std::string mxflib::Int8_GetString(MDValuePtr Object) 
-{ 
-	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
-	sprintf(Buffer, "%d", Int8_GetInt(Object));
-	return std::string(Buffer);
-};
-
-
-/*****************************
-**   Uint8 Implementations   **
-*****************************/
-
-//! Set Uint8 from an Int32
-void mxflib::Uint8_SetInt(MDValuePtr Object, Int32 Val) { Int8_SetInt(Object, Val); };
-
-//! Set Uint8 from an Int64
-void mxflib::Uint8_SetInt64(MDValuePtr Object, Int64 Val) { Int8_SetInt(Object, (Int32)Val); };
-
-//! Set Uint8 from a Uint32
-void mxflib::Uint8_SetUint(MDValuePtr Object, Uint32 Val) { Int8_SetInt(Object, (Int32)Val); };
-
-//! Set Uint8 from a Uint64
-void mxflib::Uint8_SetUint64(MDValuePtr Object, Uint64 Val) { Int8_SetInt(Object, (Int32)Val); };
-
-//! Set Uint8 from a string
-void mxflib::Uint8_SetString(MDValuePtr Object, std::string Val) { Int8_SetInt(Object, (Int32)atoi(Val.c_str())); };
-
-//! Get Int32 from a Uint8
-Int32 mxflib::Uint8_GetInt(MDValuePtr Object) { return Int8_GetInt(Object); };
-
-//! Get Int64 from a Uint8
-Int64 mxflib::Uint8_GetInt64(MDValuePtr Object) { return Int8_GetInt64(Object); };
-
-//! Get Uint32 from a Uint8
-Uint32 mxflib::Uint8_GetUint(MDValuePtr Object) { return Int8_GetUint(Object); };
-
-//! Get Uint64 from a Uint8
-Uint64 mxflib::Uint8_GetUint64(MDValuePtr Object) { return Int8_GetUint64(Object); };
-
-//!	Get string from a Uint8
-std::string mxflib::Uint8_GetString(MDValuePtr Object) 
-{ 
-	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
-	sprintf(Buffer, "%u", Uint8_GetInt(Object));
-	return std::string(Buffer);
-};
-
-
-/******************************
-**   Int16 Implementations   **
-******************************/
-
-//! Set Int16 from an Int32
-void mxflib::Int16_SetInt(MDValuePtr Object, Int32 Val) 
-{ 
-	if(Object->GetData().Size != 2)
-	{
-		Object->MakeSize(2);
-		
-		if(Object->GetData().Size != 2)
-		{
-			error("Tried to set an MDValue to a 2-byte value, but could not set length to 2\n");
-			return;
-		}
-	}
-
-	// Now we know the value will fit, set it
-	// But as this is a multi-byte value we may need
-	// to byte swap it...
-	// Note that the swap is done in an unsigned int
-	// to prevent any sign problems!
-	Uint16 i = Swap((Uint16)Val);
-
-	Object->SetData(2, (Uint8*)&i);
-};
-
-//! Set Int16 from an Int64
-void mxflib::Int16_SetInt64(MDValuePtr Object, Int64 Val) { Int16_SetInt(Object, (Int32)Val); };
-
-//! Set Int16 from a Uint32
-void mxflib::Int16_SetUint(MDValuePtr Object, Uint32 Val) { Int16_SetInt(Object, (Int32)Val); };
-
-//! Set Int16 from a Uint64
-void mxflib::Int16_SetUint64(MDValuePtr Object, Uint64 Val) { Int16_SetInt(Object, (Int32)Val); };
-
-//! Set Int16 from a string
-void mxflib::Int16_SetString(MDValuePtr Object, std::string Val) { Int16_SetInt(Object, (Int32)atoi(Val.c_str())); };
-
-//! Get Int32 from an Int16
-Int32 mxflib::Int16_GetInt(MDValuePtr Object) 
-{ 
-	int Size = Object->GetData().Size;
-
-	// Deal with a NULL variable
-	if(Size == 0) return 0;
-
-	if(Size != 2)
-	{
-		error("Tried to read a 2-byte value from an MDValue that has size %d\n", Size);
-		return 0;
-	}
-
-	// Build the 16-bit value in a Uint to prevent possible sign problems
-	Uint16 Val = ((Object->GetData())[1] << 8) | (Object->GetData())[0];
-	
-	// Endian swap (if required) and convert to signed, then promote to 32-bit
-	return (Int32) ((Int16)Swap(Val));
-};
-
-//! Get Int64 from an Int16
-Int64 mxflib::Int16_GetInt64(MDValuePtr Object) { return (Int64)Int16_GetInt(Object); };
-
-//! Get Uint32 from an Int16
-Uint32 mxflib::Int16_GetUint(MDValuePtr Object) 
-{ 
-	int Size = Object->GetData().Size;
-
-	// Deal with a NULL variable
-	if(Size == 0) return 0;
-
-	if(Size != 2)
-	{
-		error("Tried to read a 2-byte value from an MDValue that has size %d\n", Size);
-		return 0;
-	}
-
-	// Build the 16-bit value
-	Uint16 Val = ((Object->GetData().Data)[1] << 8) | (Object->GetData())[0];
-	
-	// Endian swap (if required) then promote to 32-bit
-	return (Int32) Swap(Val);
-};
-
-//! Get Uint64 from an Int16
-Uint64 mxflib::Int16_GetUint64(MDValuePtr Object) { return (Uint64)Int16_GetUint(Object); };
-
-//!	Get string from an Int16
-std::string mxflib::Int16_GetString(MDValuePtr Object) 
-{ 
-	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
-	sprintf(Buffer, "%d", Int16_GetInt(Object));
-	return std::string(Buffer);
-};
-
-
-/*******************************
-**   Uint16 Implementations   **
-*******************************/
-
-//! Set Uint16 from an Int32
-void mxflib::Uint16_SetInt(MDValuePtr Object, Int32 Val) { Int16_SetInt(Object, Val); };
-
-//! Set Uint16 from an Int64
-void mxflib::Uint16_SetInt64(MDValuePtr Object, Int64 Val) { Int16_SetInt(Object, (Int32)Val); };
-
-//! Set Uint16 from a Uint32
-void mxflib::Uint16_SetUint(MDValuePtr Object, Uint32 Val) { Int16_SetInt(Object, (Int32)Val); };
-
-//! Set Uint16 from a Uint64
-void mxflib::Uint16_SetUint64(MDValuePtr Object, Uint64 Val) { Int16_SetInt(Object, (Int32)Val); };
-
-//! Set Uint16 from a string
-void mxflib::Uint16_SetString(MDValuePtr Object, std::string Val) { Int16_SetInt(Object, (Int32)atoi(Val.c_str())); };
-
-//! Get Int32 from an Uint16
-Int32 mxflib::Uint16_GetInt(MDValuePtr Object) { return Int16_GetInt(Object); };
-
-//! Get Int64 from an Uint16
-Int64 mxflib::Uint16_GetInt64(MDValuePtr Object) { return (Int64)Int16_GetInt(Object); };
-
-//! Get Uint32 from an Uint16
-Uint32 mxflib::Uint16_GetUint(MDValuePtr Object) { return Int16_GetUint(Object); };
-
-//! Get Uint64 from an Uint16
-Uint64 mxflib::Uint16_GetUint64(MDValuePtr Object) { return (Uint64)Int16_GetUint(Object); };
-
-//!	Get string from an Uint16
-std::string mxflib::Uint16_GetString(MDValuePtr Object) 
-{ 
-	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
-	sprintf(Buffer, "%u", Int16_GetUint(Object));
-	return std::string(Buffer);
-};
-#endif 0
+/*********************************
+**   Rational Implementations   **
+*********************************/
+
+std::string MDTraits_Rational::GetString(MDValuePtr Object)
+{
+	MDValuePtr Numerator = Object["Numerator"];
+	MDValuePtr Denominator = Object["Denominator"];
+
+	Uint32 Num = 0;
+	Uint32 Den = 0;
+	if(Numerator) Num = Numerator->GetUint();
+	if(Denominator) Den = Denominator->GetUint();
+
+	return Uint2String(Num) + "/" + Uint2String(Den);
+}
+
+
+void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
+{
+	MDValuePtr Numerator = Object["Numerator"];
+	MDValuePtr Denominator = Object["Denominator"];
+
+	Uint32 Num = atoi(Val.c_str());
+
+	Uint32 Den = 0;
+	std::string::size_type Slash = Val.find("/");
+	if(Slash != std::string::npos) Den = atoi(&(Val.c_str()[Slash+1]));
+
+	if(Numerator) Numerator->SetUint(Num);
+	if(Denominator) Denominator->SetUint(Den);
+}
+
+
+/**********************************
+**   TimeStamp Implementations   **
+**********************************/
+
+std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
+{
+	MDValuePtr Year = Object["Year"];
+	MDValuePtr Month = Object["Month"];
+	MDValuePtr Day = Object["Day"];
+	MDValuePtr Hours = Object["Hours"];
+	MDValuePtr Minutes = Object["Minutes"];
+	MDValuePtr Seconds = Object["Seconds"];
+	MDValuePtr msBy4 = Object["msBy4"];
+
+	Uint32 Y;
+	Uint32 M;
+	Uint32 D;
+	Uint32 H;
+	Uint32 Min;
+	Uint32 S;
+	Uint32 ms;
+
+	if(Year) Y = Year->GetUint(); else Y = 0;
+	if(Month) M = Month->GetUint(); else M = 0;
+	if(Day) D = Day->GetUint(); else D = 0;
+	if(Hours) H = Hours->GetUint(); else H = 0;
+	if(Minutes) Min = Minutes->GetUint(); else Min = 0;
+	if(Seconds) S = Seconds->GetUint(); else S = 0;
+	if(msBy4) ms = msBy4->GetUint() * 4; else ms = 0;
+
+	return Uint2String(Y) + "/" + Uint2String(M,2) + "/" + Uint2String(D,2) + " " +
+		   Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2) + "." + Uint2String(ms,3);
+}
+
+
+void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
+{
+	MDValuePtr Year = Object["Year"];
+	MDValuePtr Month = Object["Month"];
+	MDValuePtr Day = Object["Day"];
+	MDValuePtr Hours = Object["Hours"];
+	MDValuePtr Minutes = Object["Minutes"];
+	MDValuePtr Seconds = Object["Seconds"];
+	MDValuePtr msBy4 = Object["msBy4"];
+
+	Uint32 Y;
+	Uint32 M;
+	Uint32 D;
+	Uint32 H;
+	Uint32 Min;
+	Uint32 S;
+	Uint32 ms;
+
+	sscanf(Val.c_str(), "%d/%d/%d", &Y, &M, &D);
+	std::string::size_type Pos = Val.find("T");
+	if(Pos == std::string::npos) Pos = Val.find(" ");
+	if(Pos != std::string::npos) sscanf(&(Val.c_str()[Pos]), "%d:%d:%d.%d", &H, &Min, &S, &ms);
+
+	if(Year) Year->SetUint(Y);
+	if(Month) Month->SetUint(M);
+	if(Day) Day->SetUint(D);
+	if(Hours) Hours->SetUint(H);
+	if(Minutes) Minutes->SetUint(Min);
+	if(Seconds) Seconds->SetUint(S);
+	if(msBy4) msBy4->SetUint(ms / 4);
+}
+
 

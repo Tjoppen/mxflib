@@ -10,7 +10,7 @@
  *			These classes are currently wrappers around KLVLib structures
  */
 /*
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from

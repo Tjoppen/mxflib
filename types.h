@@ -2,7 +2,7 @@
  *	\brief	The main MXF data types
  */
 /*
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -64,11 +64,18 @@ namespace mxflib
 		Uint8 Ident[SIZE];
 	public:
 		Identifier(const Uint8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
-		Identifier(const Identifier *ID) { ASSERT(SIZE == ID->Size()); if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID->Ident, SIZE); };
+		Identifier(const SmartPtr<Identifier> ID) { ASSERT(SIZE == ID->Size()); if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID->Ident, SIZE); };
 		void Set(const Uint8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
 		const Uint8 *GetValue(void) const { return Ident; };
 		int Size(void) const { return SIZE; };
 		
+		bool operator!(void) const
+		{
+			int i;
+			for(i=0; i<SIZE; i++) if(Ident[i]) return false;
+			return true;
+		}
+
 		bool operator<(const Identifier& Other) const
 		{
 			if(Other.Size() < SIZE ) return (memcmp(Ident, Other.Ident, Other.Size()) < 0);

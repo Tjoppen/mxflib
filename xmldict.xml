@@ -1,4 +1,4 @@
-<!-- Version 11a by Matt Beard 27 March 2003 -->
+<!-- Version 11a by Matt Beard 18 April 2003 -->
 <!-- -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2003 Matt Beard								 -->
@@ -65,6 +65,7 @@
 	<GenerationInterchangeObject base="InterchangeObject">
 		<GenerationUID detail="Generation Instance" use="optional" type="UUID" minLength="16" maxLength="16" key="01 02" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 08 00 00 00"/>
 	</GenerationInterchangeObject>
+	<DefaultObject base="GenerationInterchangeObject" key="06 0e 2b 34 02 53 01 01  7f 00 00 00 00 00 00 00"/>
 	<IndexTableSegmentBase base="InterchangeObject" detail="Base for IndexTableSegments" type="localSet">
 		<IndexEditRate detail="Edit Rate copied from the tracks of the Essence Container" use="required" type="Rational" minLength="8" maxLength="8" key="3f 0b" globalKey="06 0e 2b 34 01 01 01 05  05 30 04 06 00 00 00 00"/>
 		<IndexStartPosition detail="The first editable unit indexed by this Index Table segment measured in File Package Edit Units" use="required" type="Position" minLength="8" maxLength="8" key="3f 0c" globalKey="06 0e 2b 34 01 01 01 05  07 02 01 03 01 0a 00 00"/>
@@ -154,6 +155,11 @@
 			<EssenceContainer detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
 		</EssenceContainerData>
 	</ContentStorage>
+	<ContentStorageKludge detail="Kludge for Version 10 Content Storage set" type="localSet">
+		<V10Packages detail="Unordered batch of all packages used in this file" use="required" type="subVector" ref="strong" target="GenericPackage" key="19 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 05 00 00 00">
+			<V10Package detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
+		</V10Packages>
+	</ContentStorageKludge>
 	<EssenceContainerData base="GenerationInterchangeObject" detail="Essence Container Data set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 23 00">
 		<LinkedPackageUID detail="Identifier of the Package to which this set is linked as a UMID" use="required" type="UMID" minLength="32" maxLength="32" key="27 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 06 01 00 00 00"/>
 		<IndexSID detail="ID of the Index Table for the Essence Container to which this set is linked" use="optional" type="Uint32" minLength="4" maxLength="4" key="3f 06" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00"/>
@@ -164,7 +170,7 @@
 		<Name detail="Human readable package name" use="optional" type="UTF16String" key="44 02" globalKey="06 0e 2b 34 01 01 01 01  01 03 03 02 01 00 00 00"/>
 		<PackageCreationDate detail="The date &amp; time of creation of this package" use="required" type="Timestamp" minLength="8" maxLength="8" key="44 05" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 10 01 03 00 00"/>
 		<PackageModifiedDate detail="The date &amp; time of last modification of this package" use="required" type="Timestamp" minLength="8" maxLength="8" key="44 04" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 10 02 05 00 00"/>
-		<Tracks detail="Array of Unique IDs of Tracks" use="required" type="subVector" ref="strong" target="Track" key="44 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 05 00 00">
+		<Tracks detail="Array of Unique IDs of Tracks" use="required" type="subVector" ref="strong" target="GenericTrack" key="44 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 05 00 00">
 			<Track detail="Track ID" type="UUID" minLength="16" maxLength="16"/>
 		</Tracks>
 	</GenericPackage>
@@ -175,14 +181,21 @@
 	<TextLocator base="Locator" detail="Text Locator set for location with a human-readable text string" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 33 00">
 		<LocatorName detail="Value of a human-readable locator text string for manual location of essence" use="required" type="UTF16String" key="41 01" globalKey="06 0e 2b 34 01 01 01 02  01 04 01 02 01 00 00 00"/>
 	</TextLocator>
-	<Track base="GenerationInterchangeObject" detail="Track" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 3b 00">
+	<GenericTrack base="GenerationInterchangeObject" detail="Generic Track" type="localSet">
 		<TrackID detail="ID of the track in this package (for linking to a SourceTrackID in a segment)" use="required" type="Uint32" minLength="4" maxLength="4" key="48 01" globalKey="06 0e 2b 34 01 01 01 02  01 07 01 01 00 00 00 00"/>
 		<TrackNumber detail="Number used to link to the track in the Essence Container if it exists" use="required" type="Uint32" minLength="4" maxLength="4" key="48 04" globalKey="06 0e 2b 34 01 01 01 02  01 04 01 03 00 00 00 00" default="0"/>
 		<TrackName detail="Human readable name of the track type" use="optional" type="UTF16String" key="48 02" globalKey="06 0e 2b 34 01 01 01 02  01 07 01 02 01 00 00 00"/>
+		<Sequence detail="Strong Reference to Sequence Set" use="required" type="UUID" minLength="16" maxLength="16" key="48 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 04 00 00" ref="strong" target="StructuralComponent"/>
+	</GenericTrack>
+	<StaticTrack base="GenericTrack" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 3a 00"/>
+	<Track base="StaticTrack" detail="Track" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 3b 00">
 		<EditRate detail="Edit Rate of Track" use="required" type="Rational" minLength="8" maxLength="8" key="4b 01" globalKey="06 0e 2b 34 01 01 01 02  05 30 04 05 00 00 00 00"/>
 		<Origin detail="An Offset used to resolved timeline references to this track. The start of the track has this timeline value measured in Edit Units." use="required" type="Position" minLength="8" maxLength="8" key="4b 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 03 01 03 00 00"/>
-		<Sequence detail="Strong Reference to Sequence Set" use="required" type="UUID" minLength="16" maxLength="16" key="48 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 04 00 00" ref="strong" target="StructuralComponent"/>
 	</Track>
+	<EventTrack base="StaticTrack" detail="Event Track" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 39 00">
+		<EventEditRate detail="Edit Rate of Event Track" use="required" type="Rational" minLength="8" maxLength="8" key="49 01" globalKey="06 0e 2b 34 01 01 01 02  05 30 04 02 00 00 00 00"/>
+		<EventOrigin detail="An Offset used to resolved timeline references to this event track. The start of the event track has this timeline value measured in Edit Units." use="optional" type="Position" minLength="8" maxLength="8" key="49 02" globalKey="06 0e 2b 34 01 01 01 05  07 02 01 03 01 0b 00 00" default="0"/>
+	</EventTrack>
 	<StructuralComponent base="GenerationInterchangeObject" detail="Structural Component Superclass" type="localSet">
 		<DataDefinition detail="Data Definition - kind of data or metadata this structure refers to" use="required" type="Label" minLength="16" maxLength="16" key="02 01" globalKey="06 0e 2b 34 01 01 01 02  04 07 01 00 00 00 00 00"/>
 		<Duration detail="Duration (in units of edit rate)" use="best effort" dvalue="-1" type="Length" minLength="8" maxLength="8" key="02 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 02 01 01 03 00 00"/>
@@ -205,10 +218,10 @@
 	<DMSegment base="StructuralComponent" detail="Descriptive Metadata Segment" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 41 00">
 		<EventStartPosition detail="Offset into the descriptive metadata track in edit units" use="required" type="Position" minLength="8" maxLength="8" key="06 01" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 03 03 03 00 00"/>
 		<EventComment detail="Description of the Descriptive Metadata Framework" use="optional" type="UTF16String" key="06 02" globalKey="06 0e 2b 34 01 01 01 02  05 30 04 04 01 00 00 00"/>
-		<TrackIDs detail="An unordered list of track ID values that identify the tracks in this Package to which this DM Framework refers (if omitted, refers to all essence tracks)" use="optional" type="subVector" key="61 02" globalKey="06 0e 2b 34 01 01 01 04  01 07 01 05 00 00 00 00">
+		<TrackIDs detail="An unordered list of track ID values that identify the tracks in this Package to which this DM Framework refers (if omitted, refers to all essence tracks)" use="decoder required" type="subVector" key="61 02" globalKey="06 0e 2b 34 01 01 01 04  01 07 01 05 00 00 00 00">
 			<TrackID detail="Uint32" type="Uint32" minLength="4" maxLength="4"/>
 		</TrackIDs>
-		<DMFramework detail="Strong Reference to the Descriptive Metadata Framework" use="required" type="UUID" ref="strong" target="GenerationInterchangeObject" minLength="16" maxLength="16" key="61 01" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 04 02 0c 00 00"/>
+		<DMFramework detail="Strong Reference to the Descriptive Metadata Framework" use="decoder required" type="UUID" ref="strong" target="GenerationInterchangeObject" minLength="16" maxLength="16" key="61 01" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 04 02 0c 00 00"/>
 		<!-- At the moment DMFramework can link to any interchange object! -->
 	</DMSegment>
 	<DMSourceClip base="SourceClip" detail="Descriptive Metadata SourceClip" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 45 00">
@@ -218,7 +231,7 @@
 	</DMSourceClip>
 	<MaterialPackage base="GenericPackage" detail="Material Package set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 36 00"/>
 	<SourcePackage base="GenericPackage" detail="File Package set" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 37 00">
-		<Descriptor detail="Strong Reference to the Descriptor" use="required" type="UUID" minLength="16" maxLength="16" ref="strong" target="GenericDescriptor" key="47 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 03 00 00"/>
+		<Descriptor detail="Strong Reference to the Descriptor" use="decoder required" type="UUID" minLength="16" maxLength="16" ref="strong" target="GenericDescriptor" key="47 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 03 00 00"/>
 	</SourcePackage>
 	<GenericDescriptor base="GenerationInterchangeObject" detail="Generic Descriptor" type="localSet">
 		<Locators detail="Ordered array of strong references to Locator sets" use="optional" type="subVector" ref="strong" target="Locator" key="2f 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 03 00 00">
@@ -266,7 +279,7 @@
 		<VerticalSubsampling detail="Specifies the V colour subsampling" type="Uint32" minLength="4" maxLength="4" key="33 08" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 01 10 00 00 00" use="optional"/>
 		<ColorSiting detail="Enumerated value describing the color siting" type="Uint8" minLength="4" maxLength="4" key="33 03" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 06 00 00 00" use="optional"/>
 		<ReversedByteOrder detail="a FALSE value denotes Chroma followed by Luma pexels according to ITU Rec. 601" type="Boolean" minLength="1" maxLength="1" key="33 0b" globalKey="06 0e 2b 34 01 01 01 05  03 01 02 01 0a 00 00 00" use="optional"/>
-		<PaddingBits detail="Bits to round up each pixel to stored size" type="Uint16" minLength="2" maxLength="2" key="33 07" globalKey="06 0e 2b 34 01 01 01 05  04 18 01 04 00 00 00 00" use="optional"/>
+		<PaddingBits detail="Bits to round up each pixel to stored size" type="Uint16" minLength="2" maxLength="2" key="33 07" globalKey="06 0e 2b 34 01 01 01 02  04 18 01 04 00 00 00 00" use="optional"/>
 		<AlphaSampleDepth detail="Number of bits per alpha sample" type="Uint32" minLength="4" maxLength="4" key="33 09" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 07 00 00 00" use="optional"/>
 		<BlackRefLevel detail="Black refernece level e.g. 16 or 64 (8 or 10-bits)" type="Uint32" minLength="4" maxLength="4" key="33 04" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 03 03 00 00 00" use="optional"/>
 		<WhiteReflevel detail="White reference level e.g. 235 or 943 (8 or 10 bits)" type="Uint32" minLength="4" maxLength="4" key="33 05" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 03 04 00 00 00" use="optional"/>

@@ -2,7 +2,7 @@
  *	\brief	Definition of traits for MDType definitions
  */
 /*
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -218,6 +218,20 @@ namespace mxflib
 		virtual std::string GetString(MDValuePtr Object);
 
 		virtual Uint32 ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
+	};
+
+	class MDTraits_Rational : public MDTraits_BasicCompound
+	{
+	protected:
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_TimeStamp : public MDTraits_BasicCompound
+	{
+	protected:
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
 	};
 }
 

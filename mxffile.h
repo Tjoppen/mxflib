@@ -29,17 +29,24 @@
 #ifndef MXFLIB__MXFFILE_H
 #define MXFLIB__MXFFILE_H
 
+// Include the KLVLib header
+extern "C"
+{
+#include "KLV.h"						//!< The KLVLib header
+}
+
+
 // KLUDGE!! MSVC can't cope with template member functions!!!
 namespace mxflib
 {
 	class MXFFile;
-	template<class TP, class T> TP MXFFile__ReadObjectBase(MXFFile *This);
+	template<class TP, class T> TP MXFFile__ReadObjectBase(MXFFilePtr This);
 }
 
 namespace mxflib
 {
 	//! Holds data relating to an MXF file
-	class MXFFile
+	class MXFFile : public RefCount<MXFFile>
 	{
 	private:
 		bool isOpen;
@@ -84,12 +91,10 @@ namespace mxflib
 		Uint64 ReadBER(void);
 	};
 
-	//! A smart pointer to an MXFFile object
-	typedef SmartPtr<MXFFile> MXFFilePtr;
 };
 
-// DRAGONS: Why does this work in a header, but not in the file?
-template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFile *This)
+// DRAGONS: MSVC: Why does this work in a header, but not in the file?
+template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFilePtr This)
 {
 	TP Ret;
 
@@ -107,6 +112,10 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 	Uint64 Length = This->ReadBER();
 	if(Length > 0)
 	{
+		// Work out how big the key and length are in the file
+		Uint32 KLSize = This->Tell() - Location;
+
+		// Read the actual data
 		DataChunkPtr Data = This->Read(Length);
 
 		if(Data->Size != Length)
@@ -114,6 +123,7 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 			error("Not enough data in file for object %s at 0x%s\n", Ret->Name().c_str(), Int64toHexString(Location,8).c_str());
 		}
 
+		Ret->SetParent(This, Location, KLSize);
 		Ret->ReadValue(Data->Data, Data->Size);
 	}
 

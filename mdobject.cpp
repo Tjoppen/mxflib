@@ -136,21 +136,20 @@ void MDOType::DictManager::Load(const char *DictFile)
 	{
 		debug("MDOType: %s\n", (*it)->GetDict()->Name);
 
-		MDOTypeList::iterator it2 = (*it)->Children.begin();
-		StringList::iterator it2n = (*it)->ChildrenNames.begin();
-		while(it2 != (*it)->Children.end())
+		StringList::iterator it2 = (*it)->ChildOrder.begin();
+		while(it2 != (*it)->ChildOrder.end())
 		{
-			debug("  Sub->: %s = %s\n", (*it2n).c_str() ,(*it2)->GetDict()->Name);
+			MDOTypePtr Current = NameLookup[(*it)->FullName() + "/" + *it2];
+			debug("  Sub->: %s = %s\n", (*it2).c_str() , Current->GetDict()->Name);
 
-			MDOTypeList::iterator it3 = (*it2)->Children.begin();
-			while(it3 != (*it2)->Children.end())
+			StringList::iterator it3 = Current->ChildOrder.begin();
+			while(it3 != Current->ChildOrder.end())
 			{
-				debug("    SubSub->: %s\n", (*it3)->GetDict()->Name);
+				debug("    SubSub->: %s\n", (*it3).c_str());
 				it3++;
 			}
-
 			it2++;
-			it2n++;
+//			it2n++;
 		}
 
 		it++;
@@ -259,34 +258,35 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 	// If it is a child of another type then add to the children lists
 	if(ParentType)
 	{
-		ParentType->Children.push_back(NewType);
-		ParentType->ChildrenNames.push_back(Dict->Name);
+		ParentType->insert(NewType);
+//		ParentType->ChildrenNames.push_back(Dict->Name);
 	}
 
 	// Build base name for any children
 	MDOTypePtr Scan = ParentType;
-	std::string BaseName = "";
-	while(Scan)
-	{
-		BaseName = std::string(Scan->Dict->Name) + "/" + BaseName;
-		Scan = Scan->Parent;
-	}
+	NewType->RootName = "";
+	if(Scan) NewType->RootName = ParentType->FullName() + "/";
 
 	// Copy any children from our base
 	if(Dict->Base)
 	{
 		MDOTypePtr Base = DictLookup[Dict->Base];
-		NewType->Children = Base->Children;
-		NewType->ChildrenNames = Base->ChildrenNames;
-
+		
 		// Add child names to name lookup
-		MDOTypeList::iterator it = NewType->Children.begin();
-		StringList::iterator itn = NewType->ChildrenNames.begin();
-		while(it != NewType->Children.end())
+		StringList::iterator it = Base->ChildOrder.begin();
+//		StringList::iterator itn = NewType->ChildrenNames.begin();
+		while(it != Base->ChildOrder.end())
 		{
-			NameLookup[BaseName + (*itn)] = (*it);
+			MDOTypePtr Current = NameLookup[Base->FullName() + "/" + (*it)];
+
+			ASSERT(Current);
+
+			// Add the base types children
+			NewType->insert(Current);
+
+			NameLookup[NewType->FullName() + "/" + (*it)] = Current;
 			it++;
-			itn++;
+//			itn++;
 		}
 	}
 
@@ -298,7 +298,6 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 		// First see if there is only one item in the vector
 		if(Dict->Children && (Dict->Children->Next == NULL))
 		{
-//Type = "";
 			// If it is a ref this is more important than the UUID type
 			if(Dict->RefType == DICT_REF_STRONG)
 				Type = "StrongRef";
@@ -317,9 +316,6 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 		}
 		else
 		{
-//			// If more complex type use the vector properties name as the type
-//			Type = Dict->Name;
-
 			Type = "";
 
 			DictEntryList *ChildList = Dict->Children;
@@ -344,7 +340,7 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 		NewType->ValueType = MDType::Find(Type.c_str());
 		if(!NewType->ValueType)
 		{
-			std::string Temp = BaseName;
+			std::string Temp = NewType->RootName;
 			Temp += Dict->Name;
 			warning("Object type \"%s\" is of unknown type \"%s\"\n", Temp.c_str(), Type.c_str());
 
@@ -378,7 +374,7 @@ void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
 	// Set the lookups
 	if(NewType->TypeUL) ULLookup[UL(NewType->TypeUL)] = NewType;
 	DictLookup[Dict] = NewType;
-	NameLookup[BaseName + std::string(Dict->Name)] = NewType;
+	NameLookup[NewType->RootName + std::string(Dict->Name)] = NewType;
 }
 
 
@@ -449,11 +445,11 @@ MDOType::MDOType(DictEntry *RootDict) : Dict(RootDict), Parent(NULL)
 /*! /ret Pointer to the object
  *  /ret NULL if there is no type of that name
  */
-MDOTypePtr MDOType::Find(const char *BaseType)
+MDOTypePtr MDOType::Find(std::string BaseType)
 {
 	MDOTypePtr theType;
 
-	std::map<std::string,MDOTypePtr>::iterator it = NameLookup.find(std::string(BaseType));
+	std::map<std::string,MDOTypePtr>::iterator it = NameLookup.find(BaseType);
 	if(it == NameLookup.end())
 	{
 		return NULL;
@@ -517,14 +513,28 @@ MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 MDObject::MDObject(const char *BaseType)
 {
 	Type = MDOType::Find(BaseType);
-	if(!Type)
+	if(Type)
+	{
+		ObjectName = Type->Name();
+	}
+	else
 	{
 		error("Metadata object type \"%s\" doesn't exist\n", BaseType);
 
 		Type = MDOType::Find("Unknown");
 
 		ASSERT(Type);
+
+		ObjectName = "Unknown (" + std::string(BaseType) + ")";
 	}
+
+	IsConstructed = true;
+	ParentOffset = 0;
+	KLSize = 0;
+	Parent = NULL;
+	ParentFile = NULL;
+	TheUL = Type->GetUL();
+	TheTag = 0;
 
 	// Initialise the new object
 	Init();
@@ -536,6 +546,16 @@ MDObject::MDObject(const char *BaseType)
 */
 MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType) 
 {
+	ObjectName = BaseType->Name();
+	
+	IsConstructed = true;
+	ParentOffset = 0;
+	KLSize = 0;
+	Parent = NULL;
+	ParentFile = NULL;
+	TheUL = Type->GetUL();
+	TheTag = 0;
+
 	// Initialise the new object
 	Init();
 };
@@ -547,15 +567,42 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 MDObject::MDObject(ULPtr UL) 
 {
 	Type = MDOType::Find(UL);
-	if(!Type)
+	if(Type)
 	{
-		/// Note - this is not an error - it could be dark metadata!
-		///		error("Metadata object with UL \"%s\" doesn't exist\n", UL->GetString().c_str());
-
+		ObjectName = Type->Name();
+	}
+	else
+	{
 		Type = MDOType::Find("Unknown");
 
+		ObjectName = "Unknown (" + UL->GetString() + ")";
+
 		ASSERT(Type);
+
+		// Shall we tray and parse this?
+		// DRAGONS: Somewhat clunky version for 2-byte tag, 2-byte len
+#define ParseDark true
+		if(ParseDark)
+		{
+			static MDOTypePtr Preface = MDOType::Find("Preface");
+
+			ASSERT(Preface);
+
+			if(memcmp(Preface->TypeUL->GetValue(), UL->GetValue(), 6) == 0)
+			{
+				Type = MDOType::Find("DefaultObject");
+				ASSERT(Type);
+			}
+		}
 	}
+
+	IsConstructed = true;
+	ParentOffset = 0;
+	KLSize = 0;
+	Parent = NULL;
+	ParentFile = NULL;
+	TheUL = UL;
+	TheTag = 0;
 
 	// Initialise the new object
 	Init();
@@ -567,15 +614,47 @@ MDObject::MDObject(ULPtr UL)
 */
 MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 {
-	Type = MDOType::Find(BaseTag, BasePrimer);
-	if(!Type)
+	Primer::iterator it = BasePrimer->find(BaseTag);
+
+	if(it == BasePrimer->end())
 	{
 		error("Metadata object with Tag \"%s\" doesn't exist in specified Primer\n", Tag2String(BaseTag).c_str());
 
 		Type = MDOType::Find("Unknown");
 
 		ASSERT(Type);
+
+		// DRAGONS: What do we do if the UL is unknown!!
+		TheUL = new UL();
+
+		ObjectName = "Unknown (" + Tag2String(BaseTag) + ")";
 	}
+	else
+	{
+		TheUL = new UL((*it).second);
+
+		Type = MDOType::Find(TheUL);
+
+		if(Type)
+		{
+			ObjectName = Type->Name();
+		}
+		else
+		{
+			Type = MDOType::Find("Unknown");
+
+			ASSERT(Type);
+
+			ObjectName = "Unknown (" + Tag2String(BaseTag) + " -> " + TheUL->GetString() + ")";
+		}
+	}
+
+	IsConstructed = true;
+	ParentOffset = 0;
+	KLSize = 0;
+	Parent = NULL;
+	ParentFile = NULL;
+	TheTag = BaseTag;
 
 	// Initialise the new object
 	Init();
@@ -607,15 +686,29 @@ void MDObject::Init(void)
 		{
 			Value = NULL;
 
-			MDOTypeList::iterator it = Type->Children.begin();
-			while(it != Type->Children.end())
+			StringList::iterator it = Type->ChildOrder.begin();
+			while(it != Type->ChildOrder.end())
 			{
-				Children.push_back(new MDObject(*it));
+				MDOTypePtr Current = MDOType::Find(Type->FullName() + "/" + (*it));
+
+				ASSERT(Current);
+
+				if(!Current)
+				{
+					error("Cannot find type %s in Init (Pack)\n", (*it).c_str());
+				}
+				else
+				{
+					Children.push_back(new MDObject(Current));
+					// Copy all the names
+					ChildrenNames.push_back((*it));
+				}
+
 				it++;
 			}
 
-			// Copy all the names
-			ChildrenNames = Type->ChildrenNames;
+//			// Copy all the names
+//			ChildrenNames = Type->ChildrenNames;
 
 		}
 		break;
@@ -649,6 +742,8 @@ void MDObject::Init(void)
  *	/note If you want to add an child that is non-standard (i.e. not listed
  *        as a child in the container's MDOType then you must build the child
  *        then add it with AddChild(MDObjectPtr)
+ *  /note If you want to add a second child of the same name to an object
+ *        you must build the child and then add it with AddChild(MDObjectPtr)
  */
 MDObjectPtr MDObject::AddChild(const char *ChildName)
 {
@@ -658,28 +753,21 @@ MDObjectPtr MDObject::AddChild(const char *ChildName)
 	// Only add a new one if we didn't find it
 	if(!Ret)
 	{
-		StringList::iterator it = Type->ChildrenNames.begin();
-		MDOTypeList::iterator it2 = Type->Children.begin();
-	
-		while(it != Type->ChildrenNames.end())
-		{
-			ASSERT(it2 != Type->Children.end());
+//		StringList::iterator it = Type->ChildrenNames.begin();
 
-			if(strcmp((*it).c_str(),ChildName) == 0)
-			{
-				// Insert a new item of the correct type at the end
-				MDObjectPtr Ret = new MDObject(*it2);
-				Children.push_back(Ret);
-				ChildrenNames.push_back(*it);
+		// Find the child definition
+		MDOType::iterator it = Type->find(ChildName);
 
-				// Return smart pointer to the new object
-				return Ret;
-			}
-			it++;
-			it2++;
-		}
+		// Return NULL if not found
+		if(it == Type->end()) return Ret;
+
+		// Insert a new item of the correct type at the end
+		MDObjectPtr Ret = new MDObject((*it).second);
+		Children.push_back(Ret);
+		ChildrenNames.push_back((*it).first);
 	}
 
+	// Return smart pointer to the new object
 	return Ret;
 };
 
@@ -689,10 +777,10 @@ MDObjectPtr MDObject::AddChild(const char *ChildName)
  *  /ret NULL if there was an error
  *  /note If there is already a child of this type it is removed
  */
-MDObjectPtr MDObject::AddChild(MDObjectPtr ChildObject)
+MDObjectPtr MDObject::AddChild(MDObjectPtr ChildObject, bool Replace /* = false */)
 {
-	// Remove any existing child
-	RemoveChild(ChildObject->Type);
+	// If replacing, remove any existing children of this type
+	if (Replace) RemoveChild(ChildObject->Type);
 
 	// Insert the new item at the end
 	Children.push_back(ChildObject);
@@ -966,7 +1054,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 	case ARRAY:
 		{
-			if(Type->Children.empty())
+			if(Type->empty())
 			{
 				error("Object %s is a multiple, but has no contained types\n", Name().c_str());
 				return Bytes;
@@ -975,24 +1063,29 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			// Start with no children
 			Children.clear();
 
-			MDOTypeList::iterator it = Type->Children.begin();
+			MDOType::iterator it = Type->begin();
 			while(Size)
 			{
-				MDObjectPtr NewItem = new MDObject(*(it));
+				MDObjectPtr NewItem = new MDObject((*it).second);
 				Uint32 ThisBytes = NewItem->ReadValue(Buffer, Size);
+
+				NewItem->Parent = this;
+				NewItem->ParentOffset = Bytes;
+				NewItem->KLSize = 0;
+
 				Bytes += ThisBytes;
 				Buffer += ThisBytes;
 				if(ThisBytes > Size) Size = 0; else Size -= ThisBytes;
 				Children.push_back(NewItem);
 
 				it++;
-				if(it == Type->Children.end()) it = Type->Children.begin();
-//printf("Child of %s is %s\n", Name().c_str(), NewItem->Name().c_str());
+				if(it == Type->end()) it = Type->begin();
 			}
 
-			if(it != Type->Children.begin())
+			if(it != Type->begin())
 			{
-				error("Multiple %s does not contain an integer number of sub-items\n", Name().c_str());
+				error("Multiple %s at 0x%s in %s does not contain an integer number of sub-items\n", 
+					  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
 			}
 
 			return Bytes;
@@ -1000,6 +1093,8 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 	case PACK:
 		{
+			debug("Reading pack at 0x%s\n", Int64toHexString(GetLocation(), 8).c_str());
+
 			Uint32 Bytes = 0;
 			MDObjectList::iterator it = Children.begin();
 			if(Size) for(;;)
@@ -1012,6 +1107,13 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				}
 
 				Uint32 ThisBytes = (*it)->ReadValue(Buffer, Size);
+
+				(*it)->Parent = this;
+				(*it)->ParentOffset = Bytes;
+				(*it)->KLSize = 0;
+
+				debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it)->GetLocation(), 8).c_str(), (*it)->Name().c_str(), (*it)->GetString().c_str());
+
 				Bytes += ThisBytes;
 
 				it++;
@@ -1024,7 +1126,8 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 			if(it != Children.end())
 			{
-				warning("Not enough bytes in buffer in MDObject::ReadValue() for %s\n", Name().c_str());
+				warning("Not enough bytes in buffer for %s at 0x%s in %s\n", 
+					    FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
 			}
 
 			return Bytes;
@@ -1032,6 +1135,8 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 	case SET:
 		{
+			debug("Reading set at 0x%s\n", Int64toHexString(GetLocation(), 8).c_str());
+
 			Uint32 Bytes = 0;
 
 			// Start with an empty list
@@ -1041,14 +1146,14 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			ASSERT(UsePrimer);
 			if(!UsePrimer)
 			{
-				error("No Primer supplier when reading set in MDObject::ReadValue()\n");
+				error("No Primer supplier when reading set %s in MDObject::ReadValue()\n", FullName().c_str());
 				return 0;
 			}
 
 			// Scan until out of data
 			while(Size)
 			{
-				int KeyLen = 0;
+				Uint32 BytesAtItemStart = Bytes;
 
 				DataChunk Key;
 				Uint32 ThisBytes = ReadKey(Type->GetDict()->KeyFormat, Size, Buffer, Key);
@@ -1075,8 +1180,9 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				{
 					if(Size < Length)
 					{
-						error("Not enough bytes for value in MDObject::ReadValue() for %s\n", Name().c_str());
-						
+						error("Not enough bytes for value for %s at 0x%s in %s\n", 
+							  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
+
 						// Read what we can!
 						Length = Size;
 					}
@@ -1104,6 +1210,13 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 					}
 					
 					ThisBytes = NewItem->ReadValue(Buffer, Length);
+
+					NewItem->Parent = this;
+					NewItem->ParentOffset = BytesAtItemStart;
+					NewItem->KLSize = Bytes - BytesAtItemStart;
+
+					debug("  at 0x%s Set item (%s) %s = %s\n", Int64toHexString(NewItem->GetLocation(), 8).c_str(), Key.GetString().c_str(), NewItem->Name().c_str(), NewItem->GetString().c_str());
+
 /*if(NewItem->Value)
 {
  printf(">Read %s, size = %d, object size = %d (%d)\n>", NewItem->Name().c_str(), ThisBytes, NewItem->Value->GetData().Size, NewItem->Value->size());
@@ -1122,8 +1235,9 @@ printf("Length = %d\n", Length);
 */
 					if(ThisBytes != Length)
 					{
-						error("Failed to read complete %s/%s value - specified length=%d, read=%d\n", 
-							  Name().c_str(), NewItem->Name().c_str(), Length, ThisBytes);
+						error("Failed to read complete %s value at 0x%s in %s - specified length=%d, read=%d\n", 
+							  NewItem->FullName().c_str(), Int64toHexString(NewItem->GetLocation(), 8).c_str(), 
+							  NewItem->GetSource().c_str(), Length, ThisBytes);
 						
 						// Skip anything left over
 						if(Length > ThisBytes) ThisBytes = Length;
@@ -1236,6 +1350,27 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 	Length = 0;
 	return 0;
 }
+
+
+//! Get the location within the ultimate parent
+Uint64 mxflib::MDObject::GetLocation(void)
+{
+	Uint64 Ret = ParentOffset;
+
+	if(Parent) Ret += Parent->KLSize + Parent->GetLocation();
+
+	return Ret;
+}
+
+//! Get text that describes where this item came from
+std::string mxflib::MDObject::GetSource(void)
+{
+	if(Parent) return Parent->GetSource();
+	if(ParentFile) return std::string("file \"") + ParentFile->Name + std::string("\"");
+
+	return std::string("memory buffer");
+}
+
 
 
 //** Static Instantiations for MDOType class **

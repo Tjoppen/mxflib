@@ -38,6 +38,8 @@ using namespace mxflib;
  */
 Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
 {
+	debug("Reading Primer\n");
+
 	// Start off empty
 	clear();
 
@@ -85,6 +87,8 @@ Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
 
 		// Add this new entry to the primer
 		insert(Primer::value_type(ThisTag, ThisUL));
+
+		debug("  %s -> %s\n", Tag2String(ThisTag).c_str(), ThisUL.GetString().c_str());
 	}
 
 	// Return how many bytes we actually read

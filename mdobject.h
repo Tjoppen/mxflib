@@ -62,12 +62,14 @@ namespace mxflib
 
 	//! A list of smart pointers to MDOType objects
 	typedef std::list<MDOTypePtr> MDOTypeList;
+
+	typedef std::map<std::string, MDOTypePtr> MDOTypeMap;
 }
 
 namespace mxflib
 {
 	//! Holds the definition of a metadata object type
-	class MDOType : public RefCount<MDOType>
+	class MDOType : public RefCount<MDOType>, public MDOTypeMap
 	{
 	private:
 		//! The KLVLib dictionary entry
@@ -78,12 +80,15 @@ namespace mxflib
 		// DRAGONS: Need to define non-KLVLib version
 		DictRefType RefType;
 
+		std::string RootName;			//!< Base name of this type
+
 	public:
 		MDTypePtr ValueType;			//!< Value type if this is an actual data item, else NULL
 		MDOTypePtr Base;				//!< Base class if this is a derived class, else NULL
-		MDOTypeList Children;			//!< Types normally found inside this type
-		StringList ChildrenNames;		//!< Names for each entry in Children
+//		MDOTypeList Children;			//!< Types normally found inside this type
+//		StringList ChildrenNames;		//!< Names for each entry in Children
 //		MDOTypePtr ArrayType;			//!< Type of sub items if this is an array
+		StringList ChildOrder;			//!< Child names in order for compound types
 		MDOTypePtr Parent;				//!< Parent type if this is a child
 		ULPtr TypeUL;					//!< The UL for this type, or NULL
 
@@ -99,6 +104,30 @@ namespace mxflib
 		{
 			if((Dict == NULL) || (Dict->Name == NULL)) return std::string("");
 			return std::string(Dict->Name);
+		}
+
+		std::string FullName(void)
+		{
+			if((Dict == NULL) || (Dict->Name == NULL)) return RootName;
+			return RootName + Dict->Name;
+		}
+
+		/*std::pair<iterator, bool>*/ void insert(MDOTypePtr NewType) 
+		{ 
+			std::string Name = NewType->Name();
+			MDOTypeMap::insert(MDOTypeMap::value_type(Name, NewType));
+			ChildOrder.push_back(Name);
+			return ;
+		}
+
+		//! Get the UL for this type
+		// DRAGONS: When the KLVLib stub is no longer used this will return a ref to the contained UL
+		ULPtr GetUL(void)
+		{
+			if(Dict == NULL) return new UL();
+			if(Dict->GlobalKey == NULL) return new UL();
+			if(Dict->GlobalKeyLen != 16) return new UL();
+			return new UL(Dict->GlobalKey);
 		}
 
 	private:
@@ -119,8 +148,10 @@ namespace mxflib
 		//! Map for reverse lookups based on type name
 		static std::map<std::string, MDOTypePtr> NameLookup;
 
+public:
 		//! Add a KLVLib DictEntry definition to the managed types
 		static void AddDict(DictEntry *Dict, MDOTypePtr ParentType = NULL);
+private:
 
 		//! Internal class to ensure dictionary is freed at application end
 		class DictManager
@@ -146,7 +177,7 @@ namespace mxflib
 		//! Build a primer
 		static PrimerPtr MakePrimer(void) { return DictMan.MakePrimer(); };
 
-		static MDOTypePtr Find(const char *BaseType);
+		static MDOTypePtr Find(std::string BaseType);
 		static MDOTypePtr Find(ULPtr BaseUL);
 		static MDOTypePtr Find(Tag BaseTag, PrimerPtr BasePrimer);
 	};
@@ -184,10 +215,17 @@ namespace mxflib
 	private:
 		MDOTypePtr Type;
 
-		// DRAGONS: ## MUST STORE UL OF UNKNOWN TO ALLOW DARK METADATA! ##
-		// ###############################################################
-
 		MDObjectPtr Link;
+
+		bool IsConstructed;				//!< True if this object is constructed, false if read from a file or a parent object
+		Uint64 ParentOffset;			//!< Offset from start of parent object if read from file or object
+		Uint32 KLSize;					//!< Size of this objects KL if read from file or parent object
+		MDObjectPtr Parent;				//!< Pointer to parent if read from inside another object
+		MXFFilePtr ParentFile;			//!< Pointer to parent file if read from a file
+		ULPtr TheUL;					//!< The UL for this object (if known)
+		Tag TheTag;						//!< The local tag used for this object (if known)
+
+		std::string ObjectName;			//!< The name of this object (normally the name of the type)
 
 	public:
 		MDObjectList Children;
@@ -205,7 +243,7 @@ namespace mxflib
 		~MDObject();
 
 		MDObjectPtr AddChild(const char *ChildName);
-		MDObjectPtr AddChild(MDObjectPtr ChildObject);
+		MDObjectPtr AddChild(MDObjectPtr ChildObject, bool Replace = false);
 
 		void RemoveChild(const char *ChildName);
 		void RemoveChild(MDOTypePtr ChildType);
@@ -217,21 +255,24 @@ namespace mxflib
 		MDObjectPtr operator[](MDOTypePtr ChildType);
 		MDObjectPtr Child(MDOTypePtr ChildType) { return operator[](ChildType); };
 
-		void SetInt(Int32 Val) { Value->SetInt(Val); };
-		void SetInt64(Int64 Val) { Value->SetInt64(Val); };
-		void SetUint(Uint32 Val) { Value->SetUint(Val); };
-		void SetUint64(Uint64 Val) { Value->SetUint64(Val); };
-		void SetString(std::string Val)	{ Value->SetString(Val); };
-		Int32 GetInt(void) { return Value->GetInt(); };
-		Int64 GetInt64(void) { return Value->GetInt64(); };
-		Uint32 GetUint(void) { return Value->GetUint(); };
-		Uint64 GetUint64(void) { return Value->GetUint64(); };
-		std::string GetString(void)	{ return Value->GetString(); };
+		void SetInt(Int32 Val) { if (Value) Value->SetInt(Val); };
+		void SetInt64(Int64 Val) { if (Value) Value->SetInt64(Val); };
+		void SetUint(Uint32 Val) { if (Value) Value->SetUint(Val); };
+		void SetUint64(Uint64 Val) { if (Value) Value->SetUint64(Val); };
+		void SetString(std::string Val)	{ if (Value) Value->SetString(Val); };
+		Int32 GetInt(void) { if (Value) return Value->GetInt(); else return 0; };
+		Int64 GetInt64(void) { if (Value) return Value->GetInt64(); else return 0; };
+		Uint32 GetUint(void) { if (Value) return Value->GetUint(); else return 0; };
+		Uint64 GetUint64(void) { if(Value) return Value->GetUint64(); else return 0; };
+		std::string GetString(void)	{ if(Value) return Value->GetString(); else return ""; };
 
 		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer = NULL);
 
 		//! Report the name of this item (the name of its type)
-		std::string Name(void) { ASSERT(Type); return Type->Name(); };
+		std::string Name(void) { return ObjectName; };
+
+		//! Report the full name of this item (the full name of its type)
+		std::string FullName(void) { ASSERT(Type); return Type->FullName(); };
 
 		//! Type access function
 		MDOTypePtr GetType(void) const { return Type; };
@@ -242,6 +283,38 @@ namespace mxflib
 
 		//! Ref access function
 		DictRefType GetRefType(void) const { ASSERT(Type); return Type->GetRefType(); };
+
+		//! Set the parent details when an object has been read from a file
+		void SetParent(MXFFilePtr File, Uint64 Location, Uint32 NewKLSize)
+		{
+			IsConstructed = false;
+			ParentOffset = Location;
+			KLSize = NewKLSize;
+			Parent = NULL;
+			ParentFile = File;
+		}
+
+		//! Set the parent details when an object has been read from memory
+		void SetParent(MDObjectPtr Object, Uint64 Location, Uint32 NewKLSize)
+		{
+			IsConstructed = false;
+			ParentOffset = Location;
+			KLSize = NewKLSize;
+			Parent = Object;
+			ParentFile = NULL;
+		}
+
+		//! Set the object's UL
+		void SetUL(ULPtr NewUL) { TheUL = NewUL; }
+
+		//! Set the object's tag
+		void SetTag(Tag NewTag) { TheTag = NewTag; }
+
+		//! Get the location within the ultimate parent
+		Uint64 GetLocation(void);
+
+		//! Get text that describes where this item came from
+		std::string GetSource(void);
 
 	private:
 		// Some private helper functions

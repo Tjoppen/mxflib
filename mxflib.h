@@ -38,12 +38,22 @@ namespace mxflib {}
 
 #include "types.h"
 
-#include "datachunk.h"
-
 #include "helper.h"
+
+#include "datachunk.h"
 #include "mdtraits.h"
 #include "mdtype.h"
 #include "deftypes.h"
+
+// DRAGONS: Probably need a special header full of smart pointer defs!
+namespace mxflib
+{
+	class MXFFile;
+
+	//! A smart pointer to an MXFFile object
+	typedef SmartPtr<MXFFile> MXFFilePtr;
+}
+
 #include "mdobject.h"
 
 #include "rip.h"

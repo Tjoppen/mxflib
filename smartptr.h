@@ -11,7 +11,7 @@
  *	The code has been modified and in this version is
  *	covered by the terms of the following licence:
  *
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -236,7 +236,7 @@ namespace mxflib
 				__Assign(new __RefCounter(static_cast<T *>(ptr)));
 			}
 		}
-		
+
 		//!	Assign a 'smart' object to this smart pointer
 		/*!	This method is picked over __Assign(void *ptr)
 		 *	if T implements IRefCount.
@@ -280,6 +280,13 @@ namespace mxflib
 
 		//!	Construct a smart pointer that takes its target from another smart pointer
 		SmartPtr(const SmartPtr &sp)
+		{
+			__m_refcount = NULL;
+			__Assign(sp.__m_refcount);
+		}
+
+		//!	Construct a smart pointer that takes its target from another smart pointer
+		SmartPtr(const IRefCount &sp)
 		{
 			__m_refcount = NULL;
 			__Assign(sp.__m_refcount);

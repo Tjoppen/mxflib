@@ -183,27 +183,78 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr Object)
 	}
 }
 
-//! Read a full set of header metadata from a buffer (including primer)
-Uint64 mxflib::Partition::ReadMetadata(const Uint8 *Buffer, Uint64 Size)
+//! Read a full set of header metadata from a file (including primer)
+/*! /note The value of "Size" does not include the size of any filler before
+ *        the primer, but the return value does
+ */
+Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 {
-	const Uint8 *BuffPtr = Buffer;
 	Uint64 Bytes = 0;
 
+	// Clear any existing metadata
 	ClearMetadata();
+
+	// Quick return for NULL metadata
+	if(Size == 0) return 0;
+
+	// Record the position of the current item
+	Uint64 Location = File->Tell();
+
+	// Check for a leading filler item
+	// Small scope to free memory quicker when done
+	{
+		MDObjectPtr First = File->ReadObject();
+		if(!First)
+		{
+			error("Error reading first KLV after %s at 0x%s in %s\n", FullName().c_str(), 
+				  Int64toHexString(GetLocation(),8).c_str(), GetSource().c_str());
+		}
+		else if(First->Name() == "KLVFill")
+		{
+			// Skip over the filler, recording how far we went
+			Uint64 NewLocation = File->Tell();
+			Bytes = NewLocation - Location;
+			Location = NewLocation;
+		}
+		else if(First->Name() != "Primer")
+		{
+			error("First KLV following a partition pack (and any trailing filler) must be a Primer, however %s found at 0x%s in %s\n", 
+				  FullName().c_str(), Int64toHexString(GetLocation(),8).c_str(), 
+				  GetSource().c_str());
+		}
+	}
+
+	// Read enough bytes for the metadata
+	File->Seek(Location);
+	DataChunkPtr Data = File->Read(Size);
+
+	if(Data->Size != Size)
+	{
+		error("Header Metadata starting at 0x%s should contain 0x%s bytes, but only 0x%s could be read\n",
+			  Int64toHexString(Location,8).c_str(), Int64toHexString(Size,8).c_str(), Int64toHexString(Data->Size,8).c_str());
+
+		Size = Data->Size;
+	}
+
+	// Start of data buffer
+	const Uint8 *BuffPtr = Data->Data;
+
 //printf("Size = 0x%08x\n", (int)Size);
 
 	while(Size)
 	{
+		Uint64 BytesAtItemStart = Bytes;
 		if(Size < 16)
 		{
-			error("Less than 16-bytes available in Partition::ReadMetadata() after reading 0x%s bytes\n", Int64toHexString(Bytes, 8).c_str());
+			error("Less than 16-bytes of header metadata available after reading 0x%s bytes at 0x%s in file \"%s\"\n", 
+				 Int64toHexString(Bytes, 8).c_str(), Int64toHexString(File->Tell(),8).c_str(), File->Name.c_str() );
 			break;
 		}
 
 		// Sanity check the keys
 		if((BuffPtr[0] != 6) || (BuffPtr[1] != 0x0e))
 		{
-			error("Invalid KLV key found after reading 0x%s in Partition::ReadMetadata()\n", Int64toHexString(Bytes, 8).c_str());
+			error("Invalid KLV key found at 0x%s in file \"%s\"\n", Int64toHexString(File->Tell(),8).c_str(), File->Name.c_str() );
 			break;
 		}
 
@@ -217,7 +268,7 @@ Uint64 mxflib::Partition::ReadMetadata(const Uint8 *Buffer, Uint64 Size)
 
 		if(Size < 1)
 		{
-			error("Incomplete BER length after reading 0x%s in Partition::ReadMetadata()\n", Int64toHexString(Bytes, 8).c_str());
+			error("Incomplete BER length at 0x%s in file \"%s\"\n", Int64toHexString(File->Tell(),8).c_str(), File->Name.c_str() );
 			break;
 		}
 
@@ -229,7 +280,7 @@ Uint64 mxflib::Partition::ReadMetadata(const Uint8 *Buffer, Uint64 Size)
 			Uint32 i = Length & 0x7f;
 			if(Size < i)
 			{
-				error("Incomplete BER length after reading 0x%s in Partition::ReadMetadata()\n", Int64toHexString(Bytes, 8).c_str());
+				error("Incomplete BER length at 0x%s in \"%s\"\n", Int64toHexString(File->Tell(),8).c_str(), File->Name.c_str() );
 				break;
 			}
 
@@ -246,14 +297,16 @@ Uint64 mxflib::Partition::ReadMetadata(const Uint8 *Buffer, Uint64 Size)
 		// DRAGONS: KLV Size limit!!
 		if(Length > 0xffffffff)
 		{
-			error("Current implementation KLV size limit of 0xffffffff bytes exceeded after reading 0x%s in Partition::ReadMetadata()\n", Int64toHexString(Bytes, 8).c_str());
+			error("Current implementation KLV size limit of 0xffffffff bytes exceeded at 0x%s in file \"%s\"\n", 
+				  Int64toHexString(Location + Bytes,8).c_str(), File->Name.c_str() );
 			break;
 		}
 
 		if(Size < Length)
 		{
-			error("KLV length is %s but available data size is only %s after reading 0x%s in Partition::ReadMetadata()\n", 
-				  Uint64toString(Length).c_str(), Uint64toString(Size).c_str(), Int64toHexString(Bytes, 8).c_str());
+			error("KLV length is %s but available data size is only %s after reading 0x%s of header metadata at 0x%s in \"%s\"\n", 
+				  Uint64toString(Length).c_str(), Uint64toString(Size).c_str(), Int64toHexString(Bytes, 8).c_str(),
+				  Int64toHexString(Location + Bytes,8).c_str(), File->Name.c_str() );
 
 			// Try reading what we have
 			Length = Size;
@@ -275,23 +328,23 @@ Uint64 mxflib::Partition::ReadMetadata(const Uint8 *Buffer, Uint64 Size)
 			}
 		}
 
+		// Skip any filler items
+		if(NewItem->Name() == "KLVFill")
+		{
+			Size -= Length;
+			Bytes += Length;
+			BuffPtr += Length;
+			
+			// Don't add the filler
+			continue;
+		}
+		
 		if(Length)
 		{
+			NewItem->SetParent(File, BytesAtItemStart + Location, Bytes - BytesAtItemStart);
+
 			Uint32 ThisBytes = NewItem->ReadValue(BuffPtr, Length, PartitionPrimer);
-/*if(NewItem->Value)
-{
- printf("Read %s, size = %d, object size = %d (%d)\n", NewItem->Name().c_str(), ThisBytes, NewItem->Value->GetData().Size, NewItem->Value->size());
- int i;
- DataChunk Dat = NewItem->Value->PutData();
- for(i=0; i<Dat.Size; i++)
- {
-   printf("%02x ", Dat.Data[i]);
- }
- printf("\n>%s\n", NewItem->Value->GetString().c_str());
-}
-else
- printf("Read %s, size = %d, Subs = %d)\n", NewItem->Name().c_str(), ThisBytes, NewItem->Children.size());
-*/
+
 			Size -= ThisBytes;
 			Bytes += ThisBytes;
 			BuffPtr += ThisBytes;

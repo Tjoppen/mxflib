@@ -146,7 +146,7 @@ DataChunkPtr mxflib::MXFFile::Read(Uint64 Size)
 		// Handle errors
 		if(Bytes == (Uint64)-1)
 		{
-			error("Error reading file \"%s\" - %s\n", Name.c_str(), strerror(errno));
+			error("Error reading file \"%s\" at 0x%s- %s\n", Name.c_str(), Int64toHexString(Tell(), 8).c_str(), strerror(errno));
 			Bytes = 0;
 		}
 
@@ -243,6 +243,219 @@ bool mxflib::MXFFile::BuildRIP(void)
 	Seek(0);
 
 	Uint64 Location = 0;
+
+	// Locate a closed header type for key compares
+	MDOTypePtr BaseHeader = MDOType::Find("ClosedHeader");
+	if(!BaseHeader)
+	{
+		error("Cannot find \"ClosedHeader\" in current dictionary\n");
+		return false;
+	}
+
+	// Read the first partition pack in the file
+	PartitionPtr ThisPartition = ReadPartition();
+
+	// If we couldn't read the first object then there are no partitions
+	// Note that this is not stricty an error - the file could be empty!
+	if(!ThisPartition) return true;
+
+	// Check that the first KLV as a partition pack
+	// DRAGONS: What if the first KLV is a filler? - This shouldn't be valid as it would look like a run-in!
+	if(!(ThisPartition->GetType()->GetDict()->Base)
+		|| ( strcmp(ThisPartition->GetType()->GetDict()->Base->Name, "PartitionMetadata") != 0) )
+	{
+		error("First KLV in file \"%s\" is not a known partition type\n", Name.c_str());
+		return false;
+	}
+
+	while(!Eof())
+	{
+		Uint32 BodySID = 0;
+		MDObjectPtr Ptr = ThisPartition["BodySID"];
+		if(Ptr) BodySID = Ptr->Value->GetInt();
+
+		FileRIP.AddPartition(ThisPartition, Location, BodySID);
+
+		Uint64 Skip = 0;
+
+		// Work out how far to skip ahead
+		Ptr = ThisPartition["HeaderByteCount"];
+		if(Ptr) Skip = Ptr->Value->GetInt64();
+		Ptr = ThisPartition["IndexByteCount"];
+		if(Ptr) Skip += Ptr->Value->GetInt64();
+
+		if(Skip)
+		{
+			// Location before we skip
+			Uint64 PreSkip = Tell();
+
+			/* Check for version 10 HeaderByteCount and possible bug version */
+			// Version 10 of MXF counts from the end of the partition pack, however
+			// some version 10 code uses the version 11 counting so we check to 
+			// see if the header is claimed to be an integer number of KAGs and
+			// that there is a leading filler to take us to the start of the next KAG
+			// In this case we are probably in a Version 10 HeaderByteCount bug situation...
+
+			Uint16 Ver = 0;
+			Ptr = ThisPartition["MinorVersion"];
+			Ver = Ptr->Value->GetUint();
+
+			bool SkipFiller = true;		// Version 11 behaviour
+
+			if(Ver == 1)				// Ver = 1 for version 10 files
+			{
+				Uint32 KAGSize = 0;
+				Ptr = ThisPartition["KAGSize"];
+				if(Ptr) KAGSize = Ptr->GetInt();
+
+				Uint64 HeaderByteCount = 0;
+				Ptr = ThisPartition["HeaderByteCount"];
+				if(Ptr) HeaderByteCount = Ptr->GetInt();
+
+				if((KAGSize > 16) && (HeaderByteCount > 0))
+				{
+					Uint64 Pos = Tell();
+					Uint64 U = HeaderByteCount / KAGSize;
+					if((U * KAGSize) == HeaderByteCount)
+					{
+						MDObjectPtr First = ReadObject();
+						if(!First)
+						{
+							// Can't tell what is next! This will probably cause an error later!
+							SkipFiller = true;
+							Seek(Pos);
+						}
+						else if(First->Name() == "KLVFill")
+						{
+							U = Tell() / KAGSize;
+							if( (U * KAGSize) == Tell() )
+							{
+								warning("(Version 10 file) HeaderByteCount in %s at 0x%s in %s does not include the leading filler\n",
+										ThisPartition->FullName().c_str(), Int64toHexString(ThisPartition->GetLocation(),8).c_str(), 
+										ThisPartition->GetSource().c_str());
+
+								// We are skipping filler - even though we have already done it!
+								SkipFiller = true;
+								PreSkip = Tell();
+							}
+							else
+							{
+								SkipFiller = false;
+								Seek(Pos);
+							}
+						}
+					}
+				}
+			}
+
+			if(SkipFiller)
+			{
+				MDObjectPtr First = ReadObject();
+				if(!First)
+				{
+					error("Error reading first KLV after %s at 0x%s in %s\n", ThisPartition->FullName().c_str(), 
+						  Int64toHexString(ThisPartition->GetLocation(),8).c_str(), ThisPartition->GetSource().c_str());
+					return false;
+				}
+
+				if(First->Name() == "KLVFill")
+					PreSkip = Tell();
+				else if(First->Name() != "Primer")
+				{
+					error("First KLV following a partition pack (and any trailing filler) must be a Primer, however %s found at 0x%s in %s\n", 
+						  ThisPartition->FullName().c_str(), Int64toHexString(ThisPartition->GetLocation(),8).c_str(), 
+						  ThisPartition->GetSource().c_str());
+				}
+			}
+
+			// Skip over header
+			Uint64 NextPos = PreSkip + Skip;
+			if( Seek(NextPos) != NextPos)
+			{
+				error("Unexpected end of file in partition starting at 0x%s in file \"%s\"\n",
+					  Int64toHexString(Location,8).c_str(), Name.c_str());
+				return false;
+			}
+
+			// Check that we ended up in a sane place after the skip
+			DataChunkPtr Test = Read(2);
+			if( Test->Size != 2)
+			{
+				// Less than 2 bytes after the declared end of this metadata
+				// Could be that the count is valid and points us to the end of the file
+				// but to be safe check through the header to see if there is anything else
+				Seek(PreSkip);
+			} 
+			else if((Test->Data[0] != 6) || (Test->Data[1] != 0x0e))
+			{
+				error("Byte counts in partition pack at 0x%s in file \"%s\" are not valid\n", Int64toHexString(Location,8).c_str(), Name.c_str());
+				
+				// Move back to end of partition pack and scan through the header
+				Seek(PreSkip);
+			}
+			else
+			{
+				// Move back (the test moved the pointer 2 bytes forwards)
+				Seek(NextPos);
+			}
+		}
+
+		// Now scan until the next partition
+		ULPtr Key;
+		for(;;)
+		{
+			Location = Tell();
+			Key = ReadKey();
+			if(!Key) break;
+
+			// Identify what we have found
+			MDOTypePtr ThisType = MDOType::Find(Key);
+
+			// Only check for this being a partition pack if we know the type
+			if(ThisType)
+			{
+				const DictEntry *Dict = ThisType->GetDict();
+//printf("Found %s at 0x%08x\n", Dict->Name, (Uint32)Location);
+				if(Dict && Dict->Base)
+				{
+					if(strcmp(Dict->Base->Name, "PartitionMetadata") == 0)
+					{
+						break;
+					}
+				}
+			}
+//else printf("Found %s at 0x%08x\n", UL(Key->Data).GetString().c_str(), (Uint32)Location);
+
+			Skip = ReadBER();
+			Uint64 NextPos = Tell() + Skip;
+			if( Seek(NextPos) != NextPos)
+			{
+				error("Unexpected end of file in KLV starting at 0x%s in file \"%s\"\n",
+					  Int64toHexString(Location,8).c_str(), Name.c_str());
+				return false;
+			}
+			
+			if(Eof()) break;
+		}
+
+		// Check if we found anything
+		if(!Key) break;
+		if(Eof()) break;
+
+		// By this point we have found a partition pack
+		// Read it ...
+		Seek(Location);
+		ThisPartition = ReadPartition();
+		
+		// ... then loop back to add it
+		continue;
+	}
+
+	return true;
+}
+
+/*
+#############################
 	ULPtr FirstKey = ReadKey();
 
 	// If we couldn't read a key then there are no partitions
@@ -288,16 +501,6 @@ bool mxflib::MXFFile::BuildRIP(void)
 		// Read the value into the partition object
 		ThisPartition->ReadValue(Value->Data, DataLen);
 
-/*{
-	MDObjectList::iterator it = ThisPartition->Children.begin();
-	StringList::iterator it2 = ThisPartition->ChildrenNames.begin();
-	while(it != ThisPartition->Children.end())
-	{
-		printf("  %s = %s\n", (*it2).c_str(), (*it)->Value->GetString().c_str());
-		it++;
-		it2++;
-	}
-}*/
 		Uint32 BodySID = 0;
 		MDObjectPtr Ptr = ThisPartition["BodySID"];
 		if(Ptr) BodySID = Ptr->Value->GetInt();
@@ -312,6 +515,53 @@ bool mxflib::MXFFile::BuildRIP(void)
 		Ptr = ThisPartition["IndexByteCount"];
 		if(Ptr) Skip += Ptr->Value->GetInt64();
 
+		// Check for version 10 HeaderByteCount bug //
+		// Some version 10 code does not count the leading filler into account
+		// So we check to see if the header is claimed to be an integer number of KAGs
+		// and that there is a leading filler to take us to the start of the next KAG
+		// In this case we seem to be in an eVTR bug situation...
+		
+		Uint16 Ver = 0;
+		Ptr = ThisPartition["MinorVersion"];
+		Ver = Ptr->Value->GetUint();
+		if(Ver == 1)
+		{
+			Uint32 KAGSize = 0;
+			Ptr = ThisPartition["KAGSize"];
+			if(Ptr) KAGSize = Ptr->GetInt();
+
+			Uint64 HeaderByteCount = 0;
+			Ptr = ThisPartition["HeaderByteCount"];
+			if(Ptr) HeaderByteCount = Ptr->GetInt();
+
+			if((KAGSize > 16) && (HeaderByteCount > 0))
+			{
+				Uint64 Pos = Tell();
+				Uint64 U = HeaderByteCount / KAGSize;
+				if((U * KAGSize) == HeaderByteCount)
+				{
+					MDObjectPtr First = ReadObject();
+					if(!First)
+					{
+						Seek(Pos);
+					}
+					else if(First->Name() == "KLVFill")
+					{
+						U = Tell() / KAGSize;
+						if( (U * KAGSize) == Tell() )
+						{
+							warning("HeaderByteCount does not include the leading filler\n");
+						}
+						else
+						{
+							Seek(Pos);
+						}
+					}
+				}
+			}
+		}
+
+		// Skip over header
 		Uint64 PreSkip = Tell();
 		Uint64 NextPos = PreSkip + Skip;
 		if( Seek(NextPos) != NextPos)
@@ -402,6 +652,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 	return true;
 }
+*/
 
 
 //! Read a BER length from the open file
