@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.1.2.2 2004/06/30 11:37:49 bakerian Exp $
+ *	\version $Id: metadata.cpp,v 1.1.2.3 2004/10/10 18:40:17 terabrit Exp $
  *
  */
 /*
@@ -51,6 +51,7 @@ mxflib::Metadata::Metadata(std::string TimeStamp)
 	Init();
 }
 
+
 //! Common part of constructor
 void Metadata::Init(void)
 {
@@ -60,8 +61,38 @@ void Metadata::Init(void)
 	// as it is defivef from GenerationInterchangeObject
 	Object->AddChild("InstanceUID")->ReadValue(DataChunk(new UUID));
 
-	Object->AddChild("LastModifiedDate")->SetString(ModificationTime);
-	Object->AddChild("Version")->SetInt(258);
+	timestmp ts;
+
+	struct tm * now;
+	time_t tmp=time(NULL);
+	now=gmtime(&tmp);
+
+	ts.yr=now->tm_year;
+	mxflib::Swap(ts.yr);
+	ts.month=now->tm_mon;
+	ts.day=now->tm_mday;
+	ts.hour=now->tm_hour;
+	ts.min=now->tm_min;
+	ts.sec=now->tm_sec;
+
+
+	DataChunk TimeStamp(sizeof(timestmp),reinterpret_cast<const Uint8 *>(&ts));
+	Uint8 * p1, d1,d2;
+	p1=TimeStamp.Data;
+
+	d1=*p1;   //Endian problem with the year between  MXF and AAF
+	d2=*(p1+1);
+	*(p1+1)=d1;
+	*p1=d2;
+
+	Object->AddChild("LastModified")->SetValue(TimeStamp);
+
+	version_t ver;
+	ver.major=1;
+	ver.minor=2;
+	DataChunk Version(sizeof(version_t),reinterpret_cast<const Uint8 *>(&ver));
+	
+	Object->AddChild("Version")->SetValue(Version);
 
 	Object->AddChild("Identifications");
 	// To set later: OperationalPattern
@@ -633,6 +664,62 @@ void Package::UpdateDurations(void)
 		}
 		it++;
 	}
+}
+
+//! Add an event track to the package
+/*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
+TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Int64 DefaultDuration, std::string TrackName /* = "" */ , Uint32 TrackID /* = 0 */)
+{
+	TrackPtr Ret = new Track("EventTrack");
+	if(!Ret) return Ret;
+
+	if(TrackName.length()) Ret->SetString("TrackName", TrackName);
+	Ret->SetInt("TrackNumber", TrackNumber);
+	Ret->SetInt64("EventOrigin", 0);
+
+	MDObjectPtr Ptr = Ret->AddChild("EventEditRate");
+	if(Ptr)
+	{
+		Ptr->SetInt("Numerator", EditRate.Numerator);
+		Ptr->SetInt("Denominator", EditRate.Denominator);
+	}
+
+	// Auto set the track ID if not supplied
+	if(TrackID == 0)
+	{
+		ASSERT(LastTrackID < 0xffffffff);
+
+		LastTrackID++;
+		TrackID = LastTrackID;
+	}
+	Ret->SetInt("TrackID", TrackID);
+
+	// Build a new sequence for this track
+	MDObjectPtr Sequence = new MDObject("Sequence");
+	ASSERT(Sequence);
+
+	// Initialise the sequence
+	Sequence->AddChild("DataDefinition")->ReadValue(DataDef->GetValue(), 16);
+
+	// Pass DefaultDuration on to the Sequence
+	if( DefaultDuration == DurationUnspecified )
+		Sequence->SetDValue("Length");
+	else
+		Sequence->SetInt64("Length", DefaultDuration);
+
+
+	Sequence->AddChild("StructuralComponents");
+
+	// Add the sequence
+	Ret->AddChild("Sequence")->MakeLink(Sequence);
+
+	// Add this track to the package
+	Child("Slots")->AddChild("Track", false)->MakeLink(Ret->Object);
+
+	// Record this package as the parent of the new track
+	Ret->Parent = this;
+
+	return Ret;
 }
 
 //! Add a static track to the package
