@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.2.2.4 2004/06/26 17:47:22 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.2.2.5 2004/07/02 04:04:45 terabrit Exp $
  *
  */
 /*
@@ -33,15 +33,6 @@
 
 #include <time.h>
 #include <string>
-
-/** Helper macros **/
-/*******************/
-
-// STRINGIZE_GETENV - allows getenv to be called on a macro which has no quotes
-#ifndef STRINGIZE_GETENV
-#define STRINGIZE_GETENV( x ) getenv( #x )
-#endif // STRINGIZE_GETENV
-
 
 namespace mxflib
 {
