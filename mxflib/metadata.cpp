@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.1.2.1 2004/05/26 20:11:36 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.1.2.2 2004/06/30 11:37:49 bakerian Exp $
  *
  */
 /*
@@ -691,6 +691,26 @@ SourceClipPtr SourceClip::GetSourceClip(MDObjectPtr Object)
 DMSegmentPtr DMSegment::GetDMSegment(MDObjectPtr Object)
 {
 	return Object->GetOuter() ? DMSegmentPtr(dynamic_cast<DMSegment*>(Object->GetOuter())) : NULL;
+}
+
+
+bool DMSegment::MakeLink(MDObjectPtr DMFramework)
+{
+	MDObjectPtr SourceFramework=Child("DMFramework");
+
+	if(!SourceFramework)
+	{
+		SourceFramework = AddChild("DMFramework");
+		// If this failed then exit with an error
+		if(!SourceFramework)
+		{
+			error("Attempt to reference %s from %s failed\n", FullName().c_str(), DMFramework->FullName().c_str());
+			return false;
+		}
+	}
+
+
+	return SourceFramework->MakeLink(DMFramework);
 }
 
 
