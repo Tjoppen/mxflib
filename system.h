@@ -1,21 +1,29 @@
 /*! \file	system.h
- *	\brief	System specifics
+ *	\brief	Compiler and platform specific implementations
  *
  *  Items that are <b>required</b> to be defined for each platform/compiler:
- *  - Definions for signed and unsigned 64 bit integers (Int64 and Uint64)
+ *  - Definitions for signed and unsigned 64 bit integers (Int64 and Uint64)
  *<br>
  *<br>
  *	Items that may need to be defined for each platform/compiler:
  *	- Turning warnings off
  *<br>
  *<br>
- *	Systems currently supported:
- *	- Microsoft Visual C++
+ *	Compilers currently supported:
+ *	- Microsoft Visual C++ 6.x
+ *	- ISO/ANSI C++ compilers (ISO/IEC 14882:1998) including:
+ *		- GCC 3.2
+ *		- MIPSpro C++ 7.3
+ *		- Sun Forte C++ 5.4
+ *		- Intel C++ 7.0
+ *		- Borland C++ 5.0
  *<br>
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  */
 /*
+ *	$Id: system.h,v 1.14 2003/11/26 17:02:42 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -190,7 +198,18 @@ namespace mxflib
 #define ASSERT _ASSERT					//!< Debug assert
 #define strcasecmp(s1, s2) stricmp(s1, s2)
 
-#else	/* for ISO C++ compilers */
+#else
+//
+// For all ISO/ANSI C++ compilers on POSIX platforms.
+//
+// Tested on:
+//	GCC 3.2				i686-linux, x86_64-linux, alpha-linux, arm-linux
+//						i686-mingw32 (Win2k), i686-freebsd, powerpc-darwin
+//						sparc-solaris, mips-irix
+//	MIPSpro C++ 7.3		mips-irix
+//	Sun Forte C++ 5.4	sparc-solaris
+//	Intel C++ 7.0		i686-linux, i686-Win2k
+//	Borland C++ 5.0		i686-Win2k
 
 #include <stdlib.h>
 #include <string>
@@ -247,6 +266,14 @@ namespace mxflib
 	}
 
 	inline std::string Int64toHexString(Int64 Val, int Digits = 0)
+	{
+		char Buffer[32];
+		if(Digits > 30) Digits = 30;
+		sprintf(Buffer,"%0*llx", Digits, Val );
+		return std::string(Buffer);
+	}
+
+	inline std::string Uint64toHexString(Uint64 Val, int Digits = 0)
 	{
 		char Buffer[32];
 		if(Digits > 30) Digits = 30;
