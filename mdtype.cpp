@@ -398,7 +398,7 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 
 	// Add to the list of children
 	insert(MDValue::value_type(size(), Child));
-};
+}
 
 
 //! Add or Remove children from an MDValue continer to make a fixed size
@@ -420,7 +420,7 @@ void MDValue::Resize(Uint32 Count)
 		return;
 	}
 
-	int Current = size();
+	unsigned int Current = size();
 
 	// Extra padding items required
 	if(Current < Count)

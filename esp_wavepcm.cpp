@@ -150,7 +150,7 @@ DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, Uint32 S
 	CurrentPos = FileTell(InFile);
 
 	return Ret; 
-};
+}
 
 
 //! Write a number of wrapping items from the specified stream to an MXF file
@@ -163,7 +163,7 @@ DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, Uint32 S
  */
 Uint64 mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/)
 {
-	const int BUFFERSIZE = 32768;
+	const unsigned int BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
 
 	// Move to the current position
@@ -214,7 +214,7 @@ bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 	// If we can acheive the desired number then it's simple!
 	if(SamplesPerEditUnit == floor(SamplesPerEditUnit))
 	{
-		ConstSamples = SamplesPerEditUnit;
+		ConstSamples = (Uint32)SamplesPerEditUnit;
 		return true;
 	}
 
@@ -243,7 +243,7 @@ bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 	for(i = 0; i < SampleSequenceSize; i++)
 	{
 		float f = SamplesPerEditUnit + Remain;
-		Uint32 x = floor(f + 0.5);
+		Uint32 x = (Uint32)floor(f + 0.5);
 		SampleSequence[i] = x;
 		Remain = f - x;
 	}
@@ -257,9 +257,9 @@ bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 /*! \note This call will modify properties SampleRate, DataStart and DataSize */
 MDObjectPtr mxflib::WAVE_PCM_EssenceSubParser::BuildWaveAudioDescriptor(FileHandle InFile, Uint64 Start /*=0*/)
 {
-	const int ID_RIFF = 0x52494646;		//! "RIFF"
-	const int ID_fmt  = 0x666d7420;		//! "fmt "
-	const int ID_data = 0x64617461;		//! "data"
+	const unsigned int ID_RIFF = 0x52494646;		//! "RIFF"
+	const unsigned int ID_fmt  = 0x666d7420;		//! "fmt "
+	const unsigned int ID_data = 0x64617461;		//! "data"
 
 	MDObjectPtr Ret;
 
@@ -392,4 +392,4 @@ Uint64 mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32
 	}
 
 	return Ret;
-};
+}
