@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.19 2004/11/13 10:29:56 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.20 2004/12/03 18:00:44 matt-beard Exp $
  *
  */
 /*
@@ -1000,8 +1000,8 @@ int Process(	int OutFileNum,
 	Writer->SetKAG(KAGSize);
 	Writer->SetForceBER4(true);
 
-	// Index data can't share with metadata if very-isolated and essence can't share with metadata in OP-Atom
-	Writer->SetMetadataSharing(!VeryIsolatedIndex, !OPAtom);
+	// Index data can't share with metadata if very-isolated but essence can always share with metadata
+	Writer->SetMetadataSharing(!VeryIsolatedIndex, true);
 
 
 	// Build the File Packages and all essence tracks
