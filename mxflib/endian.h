@@ -4,7 +4,7 @@
  *  Converted from the version in "klvlib"
  *
  *
- *	\version $Id: endian.h,v 1.2 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: endian.h,v 1.3 2004/12/18 20:23:08 matt-beard Exp $
  *
  */
 /*
@@ -66,6 +66,23 @@ namespace mxflib
 	inline Int16 GetI16(const unsigned char *src) { return (Int16)GetU16(src); }
 	inline Int32 GetI32(const unsigned char *src) { return (Int32)GetU32(src); }
 	inline Int64 GetI64(const unsigned char *src) { return (Int64)GetU64(src); }
+
+	/*
+	** PutUxx_LE() - Put LITTLE ENDIAN unsigned xx-bit integer
+	*/
+	inline void PutU8_LE(Uint8 x, unsigned char *dest) { *dest=(x); }
+	inline void PutU16_LE(Uint16 Data, unsigned char *Dest) { PutU8_LE(Data & 0xff, Dest); PutU8_LE(Data >> 8, &Dest[1]); }
+	inline void PutU32_LE(Uint32 Data, unsigned char *Dest) { PutU16_LE(Data & 0xffff, Dest); PutU16_LE(Data >> 16, &Dest[2]); }
+	inline void PutU64_LE(Uint64 Data, unsigned char *Dest) { PutU32_LE((Uint32)(Data & 0xffffffff), Dest); 
+														      PutU32_LE((Uint32)Data >> 32, &Dest[4]); }
+
+	/*
+	** PutIxx_LE() - Signed versions of PutUxx_LE()
+	*/
+	inline void PutI8_LE(Int8 x, unsigned char *dest) { PutU8_LE((Uint8)x,dest); }
+	inline void PutI16_LE(Int16 x, unsigned char *dest) { PutU16_LE((Uint16)x,dest); }
+	inline void PutI32_LE(Int32 x, unsigned char *dest) { PutU32_LE((Uint32)x,dest); }
+	inline void PutI64_LE(Int64 x, unsigned char *dest) { PutU64_LE((Uint64)x,dest); }
 
 	/*
 	** GetUxx_LE() - Get LITTLE ENDIAN unsigned xx-bit integer
