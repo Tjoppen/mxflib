@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.16 2004/03/28 18:32:58 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.17 2004/04/06 12:47:39 terabrit Exp $
  *
  */
 /*
@@ -1239,7 +1239,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		// Only sets need keys
 		if(ParentObject->Type->GetContainerType() == SET)
 		{
-			Bytes = WriteKey(Buffer, Type->GetKeyFormat(), UsePrimer);
+			Bytes = WriteKey(Buffer, ParentObject->Type->GetKeyFormat(), UsePrimer);
 			DEBUG_WRITEOBJECT( debug("Key = %s, ", Buffer.GetString().c_str()); )
 		}
 
@@ -1249,7 +1249,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		}
 		else
 		{
-			LenFormat = Type->GetLenFormat();
+			LenFormat = ParentObject->Type->GetLenFormat();
 		}
 
 		DEBUG_WRITEOBJECT( debug("ParentObject->ContainerType = %d, ", ParentObject->Type->GetContainerType()); )
@@ -2168,6 +2168,7 @@ void MDOType::SAX_endElement(void *user_data, const char *name)
 	std::list<MDOTypePtr>::iterator it = State->Parents.end();
 	if(--it != State->Parents.end()) State->Parents.erase(it);
 }
+
 
 
 //! Derive this new entry from a base entry
