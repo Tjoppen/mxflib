@@ -1,7 +1,7 @@
-/*! \file	esp_mpeg2ves.cpp
+/*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.2 2004/05/09 11:50:47 stuart_hc Exp $
  *
  */
 /*

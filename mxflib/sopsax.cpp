@@ -1,7 +1,7 @@
-/*! \file	sopSAX.pp
+/*! \file	sopSAX.cpp
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.cpp,v 1.2 2004/04/26 18:29:33 asuraparaju Exp $
+ *	\version $Id: sopsax.cpp,v 1.3 2004/05/09 11:50:47 stuart_hc Exp $
  *
  */
 /*
