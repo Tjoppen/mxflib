@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.5 2004/04/26 18:23:19 asuraparaju Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.6 2004/04/28 11:25:23 terabrit Exp $
  *
  */
 /*
@@ -64,6 +64,8 @@ static bool FullIndex = false;		// -f dump full index
 
 static unsigned long SplitWaveChannels = 2;	// -w=n
 
+static char* DMStinyDict = NULL;						//!< Set to name of DMStiny xmldict
+
 //! Output Streams
 FileMap theStreams;
 
@@ -77,7 +79,10 @@ static void DumpBody(PartitionPtr ThisPartition);
 
 int main(int argc, char *argv[])
 {
-	fprintf( stderr,"MXFLib File Splitter\n" );
+	fprintf( stderr,"MXFlib File Splitter\n" );
+
+	LoadTypes("types.xml");
+	MDOType::LoadDict("xmldict.xml");
 
 	if(argc < 2)
 	{
@@ -91,6 +96,10 @@ int main(int argc, char *argv[])
 		//fprintf( stderr,"                       [-m] Subdivide AESBWF Elements into mono wave files \n" );
 		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
 		//fprintf( stderr,"                       [-p] Split Partitions \n");
+#ifdef DMStiny
+		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
+#endif
+		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 
 		return -1;
 	}
@@ -101,15 +110,30 @@ int main(int argc, char *argv[])
 		if(argv[i][0] == '-')
 		{
 			num_options++;
-			if((argv[i][1] == 'q') || (argv[i][1] == 'Q')) Quiet = true;
-			else if((argv[i][1] == 'v') || (argv[i][1] == 'V')) DebugMode = true;
-			else if((argv[i][1] == 'f') || (argv[i][1] == 'F')) FullIndex = true;
-			else if((argv[i][1] == 'i') || (argv[i][1] == 'I'))	SplitIndex = true;
-			else if((argv[i][1] == 'g') || (argv[i][1] == 'G'))	SplitGC = true;
-			else if((argv[i][1] == 'p') || (argv[i][1] == 'P'))	SplitParts = true;
-			else if((argv[i][1] == 'm') || (argv[i][1] == 'M'))	SplitMono = true;
-			else if((argv[i][1] == 's') || (argv[i][1] == 'S'))	SplitStereo = true;
-			else if((argv[i][1] == 'w') || (argv[i][1] == 'W'))
+			char *p = &argv[i][1];					// The option less the '-' or '/'
+			char Opt = tolower(*p);					// The option itself (in lower case)
+			if(Opt == 'q') Quiet = true;
+			else if(Opt == 'v') DebugMode = true;
+#ifdef DMStiny
+			else if(Opt == 't')
+			{
+				// DMStiny Dictionary
+				if(tolower(*(p+1))=='d')
+				{
+					char *name="DMStiny.xml"; // default name
+					if( '='==*(p+2) )	name=p+3; // explicit name
+					DMStinyDict = new char[ 1+strlen(name) ];
+					strcpy( DMStinyDict, name );
+				}
+			}
+#endif
+			else if(Opt == 'f') FullIndex = true;
+			else if(Opt == 'i')	SplitIndex = true;
+			else if(Opt == 'g')	SplitGC = true;
+			else if(Opt == 'p') SplitParts = true;
+			else if(Opt == 'm') SplitMono = true;
+			else if(Opt == 's') SplitStereo = true;
+			else if(Opt == 'w') 
 			{
 				SplitWave = true;
 				if( argv[i][2]==':' || argv[i][2]=='=' )
@@ -120,13 +144,16 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	LoadTypes("types.xml");
-	MDOType::LoadDict("xmldict.xml");
+#ifdef DMStiny
+	// load the DMStiny Dictionary
+	if( DMStinyDict ) MDOType::LoadDict( DMStinyDict );
+#endif
 
 	MXFFilePtr TestFile = new MXFFile;
 	if (! TestFile->Open(argv[num_options+1], true))
 	{
 		perror(argv[num_options+1]);
+		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 		exit(1);
 	}
 
@@ -199,6 +226,8 @@ int main(int argc, char *argv[])
 		itFile++;
 	}
 	theStreams.clear();
+
+	if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 
 	return 0;
 }
