@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.3 2004/05/20 23:57:27 terabrit Exp $
+ *	\version $Id: mdobject.cpp,v 1.4 2004/05/21 20:09:59 terabrit Exp $
  *
  */
 /*
@@ -845,8 +845,8 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 					Uint32 ThisBytes = (*it).second->ReadValue(Buffer, ValueSize);
 
-					debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
-						  (*it).first.c_str(), (*it).second->GetString().c_str());
+//					debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
+//						  (*it).first.c_str(), (*it).second->GetString().c_str());
 
 					Bytes += ThisBytes;
 
@@ -906,8 +906,8 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 						ThisBytes = (*it).second->ReadValue(Buffer, Length);
 
-						debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
-							  (*it).first.c_str(), (*it).second->GetString().c_str());
+//						debug("  at 0x%s Variable Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
+//							  (*it).first.c_str(), (*it).second->GetString().c_str());
 
 						Bytes += ThisBytes;
 					}
@@ -1010,7 +1010,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 					ThisBytes = NewItem->ReadValue(Buffer, Length);
 
-					debug("  at 0x%s Set item (%s) %s = %s\n", Int64toHexString(NewItem->GetLocation(), 8).c_str(), Key.GetString().c_str(), NewItem->Name().c_str(), NewItem->GetString().c_str());
+//					debug("  at 0x%s Set item (%s) %s = %s\n", Int64toHexString(NewItem->GetLocation(), 8).c_str(), Key.GetString().c_str(), NewItem->Name().c_str(), NewItem->GetString().c_str());
 
 					if(ThisBytes != Length)
 					{
