@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.4 2004/11/13 10:26:24 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.5 2004/11/13 11:27:03 matt-beard Exp $
  *
  */
 /*
@@ -668,7 +668,8 @@ namespace mxflib
 		}
 
 		//! Get BytesPerEditUnit, if Constant
-		virtual Uint32 GetBytesPerEditUnit(Uint32 KAGSize = 1) { KAGSize; return 0; }
+		/*! Note that we use KAGSize to prevent compiler warnings (we cannot omit it as it has a default value) */
+		virtual Uint32 GetBytesPerEditUnit(Uint32 KAGSize = 1) { return KAGSize * 0; }
 
 		//! Get the current position in SetEditRate() sized edit units
 		/*! This is relative to the start of the stream, so the first edit unit is always 0.
