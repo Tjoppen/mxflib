@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Defines known types
  *
- *	\version $Id: deftypes.cpp,v 1.2 2004/04/26 18:28:29 asuraparaju Exp $
+ *	\version $Id: deftypes.cpp,v 1.3 2004/05/21 20:08:45 terabrit Exp $
  *
  */
 /*
@@ -94,6 +94,7 @@ static void DefineTraits(void)
 	// Not a real type, but the default for compound types
 	TraitsMap.insert(TraitsMapType::value_type("Default-Compound", new MDTraits_BasicCompound));
 
+	TraitsMap.insert(TraitsMapType::value_type("RAW", new MDTraits_Raw));
 
 	TraitsMap.insert(TraitsMapType::value_type("Int8", new MDTraits_Int8));
 	TraitsMap.insert(TraitsMapType::value_type("Uint8", new MDTraits_Uint8));

@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdtype.cpp,v 1.2 2004/05/21 20:08:55 terabrit Exp $
  *
  */
 /*
@@ -51,7 +51,8 @@ static MDTraits DefaultTraits;
 MDTypePtr MDType::AddBasic(std::string TypeName, int TypeSize)
 {
 	// Can't have a zero length basic type!
-	ASSERT(TypeSize != 0);
+	// But we can have a variable size (==0)
+	// ASSERT(TypeSize != 0);
 
 	// Create a new MDType to manage
 	MDTypePtr NewType = new MDType(TypeName, BASIC, &DefaultTraits);
