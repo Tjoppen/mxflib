@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2 2004/04/26 20:01:51 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.1 2004/05/13 11:49:17 matt-beard Exp $
  *
  */
 /*
@@ -37,9 +37,10 @@
 // Forward refs
 namespace mxflib
 {
-	//! Smart pointer to an ECWriter
+/*	//! Smart pointer to an ECWriter
 	class ECWriter;
 	typedef SmartPtr<ECWriter> ECWriterPtr;
+*/
 
 	//! Smart pointer to a GCWriter
 	class GCWriter;
@@ -51,9 +52,9 @@ namespace mxflib
 {
 	//! Abstract super-class for objects that supply large quantities of essence data
 	/*! This is used when clip-wrapping to prevent large quantities of data being loaded into memory 
-	 *	\note EssenceSource derived objects cannot be the target of a smart pointer!
+	/*! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
 	 */
-	class EssenceSource
+	class EssenceSource : RefCount<EssenceSource>
 	{
 	public:
 		//! Get the size of the essence data in bytes
@@ -81,6 +82,7 @@ namespace mxflib
 }
 
 
+/*
 namespace mxflib
 {
 	//! Class that manages writing of essence containers
@@ -100,6 +102,7 @@ namespace mxflib
 		void Write(Uint64 Size, const Uint8 *Data) {};
 	};
 }
+*/
 
 
 namespace mxflib
@@ -143,12 +146,7 @@ namespace mxflib
 
 		int NextWriteOrder;					//!< The "WriteOrder" to use for the next auto "SetWriteOrder()"
 
-//		bool UseIndex;						//!< True if index tables are to be calculated
-//		Position EditUnit;					//!< Current edit unit, incremented each new CP
 		Uint64 StreamOffset;				//!< Current stream offset within this essence container
-
-//	public:
-//		IndexTablePtr Index;				//!< Index table for this container
 
 	public:
 		//! Constructor
@@ -215,16 +213,40 @@ namespace mxflib
 		void Flush(void);
 
 		//! Get the current stream offset
-		Int64 GetStreamOffset(void) { return StreamOffset; };
+		Int64 GetStreamOffset(void) { return StreamOffset; }
 
 		//! Add system item data to the current CP
 		void AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data);
-		void AddSystemData(GCStreamID ID, DataChunkPtr Chunk) { AddSystemData(ID, Chunk->Size, Chunk->Data); };
+
+		//! Add system item data to the current CP
+		void AddSystemData(GCStreamID ID, DataChunkPtr Chunk) { AddSystemData(ID, Chunk->Size, Chunk->Data); }
+
+		//! Add encrypted system item data to the current CP
+		void AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data, UUIDPtr ContextID, Uint64 PlaintextOffset = 0);
+		
+		//! Add encrypted system item data to the current CP
+		void AddSystemData(GCStreamID ID, DataChunkPtr Chunk, UUIDPtr ContextID, Uint64 PlaintextOffset = 0) { AddSystemData(ID, Chunk->Size, Chunk->Data, ContextID, PlaintextOffset); }
 
 		//! Add essence data to the current CP
 		void AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data);
-		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk) { AddEssenceData(ID, Chunk->Size, Chunk->Data); };
+
+		//! Add essence data to the current CP
+		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk) { AddEssenceData(ID, Chunk->Size, Chunk->Data); }
+
+		//! Add essence data to the current CP
 		void AddEssenceData(GCStreamID ID, EssenceSource* Source);
+
+		//! Add encrypted essence data to the current CP
+		void AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data, UUIDPtr ContextID, Uint64 PlaintextOffset = 0);
+		
+		//! Add encrypted essence data to the current CP
+		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk, UUIDPtr ContextID, Uint64 PlaintextOffset = 0)  { AddEssenceData(ID, Chunk->Size, Chunk->Data, ContextID, PlaintextOffset); }
+
+		//! Add encrypted essence data to the current CP
+		void AddEssenceData(GCStreamID ID, EssenceSource* Source, UUIDPtr ContextID, Uint64 PlaintextOffset = 0);
+
+		//#### Register an Encryption thingy...
+
 
 
 		//! Structure for items to be written
@@ -234,7 +256,6 @@ namespace mxflib
 			Uint8 *Buffer;				//! Pointer to bytes to write
 			EssenceSource *Source;		//! Pointer to an EssenceSource object or NULL
 		};
-//		typedef std::pair<Uint64, Uint8*> WriteBlock;
 
 		//! Type for holding the write queue in write order
 		typedef std::map<Uint32,WriteBlock> WriteQueueMap;
@@ -718,6 +739,96 @@ namespace mxflib
 
 }
 
+
+// GCReader and associated structures
+namespace mxflib
+{
+	//! Base class for GCReader handlers
+	/*! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
+	 */
+	class GCReadHandler_Base : public RefCount<GCReadHandler_Base>
+	{
+	public:
+		//! Base destructor
+		virtual ~GCReadHandler_Base();
+
+		//! Handle a "chunk" of data that has been read from the file
+		virtual void HandleData(GCReaderPtr Caller, KLVObjectPtr Object) = 0;
+	};
+
+	// Smart pointer for the base GCReader read handler
+	typedef GCReadHandlerPtr SmartPtr<GCReadHandler_Base>;
+
+	//! Class that reads data from an MXF file
+	class GCReader
+	{
+		Position CurrentOffset;						//!< The offset of the start of the current KLV within the data stream
+
+	public:
+		//! Create a new GCReader, optionally with a given default item handler and filler handler
+		/*! \note The default handler receives all KLVs without a specific handler (except fillers)
+		 *        The filler handler receives all filler KLVs
+		 */
+		GCReader( GCReadHandlerPtr DefaultHandler = NULL, GCReadHandlerPtr FillerHandler = NULL );
+
+		//! Set the default read handler 
+		/*! This handler receives all KLVs without a specific data handler assigned
+		 *  including KLVs that do not appear to be standard GC KLVs
+		 */
+		void SetDefaultHandler(GCReadDataHandler DefaultHandler = NULL);
+
+		//! Set the filler handler
+		/*! If no filler handler is set all filler KLVs are discarded
+		 *  \note Filler KLVs are <b>never</b> sent to the default handler
+		 *        unless it is also set as the filler handler
+		 */
+		void SetFillerHandler(GCReadDataHandler FillerHandler = NULL);
+
+		//! Set encryption handler
+		/*! This handler will receive all encrypted KLVs and after decrypting them will
+		 *  resubmit the decrypted version for handling using function HandleData()
+		 */
+		void SetEncryptionHandler(GCReadDataHandler EncryptionHandler = NULL);
+
+		//! Set data handler for a given track number
+		void SetDataHandler(Uint32 TrackNumber, GCReadHandlerPtr DataHandler = NULL);
+
+		//! Read from file
+		/*! All KLVs are dispatched to handlers
+		 *  Stops reading at the next partition pack unless SingleKLV is true when only one KLV is dispatched
+		 *  \return true if all went well, false if an error occured or StopReading() was called
+		 */
+		bool ReadFromFile(MXFFilePtr File, bool SingleKLV = false);
+
+		//! Set the offset of the start of the next KLV within this GC stream
+		/*! Generally this will only be called as a result of parsing a partition pack
+		 *  \note The offset will start at zero and increment automatically as data is read.
+		 *        If a seek is performed the offset will need to be adjusted.
+		 */
+		void SetCurrentOffset(Position NewOffset);
+
+
+		/*** Functions for use by read handlers ***/
+
+		//! Force a KLVObject to be handled
+		/*! \note This is not the normal way that the GCReader is used, but allows the encryption handler
+		/*        to push the decrypted data back to the GCReader to pass to the appropriate handler
+		 */
+		void HandleData(KLVObjectPtr Object);
+
+		//! Stop reading even though there appears to be valid data remaining
+		/*! This function can be called from a handler if it detects that the current KLV is either the last
+		 *  KLV in partition, or does not belong in this partition at all.  If the KLV belongs to another
+		 *  partition, or handling should be deferred for some reason, PushBackKLV can be set to true
+		 */
+		void StopReading(bool PushBackKLV = false);
+
+		//! Get the offset of the start of the current KLV within this GC stream
+		Position GetCurrentOffset(void);
+	};
+
+
+}
 
 
 
