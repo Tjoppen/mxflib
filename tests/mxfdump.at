@@ -1,5 +1,14 @@
 AT_BANNER([[Checking mxfdump]])
 
+
+AT_SETUP([mxfdump argument handling])
+AT_CHECK([mxfdump], 1, [ignore], [ignore])
+AT_CHECK([mxfdump -v], 1, [ignore], [ignore])
+# FIXME: Not implemented in mxfdump.cpp
+#AT_CHECK([mxfdump file/..1 file/..2], 1, [ignore], [[]])
+AT_CLEANUP
+
+
 AT_SETUP([mxfdump])
 AT_CHECK([mxfdump ../../small_wav.mxf], 0,
 [[Dump an MXF file using MXFLib
