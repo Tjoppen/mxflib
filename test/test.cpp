@@ -2,6 +2,8 @@
  *	\brief	Test program for MXFLib
  */
 /*
+ *	$Id: test.cpp,v 1.17 2003/11/26 17:25:42 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -38,6 +40,7 @@ int Verbose = 0;
 
 //! local Debug flag set by command-line arg
 static bool DebugMode = false;
+static bool FullIndex = false;
 
 static void DumpObject(MDObjectPtr Object, std::string Prefix);
 
@@ -48,23 +51,32 @@ int main(int argc, char *argv[])
 
 	if(argc < 2)
 	{
-		printf("\nUsage:  Test <filename>\n");
+		printf("\nUsage:  test [-v] [-i] <filename>\n");
 		return -1;
 	}
 
-	int i;
-	for(i=1; i<argc; i++)
+	int num_options = 0;
+	for(int i=1; i<argc; i++)
 	{
-		if(argv[i][0] == '-') 
+		if(argv[i][0] == '-')
+		{
+			num_options++;
 			if((argv[i][1] == 'v') || (argv[i][1] == 'V'))
 				DebugMode = true;
+			if((argv[i][1] == 'i') || (argv[i][1] == 'I'))
+				FullIndex = true;
+		}
 	}
 
 	LoadTypes("types.xml");
 	MDOType::LoadDict("xmldict.xml");
 
 	MXFFilePtr TestFile = new MXFFile;
-	TestFile->Open(argv[1], true);
+	if (! TestFile->Open(argv[num_options+1], true))
+	{
+		perror(argv[num_options+1]);
+		exit(1);
+	}
 
 	// Get a RIP (however possible)
 	TestFile->GetRIP();
@@ -130,7 +142,7 @@ int main(int argc, char *argv[])
 					else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
 
 					if(Duration < 1) Duration = 4;		// Could be CBR
-					if(Duration > 10) Duration = 10;	// Don't go mad!
+					if(!FullIndex && Duration > 10) Duration = 10;	// Don't go mad!
 
 					int i;
 					for(i=0; i<Duration; i++)
@@ -139,7 +151,7 @@ int main(int argc, char *argv[])
 						for(j=0; j<Streams; j++)
 						{
 							IndexPosPtr Pos = Table->Lookup(Start + i,j);
-							printf("  EditUnit %lld for stream %d is at 0x%s", Start + i, j, Int64toHexString(Pos->Location,8).c_str());
+							printf("  EditUnit %6lld for stream %d is at 0x%s", Start + i, j, Uint64toHexString(Pos->Location,10).c_str());
 							printf(", Flags=%02x", Pos->Flags);
 							if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
 						}
