@@ -1,0 +1,30 @@
+AT_BANNER([[Checking mxfwrap]])
+
+AT_SETUP([mxfwrap])
+
+AT_CHECK([mxfwrap -a -f -r25/1 ../../small.wav ../../mxfwrap_wav.mxf], 0,
+[[Simple MXF wrapping application
+
+KAGSize     = 1
+
+Input file  = ../../small.wav
+Output file = ../../mxfwrap_wav.mxf
+
+Output OP = OP-Atom
+An updated header will be written after writing the footer
+At least 16384 padding bytes will be left after the initial writing of the header
+Index tables will be written for each frame wrapped essence container
+Index table segments will not share a partition with essence
+
+Selected wrapping for file "../../small.wav" : SMPTE 382M frame wrapping of wave audio
+
+Processing output file "../../mxfwrap_wav.mxf"
+
+Done
+]])
+
+AT_CHECK([wc -c ../../mxfwrap_wav.mxf], 0,
+[[  20271 ../../mxfwrap_wav.mxf
+]])
+
+AT_CLEANUP
