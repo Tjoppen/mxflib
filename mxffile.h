@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.11 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.12 2004/01/31 16:25:14 matt-beard Exp $
  *
  */
 /*
@@ -52,7 +52,7 @@ namespace mxflib
 	protected:
 		bool isOpen;				//! True when the file is open
 		bool isMemoryFile;			//! True is the file is a "memory file"
-		KLVFile Handle;				//! File hanlde
+		FileHandle Handle;			//! File hanlde
 		Uint64 RunInSize;			//! Size of run-in in physical file
 
 		DataChunkPtr Buffer;		//! Memory file buffer pointer
