@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.3 2004/04/26 19:16:33 stuart_hc Exp $
+ *	\version $Id: system.h,v 1.4 2004/04/30 17:36:21 stuart_hc Exp $
  *
  */
 /*
@@ -46,6 +46,7 @@
 
 // Required headers for non-system specific bits
 #include <time.h>
+#include <stdlib.h>						//!< Required for integer conversions
 
 /************************************************/
 /*           (Hopefully) Common types           */
@@ -69,6 +70,27 @@ namespace mxflib
 		time_t	time;
 		int		msBy4;
 	};
+
+
+	// Runtime detection of endian-ness using detection code that executes once.
+	// The variable littleEndian is then used to check if bytes read/written to 
+	// files need to be swapped.
+	static bool IsLittleEndian()
+	{
+		unsigned int val = 0x12345678;
+	    unsigned char *p;
+
+   		p = (unsigned char *)&val;
+
+    	if (p[0] == 0x12 && p[1] == 0x34 && p[2] == 0x56 && p[3] == 0x78)
+        	return false;
+    	else if (p[0] == 0x78 && p[1] == 0x56 && p[2] == 0x34 && p[3] == 0x12)
+        	return true;
+
+		return false;
+	}
+
+	static bool littleEndian = IsLittleEndian();
 }
 
 
@@ -84,7 +106,6 @@ namespace mxflib
 										// Note: Not all these warnings go away (another MS-Bug!!)
 
 #include <crtdbg.h>						//!< Debug header
-#include <stdlib.h>						//!< Required for integer conversions
 #include <string>						//!< Required for strings
 #include <windows.h>					//!< Required for system specifics (such as GUID)
 
@@ -94,11 +115,21 @@ namespace mxflib
 	typedef unsigned __int64 Uint64;	//!< Unsigned 64-bit integer
 
 	/******** ENDIAN SWAPPING ********/
-	inline Uint16 Swap(Uint16 Val) { return ((Val & 0xff00) >> 8) | ((Val & 0x00ff) << 8); };
+	inline Uint16 Swap(Uint16 Val) 
+	{
+		if (!littleEndian)
+			return Val;
+		else	
+			return ((Val & 0xff00) >> 8) | ((Val & 0x00ff) << 8); 
+	};
+
 	inline Int16 Swap(Int16 Val) { return (Int16)Swap((Uint16)Val); };
 	
 	inline Uint32 Swap(Uint32 Val) 
 	{ 
+		if (!littleEndian)
+			return Val;
+
 		return ( ((Val & 0xff000000) >> 24)
 			   | ((Val & 0x00ff0000) >> 8)
 			   | ((Val & 0x0000ff00) << 8)
@@ -108,6 +139,9 @@ namespace mxflib
 
 	inline Uint64 Swap(Uint64 Val) 
 	{ 
+		if (!littleEndian)
+			return Val;
+
 		Uint32 MSW = (Uint32)((Val & 0xffffffff00000000) >> 32);
 		Uint32 LSW = (Uint32)(Val & 0x00000000ffffffff);
 
@@ -207,12 +241,17 @@ namespace mxflib
 #else	/* for ISO C++ compilers */
 
 #include "config.h"
-#include <stdlib.h>
+#include <stdio.h>
 #include <string>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#else
+#define uintptr_t long
+#endif
 
 namespace mxflib
 {
@@ -220,11 +259,21 @@ namespace mxflib
 	typedef unsigned long long Uint64;	//!< Unsigned 64-bit integer
 
 	/******** ENDIAN SWAPPING ********/
-	inline Uint16 Swap(Uint16 Val) { return ((Val & 0xff00) >> 8) | ((Val & 0x00ff) << 8); }
+	inline Uint16 Swap(Uint16 Val) 
+	{ 
+		if (!littleEndian)
+			return Val;
+		else
+			return ((Val & 0xff00) >> 8) | ((Val & 0x00ff) << 8); 
+	};
+
 	inline Int16 Swap(Int16 Val) { return (Int16)Swap((Uint16)Val); }
 	
 	inline Uint32 Swap(Uint32 Val) 
 	{ 
+		if (!littleEndian)
+			return Val;
+
 		return ( ((Val & 0xff000000) >> 24)
 			   | ((Val & 0x00ff0000) >> 8)
 			   | ((Val & 0x0000ff00) << 8)
@@ -233,7 +282,10 @@ namespace mxflib
 	inline Int32 Swap(Int32 Val) { return (Int32)Swap((Uint32)Val); }
 
 	inline Uint64 Swap(Uint64 Val) 
-	{ 
+	{
+		if (!littleEndian)
+			return Val;
+
 		Uint32 MSW = (Uint32)((Val & 0xffffffff00000000LL) >> 32);
 		Uint32 LSW = (Uint32)(Val & 0x00000000ffffffff);
 
@@ -246,7 +298,7 @@ namespace mxflib
 
 	
 	/******** Int64 Conversion ********/
-	inline Int64 ato_Int64(const char *str) { return atoll(str); }
+	inline Int64 ato_Int64(const char *str) { return strtoll(str, NULL, 10); }
 
 	inline std::string Int64toString(Int64 Val)
 	{ 
@@ -331,7 +383,7 @@ namespace mxflib
 			// program start time. Why also include a random number in the seed? Because if someone has already
 			// seeded the generator with a decent random number this will be taken into account to prevent
 			// degrading the randomness
-			srand(((unsigned int) time(NULL)) ^ ((unsigned int)Buffer) ^ ((unsigned int)clock() << 2) ^ rand());
+			srand((time(NULL)) ^ ((uintptr_t)Buffer) ^ (clock() << 2) ^ rand());
 			Inited = true;
 		}
 		int i;
