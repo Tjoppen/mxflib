@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.11 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.12 2004/12/18 20:16:26 matt-beard Exp $
  *
  */
 /*
@@ -29,6 +29,7 @@
  */
 
 #include <mxflib/mxflib.h>
+#include <mxflib/waveheader.h>
 
 using namespace mxflib;
 
