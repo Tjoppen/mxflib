@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.1.2.5 2004/11/06 13:56:48 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.1.2.6 2004/11/09 15:15:41 matt-beard Exp $
  *
  */
 /*
@@ -66,7 +66,7 @@ namespace mxflib
 	{
 	public:
 		PackagePtr() : SmartPtr<Package>() {}
-		PackagePtr(IRefCount<Package> * ptr) : SmartPtr<Package>(ptr) {};
+		PackagePtr(IRefCount<Package> * ptr) : SmartPtr<Package>(ptr) {}
 		
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
@@ -95,7 +95,7 @@ namespace mxflib
 	{
 	public:
 		TrackPtr() : SmartPtr<Track>() {}
-		TrackPtr(IRefCount<Track> * ptr) : SmartPtr<Track>(ptr) {};
+		TrackPtr(IRefCount<Track> * ptr) : SmartPtr<Track>(ptr) {}
 
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
@@ -113,6 +113,12 @@ namespace mxflib
 		TrackParent() : ParentPtr<Track>() {}
 		TrackParent(IRefCount<Track> * ptr) : ParentPtr<Track>(ptr) {}
 
+		//! Set value from a TrackPtr
+		TrackParent & operator=(const TrackPtr &sp) { __Assign((IRefCount<Track> *)sp.GetPtr()); return *this;}
+
+		//! Set value from a Track*
+		TrackParent & operator=(IRefCount<Track> *ptr) { __Assign(ptr); return *this;}
+
 		//! Child access operators that overcome dereferencing problems with ParentPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
@@ -123,13 +129,25 @@ namespace mxflib
 	/*! \note Derived classes MUST NOT be separately derived from RefCount<> */
 	class Component : public ObjectInterface, public RefCount<Component>
 	{
-	public:
-		TrackParent Parent;					// Track containing this SourceClip
+	protected:
+		TrackParent Parent;					// Track containing this component
+
+		//! Protected constructor used to create from an existing MDObject
+		Component(MDObjectPtr BaseObject) : ObjectInterface(BaseObject) {}
 
 	public:
 		Component(std::string BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
 		Component(MDOTypePtr BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
 		Component(ULPtr BaseUL) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
+
+		//! Get the track containing this component
+		TrackParent GetParent(void) { return Parent; };
+
+		//! Set the track containing this component
+		void SetParent(TrackPtr &NewParent) { Parent = NewParent; }
+
+		//! Set the track containing this component
+		void SetParent(IRefCount<Track> *NewParent) { Parent = TrackParent(NewParent); }
 
 		//! Allow polymorphic destructors
 		virtual ~Component() {};
@@ -152,7 +170,7 @@ namespace mxflib
 
 		//! Build a pointer to an existing object
 		/*! \note The IRefCount has to be to a Component because that is what SourceClip is derived from */
-		SourceClipPtr(IRefCount<Component> * ptr) : SmartPtr<SourceClip>((IRefCount<SourceClip> *)ptr) {};
+		SourceClipPtr(IRefCount<Component> * ptr) : SmartPtr<SourceClip>((IRefCount<SourceClip> *)ptr) {}
 
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
@@ -169,7 +187,7 @@ namespace mxflib
 
 		//! Build a pointer to an existing object
 		/*! \note The IRefCount has to be to a Component because that is what TimecodeComponent is derived from */
-		TimecodeComponentPtr(IRefCount<Component> * ptr) : SmartPtr<TimecodeComponent>((IRefCount<TimecodeComponent> *)ptr) {};
+		TimecodeComponentPtr(IRefCount<Component> * ptr) : SmartPtr<TimecodeComponent>((IRefCount<TimecodeComponent> *)ptr) {}
 
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
@@ -201,8 +219,9 @@ namespace mxflib
 	//! Holds data relating to a SourceClip
 	class SourceClip : public Component
 	{
-	public:
-		TrackParent Parent;					// Track containing this SourceClip
+	protected:
+		//! Protected constructor used to create from an existing MDObject
+		SourceClip(MDObjectPtr BaseObject) : Component(BaseObject) {}
 
 	public:
 		SourceClip(std::string BaseType) : Component(BaseType) {};
@@ -223,6 +242,9 @@ namespace mxflib
 		/*! \return NULL if MDObject is not contained in a SourceClip object
 		 */
 		static SourceClipPtr GetSourceClip(MDObjectPtr Object);
+
+		//! Parse an existing MDObject into a SourceClip object
+		static SourceClipPtr Parse(MDObjectPtr BaseObject);
 	};
 }
 
@@ -232,8 +254,9 @@ namespace mxflib
 	//! Holds data relating to a Timecode Component
 	class TimecodeComponent : public Component
 	{
-	public:
-		TrackParent Parent;					// Track containing this SourceClip
+	protected:
+		//! Protected constructor used to create from an existing MDObject
+		TimecodeComponent(MDObjectPtr BaseObject) : Component(BaseObject) {}
 
 	public:
 		TimecodeComponent(std::string BaseType) : Component(BaseType) {};
@@ -243,6 +266,14 @@ namespace mxflib
 		//! Set the duration for this Timecode Component and update the track's sequence duration
 		/*! \param Duration The duration of this Timecode Component, -1 or omitted for unknown */
 		void SetDuration(Int64 Duration = -1);
+
+		//! Return the containing "TimecodeComponent" object for this MDObject
+		/*! \return NULL if MDObject is not contained in a TimecodeComponent object
+		 */
+		static TimecodeComponentPtr GetTimecodeComponent(MDObjectPtr Object);
+
+		//! Parse an existing MDObject into a TimecodeComponent object
+		static TimecodeComponentPtr Parse(MDObjectPtr BaseObject);
 	};
 }
 
@@ -251,8 +282,9 @@ namespace mxflib
 	//! Holds data relating to a DMSegment
 	class DMSegment : public Component
 	{
-	public:
-		TrackParent Parent;					// Track containing this SourceClip
+	protected:
+		//! Protected constructor used to create from an existing MDObject
+		DMSegment(MDObjectPtr BaseObject) : Component(BaseObject) {}
 
 	public:
 		DMSegment(std::string BaseType) : Component(BaseType) {};
@@ -273,6 +305,9 @@ namespace mxflib
 		/*! \return NULL if MDObject is not contained in a DMSegment object
 		 */
 		static DMSegmentPtr GetDMSegment(MDObjectPtr Object);
+
+		//! Parse an existing MDObject into a DMSegment object
+		static DMSegmentPtr Parse(MDObjectPtr BaseObject);
 	};
 }
 
@@ -284,13 +319,14 @@ namespace mxflib
 	protected:
 		ComponentList Components;				//!< Each component on this track
 
-	public:
 		PackageParent Parent;					//!< Package containing this track
+
+		//! Protected constructor used to create from an existing MDObject
+		Track(MDObjectPtr BaseObject) : ObjectInterface(BaseObject) {}
 
 	public:
 		Track(std::string BaseType) { Object = new MDObject(BaseType); }
 		Track(MDOTypePtr BaseType) { Object = new MDObject(BaseType); }
-		Track(MDObjectPtr Obj) { Object = Obj; }
 		Track(ULPtr BaseUL) { Object = new MDObject(BaseUL); }
 
 		//! Add a SourceClip to a track
@@ -305,10 +341,22 @@ namespace mxflib
 		//! Update the duration field in the sequence for this track based on component durations
 		Int64 UpdateDuration(void);
 
+		//! Get the package containing this track
+		PackageParent GetParent(void) { return Parent; };
+
+		//! Set the package containing this track
+		void SetParent(PackagePtr &NewParent) { Parent = PackageParent(NewParent.GetRef()); }
+
+		//! Set the track containing this component
+		void SetParent(IRefCount<Package> *NewParent) { Parent = PackageParent(NewParent); }
+
 		//! Return the containing "Track" object for this MDObject
 		/*! \return NULL if MDObject is not contained in a Track object
 		 */
 		static TrackPtr GetTrack(MDObjectPtr Object);
+
+		//! Parse an existing MDObject into a Track object
+		static TrackPtr Parse(MDObjectPtr BaseObject);
 	};
 }
 
@@ -330,9 +378,12 @@ namespace mxflib
 		TrackList Tracks;						//!< Each track in this package
 		Uint32 LastTrackID;						//!< Last auto-allocated track ID
 
+		//! Protected constructor used to create from an existing MDObject
+		Package(MDObjectPtr BaseObject) : ObjectInterface(BaseObject) {}
+
 	private:
 		// Can't create from nothing
-		Package() { ASSERT(0); }
+		Package();
 
 	public:
 		Package(std::string BaseType) : LastTrackID(0) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
@@ -414,6 +465,9 @@ namespace mxflib
 		/*! \return NULL if MDObject is not contained in a Package object
 		 */
 		static PackagePtr GetPackage(MDObjectPtr Object);
+
+		//! Parse an existing MDObject into a Package object
+		static PackagePtr Parse(MDObjectPtr BaseObject);
 	};
 }
 
@@ -426,6 +480,9 @@ namespace mxflib
 	protected:
 		PackageList Packages;						//!< Each package in this metadata
 		std::string ModificationTime;				//!< Creation or modification time for this metadata, used for package times
+
+		//! Protected constructor used to create from an existing MDObject
+		Metadata(MDObjectPtr BaseObject) : ObjectInterface(BaseObject) {}
 
 	public:
 		Metadata();
@@ -498,6 +555,14 @@ namespace mxflib
 		//! Update the Generation UID of all modified sets and add the specified Ident set
 		bool UpdateGenerations(MDObjectPtr Ident, std::string UpdateTime = "");
 
+		//! Return the containing "Metadata" object for this MDObject
+		/*! \return NULL if MDObject is not contained in a Metadata object
+		 */
+		static MetadataPtr GetMetadata(MDObjectPtr Object);
+
+		//! Parse an existing MDObject into a Metadata object
+		static MetadataPtr Parse(MDObjectPtr BaseObject);
+
 	private:
 		//! Add a package of the specified type to the matadata
 		PackagePtr AddPackage(std::string PackageType, std::string PackageName, UMIDPtr PackageUMID, Uint32 BidySID = 0);
@@ -509,6 +574,8 @@ namespace mxflib
 		void ClearModified_Internal(MDObjectPtr Obj);
 	};
 }
+
+
 
 
 // These simple inlines need to be defined after the classes

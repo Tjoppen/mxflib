@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.1.2.5 2004/11/06 13:56:48 matt-beard Exp $
+ *	\version $Id: partition.h,v 1.1.2.6 2004/11/09 15:15:41 matt-beard Exp $
  *
  */
 /*
@@ -124,6 +124,9 @@ namespace mxflib
 		//! Read a full set of header metadata from a file (including primer)
 		Length ReadMetadata(MXFFilePtr File, Length Size);
 
+		//! Parse the current metadata sets into higher-level sets
+		MetadataPtr ParseMetadata(void);
+
 		//! Read any index table segments from this partition's source file
 		MDObjectListPtr ReadIndex(void);
 
@@ -140,9 +143,6 @@ namespace mxflib
 			ASSERT(Ptr);
 			Ptr->SetUint64(KAG);
 		}
-
-		// Parse the metadata into higher level objects
-		MetadataPtr ParseMetadata(void);
 
 //		//! Read the partition from a buffer
 //		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size);

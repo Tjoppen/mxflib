@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.1.2.3 2004/11/06 13:56:48 matt-beard Exp $
+ *	\version $Id: smartptr.h,v 1.1.2.4 2004/11/09 15:15:41 matt-beard Exp $
  *
  */
 /*
@@ -77,7 +77,8 @@ namespace mxflib
 		
 		virtual void __IncRefCount() = 0;				//!< Increment the number of references
 		virtual void __DecRefCount() = 0;				//!< Decrement the number of references, if none left delete the object
-		virtual T * GetPtr() const = 0;					//!< Get a pointer to the object
+		virtual T * GetPtr() = 0;						//!< Get a pointer to the object
+		virtual IRefCount<T> * GetRef() = 0;			//!< Get a pointer to the reference counter
 
 		virtual void AddRef(ParentPtr<T> &Ptr) = 0;		//!< Add a parent pointer to this object
 		virtual void DeleteRef(ParentPtr<T> &Ptr) = 0;	//!< Delete a parent pointer to this object
@@ -140,9 +141,15 @@ namespace mxflib
 		}
 
 		//! Get a pointer to the object
-		virtual T * GetPtr() const
+		virtual T * GetPtr()
 		{
 			return ((T *)this);
+		}
+
+		//! Get a pointer to the object
+		virtual IRefCount<T>* GetRef()
+		{
+			return this;
 		}
 
 		//! Destroy the object
@@ -174,7 +181,7 @@ namespace mxflib
 		//! Add a parent pointer to this object
 		virtual void AddRef(ParentPtr<T> &Ptr)
 		{
-			PTRDEBUG( debug("Adding ParentPtr(0x%08x)\n", (int)&Ptr); )
+			PTRDEBUG( debug("Adding ParentPtr(0x%08x) to 0x%08x\n", (int)&Ptr, (int)this); )
 			ParentPointers.push_back(&Ptr);
 		}
 
@@ -186,13 +193,13 @@ namespace mxflib
 			{
 				if((*it) == &Ptr)
 				{
-					PTRDEBUG( debug("Deleting ParentPtr(0x%08x)\n", (int)&Ptr); )
+					PTRDEBUG( debug("Deleting ParentPtr(0x%08x) from 0x%08x\n", (int)&Ptr, (int)this); )
 					ParentPointers.erase(it);
 					return;
 				}
 				it++;
 			}
-			error("Tried to clear ParentPtr(0x%08x) which did not exist\n", (int)&Ptr);
+			error("Tried to clear ParentPtr(0x%08x) from 0x%08x but that ParentPtr does not exist\n", (int)&Ptr, (int)this);
 		}
 
     protected:
@@ -405,13 +412,6 @@ namespace mxflib
 			__Assign(ptr);
 		}
 
-/*		//!	Construct a smart pointer to an object
-		SmartPtr(T * ptr)
-		{
-			__m_refcount = NULL;
-			__Assign(ptr);
-		}
-*/
 		//!	Construct a smart pointer that takes its target from another smart pointer
 		SmartPtr(const SmartPtr<T> &sp)
 		{
@@ -425,18 +425,22 @@ namespace mxflib
 			__Assign((IRefCount<T> *)NULL);
 		}
 
-		//! Get the contained pointer, not really needed but...
+		//! Get the contained pointer
 		T *GetPtr() const
 		{
 			if(__m_refcount==NULL) return NULL;
 			return __m_refcount->GetPtr();
 		}
 
+		//! Get the contained object's refcount
+		IRefCount<T> *GetRef() const
+		{
+			if(__m_refcount==NULL) return NULL;
+			return __m_refcount->GetRef();
+		}
+
 		//! Assign another smart pointer
 		SmartPtr & operator = (const SmartPtr<T> &sp) {__Assign(sp.__m_refcount); return *this;}
-
-		//! Assign pointer or NULL
-//		SmartPtr & operator = (T * ptr) {__Assign(ptr); return *this;}
 
 		//! Assign pointer or NULL
 		SmartPtr & operator = (IRefCount<T> * ptr) {__Assign(ptr); return *this;}
@@ -531,11 +535,25 @@ namespace mxflib
 			__m_refcount = NULL;
 		}
 
+		//!	Construct a parent pointer from a smart pointer
+		ParentPtr(SmartPtr<T> ptr)
+		{
+			__m_refcount = NULL;
+			__Assign(ptr.GetRef());
+		}
+
 		//!	Construct a parent pointer to an object
 		ParentPtr(IRefCount<T> * ptr)
 		{
 			__m_refcount = NULL;
 			__Assign(ptr);
+		}
+
+		//! Copy construct
+		ParentPtr(ParentPtr &rhs)
+		{
+			__m_refcount = NULL;
+			__Assign(rhs.GetRef());
 		}
 
 		//! Destructor clears the pointer without decrementing the count
@@ -548,10 +566,10 @@ namespace mxflib
 		}
 
 		//! Set value from a smart pointer
-		ParentPtr & operator=(const SmartPtr<T> &sp) { __Assign(sp); return *this;}
+		ParentPtr & operator=(const SmartPtr<T> &sp) { __Assign(sp.GetRef()); return *this;}
 
 		//! Set value from a parent pointer
-		ParentPtr & operator=(const ParentPtr<T> &sp) { __Assign(sp); return *this;}
+		ParentPtr & operator=(const ParentPtr<T> &sp) { __Assign(sp.__m_refcount); return *this;}
 
 		//! Set value from a pointer
 		ParentPtr & operator=(T *Ptr) { __Assign((IRefCount<T>*)Ptr); return *this; }

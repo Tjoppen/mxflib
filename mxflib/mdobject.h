@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.1.2.4 2004/11/06 13:56:48 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.1.2.5 2004/11/09 15:15:41 matt-beard Exp $
  *
  */
 /*
@@ -579,6 +579,12 @@ namespace mxflib
 		//! Type access function
 		MDOTypePtr GetType(void) const { return Type; };
 
+		//! Determine if this object is derived from a specified type (directly or indirectly)
+		bool IsA(std::string BaseType);
+
+		//! Determine if this object is derived from a specified type (directly or indirectly)
+		bool IsA(MDOTypePtr BaseType);
+		
 		//! Link access functions
 		MDObjectPtr GetLink(void) const { return Link; };
 
@@ -695,10 +701,15 @@ namespace mxflib
 	 */
 	class ObjectInterface
 	{
+	protected:
+		//! Protected constructor used to create from an existing MDObject
+		ObjectInterface(MDObjectPtr BaseObject) : Object(BaseObject) {}
+
 	public:
 		MDObjectPtr Object;					//!< The MDObject for this item
 
 	public:
+		ObjectInterface() {};				//!< Build a basic ObjectInterface
 		virtual ~ObjectInterface() {};		//!< Virtual destructor to allow polymorphism
 		
 		// ** MDObject Interface **

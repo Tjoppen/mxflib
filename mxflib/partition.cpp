@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.1.2.8 2004/11/05 16:50:14 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.1.2.9 2004/11/09 15:15:41 matt-beard Exp $
  *
  */
 /*
@@ -729,3 +729,28 @@ Uint64 mxflib::Partition::SkipFill( Uint64 start )
 
 	return ret;
 }
+
+
+//! Parse the current metadata sets into higher-level sets
+MetadataPtr Partition::ParseMetadata(void)
+{
+	MetadataPtr Ret;
+
+	// Locate the preface
+	MDObjectList::iterator it = TopLevelMetadata.begin();
+	while(it != TopLevelMetadata.end())
+	{
+		// If we find the preface, parse it
+		if((*it)->IsA("Preface"))
+		{
+			Ret = Metadata::Parse(*it);
+			break;
+		}
+
+		it++;
+	}
+
+	// If we failed to find the preface (or to parse it) this will be NULL
+	return Ret;
+}
+

@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.2.2.9 2004/11/05 16:50:13 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.2.2.10 2004/11/09 15:15:41 matt-beard Exp $
  *
  */
 /*
@@ -2431,6 +2431,36 @@ void MDOType::Derive(MDOTypePtr BaseEntry)
 	RefTargetName = Base->RefTargetName;
 }
 
+
+//! Determine if this object is derived from a specified type (directly or indirectly)
+bool MDObject::IsA(std::string BaseType)
+{
+	MDOTypePtr TestType = Type;
+
+	while(TestType)
+	{
+		if(TestType->Name() == BaseType) return true;
+		TestType = TestType->Base;
+	}
+
+	return false;
+}
+
+
+//! Determine if this object is derived from a specified type (directly or indirectly)
+bool MDObject::IsA(MDOTypePtr BaseType)
+{
+	MDOTypePtr TestType = Type;
+
+	while(TestType)
+	{
+		if(TestType == BaseType) return true;
+		TestType = TestType->Base;
+	}
+
+	return false;
+}
+		
 
 //! Read hex values separated by any of 'Sep'
 /*! /ret number of values read */
