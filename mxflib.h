@@ -40,7 +40,7 @@ namespace mxflib {}
 
 #include <mxflib/smartptr.h>
 
-#include <mxflib/mxftypes.h>
+#include <mxflib/types.h>
 
 #include <mxflib/helper.h>
 
