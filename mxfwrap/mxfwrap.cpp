@@ -24,17 +24,16 @@
  *	     distribution.
  */
 
-#include "..\mxflib.h"
-
-using namespace mxflib;
-
 #include <stdio.h>
 #include <iostream>
 
+#include <mxflib.h>
+
+using namespace mxflib;
 using namespace std;
 
 //! Debug flag for KLVLib
-extern "C" int Verbose = 0;
+int Verbose = 0;
 
 //! Debug flag for MXFLib
 bool DebugMode = false;
@@ -173,7 +172,7 @@ int main(int argc, char *argv[])
 
 	// Load the dictionaries
 	LoadTypes("types.xml");
-	MDOType::LoadDict("XMLDict.xml");
+	MDOType::LoadDict("xmldict.xml");
 
 //IT# 	// Clear the index table
 //IT# 	Table = new IndexTable();
@@ -214,7 +213,7 @@ int main(int argc, char *argv[])
 		}
 
 		EssenceParser::WrappingConfigPtr WCP;
-		if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::WrapType::Frame);
+		if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
 		else WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate);
 
 // Fixed now ? ## When PDList is deleted so is the essence parser...
@@ -644,7 +643,14 @@ int main(int argc, char *argv[])
 		//
 
 		// If we are writing OP-Atom this is the first place we can claim it
-		if(OPAtom) MData->SetOP(OPAtomUL);
+		if(OPAtom) 
+		{
+			MData->SetOP(OPAtomUL);
+
+			// Set top-level file package correctly for OP-Atom
+			// FIXME: The following only works when wrapping a single file
+			MData->SetPrimaryPackage(FilePackage);		// This will be overwritten for OP-Atom
+		}
 
 		MData->SetTime();
 		MPTimecodeComponent->SetDuration(Duration);
@@ -741,9 +747,9 @@ bool ParseCommandLine(int &argc, char **argv)
 	int i;
 	for(i=1; i<argc;)
 	{
-		if((argv[i][0] == '/') || (argv[i][0] == '-'))
+		if(argv[i][0] == '-')
 		{
-			char *p = &argv[i][1];					// The option less the '-' or '/'
+			char *p = &argv[i][1];					// The option less the '-'
 			char Opt = tolower(*p);					// The option itself (in lower case)
 			char *Val = "";							// Any value attached to the option
 			if(strlen(p) > 2) Val = &p[2];			// Only set a value if one found
@@ -1324,7 +1330,7 @@ void mxflib::debug(const char *Fmt, ...)
 	vprintf(Fmt, args);
 	va_end(args);
 }
-#endif MXFLIB_DEBUG
+#endif // MXFLIB_DEBUG
 
 //! Display a warning message
 void mxflib::warning(const char *Fmt, ...)
