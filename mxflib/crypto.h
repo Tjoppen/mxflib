@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.2 2004/05/10 17:10:51 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.3 2004/05/19 13:38:58 matt-beard Exp $
  *
  */
 /*
@@ -66,6 +66,13 @@ namespace mxflib
 		 */
 		virtual bool SetIV(Uint32 IVSize, Uint8 *IV, bool Force = false) = 0;
 
+		//! Get the Initialization Vector that will be used for the next encryption
+		/*! If called immediately after SetIV() with Force=true or SetIV() for a crypto
+		 *  scheme that accepts each offered vector (rather than creating its own ones)
+		 *  the result will be the vector offered in that SetIV() call.
+		 */
+		virtual DataChunk GetIV(void) = 0;
+
 		//! Can this encryption system safely encrypt in place?
 		virtual bool CanEncryptInPlace(void) = 0;
 
@@ -113,6 +120,13 @@ namespace mxflib
 		 *        used with minimal changes in the calling code.
 		 */
 		virtual bool SetIV(Uint32 IVSize, Uint8 *IV, bool Force = false) = 0;
+
+		//! Get the Initialization Vector that will be used for the next encryption
+		/*! If called immediately after SetIV() with Force=true or SetIV() for a crypto
+		 *  scheme that accepts each offered vector (rather than creating its own ones)
+		 *  the result will be the vector offered in that SetIV() call.
+		 */
+		virtual DataChunk GetIV(void) = 0;
 
 		//! Can this decryption system safely decrypt in place?
 		virtual bool CanEncryptInPlace(void) = 0;
