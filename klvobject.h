@@ -3,11 +3,12 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.4 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.5 2004/01/06 14:17:00 terabrit Exp $
  *
  */
 /*
  *	Copyright (c) 2003, Matt Beard
+ *	Portions Copyright (c) 2003, Metaglue Corporation
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -58,6 +59,19 @@ namespace mxflib
 	};
 }
 
+
+namespace mxflib
+{
+	//! Structure to hold information about each stream in a GC
+	struct GCElementKind
+	{
+		bool	IsValid;					//!< true if this is a GC Element
+		Uint8 Item;							//!< Item type - byte 13
+		Uint8 Count;						//!< Element count - byte 14
+		Uint8 ElementType;			//!< Element type - byte 15
+		Uint8 Number;					  //!< Element number - byte 16
+	};
+}
 
 namespace mxflib
 {
@@ -113,6 +127,9 @@ namespace mxflib
 			SourceFile = NULL;
 		}
 
+		//! Get the object's UL
+		ULPtr GetUL(void) { return TheUL; }
+
 		//! Set the object's UL
 		void SetUL(ULPtr NewUL) { TheUL = NewUL; }
 
@@ -122,10 +139,19 @@ namespace mxflib
 		//! Get text that describes where this item came from
 		std::string GetSource(void);
 
+		//! Get the size
+		Uint64 GetSize(void) { return KLSize; }
+
+		//! Get a GCElementKind structure
+		GCElementKind GetGCElementKind(void);
+
+		//! Get a reference to the data chunk
+		DataChunkPtr& GetData(void);
+
 	private:
 		// Some private helper functions
-		Uint32 ReadKey(KeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key);
-		Uint32 ReadLength(LenFormat Format, Uint32 Size, const Uint8 *Buffer, Uint32& Length);
+		//Uint32 ReadKey(KeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key);
+		//Uint32 ReadLength(LenFormat Format, Uint32 Size, const Uint8 *Buffer, Uint32& Length);
 	};
 }
 

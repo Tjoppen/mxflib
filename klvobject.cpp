@@ -3,11 +3,12 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.4 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: klvobject.cpp,v 1.5 2004/01/06 14:17:00 terabrit Exp $
  *
  */
 /*
  *	Copyright (c) 2003, Matt Beard
+ *	Portions Copyright (c) 2003, Metaglue Corporation
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -59,3 +60,38 @@ std::string KLVObject::GetSource(void)
 { 
 	if(SourceFile) return SourceFile->Name; else return "memory buffer"; 
 }
+
+//! Get a GCElementKind structure
+GCElementKind KLVObject::GetGCElementKind(void)
+{
+	GCElementKind ret;
+
+	const Uint8 DegenerateGCLabel[12] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
+	if( memcmp(TheUL->GetValue(), DegenerateGCLabel, 12) == 0 )
+	{
+		ret.IsValid =			true;
+		ret.Item =				(TheUL->GetValue())[12];
+		ret.Count =				(TheUL->GetValue())[13];
+		ret.ElementType = (TheUL->GetValue())[14];
+		ret.Number =			(TheUL->GetValue())[15];
+	}
+	else
+		ret.IsValid =			false;
+
+	return ret;
+}
+
+//! Get a reference to the data chunk (const to prevent setting!!)
+DataChunkPtr& KLVObject::GetData(void)
+{
+	if( Data ) return Data;
+	else
+	{
+		Data = new DataChunk( KLSize );
+		SourceFile->Seek( SourceOffset );
+		SourceFile->Read( Data->Data, KLSize );
+		return Data;
+	}
+};
+
+
