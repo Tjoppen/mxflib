@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Defines known types
  *
- *	\version $Id: deftypes.cpp,v 1.2.2.3 2004/07/17 00:24:00 terabrit Exp $
+ *	\version $Id: deftypes.cpp,v 1.2.2.4 2004/10/10 18:42:42 terabrit Exp $
  *
  */
 /*
@@ -111,6 +111,12 @@ static void DefineTraits(void)
 	TraitsMap.insert(TraitsMapType::value_type("ISO7String", new MDTraits_BasicStringArray));
 	TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_BasicStringArray));
 	TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
+
+	TraitsMap.insert(TraitsMapType::value_type("UUID", new MDTraits_UUID));
+	TraitsMap.insert(TraitsMapType::value_type("Identifier16", new MDTraits_Identifier16));
+	TraitsMap.insert(TraitsMapType::value_type("Label", new MDTraits_Label));
+
+	TraitsMap.insert(TraitsMapType::value_type("UMID", new MDTraits_UMID));
 
 	TraitsMap.insert(TraitsMapType::value_type("LabelCollection", new MDTraits_RawArrayArray));
 
