@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.2.2.5 2004/07/02 04:04:45 terabrit Exp $
+ *	\version $Id: helper.h,v 1.2.2.6 2004/11/06 18:49:08 terabrit Exp $
  *
  */
 /*
@@ -133,7 +133,7 @@ namespace mxflib
 	int EncodeOID( Uint8* presult, Uint64 subid, int length );
 
 	//! Build a new UMID
-	UMIDPtr MakeUMID(int Type);
+	UMIDPtr MakeUMID(int Type, const UUIDPtr AssetID = NULL);
 
 	//! Read a "Chunk" from a non-MXF file
 	DataChunkPtr FileReadChunk(FileHandle InFile, Uint64 Size);

@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.13 2004/11/05 16:50:13 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.14 2004/11/06 18:49:08 terabrit Exp $
  *
  */
 /*
@@ -191,7 +191,7 @@ int mxflib::EncodeOID( Uint8* presult, Uint64 subid, int length )
 
 
 //! Build a new UMID
-UMIDPtr mxflib::MakeUMID(int Type)
+UMIDPtr mxflib::MakeUMID(int Type, const UUIDPtr AssetID)
 {
 	static const Uint8 UMIDBase[10] = { 0x06, 0x0a, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
 	Uint8 Buffer[32];
@@ -216,11 +216,16 @@ UMIDPtr mxflib::MakeUMID(int Type)
 	Buffer[14] = 0;
 	Buffer[15] = 0;
 
-	// Fill the material number with a half-swapped UUID
+	// Fill the material number with a UUID (no swapping)
 	Uint8 UUIDbuffer[16];
-	MakeUUID(UUIDbuffer);
-	memcpy( &Buffer[16], &UUIDbuffer[8], 8 );
-	memcpy( &Buffer[16+8], &UUIDbuffer[0], 8 );
+
+	// If a valid AssetID is provided, use that instead
+	if( ( AssetID == NULL ) || ( AssetID->Size() != 16 ) )
+		MakeUUID(UUIDbuffer);
+	else		
+		memcpy( UUIDbuffer, AssetID->GetValue(), AssetID->Size() );
+
+	memcpy( &Buffer[16], &UUIDbuffer[0], 16 );
 
 	return new UMID(Buffer);
 }

@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.1.2.5 2004/11/05 16:50:13 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.1.2.6 2004/11/06 18:49:08 terabrit Exp $
  *
  */
 /*
@@ -1200,24 +1200,24 @@ std::string MDTraits_UMID::GetString(MDValuePtr Object)
 
 	// Decide how best to represent the material number
 	const Uint8* Material = &Ident[16];
-	if( !(0x80&Material[0]) )
-	{	
-		// This is a UL rather than a half-swapped UUID
-		// Return as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
-		// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
-		// (i.e. network byte order)
+	if( !(0x80&Material[8]) )
+	{	// Half-swapped UL packed into a UUID datatype
+		// Return as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
+		// Stored with upper/lower 8 bytes exchanged
+		// Stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
 		sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
-						   Material[0], Material[1], Material[2], Material[3], Material[4], Material[5], Material[6], Material[7],
-						   Material[8], Material[9], Material[10], Material[11], Material[12], Material[13], Material[14], Material[15]
+						   Material[8], Material[9], Material[10], Material[11], Material[12], Material[13], Material[14], Material[15],
+						   Material[0], Material[1], Material[2], Material[3], Material[4], Material[5], Material[6], Material[7]
 				);
 	}
 	else
-	{	
-		// Half-swapped UUID
-		// Return as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
+	{	// UUID
+		// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// (i.e. network byte order)
+		// Return as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
 		sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-						   Material[8], Material[9], Material[10], Material[11], Material[12], Material[13], Material[14], Material[15],
-						   Material[0], Material[1], Material[2], Material[3], Material[4], Material[5], Material[6], Material[7]
+						   Material[0], Material[1], Material[2], Material[3], Material[4], Material[5], Material[6], Material[7],
+						   Material[8], Material[9], Material[10], Material[11], Material[12], Material[13], Material[14], Material[15]
 				);
 	}
 
@@ -1482,7 +1482,7 @@ std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 	return date + " "  + Uint2String(D,2)
 	            + ", " + Uint2String(Y)
 	            + " "  + Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2)
-				+ ":"  + Uint2String(ms,3)
+				+ "."  + Uint2String(ms,3)
 				+ " GMT";
 #else
 	return Uint2String(Y) + "-" + Uint2String(M,2) + "-" + Uint2String(D,2) + " " +
