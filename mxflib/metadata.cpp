@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: metadata.cpp,v 1.1.2.1 2004/05/26 20:11:36 matt-beard Exp $
  *
  */
 /*
@@ -107,6 +107,48 @@ PackagePtr mxflib::Metadata::AddPackage(std::string PackageType, std::string Pac
 	if(BodySID) AddEssenceContainerData(PackageUMID, BodySID);
 
 	return Ret;
+}
+
+
+//! Get a pointer to the primary package
+PackagePtr Metadata::GetPrimaryPackage(void)
+{
+	MDObjectPtr PrimaryPackage;
+
+	MDObjectPtr PackageRef = Child("PrimaryPackage");
+	if(PackageRef)
+	{
+		PrimaryPackage = PackageRef->GetLink();
+	}
+	else
+	{
+		MDObjectPtr Packages = Child("ContentStorage");
+		if(Packages) Packages = Packages["Packages"];
+		if(!Packages)
+		{
+			error("Could not locate a ContentStorage/Packages in the header metadata!\n");
+			return NULL;
+		}
+
+		// Look for the (first) material package
+		MDObject::iterator it = Packages->begin();
+		while(it != Packages->end())
+		{
+			MDObjectPtr ThisPackage = (*it).second->GetLink();
+			if(ThisPackage && (ThisPackage->Name() == "MaterialPackage"))
+			{
+				PrimaryPackage = ThisPackage;
+				break;
+			}
+			it++;
+		}
+	}
+
+	// Couldn't locate the primary package!
+	if(!PrimaryPackage)	return NULL;
+
+	// Get the contasining Package object
+	return Package::GetPackage(PrimaryPackage);
 }
 
 
@@ -631,4 +673,40 @@ TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string TrackN
 	Ret->Parent = this;
 
 	return Ret;
+}
+
+
+//! Return the containing "SourceClip" object for this MDObject
+/*! \return NULL if MDObject is not contained in a SourceClip object
+ */
+SourceClipPtr SourceClip::GetSourceClip(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? SourceClipPtr(dynamic_cast<SourceClip*>(Object->GetOuter())) : NULL;
+}
+
+
+//! Return the containing "DMSegment" object for this MDObject
+/*! \return NULL if MDObject is not contained in a DMSegment object
+ */
+DMSegmentPtr DMSegment::GetDMSegment(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? DMSegmentPtr(dynamic_cast<DMSegment*>(Object->GetOuter())) : NULL;
+}
+
+
+//! Return the containing "Track" object for this MDObject
+/*! \return NULL if MDObject is not contained in a Track object
+ */
+TrackPtr Track::GetTrack(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? TrackPtr(dynamic_cast<Track*>(Object->GetOuter())) : NULL;
+}
+
+
+//! Return the containing "Package" object for this MDObject
+/*! \return NULL if MDObject is not contained in a Package object
+ */
+PackagePtr Package::GetPackage(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? PackagePtr(dynamic_cast<Package*>(Object->GetOuter())) : NULL;
 }

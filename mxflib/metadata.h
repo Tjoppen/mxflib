@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: metadata.h,v 1.1.2.1 2004/05/26 20:11:36 matt-beard Exp $
  *
  */
 /*
@@ -140,9 +140,9 @@ namespace mxflib
 		TrackPtr Parent;					// Track containing this SourceClip
 
 	public:
-		SourceClip(std::string BaseType) { Object = new MDObject(BaseType); }
-		SourceClip(MDOTypePtr BaseType) { Object = new MDObject(BaseType); }
-		SourceClip(ULPtr BaseUL) { Object = new MDObject(BaseUL); }
+		SourceClip(std::string BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
+		SourceClip(MDOTypePtr BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
+		SourceClip(ULPtr BaseUL) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
 
 		//! Set the duration for this SourceClip and update the track's sequence duration
 		/*! \param Duration The duration of this SourceClip, -1 or omitted for unknown */
@@ -153,6 +153,11 @@ namespace mxflib
 
 		//! Make a link to a UMID and TrackID
 		bool MakeLink(UMIDPtr LinkUMID, Uint32 LinkTrackID, Int64 StartPosition = 0);
+
+		//! Return the containing "SourceClip" object for this MDObject
+		/*! \return NULL if MDObject is not contained in a SourceClip object
+		 */
+		static SourceClipPtr GetSourceClip(MDObjectPtr Object);
 	};
 }
 
@@ -166,9 +171,9 @@ namespace mxflib
 		TrackPtr Parent;					// Track containing this SourceClip
 
 	public:
-		TimecodeComponent(std::string BaseType) { Object = new MDObject(BaseType); }
-		TimecodeComponent(MDOTypePtr BaseType) { Object = new MDObject(BaseType); }
-		TimecodeComponent(ULPtr BaseUL) { Object = new MDObject(BaseUL); }
+		TimecodeComponent(std::string BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
+		TimecodeComponent(MDOTypePtr BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
+		TimecodeComponent(ULPtr BaseUL) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
 
 		//! Set the duration for this Timecode Component and update the track's sequence duration
 		/*! \param Duration The duration of this Timecode Component, -1 or omitted for unknown */
@@ -185,9 +190,9 @@ namespace mxflib
 		TrackPtr Parent;					// Track containing this SourceClip
 
 	public:
-		DMSegment(std::string BaseType) { Object = new MDObject(BaseType); }
-		DMSegment(MDOTypePtr BaseType) { Object = new MDObject(BaseType); }
-		DMSegment(ULPtr BaseUL) { Object = new MDObject(BaseUL); }
+		DMSegment(std::string BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
+		DMSegment(MDOTypePtr BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
+		DMSegment(ULPtr BaseUL) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
 
 		//! Set the duration for this DMSegment and update the track's sequence duration
 		/*! \param Duration The duration of this DMSegment, -1 or omitted for unknown */
@@ -198,6 +203,11 @@ namespace mxflib
 
 		//! Make a link to a specified DMFramework
 		bool MakeLink(MDObjectPtr DMFramework);
+
+		//! Return the containing "DMSegment" object for this MDObject
+		/*! \return NULL if MDObject is not contained in a DMSegment object
+		 */
+		static DMSegmentPtr GetDMSegment(MDObjectPtr Object);
 	};
 }
 
@@ -226,6 +236,11 @@ namespace mxflib
 
 		//! Update the duration field in the sequence for this track based on component durations
 		Int64 UpdateDuration(void);
+
+		//! Return the containing "Track" object for this MDObject
+		/*! \return NULL if MDObject is not contained in a Track object
+		 */
+		static TrackPtr GetTrack(MDObjectPtr Object);
 	};
 }
 
@@ -243,9 +258,9 @@ namespace mxflib
 		Package() { ASSERT(0); }
 
 	public:
-		Package(std::string BaseType) : LastTrackID(0) { Object = new MDObject(BaseType); }
-		Package(MDOTypePtr BaseType) : LastTrackID(0) { Object = new MDObject(BaseType); }
-		Package(ULPtr BaseUL) : LastTrackID(0) { Object = new MDObject(BaseUL); }
+		Package(std::string BaseType) : LastTrackID(0) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
+		Package(MDOTypePtr BaseType) : LastTrackID(0) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
+		Package(ULPtr BaseUL) : LastTrackID(0) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
 
 		//! Add a timeline track to the package
 		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, std::string TrackName = "", Uint32 TrackID = 0);
@@ -301,8 +316,14 @@ namespace mxflib
 			static const ULPtr TCDD = new UL(TCDD_Data);
 			return AddTrack(TCDD, TrackNumber, TrackName, TrackID);
 		}
+
 		//! Update the duration field in each sequence in each track for this package
 		void UpdateDurations(void);
+
+		//! Return the containing "Package" object for this MDObject
+		/*! \return NULL if MDObject is not contained in a Package object
+		 */
+		static PackagePtr GetPackage(MDObjectPtr Object);
 	};
 }
 
@@ -379,6 +400,9 @@ namespace mxflib
 			if(!Ptr) Ptr = Object->AddChild("PrimaryPackage");
 			Ptr->MakeLink(Package);
 		}
+
+		//! Get a pointer to the primary package
+		PackagePtr GetPrimaryPackage(void);
 
 		//! Update the Generation UID of all modified sets and add the specified Ident set
 		bool UpdateGenerations(MDObjectPtr Ident, std::string UpdateTime = "");
