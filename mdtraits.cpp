@@ -2,6 +2,8 @@
  *	\brief	Implementation of traits for MDType definitions
  */
 /*
+ *	$Id: mdtraits.cpp,v 1.13 2003/11/25 18:46:06 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -24,17 +26,8 @@
  *	     distribution.
  */
 
-extern "C"
-{
-#include "Klv.h"						//!< The KLVLib header
-}
-
 #include <mxflib/mxflib.h>
 
-extern "C"
-{
-#include "Endian.h"
-}
 
 // Use mxflib by default in library source
 using namespace mxflib;

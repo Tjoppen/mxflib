@@ -5,6 +5,8 @@
  *          from a physical file or built in memory
  */
 /*
+ *	$Id: mxffile.h,v 1.10 2003/11/25 18:47:15 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -28,12 +30,6 @@
  */
 #ifndef MXFLIB__MXFFILE_H
 #define MXFLIB__MXFFILE_H
-
-// Include the KLVLib header
-extern "C"
-{
-#include "Klv.h"						//!< The KLVLib header
-}
 
 
 // For find()

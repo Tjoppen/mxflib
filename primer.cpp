@@ -6,6 +6,8 @@
  *			definition
  */
 /*
+ *	$Id: primer.cpp,v 1.11 2003/11/25 18:48:19 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -29,11 +31,6 @@
  */
 
 #include <mxflib/mxflib.h>
-
-extern "C"
-{
-#include "Endian.h"
-}
 
 using namespace mxflib;
 
