@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.1.2.3 2004/10/16 20:51:06 terabrit Exp $
+ *	\version $Id: index.cpp,v 1.1.2.4 2004/10/19 17:05:17 matt-beard Exp $
  *
  */
 /*
@@ -133,7 +133,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	if(EditUnitByteCount)
 	{
 		// Start of edit unit
-		Uint64 Loc = EditUnit * EditUnitByteCount;
+		Position Loc = EditUnit * (Position)EditUnitByteCount;
 
 		if(SubItem == 0)
 		{
@@ -644,7 +644,7 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 		ThisSegment->SetInt64("IndexStartPosition", 0);
 		ThisSegment->SetInt64("IndexDuration", 0);
-		ThisSegment->SetUint("EditUnitByteCount", (Uint32)EditUnitByteCount);
+		ThisSegment->SetUint("EditUnitByteCount", EditUnitByteCount);
 		ThisSegment->SetUint("IndexSID", IndexSID);
 		ThisSegment->SetUint("BodySID", BodySID);
 
@@ -699,7 +699,7 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 			ThisSegment->SetInt64("IndexStartPosition", Segment->StartPosition);
 			ThisSegment->SetInt64("IndexDuration", Segment->EntryCount);
-			ThisSegment->SetUint("EditUnitByteCount", (Uint32)EditUnitByteCount);
+			ThisSegment->SetUint("EditUnitByteCount", EditUnitByteCount);
 			ThisSegment->SetUint("IndexSID", IndexSID);
 			ThisSegment->SetUint("BodySID", BodySID);
 
@@ -1423,7 +1423,7 @@ IndexTablePtr IndexManager::MakeIndex(void)
 	// Calculate length if CBR
 	if( DataIsCBR )
 	{
-		Uint64 ByteCount = 0;
+		Uint32 ByteCount = 0;
 		for(i=0; i<StreamCount; i++)
 		{
 			ByteCount += ElementSizeList[i];

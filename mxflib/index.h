@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.1.2.1 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: index.h,v 1.1.2.2 2004/10/19 17:05:17 matt-beard Exp $
  *
  */
 /*
@@ -53,7 +53,7 @@ namespace mxflib
 		Uint64 ThisPos;			//!< The position (in file package edit units) of the data for which Location points to the start
 								/*!< \note If Exact = false and OtherPos = false this will be the <b>un-reordered</b> position of the
 								 *		   data returned in Location */
-		Int64 Location;			//!< The location of the start of ThisPos edit unit in the essence container
+		Position Location;		//!< The location of the start of ThisPos edit unit in the essence container
 		Rational PosOffset;		//!< The temporal offset for this edit unit (if Offset = true, otherwise undefined)
 		bool Exact;				//!< true if ThisPos is the requested edit unit and the location is for the requested sub-item.
 								/*!< false if it is a preceeding edit unit or the requested sub-item could not be identified */
@@ -118,7 +118,7 @@ namespace mxflib
 											 */
 		Position FirstPosition;				//!< The edit unit number of the first position in this index table
 		Uint32 IndexEntrySize;				//!< The size of each index entry
-		
+
 	public:
 		//! Initialise the ReorderIndex
 		ReorderIndex(int UseIndexEntrySize)
@@ -162,7 +162,7 @@ namespace mxflib
 		Rational EditRate;
 
 		//! Byte count for each and every edit unit, if CBR, else zero
-		Uint64 EditUnitByteCount;
+		Uint32 EditUnitByteCount;
 
 		//! Number of entries in BaseDeltaArray
 		int BaseDeltaCount;
