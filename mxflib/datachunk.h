@@ -1,7 +1,7 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.h,v 1.2 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: datachunk.h,v 1.3 2004/12/18 20:21:41 matt-beard Exp $
  *
  */
 /*
@@ -71,6 +71,9 @@ namespace mxflib
 		//! Data chunk copy constructor
 		DataChunk(const DataChunk &Chunk) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(Chunk.Size, Chunk.Data); };
 
+		//! Data chunk construct from smart pointer
+		DataChunk(const DataChunkPtr &Chunk) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(Chunk->Size, Chunk->Data); };
+
 		~DataChunk() 
 		{ 
 			if((!ExternalBuffer) && (Data)) delete[] Data; 
@@ -116,6 +119,12 @@ namespace mxflib
 		}
 
 		//! Set some data into a data chunk (expanding it if required)
+		void Set(const DataChunkPtr &Buffer, Uint32 Start = 0)
+		{
+			Set(Buffer->Size, Buffer->Data, Start);
+		}
+
+		//! Set some data into a data chunk (expanding it if required)
 		void Set(Uint32 MemSize, const Uint8 *Buffer, Uint32 Start = 0)
 		{
 //debug("Set MemSize = 0x%04x, Start = 0x%04x\n", (int)MemSize, (int)Start);
@@ -128,6 +137,12 @@ namespace mxflib
 		void Append(const DataChunk &Buffer)
 		{
 			Set(Buffer.Size, Buffer.Data, Size);
+		}
+
+		//! Append some data to a data chunk
+		void Append(const DataChunkPtr &Buffer)
+		{
+			Set(Buffer->Size, Buffer->Data, Size);
 		}
 
 		//! Append some data to a data chunk
