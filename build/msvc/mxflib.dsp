@@ -89,6 +89,10 @@ SOURCE=..\..\mxflib\crypto.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\mxflib\datachunk.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\mxflib\deftypes.cpp
 # End Source File
 # Begin Source File
@@ -277,7 +281,7 @@ SOURCE=..\..\dox.bat
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\doxyfile.cfg
+SOURCE=..\..\docs\doxyfile.cfg
 # End Source File
 # Begin Source File
 
