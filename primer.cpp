@@ -30,6 +30,11 @@
 
 #include "mxflib.h"
 
+extern "C"
+{
+#include "Endian.h"
+}
+
 using namespace mxflib;
 
 

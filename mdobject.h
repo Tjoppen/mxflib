@@ -38,7 +38,8 @@
 // Include the KLVLib header
 extern "C"
 {
-#include "KLV.h"						//!< The KLVLib header
+#include "Klv.h"						//!< The KLVLib header
+#include "Dict.h"
 }
 
 
@@ -647,10 +648,8 @@ namespace mxflib
 // These simple inlines need to be defined after MDObject
 namespace mxflib
 {
-inline MDObjectPtr MDObjectPtr::operator[](const char *ChildName) { return GetPtr()->operator[](ChildName); };
-inline MDObjectPtr MDObjectPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->operator[](ChildType); };
+inline MDObjectPtr MDObjectPtr::operator[](const char *ChildName) { return GetPtr()->operator[](ChildName); }
+inline MDObjectPtr MDObjectPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->operator[](ChildType); }
 }
 
-#endif MXFLIB__MDOBJECT_H
-
-
+#endif // MXFLIB__MDOBJECT_H
