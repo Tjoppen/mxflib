@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.cpp,v 1.3 2004/12/18 20:38:07 matt-beard Exp $
+ *	\version $Id: primer.cpp,v 1.4 2005/03/26 18:08:34 terabrit Exp $
  *
  */
 /*
@@ -99,15 +99,10 @@ Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
 }
 
 
-//! Primer for use when no primer is available (such as for index tables)
-PrimerPtr Primer::StaticPrimer;
-
 //! Determine the tag to use for a given UL - when no primer is availabe
 Tag Primer::StaticLookup(ULPtr ItemUL, Tag TryTag /*=0*/)
 {
-	if(!StaticPrimer) StaticPrimer = MDOType::MakePrimer();
-
-	return StaticPrimer->Lookup(ItemUL, TryTag);
+	return MDOType::GetStaticPrimer()->Lookup(ItemUL, TryTag);
 }
 
 

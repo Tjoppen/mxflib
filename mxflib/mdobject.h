@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.4 2005/03/25 13:18:51 terabrit Exp $
+ *	\version $Id: mdobject.h,v 1.5 2005/03/26 18:08:34 terabrit Exp $
  *
  */
 /*
@@ -330,7 +330,7 @@ protected:
 
 		//! Build a primer
 		static PrimerPtr MakePrimer(void);
-		static PrimerPtr GetStaticPrimer(void) { return StaticPrimer; };
+		static PrimerPtr GetStaticPrimer(void) { if( !StaticPrimer) return MakePrimer(); else return StaticPrimer; };
 
 		static MDOTypePtr Find(std::string BaseType);
 		static MDOTypePtr Find(const UL& BaseUL);

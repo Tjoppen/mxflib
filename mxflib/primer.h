@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.h,v 1.2 2004/12/18 20:38:07 matt-beard Exp $
+ *	\version $Id: primer.h,v 1.3 2005/03/26 18:08:34 terabrit Exp $
  *
  */
 /*
@@ -62,8 +62,6 @@ namespace mxflib
 	protected:
 		Tag NextDynamic;						//! Next dynamic tag to try
 		std::map<UL, Tag> TagLookup;			//! Reverse lookup for locating a tag for a given UL
-
-		static PrimerPtr StaticPrimer;			//! Primer for use when no primer is available (such as for index tables)
 
 	public:
 		Primer() { NextDynamic = 0xffff; };

@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.8 2005/03/25 13:18:51 terabrit Exp $
+ *	\version $Id: mdobject.cpp,v 1.9 2005/03/26 18:08:34 terabrit Exp $
  *
  */
 /*
@@ -74,6 +74,10 @@ PrimerPtr MDOType::MakePrimer(void)
 
 		it++;
 	}
+
+	// Replace existing StaticPrimer
+	if( StaticPrimer ) delete StaticPrimer;
+	StaticPrimer = Ret;
 
 	return Ret;
 }
@@ -1683,7 +1687,7 @@ Uint32 MDObject::WriteKey(DataChunkPtr &Buffer, DictKeyFormat Format, PrimerPtr 
 
 			Tag UseTag;
 			if(UsePrimer) UseTag = UsePrimer->Lookup(TheUL, TheTag);
-			else UseTag = Primer::StaticLookup(TheUL, TheTag);
+			else UseTag = MDOType::GetStaticPrimer()->Lookup(TheUL, TheTag);
 
 			Uint8 Buff[2];
 			PutU16(UseTag, Buff);
@@ -1914,7 +1918,7 @@ void MDOType::LoadDict(const char *DictFile)
 	}
 
 	// Build a static primer (for use in index tables)
-	StaticPrimer = MakePrimer();
+	MakePrimer();
 }
 
 
