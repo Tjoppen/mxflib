@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.5 2004/06/14 17:52:20 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.6 2004/06/22 12:47:00 bakerian Exp $
  *
  */
 /*
@@ -296,6 +296,9 @@ void mxflib::SetDictionaryPath(std::string NewPath)
  */
 std::string mxflib::LookupDictionaryPath(const char *Filename)
 {
+	/*
+	//Ian Baker - temporarily removed until STRINGIZE is fixed
+	// line beneath need to be removed when it is fixed.
 	if(DictionaryPath == "~")
 	{
 		char *env = getenv( STRINGIZE(MXF_DATA_DIR) );
@@ -303,6 +306,9 @@ std::string mxflib::LookupDictionaryPath(const char *Filename)
 		if(env) DictionaryPath = std::string(env);
 		else DictionaryPath = std::string( STRINGIZE(DEFAULT_DICT_PATH) );
 	}
+	*/
+
+	DictionaryPath = std::string(".");
 
 	return SearchPath(DictionaryPath, Filename);
 }

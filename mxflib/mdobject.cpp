@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.2.2.3 2004/06/14 17:56:03 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.2.2.4 2004/06/22 12:47:01 bakerian Exp $
  *
  */
 /*
@@ -1829,6 +1829,7 @@ void MDOType::LoadDict(const char *DictFile)
 	bool result = false;
 	
 	if(XMLFilePath.size()) result = sopSAXParseFile(&SAXHandler, &State, XMLFilePath.c_str());
+	if(!result)
 	{
 		error("sopSAXParseFile failed for %s\n", DictFile);
 		return;
