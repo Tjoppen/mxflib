@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.5 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.6 2004/12/18 20:28:52 matt-beard Exp $
  *
  */
 /*
@@ -618,10 +618,7 @@ void MDObject::RemoveChild(MDObjectPtr ChildObject)
 			erase(it);
 			return;
 		}
-		else
-		{
-			it++;
-		}
+		it++;
 	}
 }
 
@@ -1320,12 +1317,12 @@ std::string mxflib::MDObject::GetSource(void)
 
 
 //! Build a data chunk with all this item's data (including child data)
-const DataChunk MDObject::PutData(PrimerPtr UsePrimer /* =NULL */) 
+const DataChunkPtr MDObject::PutData(PrimerPtr UsePrimer /* =NULL */) 
 { 
 	if(Value) return Value->PutData(); 
 	
 	// DRAGONS: Pre-allocating a buffer could speed things up
-	DataChunk Ret; 
+	DataChunkPtr Ret = new DataChunk; 
 
 	MDObjectNamedList::iterator it = begin();
 
@@ -1344,7 +1341,7 @@ const DataChunk MDObject::PutData(PrimerPtr UsePrimer /* =NULL */)
  *	The objects are appended to the buffer
  *	\return The number of bytes written
  */
-Uint32 MDObject::WriteLinkedObjects(DataChunk &Buffer, PrimerPtr UsePrimer /*=NULL*/)
+Uint32 MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*=NULL*/)
 {
 	Uint32 Bytes = 0;
 
@@ -1391,7 +1388,7 @@ Uint32 MDObject::WriteLinkedObjects(DataChunk &Buffer, PrimerPtr UsePrimer /*=NU
  */
 #define DEBUG_WRITEOBJECT(x)
 //#define DEBUG_WRITEOBJECT(x) x
-Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer /*=NULL*/)
+Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer /*=NULL*/)
 {
 	Uint32 Bytes = 0;
 
@@ -1414,7 +1411,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		if(ParentObject->Type->GetContainerType() == SET)
 		{
 			Bytes = WriteKey(Buffer, ParentObject->Type->GetKeyFormat(), UsePrimer);
-			DEBUG_WRITEOBJECT( debug("Key = %s, ", Buffer.GetString().c_str()); )
+			DEBUG_WRITEOBJECT( debug("Key = %s, ", Buffer->GetString().c_str()); )
 		}
 
 		if((ParentObject->Type->GetContainerType() == BATCH) || (ParentObject->Type->GetContainerType() == ARRAY))
@@ -1441,7 +1438,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		Uint32 Size = 0;
 
 		// DRAGONS: Pre-allocating a buffer could speed things up
-		DataChunk Val;
+		DataChunkPtr Val = new DataChunk();
 
 		// Work out how many sub-items per child 
 		Uint32 SubCount = Type->GetChildOrder().size();
@@ -1472,7 +1469,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		// May not be strictly required, but 0 items of 0 size is a little dubious
 		if(Count == 0)
 		{
-			DataChunk Temp;
+			DataChunkPtr Temp = new DataChunk();
 
 			StringList::const_iterator it = Type->GetChildOrder().begin();
 			while(it != Type->GetChildOrder().end())
@@ -1486,37 +1483,37 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 				Ptr->WriteObject(Temp, this, UsePrimer);
 				it++;
 			}
-			Size = Temp.Size;
+			Size = Temp->Size;
 		}
 
 		if(CType == BATCH)
 		{
 			// Write the length and batch header
-			Bytes += WriteLength(Buffer, Val.Size+8, LenFormat);
+			Bytes += WriteLength(Buffer, Val->Size+8, LenFormat);
 			Uint8 Buff[4];
 			PutU32(Count, Buff);
-			Buffer.Append(4, Buff);
+			Buffer->Append(4, Buff);
 			PutU32(Size, Buff);
-			Buffer.Append(4, Buff);
+			Buffer->Append(4, Buff);
 			Bytes += 8;
 		}
 		else
 		{
-			Bytes += WriteLength(Buffer, Val.Size, LenFormat);
+			Bytes += WriteLength(Buffer, Val->Size, LenFormat);
 		}
 
 		// Append this data
-		Buffer.Append(Val);
-		Bytes += Val.Size;
+		Buffer->Append(Val);
+		Bytes += Val->Size;
 		
-		DEBUG_WRITEOBJECT( debug("  > %s\n", Val.GetString().c_str()); )
+		DEBUG_WRITEOBJECT( debug("  > %s\n", Val->GetString().c_str()); )
 	}
 	else if(CType == PACK)
 	{
 		DEBUG_WRITEOBJECT( debug("  *PACK*\n"); )
 
 		// DRAGONS: Pre-allocating a buffer could speed things up
-		DataChunk Val;
+		DataChunkPtr Val = new DataChunk;
 
 		// Ensure we write the pack out in order
 		StringList::const_iterator it = Type->GetChildOrder().begin();
@@ -1536,20 +1533,20 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		}
 
 		// Write the length of the value
-		Bytes += WriteLength(Buffer, Val.Size, LenFormat);
+		Bytes += WriteLength(Buffer, Val->Size, LenFormat);
 
 		// Append this data
-		Buffer.Append(Val);
-		Bytes += Val.Size;
+		Buffer->Append(Val);
+		Bytes += Val->Size;
 		
-		DEBUG_WRITEOBJECT( debug("  > %s\n", Val.GetString().c_str()); )
+		DEBUG_WRITEOBJECT( debug("  > %s\n", Val->GetString().c_str()); )
 	}
 	else if(!empty())
 	{
 		DEBUG_WRITEOBJECT( debug("  *Not Empty*\n"); )
 
 		// DRAGONS: Pre-allocating a buffer could speed things up
-		DataChunk Val;
+		DataChunkPtr Val = new DataChunk;
 
 		MDObjectNamedList::iterator it = begin();
 
@@ -1560,24 +1557,24 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 		}
 
 		// Write the length of the value
-		Bytes += WriteLength(Buffer, Val.Size, LenFormat);
+		Bytes += WriteLength(Buffer, Val->Size, LenFormat);
 
 		// Append this data
-		Buffer.Append(Val);
-		Bytes += Val.Size;
+		Buffer->Append(Val);
+		Bytes += Val->Size;
 
-		DEBUG_WRITEOBJECT( debug("  > %s\n", Val.GetString().c_str()); )
+		DEBUG_WRITEOBJECT( debug("  > %s\n", Val->GetString().c_str()); )
 	}
 	else if(Value)
 	{
 		DEBUG_WRITEOBJECT( debug("  *Value*\n"); )
 
-		DataChunk Val = Value->PutData();
-		Bytes += WriteLength(Buffer, Val.Size, LenFormat);
-		Buffer.Append(Val);
-		Bytes += Val.Size;
+		DataChunkPtr Val = Value->PutData();
+		Bytes += WriteLength(Buffer, Val->Size, LenFormat);
+		Buffer->Append(Val);
+		Bytes += Val->Size;
 
-		DEBUG_WRITEOBJECT( debug("  > %s\n", Val.GetString().c_str()); )
+		DEBUG_WRITEOBJECT( debug("  > %s\n", Val->GetString().c_str()); )
 	}
 	else
 	{
@@ -1600,7 +1597,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
  *	\note If the format is BER and a size is specified it will be overridden for
  *		  lengths that will not fit. However an error message will be produced.
  */
-Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat Format, Uint32 Size /*=0*/)
+Uint32 MDObject::WriteLength(DataChunkPtr &Buffer, Uint64 Length, DictLenFormat Format, Uint32 Size /*=0*/)
 {
 	switch(Format)
 	{
@@ -1611,7 +1608,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 	case DICT_LEN_BER:
 		{
 			DataChunkPtr BER = MakeBER(Length, Size);
-			Buffer.Append(*BER);
+			Buffer->Append(*BER);
 			return BER->Size;
 		}
 
@@ -1620,7 +1617,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 			Uint8 Buff;
 			PutU8((Uint8)Length, &Buff);
 
-			Buffer.Append(1, &Buff);
+			Buffer->Append(1, &Buff);
 			return 1;
 		}
 
@@ -1629,7 +1626,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 			Uint8 Buff[2];
 			PutU16((Uint16)Length, Buff);
 
-			Buffer.Append(2, Buff);
+			Buffer->Append(2, Buff);
 			return 2;
 		}
 
@@ -1638,7 +1635,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
 			Uint8 Buff[4];
 			PutU32((Uint32)Length, Buff);
 
-			Buffer.Append(4, Buff);
+			Buffer->Append(4, Buff);
 			return 4;
 		}
 	}
@@ -1653,7 +1650,7 @@ Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat For
  *	\note If a 2-byte local tag is used the primer UsePrimer is used to determine
  *		  the correct tag. UsePrimer will be updated if it doesn't yet incude the tag
  */
-Uint32 MDObject::WriteKey(DataChunk &Buffer, DictKeyFormat Format, PrimerPtr UsePrimer /*=NULL*/)
+Uint32 MDObject::WriteKey(DataChunkPtr &Buffer, DictKeyFormat Format, PrimerPtr UsePrimer /*=NULL*/)
 {
 	switch(Format)
 	{
@@ -1669,7 +1666,7 @@ Uint32 MDObject::WriteKey(DataChunk &Buffer, DictKeyFormat Format, PrimerPtr Use
 				return 0;
 			}
 
-			Buffer.Append(16, TheUL->GetValue());
+			Buffer->Append(16, TheUL->GetValue());
 			return 16;
 		}
 
@@ -1689,7 +1686,7 @@ Uint32 MDObject::WriteKey(DataChunk &Buffer, DictKeyFormat Format, PrimerPtr Use
 			Uint8 Buff[2];
 			PutU16(UseTag, Buff);
 
-			Buffer.Append(2, Buff);
+			Buffer->Append(2, Buff);
 			return 2;
 		}
 
@@ -1716,7 +1713,7 @@ Uint32 MDObject::WriteKey(DataChunk &Buffer, DictKeyFormat Format, PrimerPtr Use
 bool MDObject::MakeLink(MDObjectPtr TargetSet)
 {
 	Uint8 TheUID[16];
-	
+
 	// Does the target set already have an InstanceUID?
 	MDObjectPtr InstanceUID = TargetSet["InstanceUID"];
 
@@ -1737,9 +1734,9 @@ bool MDObject::MakeLink(MDObjectPtr TargetSet)
 	}
 	else
 	{
-		DataChunk Data = InstanceUID->Value->PutData();
-		ASSERT(Data.Size == 16);
-		memcpy(TheUID, Data.Data, 16);
+		DataChunkPtr Data = InstanceUID->Value->PutData();
+		ASSERT(Data->Size == 16);
+		memcpy(TheUID, Data->Data, 16);
 	}
 
 	// Validate that we are a reference source
@@ -2294,7 +2291,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 					if(Val)
 					{
 						Val->SetString(std::string(default_text));
-						DataChunk Temp = Val->PutData();
+						DataChunkPtr Temp = Val->PutData();
 						Dict->Default.Set(Temp);
 					}
 				}
@@ -2313,7 +2310,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 					if(Val)
 					{
 						Val->SetString(std::string(dvalue_text));
-						DataChunk Temp = Val->PutData();
+						DataChunkPtr Temp = Val->PutData();
 						Dict->DValue.Set(Temp);
 					}
 				}
