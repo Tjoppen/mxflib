@@ -46,10 +46,15 @@ AC_CHECK_HEADER([uuid/uuid.h],
 AC_CHECK_HEADER([windows.h], [UUIDLIB="-lole32"])
 
 # Check for doxygen (needed for building docs)
-AC_CHECK_PROG(HAVE_DOXYGEN, doxygen, true, false)
-if test $HAVE_DOXYGEN = "false"; then
-             AC_MSG_WARN([*** doxygen not found, docs will not be built])
-fi
+AC_ARG_WITH(doxygen,
+	[  --without-doxygen       don't autogenerate doxygen documentation],
+	[if test -n ${with_doxygen}; then HAVE_DOXYGEN="false"; fi],
+	[
+		AC_CHECK_PROG(HAVE_DOXYGEN, doxygen, true, false)
+		if test $HAVE_DOXYGEN = "false"; then
+	             AC_MSG_WARN([*** doxygen not found, docs will not be built])
+		fi
+	])
 AM_CONDITIONAL(HAVE_DOXYGEN, $HAVE_DOXYGEN)
 
 DEFAULT_INCLUDES=""
