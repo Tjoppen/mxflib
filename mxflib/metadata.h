@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.1.2.2 2004/10/10 18:40:36 terabrit Exp $
+ *	\version $Id: metadata.h,v 1.1.2.3 2004/10/19 17:58:46 matt-beard Exp $
  *
  */
 /*
@@ -247,7 +247,7 @@ namespace mxflib
 
 namespace mxflib
 {
-	//! Distinguished values of DefaultDuration for event tracks
+	//! Special values of DefaultDuration for event tracks
     enum
     {
         DurationUnspecified = -1,      //!< Item is of an unspecified duration (unknown or not a timeline item)

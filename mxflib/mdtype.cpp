@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.1.2.1 2004/06/14 17:56:46 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.1.2.2 2004/10/19 17:55:58 matt-beard Exp $
  *
  */
 /*
@@ -152,7 +152,7 @@ MDTypePtr MDType::AddCompound(std::string TypeName)
 	// Set no base type
 	NewType->Base = NULL;
 
-	// Compounds have no type
+	// Compounds have no size of thier own
 	NewType->Size = 0;
 
 	// Add to the list of types
