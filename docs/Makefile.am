@@ -1,4 +1,4 @@
-EXTRA_DIST = doxyfile.cfg mxflib.dox dox.bat
+EXTRA_DIST = doxyfile.cfg mxflib.dox
 
 CLEANFILES = html/*
 
