@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: mxffile.cpp,v 1.1.2.1 2004/05/18 18:33:58 matt-beard Exp $
  *
  */
 /*
@@ -757,7 +757,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 			Skip = ReadBER();
 			Uint64 NextPos = Tell() + Skip;
 			Seek(NextPos);
-			if( Tell() != NextPos)
+			if( (Skip < 0) || (Tell() != NextPos))
 			{
 				error("Unexpected end of file in KLV starting at 0x%s in file \"%s\" (Trying to skip from 0x%s to 0x%s)\n",
 					  Int64toHexString(Location,8).c_str(), Name.c_str(), Int64toHexString(NextPos - Skip,8).c_str(), Int64toHexString(NextPos,8).c_str());
@@ -784,28 +784,30 @@ bool mxflib::MXFFile::BuildRIP(void)
 }
 
 //! Read a BER length from the open file
-Uint64 mxflib::MXFFile::ReadBER(void)
+/*! \return -1 on error
+ */
+Length mxflib::MXFFile::ReadBER(void)
 {
-	DataChunkPtr Length = Read(1);
-	if(Length->Size < 1)
+	DataChunkPtr Len = Read(1);
+	if(Len->Size < 1)
 	{
 		error("Incomplete BER length in file \"%s\" at 0x%s\n", Name.c_str(), Int64toHexString(Tell(),8).c_str());
-		return false;
+		return -1;
 	}
 
-	Uint64 Ret = Length->Data[0];
+	Length Ret = Len->Data[0];
 	if(Ret >= 0x80)
 	{
 		Uint32 i = Ret & 0x7f;
-		Length = Read(i);
-		if(Length->Size != i)
+		Len = Read(i);
+		if(Len->Size != i)
 		{
 			error("Incomplete BER length in file \"%s\" at 0x%s\n", Name.c_str(), Int64toHexString(Tell(),8).c_str());
-			return false;
+			return -1;
 		}
 
 		Ret = 0;
-		Uint8 *p = Length->Data;
+		Uint8 *p = Len->Data;
 		while(i--) Ret = ((Ret<<8) + *(p++));
 	}
 
@@ -1200,3 +1202,32 @@ else Size = 0;
 }
 
 
+
+//! Read a KLVObject from the file
+KLVObjectPtr MXFFile::ReadKLV(void)
+{
+	KLVObjectPtr Ret;
+	
+	// Record the starting position
+	Position Pos = Tell();
+
+	// Read the key
+	ULPtr Key = ReadKey();
+
+	// If we couldn't read the key return a NULL ptr
+	if(!Key) return Ret;
+
+	// Read the length
+	Length Len = ReadBER();
+
+	// If we couldn't read the length return a NULL ptr
+	if(Len < 0) return Ret;
+
+	// Now it is safe to build the object
+	Ret = new KLVObject(Key);
+
+	// Set the the value details
+	Ret->SetSource(this, Pos, Tell() - Pos, Len);
+
+	return Ret;
+}
