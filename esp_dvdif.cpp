@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.9 2004/03/28 19:24:03 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.10 2004/04/23 14:33:19 matt-beard Exp $
  *
  */
 /*
@@ -462,7 +462,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 		NativeEditRate.Denominator = 1;
 	}
 
-printf("Assumed interleaved...\n");
+//DRAGONS: printf("Assumed interleaved...\n");
 //	if(Progressive) Ret->SetInt("FrameLayout", 0); else Ret->SetInt("FrameLayout", 1);
 	Ret->SetInt("FrameLayout", 1);
 
@@ -477,7 +477,7 @@ printf("Assumed interleaved...\n");
 		Ret->SetUint("StoredHeight", 240);
 	}
 
-printf("Assumed 4:3...\n");
+//DRAGONS: printf("Assumed 4:3...\n");
 //	if(Aspect) Ret->SetString("AspectRatio", Aspect); else Ret->SetDValue("AspectRatio");
 	Ret->SetString("AspectRatio", "4/3");
 

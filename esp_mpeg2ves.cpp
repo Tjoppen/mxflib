@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.8 2004/03/28 19:26:22 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.9 2004/04/23 14:34:09 matt-beard Exp $
  *
  */
 /*
@@ -581,7 +581,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 						Manager->OfferTemporalOffset(PictureNumber - (GOPOffset - TemporalReference), GOPOffset - TemporalReference);
 
 						// diagnostics
-						if(PictureNumber < 35)
+/*						if(PictureNumber < 35)
 							printf( "  OfferEditUnit[%3d]: Tpres=%3d Aoff=%2d A=%3d 0x%02x. Reorder Toff[%2d]=%2d\n",
 											(int)PictureNumber,
 											(int)TemporalReference,
@@ -591,7 +591,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
                       (int)(PictureNumber - (GOPOffset - TemporalReference)),
                       (int)(GOPOffset - TemporalReference)
 										 );
-
+*/
 					}
 
 					GOPOffset++;
@@ -607,7 +607,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 					ClosedGOP = (BuffGetU8(InFile) & 0x40)? true:false;
 
 					//if( PictureNumber < 35 )
-					if( ClosedGOP ) printf( "Closed GOP\n" ); else printf( "Open GOP\n" );
+//					if( ClosedGOP ) printf( "Closed GOP\n" ); else printf( "Open GOP\n" );
 
 					CurrentPos += 4;
 				}
