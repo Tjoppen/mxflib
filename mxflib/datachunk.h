@@ -1,7 +1,7 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.h,v 1.1.2.3 2004/06/26 17:52:24 matt-beard Exp $
+ *	\version $Id: datachunk.h,v 1.1.2.4 2004/08/18 18:35:25 matt-beard Exp $
  *
  */
 /*
@@ -48,13 +48,13 @@ namespace mxflib
 	class DataChunk : public RefCount<DataChunk>
 	{
 	private:
-		Uint32 DataSize;
-		Uint32 AllocationGranularity;			// Granulatiry of new memory allocations
-		bool ExternalBuffer;
+		Uint32 DataSize;						//! Size of the data buffer
+		Uint32 AllocationGranularity;			//! Granulatiry of new memory allocations
+		bool ExternalBuffer;					//! True if the buffer is not owned by us
 
 	public:
-		Uint32 Size;
-		Uint8 *Data;
+		Uint32 Size;							//! Size of the active data in the buffer
+		Uint8 *Data;							//! The data buffer
 
 		//! Construct an empty data chunk
 		DataChunk() : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) {};
@@ -76,12 +76,12 @@ namespace mxflib
 			if((!ExternalBuffer) && (Data)) delete[] Data; 
 		};
 
-		//! Resize the data chunk, preserving contents
-		void Resize(Uint32 NewSize);
+		//! Resize the data chunk, preserving contents if requested
+		void Resize(Uint32 NewSize, bool PreserveContents = true);
 
-		//! Resize the data buffer, preserving contents
+		//! Resize the data buffer, preserving contents if requested
 		/*! The buffer is resized to <b>at least</b> NewSize, but Size remains unchanged */
-		void ResizeBuffer(Uint32 NewSize);
+		void ResizeBuffer(Uint32 NewSize, bool PreserveContents = true);
 
 		//! Steal the buffer belonging to this data chunk
 		/*! The buffer is detached and ownership moves to the caller.
@@ -93,17 +93,20 @@ namespace mxflib
 		Uint8 *StealBuffer(bool MakeEmpty = false)
 		{
 //debug("StealBuffer @ 0x%08x\n", (int)Data);
+			Uint8 *Ret = Data;
+			
 			if(ExternalBuffer) return NULL;
 
 			if(MakeEmpty)
 			{
 				Size = 0;
+				DataSize = 0;
 				Data = NULL;
 			}
 			else
 				ExternalBuffer = true;
 
-			return Data;
+			return Ret;
 		}
 
 		//! Set some data into a data chunk (expanding it if required)
@@ -181,14 +184,14 @@ namespace mxflib
 		 *  However it partially destroys the source DataChunk by stealing its buffer.
 		 *  \return true on success, false on failure
 		 */
-		bool TakeBuffer(DataChunk &OldOwner);
+		bool TakeBuffer(DataChunk &OldOwner, bool MakeEmpty = false);
 
 		//! Transfer ownership of a data buffer from another DataChunk (via a smart pointer)
 		/*! This is a very efficient way to set one DataChunk to the value of another.
 		 *  However it partially destroys the source DataChunk by stealing its buffer.
 		 *  \return true on success, false on failure
 		 */
-		bool TakeBuffer(DataChunkPtr &OldOwner);
+		bool TakeBuffer(DataChunkPtr &OldOwner, bool MakeEmpty = false);
 	};
 }
 
