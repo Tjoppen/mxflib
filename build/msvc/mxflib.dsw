@@ -45,6 +45,21 @@ Package=<4>
 
 ###############################################################################
 
+Project: "dictconvert"=".\dictconvert.dsp" - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name mxflib
+    End Project Dependency
+}}}
+
+###############################################################################
+
 Project: "mxfcrypt"=".\mxfcrypt.dsp" - Package Owner=<4>
 
 Package=<5>
