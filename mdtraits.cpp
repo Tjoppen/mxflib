@@ -29,7 +29,7 @@ extern "C"
 #include "Klv.h"						//!< The KLVLib header
 }
 
-#include "mxflib.h"
+#include <mxflib/mxflib.h>
 
 extern "C"
 {
@@ -851,7 +851,7 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 	while(it != Object->end())
 	{
 		std::string Temp;
-		char c;
+		char c = '\0';
 
 		try
 		{
@@ -862,8 +862,8 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 			// Ignore string slice errors!! - Should never happen
 		}
 
-		// Stop at a terminating NULL
-		if(c==0) 
+		// Stop at a terminating NUL
+		if(c == '\0') 
 		{
 			Object->Resize(Size);
 			break;

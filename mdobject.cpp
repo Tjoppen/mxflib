@@ -32,7 +32,7 @@
  *	     distribution.
  */
 
-#include "mxflib.h"
+#include <mxflib/mxflib.h>
 
 extern "C"
 {
@@ -1611,7 +1611,7 @@ Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, Primer
 	if(CType == BATCH || CType == ARRAY)
 	{
 		Uint32 Count = 0;
-		Uint32 Size;
+		Uint32 Size = 0;
 
 		// DRAGONS: Pre-allocating a buffer could speed things up
 		DataChunk Val;

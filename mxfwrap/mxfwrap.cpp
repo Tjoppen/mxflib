@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <iostream>
 
-#include <mxflib.h>
+#include <mxflib/mxflib.h>
 
 using namespace mxflib;
 using namespace std;
@@ -558,7 +558,7 @@ int main(int argc, char *argv[])
 		//
 
 		DataChunk IndexChunk;
-		Uint32 IndexSID;
+		Uint32 IndexSID = 0;
 
 		if(UseIndex)
 		{

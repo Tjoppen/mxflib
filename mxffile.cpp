@@ -31,7 +31,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include "mxflib.h"
+#include <mxflib/mxflib.h>
 
 using namespace mxflib;
 
@@ -418,7 +418,7 @@ bool mxflib::MXFFile::ScanRIP(Uint64 MaxScan /* = 1024*1024 */ )
 /*! \return The location of the footer, or 0 if scan failed */
 Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
 {
-	Uint64 FooterPos;
+	Uint64 FooterPos = 0;
 
 	// Size of scan chunk when looking for footer key
 	static const unsigned int ScanChunkSize = 4096;
