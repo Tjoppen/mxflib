@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.1.2.1 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.1.2.2 2004/05/18 18:49:46 matt-beard Exp $
  *
  */
 /*
@@ -216,7 +216,7 @@ Uint64 mxflib::Partition::ReadMetadata(void)
 	// Find the start of the metadata 
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the pack
 	ParentFile->Seek(Object->GetLocation() + 16);
-	Uint64 Len = ParentFile->ReadBER();
+	Length Len = ParentFile->ReadBER();
 	ParentFile->Seek(ParentFile->Tell() + Len);
 
 	return ReadMetadata(ParentFile, MetadataSize);
@@ -256,7 +256,7 @@ Uint64 mxflib::Partition::ReadMetadata(MXFFilePtr File, Uint64 Size)
 		if(FirstType->Name() == "KLVFill")
 		{
 			// Skip over the filler, recording how far we went
-			Uint64 NewLocation = File->ReadBER();
+			Length NewLocation = File->ReadBER();
 			NewLocation += File->Tell();
 			Bytes = NewLocation - Location;
 			Location = NewLocation;
@@ -417,8 +417,8 @@ MDObjectListPtr mxflib::Partition::ReadIndex(void)
 	// Find the start of the index table
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the metadata
 	ParentFile->Seek(Object->GetLocation() + 16);
-	Uint64 Len = ParentFile->ReadBER();
-	Uint64 Location = ParentFile->Tell() + Len;
+	Length Len = ParentFile->ReadBER();
+	Position Location = ParentFile->Tell() + Len;
 
 	ParentFile->Seek(Location);
 	ULPtr FirstUL = ParentFile->ReadKey();
@@ -506,7 +506,7 @@ bool mxflib::Partition::StartElements()
 
 	// skip over Partition Pack (and any leading Fill on Header)
 	PF->Seek( Object->GetLocation() + 16 );
-	Uint64 Len = PF->ReadBER();
+	Length Len = PF->ReadBER();
 	_NextBodyLocation = SkipFill( PF->Tell() + Len );
 	if( !_NextBodyLocation ) return false;
 
@@ -540,12 +540,8 @@ KLVObjectPtr mxflib::Partition::NextElement()
 	else
 	{
 		PF->Seek( _BodyLocation );
-		ULPtr ElementUL = PF->ReadKey();
-
-		KLVObjectPtr pObj = new KLVObject(ElementUL);
-
-		Uint64 Len = PF->ReadBER();
-		pObj->SetSource(PF, PF->Tell(), PF->Tell() - _BodyLocation, Len);
+		
+		KLVObjectPtr pObj = PF->ReadKLV();
 
 		return pObj; 
 	}
@@ -563,7 +559,7 @@ Uint64 mxflib::Partition::Skip( Uint64 start )
 	if(!FirstUL) return 0;
 
 	// do the skip
-	Uint64 Len = PF->ReadBER();
+	Length Len = PF->ReadBER();
 	PF->Seek( PF->Tell() + Len );
 
 	Uint64 ret = PF->Tell();
@@ -572,18 +568,10 @@ Uint64 mxflib::Partition::Skip( Uint64 start )
 	ULPtr NextUL = PF->ReadKey();
 	if(!NextUL) return 0;
 
-	// DRAGONS: This has version 1 hard coded as byte 8
-	//          Also it is not the most efficient test - probably should first check if byte 13 == 1
-	//			which will be true for all partition packs, but is false for all GC sets and packs.
-	//			Once this matches we can do the full memcmp.
-	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
-	if( memcmp(NextUL->GetValue(), DegeneratePartition, 13) == 0 )
-	{
-		// we've found a Partition Pack - end of Body
-		return 0;
-	}
-	else
-		return ret;
+	// Is this a partition pack?
+	if(IsPartitionKey(NextUL->GetValue()) return 0;
+
+	return ret
 }
 
 // skip over any KLVFill
@@ -602,7 +590,7 @@ Uint64 mxflib::Partition::SkipFill( Uint64 start )
 	if(FirstType && FirstType->Name() == "KLVFill")
 	{
 		// Skip over the KLVFill
-		Uint64 Len = PF->ReadBER();
+		Length Len = PF->ReadBER();
 		PF->Seek( PF->Tell() + Len );
 	}
 	else
@@ -617,15 +605,9 @@ Uint64 mxflib::Partition::SkipFill( Uint64 start )
 	ULPtr NextUL = PF->ReadKey();
 	if(!NextUL) return 0;
 
-	// DRAGONS: This has version 1 hard coded as byte 8
-	//          Also it is not the most efficient test - probably should first check if byte 13 == 1
-	//			which will be true for all partition packs, but is false for all GC sets and packs.
-	//			Once this matches we can do the full memcmp.
-	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
-	if( memcmp(NextUL->GetValue(), DegeneratePartition, 13) == 0 )
+	// Is this a partition pack?
+	if(IsPartitionKey(NextUL->GetValue())
 	{
-		// DRAGONS: This test seems questionable - what if we find a new (currently undefined) partition pack?
-
 		Uint8 byte14 = (NextUL->GetValue())[13];
 		if( byte14 == 2 || byte14 == 3 || byte14 == 4 )	return 0;
 		// we've found a Partition Pack - end of Body -- DRAGONS:?? Not true!!
