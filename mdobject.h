@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.16 2003/12/18 17:51:55 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.17 2004/01/06 14:19:30 terabrit Exp $
  *
  */
 /*
@@ -580,7 +580,7 @@ namespace mxflib
 		void SetUint64(const char *ChildName, Uint64 Val) { Object->SetUint64(ChildName, Val); };
 		void SetString(const char *ChildName, std::string Val) { Object->SetString(ChildName, Val); };
 		bool SetDValue(const char *ChildName) { return Object->SetDValue(ChildName); };
-		void SetValue(const char *ChildName, DataChunk &Source) { Object->SetValue(ChildName, Source); }
+		void SetValue(const char *ChildName, const DataChunk &Source) { Object->SetValue(ChildName, Source); }
 		void SetValue(const char *ChildName, MDObjectPtr Source) { Object->SetValue(ChildName, Source); }
 		Int32 GetInt(const char *ChildName, Int32 Default = 0) { return Object->GetInt(ChildName, Default); };
 		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { return Object->GetInt64(ChildName, Default); };
@@ -594,7 +594,7 @@ namespace mxflib
 		void SetUint64(MDOTypePtr ChildType, Uint64 Val) { Object->SetUint64(ChildType, Val); };
 		void SetString(MDOTypePtr ChildType, std::string Val) { Object->SetString(ChildType, Val); };
 		bool SetDValue(MDOTypePtr ChildType) { return Object->SetDValue(ChildType); };
-		void SetValue(MDOTypePtr ChildType, DataChunk &Source) { Object->SetValue(ChildType, Source); }
+		void SetValue(MDOTypePtr ChildType, const DataChunk &Source) { Object->SetValue(ChildType, Source); }
 		void SetValue(MDOTypePtr ChildType, MDObjectPtr Source) { Object->SetValue(ChildType, Source); }
 		Int32 GetInt(MDOTypePtr ChildType, Int32 Default = 0) { return Object->GetInt(ChildType, Default); };
 		Int64 GetInt64(MDOTypePtr ChildType, Int64 Default = 0) { return Object->GetInt64(ChildType, Default); };
