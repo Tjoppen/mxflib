@@ -2,6 +2,7 @@
 <!-- -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2003 Matt Beard								 -->
+<!-- Portions Copyright (c) 2003 Metaglue Corporation -->
 <!-- 																			 -->
 <!-- This software is provided 'as-is', without any express or implied warranty. -->
 <!-- In no event will the authors be held liable for any damages arising from	 -->
@@ -24,6 +25,7 @@
 <!-- 																			 -->
 <!-- -->
 <!-- Note: All ULs checked as of 10/08/2003 -->
+<!-- 030809 Oliver added DM_Framework, DM_Set-->
 <MXFDictionary>
 	<KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 01 03 01 02 10 01 00 00 00"/>
 	<PartitionMetadata detail="Identifies a Partition Pack" type="fixedPack">
@@ -125,7 +127,7 @@
 		<ObjectModelVersion detail="Simple integer version number of Object Model" use="optional" type="Uint32" minLength="4" maxLength="4" key="3b 07" globalKey="06 0e 2b 34 01 01 01 02  03 01 02 01 04 00 00 00"/>
 		<PrimaryPackage detail="The primary Package in this file" use="optional" type="UUID" minLength="16" maxLength="16" key="3b 08" globalKey="06 0e 2b 34 01 01 01 04  06 01 01 04 01 08 00 00" ref="weak" target="GenericPackage"/>
 		<Identifications detail="Ordered array of strong references to Identification sets recording all modifications to the file" use="encoder required" type="subVector" ref="strong" target="Identification" key="3b 06" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 04 00 00">
-			<Identification detail="Reference to Identification Set" type="UUID" minLength="16" maxLength="16" />
+			<Identification detail="Reference to Identification Set" type="UUID" minLength="16" maxLength="16"/>
 		</Identifications>
 		<ContentStorage detail="Strong reference to Content Storage object" use="required" type="UUID" minLength="16" maxLength="16" key="3b 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 01 00 00" ref="strong" target="ContentStorage"/>
 		<OperationalPattern detail="Universal Label of the Operational Pattern which this file complies to (repeat of Partition Pack value)" use="required" type="Label" minLength="16" maxLength="16" key="3b 09" globalKey="06 0e 2b 34 01 01 01 05  01 02 02 03 00 00 00 00"/>
@@ -221,8 +223,8 @@
 		<TrackIDs detail="An unordered list of track ID values that identify the tracks in this Package to which this DM Framework refers (if omitted, refers to all essence tracks)" use="decoder required" type="subVector" key="61 02" globalKey="06 0e 2b 34 01 01 01 04  01 07 01 05 00 00 00 00">
 			<TrackID detail="Uint32" type="Uint32" minLength="4" maxLength="4"/>
 		</TrackIDs>
-		<DMFramework detail="Strong Reference to the Descriptive Metadata Framework" use="decoder required" type="UUID" ref="strong" target="GenerationInterchangeObject" minLength="16" maxLength="16" key="61 01" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 04 02 0c 00 00"/>
-		<!-- At the moment DMFramework can link to any interchange object! -->
+		<DMFramework detail="Strong Reference to the Descriptive Metadata Framework" use="decoder required" type="UUID" ref="strong" target="DM_Framework" minLength="16" maxLength="16" key="61 01" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 04 02 0c 00 00"/>
+		<!-- wol changed to target DM_Framework-->
 	</DMSegment>
 	<DMSourceClip base="SourceClip" detail="Descriptive Metadata SourceClip" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 45 00">
 		<DMSourceClipTrackIDs detail="An unordered list of track ID values that identify the tracks in this Package to which the referenced Descriptive Metadata refers (if omitted, refers to all essence tracks)" use="optional" type="subVector" key="61 03" globalKey="06 0e 2b 34 01 01 01 05  01 07 01 06 00 00 00 00">
@@ -240,7 +242,7 @@
 	</GenericDescriptor>
 	<FileDescriptor base="GenericDescriptor" detail="File Descriptor" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 25 00">
 		<LinkedTrackID detail="Link to (i.e. value of) the Track ID of the Track in this Package to which the Descriptor applies" use="optional" type="Uint32" key="30 06" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 03 05 00 00 00"/>
-		<SampleRate detail="The field or frame rate of the Essence Container (not the essence sampling clock rate)" use="required" type="Rational"  minLength="8" maxLength="8" key="30 01" globalKey="06 0e 2b 34 01 01 01 01  04 06 01 01 00 00 00 00"/>
+		<SampleRate detail="The field or frame rate of the Essence Container (not the essence sampling clock rate)" use="required" type="Rational" minLength="8" maxLength="8" key="30 01" globalKey="06 0e 2b 34 01 01 01 01  04 06 01 01 00 00 00 00"/>
 		<ContainerDuration detail="Duration of Essence Container (measured in Edit Units)" use="optional" type="Length" minLength="8" maxLength="8" key="30 02" globalKey="06 0e 2b 34 01 01 01 01  04 06 01 02 00 00 00 00"/>
 		<EssenceContainer detail="The UL identifying the Essence Container described by this Descriptor" use="required" type="Label" minLength="16" maxLength="16" key="30 04" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 01 02 00 00"/>
 		<Codec detail="UL to identify a codec compatible with this Essence Container" use="optional" type="Label" minLength="16" maxLength="16" key="30 05" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 01 03 00 00"/>
@@ -331,4 +333,7 @@
 		<AvgBps detail="Average Bytes per second" use="required" type="Uint32" key="3d 09" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 03 05 00 00 00"/>
 		<PeakEnvelope detail="Peak Envelope from &lt;LEVL> Chunk" use="optional" type="RAW" key="3d 0e" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 05 00 00 00"/>
 	</WaveAudioDescriptor>
+	<!--wol Additions for DM -->
+	<DM_Framework base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00"/>
+	<DM_Set base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01 0d 01 04 00 00 00 00 00"/>
 </MXFDictionary>
