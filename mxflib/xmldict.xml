@@ -1,0 +1,339 @@
+<!-- Version 11a by Matt Beard 18 April 2003 -->
+<!-- -->
+<!-- 																			 -->
+<!-- Copyright (c) 2002 BBC R&D and 2003 Matt Beard								 -->
+<!-- Portions Copyright (c) 2003 Metaglue Corporation -->
+<!-- 																			 -->
+<!-- This software is provided 'as-is', without any express or implied warranty. -->
+<!-- In no event will the authors be held liable for any damages arising from	 -->
+<!-- the use of this software.													 -->
+<!-- 																			 -->
+<!-- Permission is granted to anyone to use this software for any purpose,		 -->
+<!-- including commercial applications, and to alter it and redistribute it		 -->
+<!-- freely, subject to the following restrictions:								 -->
+<!-- 																			 -->
+<!--   1. The origin of this software must not be misrepresented; you must		 -->
+<!--      not claim that you wrote the original software. If you use this		 -->
+<!--      software in a product, an acknowledgment in the product				 -->
+<!--      documentation would be appreciated but is not required.				 -->
+<!-- 																			 -->
+<!--   2. Altered source versions must be plainly marked as such, and must		 -->
+<!--      not be misrepresented as being the original software.					 -->
+<!-- 																			 -->
+<!--   3. This notice may not be removed or altered from any source				 -->
+<!--      distribution.															 -->
+<!-- 																			 -->
+<!-- -->
+<!-- Note: All ULs checked as of 10/08/2003 -->
+<!-- 030809 Oliver added DM_Framework, DM_Set-->
+<MXFDictionary>
+	<KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 01 03 01 02 10 01 00 00 00"/>
+	<PartitionMetadata detail="Identifies a Partition Pack" type="fixedPack">
+		<MajorVersion detail="Major Version number of MXF byte-level format (non-backwards compatible version number)" use="required" type="Uint16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 04  03 01 02 01 06 00 00 00" default="0001h"/>
+		<MinorVersion detail="Minor Version number of MXF byte-level format (backwards compatible version number)" use="required" type="Uint16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 04  03 01 02 01 07 00 00 00" default="0002h"/>
+		<KAGSize detail="Size of the KLV Alignment Grid (KAG) for this partition, in bytes" use="required" type="Uint32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 05  03 01 02 01 09 00 00 00"/>
+		<ThisPartition detail="Byte offset of the start of This Partition, relative to the start of the Header Partition" use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 10 10 03 01 00 00 00"/>
+		<PreviousPartition detail="Byte offset of the start of the Previous Partition, relative to the start of the Header Partition" use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 10 10 02 01 00 00 00" default="0"/>
+		<FooterPartition detail="Byte offset of the start of the Footer Partition, relative to the start of the Header Partition" use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 10 10 05 01 00 00 00" default="0"/>
+		<HeaderByteCount detail="Count of Bytes used for Header Metadata. This starts at the byte following the Partition pack and includes any trailing filler which is part of the Header Metadata." use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  04 06 09 01 00 00 00 00" default="0"/>
+		<IndexByteCount detail="Count of Bytes used for Index Table Segments. This starts at the byte following the Header Metadata and includes any trailing filler which is part of the Index Table." use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  04 06 09 02 00 00 00 00" default="0"/>
+		<IndexSID detail="Index Table Segment Identifier in this partition. The value 0 defines that there are no Index Table segments in this partition." use="required" type="Uint32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00" default="0"/>
+		<BodyOffset detail="Byte offset of the first byte in the following Essence Container data relative to the start of the Essence Container identified by this BodySID" use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 08 01 02 01 03 00 00"/>
+		<BodySID detail="Identifier of the Essence Container data found in this partition. The value 0 indicates there is no Essence Container data in this partition." use="required" type="Uint32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00" default="0"/>
+		<OperationalPattern detail="Universal Label of the Operational Pattern to which this file complies" use="required" type="Label" minLength="16" maxLength="16" globalKey="06 0e 2b 34 01 01 01 05  01 02 02 03 00 00 00 00"/>
+		<EssenceContainers detail="The unordered batch of Universal Labels of Essence Containers used in or referenced by this file" use="required" type="subVector" globalKey="06 0e 2b 34 01 01 01 05  01 02 02 10 02 01 00 00">
+			<EssenceContainer detail="Universal Labels of Essence Container" use="required" type="Label" minLength="16" maxLength="16"/>
+		</EssenceContainers>
+	</PartitionMetadata>
+	<OpenHeader detail="Open Header Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 02 01 00"/>
+	<OpenCompleteHeader detail="Open Complete Header Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 02 03 00"/>
+	<ClosedHeader detail="Closed Header Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 02 02 00"/>
+	<ClosedCompleteHeader detail="Closed Complete Header Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 02 04 00"/>
+	<OpenBodyPartition detail="Open Body Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 03 01 00"/>
+	<OpenCompleteBodyPartition detail="Open Complete Body Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 03 03 00"/>
+	<ClosedBodyPartition detail="Closed Body Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 03 02 00"/>
+	<ClosedCompleteBodyPartition detail="Closed Complete Body Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 03 04 00"/>
+	<Footer detail="Footer Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 04 02 00"/>
+	<CompleteFooter detail="Complete Footer Partition Pack" base="PartitionMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 04 04 00"/>
+	<Primer detail="Primer Pack" type="fixedPack" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 05 01 00">
+		<LocalTagEntryBatch detail="Local Tag Entry Batch" use="required" type="subVector" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 07 15 00 00 00">
+			<LocalTag detail="The value of the Local Tag" use="required" type="Uint16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 05  01 03 06 02 00 00 00 00"/>
+			<UID detail="The UID of which the local tag is an alias" use="required" type="Label" minLength="16" maxLength="16" globalKey="06 0e 2b 34 01 01 01 05  01 03 06 03 00 00 00 00"/>
+		</LocalTagEntryBatch>
+	</Primer>
+	<InterchangeObject type="localSet" keyFormat="2" lengthFormat="2">
+		<InstanceUID detail="Unique ID of this instance" use="required" type="UUID" minLength="16" maxLength="16" key="3c 0a" globalKey="06 0e 2b 34 01 01 01 01  01 01 15 02 00 00 00 00" ref="target"/>
+	</InterchangeObject>
+	<GenerationInterchangeObject base="InterchangeObject">
+		<GenerationUID detail="Generation Instance" use="optional" type="UUID" minLength="16" maxLength="16" key="01 02" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 08 00 00 00"/>
+	</GenerationInterchangeObject>
+	<DefaultObject base="GenerationInterchangeObject" key="06 0e 2b 34 02 53 01 01  7f 00 00 00 00 00 00 00"/>
+	<IndexTableSegmentBase base="InterchangeObject" detail="Base for IndexTableSegments" type="localSet">
+		<IndexEditRate detail="Edit Rate copied from the tracks of the Essence Container" use="required" type="Rational" minLength="8" maxLength="8" key="3f 0b" globalKey="06 0e 2b 34 01 01 01 05  05 30 04 06 00 00 00 00"/>
+		<IndexStartPosition detail="The first editable unit indexed by this Index Table segment measured in File Package Edit Units" use="required" type="Position" minLength="8" maxLength="8" key="3f 0c" globalKey="06 0e 2b 34 01 01 01 05  07 02 01 03 01 0a 00 00"/>
+		<IndexDuration detail="Time duration of this table segment measured in Edit Unitsof the referenceg package" use="required" type="Length" minLength="8" maxLength="8" key="3f 0d" globalKey="06 0e 2b 34 01 01 01 05  07 02 02 01 01 02 00 00"/>
+		<EditUnitByteCount detail="Byte count of each and every Edit Unit. A value of 0 defines the byte count of Edit Units is only given in the Index Entry Array" use="decoder required" type="Uint32" minLength="4" maxLength="4" key="3f 05" globalKey="06 0e 2b 34 01 01 01 04  04 06 02 01 00 00 00 00" default="0"/>
+		<IndexSID detail="Stream Identifier (SID) of Index Stream" use="decoder required" type="Uint32" minLength="4" maxLength="4" key="3f 06" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00"/>
+		<BodySID detail="Stream Identifier (SID) of Essence Container Stream" use="required" type="Uint32" minLength="4" maxLength="4" key="3f 07" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00"/>
+		<SliceCount detail="Number of slices minus 1 (NSL)" use="decoder required" type="Uint8" minLength="1" maxLength="1" key="3f 08" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 01 00 00 00" default="0"/>
+		<PosTableCount detail="Number of PosTable Entries minus 1 (NPE)" use="optional" type="Uint8" minLength="1" maxLength="1" key="3f 0e" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 01 07 00 00 00" default="0"/>
+	</IndexTableSegmentBase>
+	<V10IndexTableSegment base="IndexTableSegmentBase" detail="A segment of an Index Table (v10)" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 02 01 01 10 00 00">
+		<V10DeltaEntryArray detail="Map Elements onto Slices" use="optional" type="subVector" key="3f 09" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 01 06 00 00 00">
+			<Reorder detail="TRUE=Apply Temporal Reordering" use="required" type="Boolean" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 04 00 00 00" default="false"/>
+			<Slice detail="Slice number in IndexEntry" use="required" type="Uint8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 02 00 00 00"/>
+			<ElementDelta detail="Delta from start of slice to this Element" use="required" type="Uint32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 03 00 00 00"/>
+		</V10DeltaEntryArray>
+		<V10IndexEntryArray detail="Index from Edit Unit number to stream offset" use="decoder required" type="subVector" key="3f 0a" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 02 05 00 00 00">
+			<TemporalOffset detail="Offset in edit units from Display Order to Coded Order" use="required" type="Int8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 02 03 00 00 00" default="0"/>
+			<AnchorOffset detail="Offset in edit units to previous Anchor Frame. The value is zero if this is an anchor frame." use="required" type="Int8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 02 04 00 00 00"/>
+			<Flags detail="Flags for this Edit Unit" use="required" type="Uint8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 02 02 00 00 00" default="128"/>
+			<StreamOffset detail="Offset in bytes from the first KLV element in this Edit Unit within the Essence Container" use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 02 01 00 00 00"/>
+			<SliceOffsetArray detail="Array of offsets in bytes from the Stream Offset to the start of each slice." use="required" type="subArray" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 05 00 00 00">
+				<SliceOffset detail="The offset in bytes from the Stream Offset to the start of this slice." use="required" type="Uint32" minLength="4" maxLength="4"/>
+			</SliceOffsetArray>
+		</V10IndexEntryArray>
+	</V10IndexTableSegment>
+	<IndexTableSegment base="IndexTableSegmentBase" detail="A segment of an Index Table" key="06 0e 2b 34 02 53 01 01  0d 01 02 01 01 10 01 00">
+		<DeltaEntryArray detail="Map Elements onto Slices" use="optional" type="subVector" key="3f 09" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 01 06 00 00 00">
+			<PosTableIndex detail="Index into PosTable (or Apply Temporta Reordering if -1)" use="required" type="Int8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 04 00 00 00" default="0"/>
+			<Slice detail="Slice number in IndexEntry" use="required" type="Uint8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 02 00 00 00" default="0"/>
+			<ElementDelta detail="Delta from start of slice to this Element" use="required" type="Uint32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 03 00 00 00"/>
+		</DeltaEntryArray>
+		<IndexEntryArray detail="Index from Edit Unit number to stream offset" use="decoder required" type="subVector" key="3f 0a" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 02 05 00 00 00">
+			<TemporalOffset detail="Offset in edit units from Display Order to Coded Order" use="required" type="Int8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 02 03 00 00 00" default="0"/>
+			<AnchorOffset detail="Offset in edit units to previous Anchor Frame. The value is zero if this is an anchor frame." use="required" type="Int8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 02 04 00 00 00" default="0"/>
+			<Flags detail="Flags for this Edit Unit" use="required" type="Uint8" minLength="1" maxLength="1" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 02 02 00 00 00" default="128"/>
+			<StreamOffset detail="Offset in bytes from the first KLV element in this Edit Unit within the Essence Container" use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 02 01 00 00 00"/>
+			<SliceOffsetArray detail="Array of offsets in bytes from the Stream Offset to the start of each slice." use="required" type="subArray" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 05 00 00 00">
+				<SliceOffset detail="The offset in bytes from the Stream Offset to the start of this slice." use="required" type="Uint32" minLength="4" maxLength="4"/>
+			</SliceOffsetArray>
+			<PosTableArray detail="Array of fractional position offsets from the start of the content package to the synchronized sample in the Content Package" use="required" type="subArray" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 08 00 00 00">
+				<PosTable detail="The fractional position offset from the start of the content package to the synchronized sample in the Content Package" use="required" type="Rational" minLength="8" maxLength="8"/>
+			</PosTableArray>
+		</IndexEntryArray>
+	</IndexTableSegment>
+	<RandomIndexMetadata detail="Random Index Pack" type="fixedPack" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 11 01 00">
+		<PartitionArray detail="Array of Partition Start Positions" use="required" type="subArray">
+			<BodySID detail="Stream ID of the Body in this partition" use="required" type="Uint32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00"/>
+			<ByteOffset detail="Byte offset from file start (1st byte of the file which is numbered 0) to the 1st byte of the Partition Pack Key" use="required" type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 09 02 01 01 00 00 00"/>
+		</PartitionArray>
+		<Length detail="Overall Length of this Pack including the Set Key and BER Length fields" use="required" type="Uint32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  04 06 10 01 00 00 00 00"/>
+	</RandomIndexMetadata>
+	<RandomIndexMetadataV10 detail="Random Index Pack (v10)" base="RandomIndexMetadata" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 11 00 00"/>
+	<Preface base="GenerationInterchangeObject" detail="Preface Set" type="localSet" keyFormat="2" lengthFormat="2" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 2f 00">
+		<LastModifiedDate detail="Date &amp; time of the last modification of the file" use="required" type="Timestamp" minLength="8" maxLength="8" key="3b 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 10 02 04 00 00"/>
+		<Version detail="The value shall be 258 (i.e. v1.2)" use="required" type="VersionType" minLength="2" maxLength="2" key="3b 05" globalKey="06 0e 2b 34 01 01 01 02  03 01 02 01 05 00 00 00" default="258"/>
+		<ObjectModelVersion detail="Simple integer version number of Object Model" use="optional" type="Uint32" minLength="4" maxLength="4" key="3b 07" globalKey="06 0e 2b 34 01 01 01 02  03 01 02 01 04 00 00 00"/>
+		<PrimaryPackage detail="The primary Package in this file" use="optional" type="UUID" minLength="16" maxLength="16" key="3b 08" globalKey="06 0e 2b 34 01 01 01 04  06 01 01 04 01 08 00 00" ref="weak" target="GenericPackage"/>
+		<Identifications detail="Ordered array of strong references to Identification sets recording all modifications to the file" use="encoder required" type="subVector" ref="strong" target="Identification" key="3b 06" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 04 00 00">
+			<Identification detail="Reference to Identification Set" type="UUID" minLength="16" maxLength="16"/>
+		</Identifications>
+		<ContentStorage detail="Strong reference to Content Storage object" use="required" type="UUID" minLength="16" maxLength="16" key="3b 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 01 00 00" ref="strong" target="ContentStorage"/>
+		<OperationalPattern detail="Universal Label of the Operational Pattern which this file complies to (repeat of Partition Pack value)" use="required" type="Label" minLength="16" maxLength="16" key="3b 09" globalKey="06 0e 2b 34 01 01 01 05  01 02 02 03 00 00 00 00"/>
+		<EssenceContainers detail="Unordered batch of ULs of Essence Containers used in or referenced by this file (repeat of Partition Pack value)" use="required" type="subVector" key="3b 0a" globalKey="06 0e 2b 34 01 01 01 05  01 02 02 10 02 01 00 00">
+			<EssenceContainer detail="Label of Essence Container" type="Label" minLength="16" maxLength="16"/>
+		</EssenceContainers>
+		<DMSchemes detail="An unordered batch of Universal Labels of all the Descriptive Metadata schemes used in this file" use="required" type="subVector" key="3b 0b" globalKey="06 0e 2b 34 01 01 01 05  01 02 02 10 02 02 00 00">
+			<DMScheme detail="Universal Labels of Descriptive Metadata Scheme" type="Label" minLength="16" maxLength="16"/>
+		</DMSchemes>
+	</Preface>
+	<Identification base="InterchangeObject" detail="Identification set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 30 00">
+		<ThisGenerationUID detail="This Generation Identifier" use="required" type="UUID" minLength="16" maxLength="16" key="3c 09" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 01 00 00 00"/>
+		<CompanyName detail="Manufacturer of the equipment or application that created or modified the file" use="required" type="UTF16String" key="3c 01" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 02 01 00 00"/>
+		<ProductName detail="Name of the application which created or modified this file" use="required" type="UTF16String" key="3c 02" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 03 01 00 00"/>
+		<ProductVersion detail="Maj.min.tweak.build.rel  version number of this application" use="optional" type="ProductVersion" minLength="10" maxLength="10" key="3c 03" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 04 00 00 00"/>
+		<VersionString detail="Human readable name of the application version" use="required" type="UTF16String" key="3c 04" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 05 01 00 00"/>
+		<ProductUID detail="A unique identification for the product which created this file (defined by the manufacturer)" use="required" type="UUID" minLength="16" maxLength="16" key="3c 05" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 07 00 00 00"/>
+		<ModificationDate detail="Time &amp; date an application created or modified this file and created this Identification set" use="required" type="Timestamp" minLength="8" maxLength="8" key="3c 06" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 10 02 03 00 00"/>
+		<ToolkitVersion detail="Maj.min.tweak.build.rel version of software or hardware codec used" use="optional" type="ProductVersion" minLength="10" maxLength="10" key="3c 07" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 0a 00 00 00"/>
+		<Platform detail="Human readable name of the operating system used." use="optional" type="UTF16String" key="3c 08" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 06 01 00 00"/>
+	</Identification>
+	<ContentStorage base="GenerationInterchangeObject" detail="Content Storage set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 18 00">
+		<Packages detail="Unordered batch of all packages used in this file" use="required" type="subVector" ref="strong" target="GenericPackage" key="19 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 05 01 00 00">
+			<Package detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
+		</Packages>
+		<EssenceContainerData detail="Unordered batch of strong references to Essence Container Data sets used in this file" use="optional" type="subVector" ref="strong" target="EssenceContainerData" key="19 02" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 05 02 00 00">
+			<EssenceContainer detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
+		</EssenceContainerData>
+	</ContentStorage>
+	<ContentStorageKludge detail="Kludge for Version 10 Content Storage set" type="localSet">
+		<V10Packages detail="Unordered batch of all packages used in this file" use="required" type="subVector" ref="strong" target="GenericPackage" key="19 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 05 00 00 00">
+			<V10Package detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
+		</V10Packages>
+	</ContentStorageKludge>
+	<EssenceContainerData base="GenerationInterchangeObject" detail="Essence Container Data set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 23 00">
+		<LinkedPackageUID detail="Identifier of the Package to which this set is linked as a UMID" use="required" type="UMID" minLength="32" maxLength="32" key="27 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 06 01 00 00 00"/>
+		<IndexSID detail="ID of the Index Table for the Essence Container to which this set is linked" use="optional" type="Uint32" minLength="4" maxLength="4" key="3f 06" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00"/>
+		<BodySID detail="ID of the Essence Container to which this set is linked" use="required" type="Uint32" minLength="4" maxLength="4" key="3f 07" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00"/>
+	</EssenceContainerData>
+	<GenericPackage base="GenerationInterchangeObject" detail="Defines a Generic Package set" type="localSet">
+		<PackageUID detail="Unique Package Identifier as a UMID" use="required" type="UMID" minLength="32" maxLength="32" key="44 01" globalKey="06 0e 2b 34 01 01 01 01  01 01 15 10 00 00 00 00"/>
+		<Name detail="Human readable package name" use="optional" type="UTF16String" key="44 02" globalKey="06 0e 2b 34 01 01 01 01  01 03 03 02 01 00 00 00"/>
+		<PackageCreationDate detail="The date &amp; time of creation of this package" use="required" type="Timestamp" minLength="8" maxLength="8" key="44 05" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 10 01 03 00 00"/>
+		<PackageModifiedDate detail="The date &amp; time of last modification of this package" use="required" type="Timestamp" minLength="8" maxLength="8" key="44 04" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 10 02 05 00 00"/>
+		<Tracks detail="Array of Unique IDs of Tracks" use="required" type="subVector" ref="strong" target="GenericTrack" key="44 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 05 00 00">
+			<Track detail="Track ID" type="UUID" minLength="16" maxLength="16"/>
+		</Tracks>
+	</GenericPackage>
+	<Locator base="GenerationInterchangeObject"/>
+	<NetworkLocator base="Locator" detail="Network Locator set for location with a URL" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 32 00">
+		<URLString detail="A URL indicating where the essence may be found." use="required" type="UTF16String" key="40 01" globalKey="06 0e 2b 34 01 01 01 01  01 02 01 01 01 00 00 00"/>
+	</NetworkLocator>
+	<TextLocator base="Locator" detail="Text Locator set for location with a human-readable text string" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 33 00">
+		<LocatorName detail="Value of a human-readable locator text string for manual location of essence" use="required" type="UTF16String" key="41 01" globalKey="06 0e 2b 34 01 01 01 02  01 04 01 02 01 00 00 00"/>
+	</TextLocator>
+	<GenericTrack base="GenerationInterchangeObject" detail="Generic Track" type="localSet">
+		<TrackID detail="ID of the track in this package (for linking to a SourceTrackID in a segment)" use="required" type="Uint32" minLength="4" maxLength="4" key="48 01" globalKey="06 0e 2b 34 01 01 01 02  01 07 01 01 00 00 00 00"/>
+		<TrackNumber detail="Number used to link to the track in the Essence Container if it exists" use="required" type="Uint32" minLength="4" maxLength="4" key="48 04" globalKey="06 0e 2b 34 01 01 01 02  01 04 01 03 00 00 00 00" default="0"/>
+		<TrackName detail="Human readable name of the track type" use="optional" type="UTF16String" key="48 02" globalKey="06 0e 2b 34 01 01 01 02  01 07 01 02 01 00 00 00"/>
+		<Sequence detail="Strong Reference to Sequence Set" use="required" type="UUID" minLength="16" maxLength="16" key="48 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 04 00 00" ref="strong" target="StructuralComponent"/>
+	</GenericTrack>
+	<StaticTrack base="GenericTrack" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 3a 00"/>
+	<Track base="GenericTrack" detail="Track" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 3b 00">
+		<EditRate detail="Edit Rate of Track" use="required" type="Rational" minLength="8" maxLength="8" key="4b 01" globalKey="06 0e 2b 34 01 01 01 02  05 30 04 05 00 00 00 00"/>
+		<Origin detail="An Offset used to resolved timeline references to this track. The start of the track has this timeline value measured in Edit Units." use="required" type="Position" minLength="8" maxLength="8" key="4b 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 03 01 03 00 00"/>
+	</Track>
+	<EventTrack base="GenericTrack" detail="Event Track" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 39 00">
+		<EventEditRate detail="Edit Rate of Event Track" use="required" type="Rational" minLength="8" maxLength="8" key="49 01" globalKey="06 0e 2b 34 01 01 01 02  05 30 04 02 00 00 00 00"/>
+		<EventOrigin detail="An Offset used to resolved timeline references to this event track. The start of the event track has this timeline value measured in Edit Units." use="optional" type="Position" minLength="8" maxLength="8" key="49 02" globalKey="06 0e 2b 34 01 01 01 05  07 02 01 03 01 0b 00 00" default="0"/>
+	</EventTrack>
+	<StructuralComponent base="GenerationInterchangeObject" detail="Structural Component Superclass" type="localSet">
+		<DataDefinition detail="Data Definition - kind of data or metadata this structure refers to" use="required" type="Label" minLength="16" maxLength="16" key="02 01" globalKey="06 0e 2b 34 01 01 01 02  04 07 01 00 00 00 00 00"/>
+		<Duration detail="Duration (in units of edit rate)" use="best effort" dvalue="-1" type="Length" minLength="8" maxLength="8" key="02 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 02 01 01 03 00 00"/>
+	</StructuralComponent>
+	<Sequence base="StructuralComponent" detail="Sequence" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 0f 00">
+		<StructuralComponents detail="Ordered array of strong references to Structural Components" use="required" type="subVector" ref="strong" target="StructuralComponent" key="10 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 09 00 00">
+			<StructuralComponent detail="Structural Component" type="UUID" minLength="16" maxLength="16"/>
+		</StructuralComponents>
+	</Sequence>
+	<TimecodeComponent base="StructuralComponent" detail="Timecode Component" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 14 00">
+		<RoundedTimecodeBase detail="Integer frames per second" use="required" type="Uint16" minLength="2" maxLength="2" key="15 02" globalKey="06 0e 2b 34 01 01 01 02  04 04 01 01 02 06 00 00"/>
+		<StartTimecode detail="Starting timecode" use="required" type="Position" minLength="8" maxLength="8" key="15 01" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 03 01 05 00 00"/>
+		<DropFrame detail="Drop frame flag" use="required" type="Boolean" minLength="1" maxLength="1" key="15 03" globalKey="06 0e 2b 34 01 01 01 01  04 04 01 01 05 00 00 00"/>
+	</TimecodeComponent>
+	<SourceClip base="StructuralComponent" detail="Source Clip" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 11 00">
+		<StartPosition detail="Offset into Essence measured in edit units of the track containing this segment" use="required" type="Position" minLength="8" maxLength="8" key="12 01" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 03 01 04 00 00"/>
+		<SourcePackageID detail="ID of referenced Package as a UMID" use="required" type="UMID" minLength="32" maxLength="32" key="11 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 03 01 00 00 00"/>
+		<SourceTrackID detail="Track ID of the referenced Track within the referenced Package" use="required" type="Uint32" minLength="4" maxLength="4" key="11 02" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 03 02 00 00 00"/>
+	</SourceClip>
+	<DMSegment base="StructuralComponent" detail="Descriptive Metadata Segment" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 41 00">
+		<EventStartPosition detail="Offset into the descriptive metadata track in edit units" use="required" type="Position" minLength="8" maxLength="8" key="06 01" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 03 03 03 00 00"/>
+		<EventComment detail="Description of the Descriptive Metadata Framework" use="optional" type="UTF16String" key="06 02" globalKey="06 0e 2b 34 01 01 01 02  05 30 04 04 01 00 00 00"/>
+		<TrackIDs detail="An unordered list of track ID values that identify the tracks in this Package to which this DM Framework refers (if omitted, refers to all essence tracks)" use="decoder required" type="subVector" key="61 02" globalKey="06 0e 2b 34 01 01 01 04  01 07 01 05 00 00 00 00">
+			<TrackID detail="Uint32" type="Uint32" minLength="4" maxLength="4"/>
+		</TrackIDs>
+		<DMFramework detail="Strong Reference to the Descriptive Metadata Framework" use="decoder required" type="UUID" ref="strong" target="DM_Framework" minLength="16" maxLength="16" key="61 01" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 04 02 0c 00 00"/>
+		<!-- wol changed to target DM_Framework-->
+	</DMSegment>
+	<DMSourceClip base="SourceClip" detail="Descriptive Metadata SourceClip" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 45 00">
+		<DMSourceClipTrackIDs detail="An unordered list of track ID values that identify the tracks in this Package to which the referenced Descriptive Metadata refers (if omitted, refers to all essence tracks)" use="optional" type="subVector" key="61 03" globalKey="06 0e 2b 34 01 01 01 05  01 07 01 06 00 00 00 00">
+			<DMSourceClipTrackID detail="Uint32" type="Uint32" minLength="4" maxLength="4"/>
+		</DMSourceClipTrackIDs>
+	</DMSourceClip>
+	<MaterialPackage base="GenericPackage" detail="Material Package set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 36 00"/>
+	<SourcePackage base="GenericPackage" detail="File Package set" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 37 00">
+		<Descriptor detail="Strong Reference to the Descriptor" use="decoder required" type="UUID" minLength="16" maxLength="16" ref="strong" target="GenericDescriptor" key="47 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 03 00 00"/>
+	</SourcePackage>
+	<GenericDescriptor base="GenerationInterchangeObject" detail="Generic Descriptor" type="localSet">
+		<Locators detail="Ordered array of strong references to Locator sets" use="optional" type="subVector" ref="strong" target="Locator" key="2f 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 03 00 00">
+			<Locator detail="Essence Locator" type="UUID" minLength="16" maxLength="16"/>
+		</Locators>
+	</GenericDescriptor>
+	<FileDescriptor base="GenericDescriptor" detail="File Descriptor" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 25 00">
+		<LinkedTrackID detail="Link to (i.e. value of) the Track ID of the Track in this Package to which the Descriptor applies" use="optional" type="Uint32" key="30 06" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 03 05 00 00 00"/>
+		<SampleRate detail="The field or frame rate of the Essence Container (not the essence sampling clock rate)" use="required" type="Rational" minLength="8" maxLength="8" key="30 01" globalKey="06 0e 2b 34 01 01 01 01  04 06 01 01 00 00 00 00"/>
+		<ContainerDuration detail="Duration of Essence Container (measured in Edit Units)" use="optional" type="Length" minLength="8" maxLength="8" key="30 02" globalKey="06 0e 2b 34 01 01 01 01  04 06 01 02 00 00 00 00"/>
+		<EssenceContainer detail="The UL identifying the Essence Container described by this Descriptor" use="required" type="Label" minLength="16" maxLength="16" key="30 04" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 01 02 00 00"/>
+		<Codec detail="UL to identify a codec compatible with this Essence Container" use="optional" type="Label" minLength="16" maxLength="16" key="30 05" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 01 03 00 00"/>
+	</FileDescriptor>
+	<GenericPictureEssenceDescriptor base="FileDescriptor" detail="Defines the Picture Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 27 00">
+		<SignalStandard detail="Underlying signal standard" type="Uint8" minLength="1" maxLength="1" key="32 15" globalKey="06 0e 2b 34 01 01 01 05  04 05 01 13 00 00 00 00" use="optional" default="1"/>
+		<FrameLayout detail="Interlace or Progressive layout" type="Uint8" minLength="1" maxLength="1" key="32 0c" globalKey="06 0e 2b 34 01 01 01 01  04 01 03 01 04 00 00 00" use="best effort" dvalue="255"/>
+		<StoredWidth detail="Horizontal Size of active picture" type="Uint32" minLength="4" maxLength="4" key="32 03" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 02 02 00 00 00" use="best effort" dvalue="0"/>
+		<StoredHeight detail="Vertical Field Size of active picture" type="Uint32" minLength="4" maxLength="4" key="32 02" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 02 01 00 00 00" use="best effort" dvalue="0"/>
+		<StoredF2Offset detail="Topness Adjustment for stored picture" type="Int32" minLength="4" maxLength="4" key="32 16" globalKey="06 0e 2b 34 01 01 01 05  04 01 03 02 08 00 00 00" use="optional" default="0"/>
+		<SampledWidth detail="Sampled width supplied to codec" type="Uint32" minLength="4" maxLength="4" key="32 05" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 08 00 00 00" use="optional"/>
+		<SampledHeight detail="Sampled height supplied to codec" type="Uint32" minLength="4" maxLength="4" key="32 04" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 07 00 00 00" use="optional"/>
+		<SampledXOffset detail="Offset from sampled to stored width" type="Int32" minLength="4" maxLength="4" key="32 06" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 09 00 00 00" use="optional" default="0"/>
+		<SampledYOffset detail="Offset from sampled to stored" type="Int32" minLength="4" maxLength="4" key="32 07" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 0A 00 00 00" use="optional" default="0"/>
+		<DisplayHeight detail="Displayed Height placed in Production Aperture" type="Uint32" minLength="4" maxLength="4" key="32 08" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 0B 00 00 00" use="optional"/>
+		<DisplayWidth detail="Displayed Width placed in Production Aperture" type="Uint32" minLength="4" maxLength="4" key="32 09" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 0C 00 00 00" use="optional"/>
+		<DisplayXOffset detail="The horizontal offset from the (in pixels) of the picture as displayed" type="Int32" minLength="4" maxLength="4" key="32 0A" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 0D 00 00 00" use="optional"/>
+		<DisplayYOffset detail="The vertical offset (in pixels) of the picture as displayed" type="Int32" minLength="4" maxLength="4" key="32 0B" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 0E 00 00 00" use="optional"/>
+		<DisplayF2Offset detail="Topness Adjustment for Displayed Picture" type="Int32" minLength="4" maxLength="4" key="32 17" globalKey="06 0e 2b 34 01 01 01 05  04 01 03 02 07 00 00 00" use="optional" default="0"/>
+		<AspectRatio detail="Specifies the horizontal to vertical aspect ratio of the whole image as it is to be presented to avoid geometric distortion (and hence including any black edges)" type="Rational" minLength="8" maxLength="8" key="32 0E" globalKey="06 0e 2b 34 01 01 01 01  04 01 01 01 01 00 00 00" use="best effort" dvalue="0/0"/>
+		<ActiveFormatDescriptor detail="Specifies the intended framing of the content within the displayed image" type="Uint8" minLength="1" maxLength="1" key="32 18" globalKey="06 0e 2b 34 01 01 01 05  04 01 03 02 09 00 00 00" use="optional"/>
+		<VideoLineMap detail="First active line in each field" key="32 0d" globalKey="06 0e 2b 34 01 01 01 02  04 01 03 02 05 00 00 00" type="subVector" use="best effort">
+			<VideoLineMapEntry detail="First active line in field" type="Int32" use="best effort" dvalue="0"/>
+		</VideoLineMap>
+		<AlphaTransparency detail="Is Alpha Inverted" type="Uint8" minLength="1" maxLength="1" key="32 0F" globalKey="06 0e 2b 34 01 01 01 02  05 20 01 02 00 00 00 00" use="optional"/>
+		<Gamma detail="Registered UL of known Gamma" type="Label" minLength="16" maxLength="16" key="32 10" globalKey="06 0e 2b 34 01 01 01 02  04 01 02 01 01 01 02 00" use="optional"/>
+		<ImageAlignmentOffset detail="Byte Boundary alignment required for Low Level Essence Storage" type="Uint32" minLength="4" maxLength="4" key="32 11" globalKey="06 0e 2b 34 01 01 01 02  04 18 01 01 00 00 00 00" use="optional"/>
+		<ImageStartOffset detail="Unused bytes before start of stored data" type="Uint32" minLength="4" maxLength="4" key="32 13" globalKey="06 0e 2b 34 01 01 01 02  04 18 01 02 00 00 00 00" use="optional"/>
+		<ImageEndOffset detail="Unused bytes before start of stored data" type="Uint32" minLength="4" maxLength="4" key="32 14" globalKey="06 0e 2b 34 01 01 01 02  04 18 01 03 00 00 00 00" use="optional"/>
+		<FieldDominance detail="The number of the field which is considered temporally to come first" type="Uint8" minLength="1" maxLength="1" key="32 12" globalKey="06 0e 2b 34 01 01 01 02  04 01 03 01 06 00 00 00" use="optional"/>
+		<PictureEssenceCoding detail="UL identifying the Picture Compression Scheme" type="Label" minLength="16" maxLength="16" key="32 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 06 01 00 00 00 00" use="decoder required"/>
+	</GenericPictureEssenceDescriptor>
+	<CDCIEssenceDescriptor base="GenericPictureEssenceDescriptor" detail="Defines the CDCI Picture Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 28 00">
+		<ComponentDepth detail="Number of active bits per sample (e.g. 8, 10, 16)" type="Uint32" minLength="4" maxLength="4" key="33 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 0A 00 00 00" use="best effort" dvalue="0"/>
+		<HorizontalSubsampling detail="Specifies the H colour subsampling" type="Uint32" minLength="4" maxLength="4" key="33 02" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 05 00 00 00" use="best effort" dvalue="0"/>
+		<VerticalSubsampling detail="Specifies the V colour subsampling" type="Uint32" minLength="4" maxLength="4" key="33 08" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 01 10 00 00 00" use="optional"/>
+		<ColorSiting detail="Enumerated value describing the color siting" type="Uint8" minLength="4" maxLength="4" key="33 03" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 06 00 00 00" use="optional"/>
+		<ReversedByteOrder detail="a FALSE value denotes Chroma followed by Luma pexels according to ITU Rec. 601" type="Boolean" minLength="1" maxLength="1" key="33 0b" globalKey="06 0e 2b 34 01 01 01 05  03 01 02 01 0a 00 00 00" use="optional"/>
+		<PaddingBits detail="Bits to round up each pixel to stored size" type="Uint16" minLength="2" maxLength="2" key="33 07" globalKey="06 0e 2b 34 01 01 01 02  04 18 01 04 00 00 00 00" use="optional"/>
+		<AlphaSampleDepth detail="Number of bits per alpha sample" type="Uint32" minLength="4" maxLength="4" key="33 09" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 07 00 00 00" use="optional"/>
+		<BlackRefLevel detail="Black refernece level e.g. 16 or 64 (8 or 10-bits)" type="Uint32" minLength="4" maxLength="4" key="33 04" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 03 03 00 00 00" use="optional"/>
+		<WhiteReflevel detail="White reference level e.g. 235 or 943 (8 or 10 bits)" type="Uint32" minLength="4" maxLength="4" key="33 05" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 03 04 00 00 00" use="optional"/>
+		<ColorRange detail="Color range e.g. 225 or 897 (8 or 10 bits)" type="Uint32" minLength="4" maxLength="4" key="33 06" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 05 00 00 00" use="optional"/>
+	</CDCIEssenceDescriptor>
+	<RGBAEssenceDescriptor base="GenericPictureEssenceDescriptor" detail="Defines the RGBA Picture Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 29 00">
+		<ComponentMaxRef detail="Maximum value for RGB components, e.g. 235 or 940 (8 or 10 bits)" type="Uint32" minLength="4" maxLength="4" key="34 06" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0b 00 00 00" use="optional" default="255"/>
+		<ComponentMinRef detail="Minimum value for RGB components, e.g. 16 or 64 (8 or 10 bits)" type="Uint32" minLength="4" maxLength="4" key="34 07" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0c 00 00 00" use="optional" default="0"/>
+		<AlphaMaxRef detail="Maximum value for alpha component, e.g. 235 or 940 (8 or 10 bits)" type="Uint32" minLength="4" maxLength="4" key="34 08" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0d 00 00 00" use="optional" default="255"/>
+		<AlphaMinRef detail="Minimum value for alpha component, e.g. 16 or 64 (8 or 10 bits)" type="Uint32" minLength="4" maxLength="4" key="34 09" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0e 00 00 00" use="optional" default="0"/>
+		<ScanningDirection detail="Enumerated Scanning Direction" type="Uint8" minLength="1" maxLength="1" key="34 05" globalKey="06 0e 2b 34 01 01 01 05  04 01 04 04 01 00 00 00" use="optional"/>
+		<PixelLayout detail="Pixel Layout" type="RGBALayout" minLength="16" maxLength="16" key="34 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 06 00 00 00" use="best effort" dvalue="{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}"/>
+		<Palette detail="Palette" type="RAW" key="34 03" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 08 00 00 00" use="optional"/>
+		<PaletteLayout detail="Palette Layout" type="RGBALayout" minLength="16" maxLength="16" key="34 04" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 09 00 00 00" use="optional"/>
+	</RGBAEssenceDescriptor>
+	<GenericSoundEssenceDescriptor base="FileDescriptor" detail="Defines the Sound Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 42 00">
+		<AudioSamplingRate detail="Sampling rate of the audio essence" type="Rational" minLength="8" maxLength="8" key="3d 03" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 01 01 00 00" use="best effort" default="48000/1" dvalue="0/0"/>
+		<Locked detail="Boolean indicating that the Number of samples per frame is locked or unlocked (non-0 = locked)" type="Boolean" minLength="1" maxLength="1" key="3D 02" globalKey="06 0e 2b 34 01 01 01 04  04 02 03 01 04 00 00 00" use="required"/>
+		<AudioRefLevel detail="Audio reference level which gives the number of dBm for 0VU" type="Int8" minLength="1" maxLength="1" key="3D 04" globalKey="06 0e 2b 34 01 01 01 01  04 02 01 01 03 00 00 00" use="optional"/>
+		<ElectroSpatialFormulation detail="E.g. mono, dual mono, stereo, A,B etc (enum)" type="Uint8" minLength="1" maxLength="1" key="3D 05" globalKey="06 0e 2b 34 01 01 01 01  04 02 01 01 01 00 00 00" use="optional"/>
+		<ChannelCount detail="Number of Sound Channels" type="Uint32" minLength="4" maxLength="4" key="3D 07" globalKey="06 0e 2b 34 01 01 01 05  04 02 01 01 04 00 00 00" use="best effort" dvalue="0"/>
+		<QuantizationBits detail="Number of quantization bits" type="Uint32" minLength="4" maxLength="4" key="3D 01" globalKey="06 0e 2b 34 01 01 01 04  04 02 03 03 04 00 00 00" use="best effort" dvalue="0"/>
+		<DialNorm detail="Gain to be applied to normalise perceived loudness of the clip, defined by ATSC A/53 (1dB per step)" type="Int8" minLength="1" maxLength="1" key="3d 0C" globalKey="06 0e 2b 34 01 01 01 05  04 02 07 01 00 00 00 00" use="optional"/>
+		<SoundEssenceCompression detail="UL identifying the Sound Compression Scheme" type="Label" minLength="16" maxLength="16" key="3d 06" globalKey="06 0e 2b 34 01 01 01 02  04 02 04 02 00 00 00 00" use="decoder required"/>
+	</GenericSoundEssenceDescriptor>
+	<GenericDataEssenceDescriptor base="FileDescriptor" detail="Defines the Data Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 43 00">
+		<DataEssenceCoding detail="Specifies the data essence coding type" type="Label" minLength="16" maxLength="16" key="3e 01" globalKey="06 0e 2b 34 01 01 01 05  04 03 03 02 00 00 00 00" use="decoder required"/>
+	</GenericDataEssenceDescriptor>
+	<MultipleDescriptor base="FileDescriptor" detail="Defines the Multiple Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 44 00">
+		<SubDescriptorUIDs detail="Unordered array of strong references to File Descriptor sets (1 per interleaved item within the Essence Container)" use="required" type="subVector" ref="strong" target="FileDescriptor" key="3f 01" globalKey="06 0e 2b 34 01 01 01 04  06 01 01 04 06 0b 00 00">
+			<SubDescriptorUID detail="File Descriptor" type="UUID" minLength="16" maxLength="16"/>
+		</SubDescriptorUIDs>
+	</MultipleDescriptor>
+	<MPEG2VideoDescriptor base="CDCIEssenceDescriptor" detail="Defines the MPEG2 Picture Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 51 00">
+		<SingleSequence detail="TRUE if the essence consists of a single MPEG sequence. False if there are a number of sequences. This flag implies that the sequence header information is not varying in the essence stream." use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 02 00 00"/>
+		<ConstantBFrames detail="TRUE if the number of B frames is always constant" use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 03 00 00" default="false"/>
+		<CodedContentType detail="0= &quot;Unknown&quot;,1= &quot;Progressive&quot;, 2= &quot;Interlaced&quot;, 3= &quot;Mixed&quot;: an enumerated value which tells if the underlying content which was MPEG coded was of a known type" use="optional" type="Uint8" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 04 00 00" default="0"/>
+		<LowDelay detail="TRUE if low delay mode was used in the sequence" use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 05 00 00" default="false"/>
+		<ClosedGOP detail="TRUE if closed_gop is set in all GOP Headers, per 13818-1 IBP descriptor" use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 06 00 00" default="false"/>
+		<IdenticalGOP detail="TRUE if every GOP in the sequence is constructed the same, per 13818-1 IBP descriptor" use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 07 00 00" default="false"/>
+		<MaxGOP detail="Specifies the maximum occurring spacing between I frames, per 13818-1 IBP descriptor. A value of 0 or the absence of this property implies no limit to the maximum GOP" use="optional" type="Uint16" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 08 00 00" default="0"/>
+		<BPictureCount detail="Specifies the maximum number of B pictures between P or I frames, equivalent to 13818-2 annex D (M-1)" use="optional" type="Uint16" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 09 00 00"/>
+		<BitRate detail="Maximum bit rate of MPEG video elementary stream in bit/s as defined in ISO-13818-2 bit_rate property" use="optional" type="Uint32" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 0b 00 00"/>
+		<ProfileAndLevel detail="Specifies the MPEG-2 video profile and level. The value is taken directly from the profile_and_level_indication in the MPEG-2 sequence header extension. For main profile @ main level, the value is 0x48. For 4:2:2 profile @ main level, the value is 0x85" use="optional" type="Uint8" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 0a 00 00"/>
+	</MPEG2VideoDescriptor>
+	<WaveAudioDescriptor base="GenericSoundEssenceDescriptor" detail="Defines the Wave Audio Essence Descriptor Set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 48 00">
+		<BlockAlign detail="Sample Block alignment" use="required" type="Uint16" key="3d 0a" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 02 01 00 00 00"/>
+		<SequenceOffset detail="Zero-based ordinal frame number of first essence data within five-frame sequence" use="optional" type="Uint8" key="3d 0b" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 02 02 00 00 00"/>
+		<AvgBps detail="Average Bytes per second" use="required" type="Uint32" key="3d 09" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 03 05 00 00 00"/>
+		<PeakEnvelope detail="Peak Envelope from &lt;LEVL> Chunk" use="optional" type="RAW" key="3d 0e" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 05 00 00 00"/>
+	</WaveAudioDescriptor>
+	<!--wol Additions for DM -->
+	<DM_Framework base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00"/>
+	<DM_Set base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01 0d 01 04 00 00 00 00 00"/>
+</MXFDictionary>
