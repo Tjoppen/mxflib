@@ -582,9 +582,6 @@ void GCWriter::SetWriteOrder(GCStreamID ID, int WriteOrder /*=-1*/, int Type /*=
 		WriteOrder = NextWriteOrder++;
 	}
 
-	// Sub is used to make GC elements follow CP elements
-	Uint8 Sub = 0;
-
 	// Auto type order
 	if(Type == -1) 
 	{
