@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: smartptr.h,v 1.1.2.1 2004/05/10 16:12:02 matt-beard Exp $
  *
  */
 /*
@@ -358,7 +358,18 @@ void __Assign(void *ptr)
 
 		//! Comparison function to allow sorting by indexed value
 		bool operator<(SmartPtr &Other) { return this.operator<(*Other->GetPtr()); }
+
+		//! Get a cast version of the pointer
+		/*! This is used via the SmartPtr_Cast() Macro to allow MSVC 6 to work!!
+		 *	The reason for this is that MSVC 6 name mangling is only based on the function arguments so
+		 *  it cannot cope when two functions differ in the template type, but not the argument list!!
+		 *  The solution is a dummy argument that gets filled in by the macro (to avoid messy code!)
+		 */
+		template <class U> U* Cast(U*) { return dynamic_cast<U*>(GetPtr()); } 
 	};
 }
+
+//! Macro to give typecast functionality even in MSVC 6
+#define SmartPtr_Cast(Ptr, Type) ( Ptr.Cast((Type*)NULL) )
 
 #endif // MXFLIB__SMARTPTR_H
