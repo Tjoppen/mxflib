@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.1.2.3 2004/06/26 18:07:38 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.1.2.4 2004/09/06 00:13:19 matt-beard Exp $
  *
  */
 /*
@@ -979,7 +979,7 @@ Uint64 MXFFile::Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize /*=0*/)
 /*! \note Partition properties are updated from the linked metadata
  *	\return true if (re-)write was successful, else false
  */
-bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding)
+bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding, Uint32 MinPartitionSize)
 {
 	PrimerPtr ThisPrimer;
 	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = new Primer;
@@ -1035,13 +1035,16 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	// Align if required (not if re-writing)
 	if((!ReWrite) && (KAGSize > 1)) Align(KAGSize);
 
+	// Initialy we have no header data
+	Uint64 HeaderByteCount = 0;
+	
 	if(IncludeMetadata)
 	{
 		// Build the primer
 		ThisPrimer->WritePrimer(PrimerBuffer);
 
 		// Set size of header metadata (including the primer)
-		Uint64 HeaderByteCount = PrimerBuffer.Size + MetaBuffer.Size;
+		HeaderByteCount = PrimerBuffer.Size + MetaBuffer.Size;
 
 //#printf("Initial HeaderByteCount = 0x%08x\n", (int)HeaderByteCount);
 		if(ReWrite)
@@ -1060,7 +1063,11 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 			Uint64 OldHeaderByteCount = OldPartition->GetUint64("HeaderByteCount");
 
+			// Record the required padding size to make the new partition match the old one
 			Padding = OldHeaderByteCount - HeaderByteCount;
+			
+			// We can't obay a MinPartitionSize request
+			MinPartitionSize = 0;
 
 			// Minimum possible filler size is 17 bytes
 			if((HeaderByteCount > OldHeaderByteCount) || (Padding < 17))
@@ -1076,8 +1083,12 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		else
 		{
 			// Padding follows the header if no index data
-			if((Padding > 0) && (!IndexData))
+			if(((Padding > 0) || (MinPartitionSize > HeaderByteCount)) && (!IndexData))
 			{
+				// Work out which of the two padding methods requires the greater padding
+				Length UsePadding = (Length)MinPartitionSize - (Length)HeaderByteCount;
+				if(UsePadding > (Length)Padding) Padding = (Uint32)UsePadding;
+
 //#printf("Padding with %d\n", (int)Padding);
 				HeaderByteCount += FillerSize(HeaderByteCount, KAGSize, Padding);
 			}
@@ -1103,8 +1114,15 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	{
 		Uint64 IndexByteCount = IndexData->Size;
 //#printf("Initial IndexByteCount = 0x%08x\n", (int)IndexByteCount);
-	
-		if( (!IsFooter) || (Padding > 0) ) IndexByteCount += FillerSize(IndexByteCount, KAGSize, Padding);
+
+		if( (!IsFooter) || (Padding > 0) || (MinPartitionSize > HeaderByteCount) ) 
+		{
+			// Work out which of the two padding methods requires the greater padding
+			Length UsePadding = (Length)MinPartitionSize - (Length)(HeaderByteCount + IndexByteCount);
+			if(UsePadding > (Length)Padding) Padding = (Uint32)UsePadding;
+
+			IndexByteCount += FillerSize(IndexByteCount, KAGSize, Padding);
+		}
 
 		ThisPartition->SetUint64("IndexByteCount", IndexByteCount);
 //#printf("Final IndexByteCount = 0x%08x\n", (int)IndexByteCount);
@@ -1140,7 +1158,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	}
 
 	// If not a footer align to the KAG (add padding if requested even if it is a footer)
-	if( (!IsFooter) || (Padding > 0) )
+	if( (!IsFooter) || (Padding > 0))
 	{
 		if((KAGSize > 1) || (Padding > 0)) Align(KAGSize, Padding);
 	}

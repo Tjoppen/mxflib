@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.1.2.4 2004/06/26 17:44:56 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.1.2.5 2004/09/06 00:13:19 matt-beard Exp $
  *
  */
 /*
@@ -166,30 +166,30 @@ namespace mxflib
 		void WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL);
 
 		//! Write a partition pack and associated metadata (no index table segments)
-		void WritePartition(PartitionPtr ThisPartition, Uint32 Padding = 0) { WritePartition(ThisPartition, true, NULL, Padding); };
+		void WritePartition(PartitionPtr ThisPartition, Uint32 Padding = 0, Uint32 MinPartitionSize = 0) { WritePartition(ThisPartition, true, NULL, Padding, MinPartitionSize); };
 
 		//! Write a partition pack and associated metadata and preformatted index table segments
 		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
-		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, Uint32 Padding = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, NULL, Padding); };
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, Uint32 Padding = 0, Uint32 MinPartitionSize = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, NULL, Padding, MinPartitionSize); };
 
 		//! Write a partition pack and associated metadata (no index table segments)
-		void WritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer, Uint32 Padding = 0) { WritePartition(ThisPartition, true, UsePrimer, Padding); };
+		void WritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer, Uint32 Padding = 0, Uint32 MinPartitionSize = 0) { WritePartition(ThisPartition, true, UsePrimer, Padding, MinPartitionSize); };
 
 		//! Write a partition pack and associated metadata and preformatted index table segments
 		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
-		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, UsePrimer, Padding); };
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding = 0, Uint32 MinPartitionSize = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, UsePrimer, Padding, MinPartitionSize); };
 
 		//! Write a partition pack and (optionally) associated metadata (no index table segments)
-		void WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0)
+		void WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0, Uint32 MinPartitionSize = 0)
 		{
-			WritePartitionInternal(false, ThisPartition, IncludeMetadata, NULL, UsePrimer, Padding);
+			WritePartitionInternal(false, ThisPartition, IncludeMetadata, NULL, UsePrimer, Padding, MinPartitionSize);
 		}
 
 		//! Write a partition pack and (optionally) associated metadata and preformatted index table segments
 		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
-		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0)
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0, Uint32 MinPartitionSize = 0)
 		{
-			WritePartitionInternal(false, ThisPartition, IncludeMetadata, IndexData, UsePrimer, Padding);
+			WritePartitionInternal(false, ThisPartition, IncludeMetadata, IndexData, UsePrimer, Padding, MinPartitionSize);
 		}
 
 		//! Re-write a partition pack and associated metadata (no index table segments)
@@ -198,7 +198,7 @@ namespace mxflib
 		 */
 		bool MXFFile::ReWritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL) 
 		{
-			return WritePartitionInternal(true, ThisPartition, true, NULL, UsePrimer, 0);
+			return WritePartitionInternal(true, ThisPartition, true, NULL, UsePrimer, 0, 0);
 		}
 
 		//! Re-write a partition pack and associated metadata and preformatted index table segments
@@ -207,12 +207,12 @@ namespace mxflib
 		 */
 		bool MXFFile::ReWritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer = NULL) 
 		{
-			return WritePartitionInternal(true, ThisPartition, true, IndexData, UsePrimer, 0);
+			return WritePartitionInternal(true, ThisPartition, true, IndexData, UsePrimer, 0, 0);
 		}
 
 	protected:
 		//! Write or re-write a partition pack and associated metadata (and index table segments?)
-		bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding);
+		bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding, Uint32 MinPartitionSize);
 
 	public:
 		//! Write the RIP
