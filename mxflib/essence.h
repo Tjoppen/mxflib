@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.5 2004/11/13 11:27:03 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.6 2004/12/18 20:25:10 matt-beard Exp $
  *
  */
 /*
@@ -109,10 +109,10 @@ namespace mxflib
 		//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
 		virtual Uint8 GetGCElementType(void) = 0;
 
-		//! Set the stream ID for this stream of sub-stream
+		//! Set the stream ID for this stream or sub-stream
 		void SetStreamID(GCStreamID NewID) { StreamID = NewID; }
 
-		//! Get the stream ID for this stream of sub-stream
+		//! Get the stream ID for this stream or sub-stream
 		GCStreamID GetStreamID(void) { return StreamID; }
 
 		//! Is the last data read the start of an edit point?
@@ -158,11 +158,14 @@ namespace mxflib
 		virtual IndexManagerPtr &GetIndexManager(void) { return IndexMan; }
 
 		//! Get the index manager sub-stream ID
-		virtual int &GetIndexStreamID(void) { return IndexStreamID; }
+		virtual int GetIndexStreamID(void) { return IndexStreamID; }
 	};
 
 	// Smart pointer to an EssenceSource object
 	typedef SmartPtr<EssenceSource> EssenceSourcePtr;
+
+	// Parent pointer to an EssenceSource object
+	typedef ParentPtr<EssenceSource> EssenceSourceParent;
 
 	// List of smart pointer to EssenceSource objects
 	typedef std::list<EssenceSourcePtr> EssenceSourceList;
@@ -175,29 +178,6 @@ namespace mxflib
 	//! Default "Multiple Essence Types in the Generic Container" Label
 	const Uint8 GCMulti_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x03, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x7F, 0x01, 0x00 };
 }
-
-
-/*
-namespace mxflib
-{
-	//! Class that manages writing of essence containers
-	class ECWriter : public RefCount<ECWriter>
-	{
-		MXFFilePtr LinkedFile;				//!< File that will be written to
-		Uint32 TheBodySID;					//!< Body SID for this Essence Container
-
-	public:
-		//! Constructor
-		ECWriter(MXFFilePtr File, Uint32 BodySID = 0);
-
-		//! Add an essence container (mapping) UL to those used by this essence container
-		void AddEssenceUL(ULPtr EssenceUL) {};
-
-		//! Write essence data
-		void Write(Uint64 Size, const Uint8 *Data) {};
-	};
-}
-*/
 
 
 namespace mxflib
@@ -260,6 +240,9 @@ namespace mxflib
 
 		//! Set the KAG for this Essence Container
 		void SetKAG(Uint32 KAG, bool ForceBER4 = false) { KAGSize = KAG; ForceFillerBER4 = ForceBER4; };
+
+		//! Get the current KAGSize
+		Uint32 GetKAG(void) { return KAGSize; }
 
 		//! Define a new non-CP system element for this container
 		GCStreamID AddSystemElement(unsigned int RegistryDesignator, unsigned int SchemeID, unsigned int ElementID, unsigned int SubID = 0)	{ return AddSystemElement(false, RegistryDesignator, SchemeID, ElementID, SubID); }
@@ -615,11 +598,7 @@ namespace mxflib
 		 *	\return A list of EssenceStreamDescriptors where each essence stream identified in the input file has
 		 *			an identifier (to allow it to be referenced later) and an MXF File Descriptor
 		 */
-		virtual EssenceStreamDescriptorList IdentifyEssence(FileHandle InFile)
-		{
-			EssenceStreamDescriptorList Ret;
-			return Ret;
-		}
+		virtual EssenceStreamDescriptorList IdentifyEssence(FileHandle InFile) = 0;
 
 		//! Examine the open file and return the wrapping options known by this parser
 		/*! \param InFile The open file to examine (if the descriptor does not contain enough info)
@@ -627,11 +606,7 @@ namespace mxflib
 		 *		   of the essence stream requiring wrapping
 		 *	\note The options should be returned in an order of preference as the caller is likely to use the first that it can support
 		 */
-		virtual WrappingOptionList IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor Descriptor)
-		{
-			WrappingOptionList Ret;
-			return Ret;
-		}
+		virtual WrappingOptionList IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor Descriptor) = 0;
 
 		//! Set a wrapping option for future Read and Write calls
 		virtual void Use(Uint32 Stream, WrappingOptionPtr &UseWrapping)
@@ -659,7 +634,7 @@ namespace mxflib
 		virtual Rational GetEditRate(void) = 0;
 
 		//! Get the preferred edit rate (if one is known)
-		/*! \return The prefered edit rate or 0/0 if note known
+		/*! \return The prefered edit rate or 0/0 if not known
 		 */
 		virtual Rational GetPreferredEditRate(void)
 		{
