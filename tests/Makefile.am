@@ -1,7 +1,8 @@
-TESTSUITE_AT = testsuite.at types.at
+TESTSUITE_AT = testsuite.at types.at mxfdump.at mxfwrap.at
 TESTSUITE = $(srcdir)/testsuite
 
-EXTRA_DIST = $(TESTSUITE_AT) testsuite package.m4
+EXTRA_DIST = $(TESTSUITE_AT) testsuite package.m4 \
+	small.wav small_wav.mxf
 
 DISTCLEANFILES = atconfig
 MAINTAINERCLEANFILES = Makefile.in $(TESTSUITE)
