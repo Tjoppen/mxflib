@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.10 2004/03/19 03:07:38 terabrit Exp $
+ *	\version $Id: index.cpp,v 1.11 2004/03/28 19:24:03 matt-beard Exp $
  *
  */
 /*
@@ -457,7 +457,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 				Uint32 EntryCount = GetU32(&Entries.Data[20]);
 				Uint32 EntrySize = GetU32(&Entries.Data[24]);
 
-				if(EntrySize != IndexEntrySize)
+				if((Int32)EntrySize != IndexEntrySize)
 				{
 					error("IndexEntryArray items should be %d bytes, but are %d\n", IndexEntrySize, EntrySize);
 				}
@@ -934,8 +934,6 @@ bool ReorderIndex::SetTemporalOffset(Position Pos, Int8 TemporalOffset)
  */
 Int32 ReorderIndex::CommitEntries(IndexTablePtr Index, Int32 Count /*=-1*/)
 {
-	Int32 Ret = 0;
-
 	IndexSegmentPtr Segment = Index->GetSegment(FirstPosition);
 
 	// Note that we only commit complete entries
@@ -1491,12 +1489,11 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 	{
 		IndexData *ThisEntry = (*it).second;
 		int Slice = 0;
-		int Pos = 0;
 
 		Position StreamPos = ThisEntry->StreamOffset[0];
 
 		// Don't build an entry if it is not (yet) complete
-if((ThisEntry->Status & StatusTest) != StatusTest) printf("Aborting %d status %0x\n", (int)(*it).first, ThisEntry->Status);
+//if((ThisEntry->Status & StatusTest) != StatusTest) printf("Aborting %d status %0x\n", (int)(*it).first, ThisEntry->Status);
 		if((ThisEntry->Status & StatusTest) != StatusTest) break;
 
 		// Build the slice table
@@ -1507,8 +1504,8 @@ if((ThisEntry->Status & StatusTest) != StatusTest) printf("Aborting %d status %0
 			{
 				if( ElementSizeList[i] == 0) // VBR - next Stream will be start of next Slice
 				{
-					Position NextPos=ThisEntry->StreamOffset[i+1];
-					SliceOffsets[Slice]=(Uint32)(ThisEntry->StreamOffset[i+1] - StreamPos);
+					Position NextPos = ThisEntry->StreamOffset[i+1];
+					SliceOffsets[Slice]=(Uint32)(NextPos - StreamPos);
 					Slice++;
 				}
 			}

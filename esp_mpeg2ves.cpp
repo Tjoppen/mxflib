@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.6 2004/01/06 14:27:28 terabrit Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.7 2004/03/28 19:24:03 matt-beard Exp $
  *
  */
 /*
@@ -236,7 +236,7 @@ Int64 MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
 	double Pos = iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator;
 	Pos /= (SelectedEditRate.Denominator * NativeEditRate.Numerator);
 	
-	return floor(Pos + 0.5);
+	return (Int64)floor(Pos + 0.5);
 }
 
 

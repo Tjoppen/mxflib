@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.16 2003/12/18 17:51:56 matt-beard Exp $
+ *	\version $Id: system.h,v 1.17 2004/03/28 19:24:03 matt-beard Exp $
  *
  */
 /*
@@ -341,7 +341,9 @@ namespace mxflib
 //! Allow command-line switches to be prefixed only with '-'
 #define IsCommandLineSwitchPrefix(x) ( x == '-' )
 
+#ifndef UINT64_C
 #define UINT64_C(c)	c##ULL		// for defining 64bit constants
+#endif // UINT64_C
 
 #include <assert.h>
 #define ASSERT assert		// use -DNDEBUG
