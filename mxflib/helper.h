@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.2.2.2 2004/05/26 18:11:25 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.2.2.3 2004/06/14 17:52:20 matt-beard Exp $
  *
  */
 /*
@@ -33,6 +33,12 @@
 
 #include <time.h>
 #include <string>
+
+// Helper macros
+#ifndef STRINGIZE
+#define STRINGIZE( x ) #x
+#endif // STRINGIZE
+
 
 namespace mxflib
 {
@@ -138,8 +144,32 @@ namespace mxflib
 	//! Set a data chunk from a hex string
 	DataChunkPtr Hex2DataChunk(std::string Hex);
 
-	// File path utility functions
-	char *lookupDataFilePath(const char *filename);
+	//! Set the search path to be used for dictionary files
+	void SetDictionaryPath(std::string NewPath);
+
+	//! Set the search path to be used for dictionary files
+	inline void SetDictionaryPath(const char *NewPath) { SetDictionaryPath(std::string(NewPath)); }
+
+	//! Search for a file of a specified name in the current dictionary search path
+	/*! If the filname is either absolute, or relative to "." or ".." then the 
+	 *  paths are not searched - just the location specified by that filename.
+	 *  \return the full path and name of the file, or "" if not found
+	 */
+	std::string LookupDictionaryPath(const char *Filename);
+	
+	//! Search for a file of a specified name in the current dictionary search path
+	inline std::string LookupDictionaryPath(std::string Filename) { return LookupDictionaryPath(Filename.c_str()); }
+
+	//! Search a path list for a specified file
+	/*! If the filname is either absolute, or relative to "." or ".." then the 
+	 *  paths are not searched - just the location specified by that filename.
+	 *  \return the full path and name of the file, or "" if not found
+	 */
+	std::string SearchPath(const char *Path, const char *Filename);
+
+	//! Search a path list for a specified file
+	inline std::string SearchPath(std::string Path, std::string Filename) { return SearchPath(Path.c_str(), Filename.c_str()); }
+
 
 	// File read primitives
 

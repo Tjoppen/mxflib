@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.4 2004/05/26 18:11:21 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.5 2004/06/14 17:52:20 matt-beard Exp $
  *
  */
 /*
@@ -98,7 +98,7 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
  *  \return The length, or -1 if the data was not a valid BER length
  *  \note MaxSize is signed to allow calling code to end up with -ve available bytes!
  */
-Length ReadBER(Uint8 **Data, int MaxSize)
+Length mxflib::ReadBER(Uint8 **Data, int MaxSize)
 {
 	if(MaxSize <= 0) return -1;
 
@@ -271,41 +271,124 @@ DataChunkPtr mxflib::Hex2DataChunk(std::string Hex)
 }
 
 
-// Find the specified XML file by searching the MXFLIB_DATA_DIR directory
-// then the configured MXFDATADIR path.
-// If no matching file is found, return NULL.
-// TODO: add an mxflib namespace global for command-line/runtime use.
-char *mxflib::lookupDataFilePath(const char *filename)
+namespace mxflib
 {
-	char *buf = new char[FILENAME_MAX];
+	//! The search path - note that "~" is used as a token for "not yet initialized"
+	std::string DictionaryPath = "~";
+}
 
-	// TODO: trap buffer overflows
+//! Set the search path to be used for dictionary files
+void mxflib::SetDictionaryPath(std::string NewPath)
+{
+	DictionaryPath = NewPath;
+}
 
-	// Try under MXFLIB_DATA_DIR env variable (if set)
-	if (getenv("MXFLIB_DATA_DIR"))
+
+#ifndef DICT_DIR_ENV 
+#define DICT_DIR_ENV MXF_DATA_DIR
+#endif
+
+
+//! Search for a file of a specified name in the current dictionary search path
+/*! If the filname is either absolute, or relative to "." or ".." then the 
+ *  paths are not searched - just the location specified by that filename.
+ *  \return the full path and name of the file, or "" if not found
+ */
+std::string mxflib::LookupDictionaryPath(const char *Filename)
+{
+	if(DictionaryPath == "~")
 	{
-		sprintf(buf, "%s%c%s", getenv("MXFLIB_DATA_DIR"), DIR_SEPARATOR, filename);
-
-		if (FileExists(buf))
-			return buf;
+		char *env = getenv( STRINGIZE(MXF_DATA_DIR) );
+		
+		if(env) DictionaryPath = std::string(env);
+		else DictionaryPath = std::string( STRINGIZE(DEFAULT_DICT_PATH) );
 	}
 
-	// Try under the legacy MXFLIB_DICT_PATH env variable (if set)
-	if (getenv("MXFLIB_DICT_PATH"))
-	{
-		sprintf(buf, "%s%c%s", getenv("MXFLIB_DICT_PATH"), DIR_SEPARATOR, filename);
+	return SearchPath(DictionaryPath, Filename);
+}
 
-		if (FileExists(buf))
-			return buf;
+
+//! Search a path list for a specified file
+/*! If the filname is either absolute, or relative to "." or ".." then the 
+ *  paths are not searched - just the location specified by that filename.
+ *  \return the full path and name of the file, or "" if not found
+ */
+std::string mxflib::SearchPath(const char *Path, const char *Filename)
+{
+	// First check to see if the filename is either relative to . (or ..)
+	// or absolute in which case we don't search via the path
+	
+	bool NonPath = false;
+
+	if(*Filename == '.')
+	{
+		if(Filename[1] == DIR_SEPARATOR) NonPath = true;
+		else if((Filename[1] == '.') && (Filename[2] == DIR_SEPARATOR)) NonPath = true;
+	}
+	else if(IsAbsolutePath(Filename)) NonPath = true;
+
+	// Check the file without path if we should
+	if(NonPath)
+	{
+		if(FileExists(Filename)) return std::string(Filename);
+		return "";
 	}
 
-	// Try under MXFDATADIR compile-time macro
-	sprintf(buf, "%s%c%s", MXFDATADIR, DIR_SEPARATOR, filename);
+	// Buffer bug enough for the full path, directory seperator, filename and a terminating zero
+	char *Buffer = new char[strlen(Path) + strlen(Filename) + 2];
 
-	if (FileExists(buf))
-		return buf;
+	// Start searching all paths
+	const char *p = Path;
+	while(p && *p)
+	{
+		char *sep = strchr(p, PATH_SEPARATOR);
 
-	return NULL;
+		// No more path separators - this is the last path to check
+		if(!sep)
+		{
+			// Copy the whole of the remaining path
+			strcpy(Buffer, p );
+			
+			// Force the loop to stop at the end of this iteration
+			p = NULL;
+		}
+		else
+		{
+			// Copy the section until the next separator
+			strncpy(Buffer, p, sep - p);
+
+			// Advance the pointer to the character following the separator
+			p = sep;
+			p++;
+		}
+
+		// Establish the length of this path
+		int len = strlen(Buffer);
+
+		// Don't search a null path
+		if(len == 0) continue;
+
+		// Add a directory separator if required
+		if(Buffer[len-1] != DIR_SEPARATOR)
+		{
+			Buffer[len++] = DIR_SEPARATOR;
+			Buffer[len] = '\0';
+		}
+
+		// Add the filename
+		strcat(Buffer, Filename);
+
+		if(FileExists(Buffer))
+		{
+			std::string Ret = std::string(Buffer);
+			delete[] Buffer;
+			return Ret;
+		}
+	}
+
+	// File not found in any of the paths supplied
+	delete[] Buffer;
+	return "";
 }
 
 
