@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: index.cpp,v 1.2 2004/05/18 01:59:57 terabrit Exp $
  *
  */
 /*
@@ -557,8 +557,9 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
 	int NewSize = (EntryCount * Parent->IndexEntrySize) + (Count * Size);
 	if(NewSize > 0xffff) return false;
 
-	// diagnostics
-/*	printf("\nAddIndexEntries() %d, %d:\n", Size, Count);
+// diagnostics
+#ifdef MXFLIB_DEBUG
+	printf("\nAddIndexEntries() %d, %d:\n", Size, Count);
 	Uint8 *p = (Uint8*)Entries;
 	int i, j, k;
 	for(i=0; i<Count && i<35; i++)
@@ -576,7 +577,8 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
 		p+=Size;
 		printf("\n");
 	}
-*/
+#endif // MXFLIB_DEBUG
+
 	IndexEntryArray.Set(Size * Count, Entries, IndexEntryArray.Size);
 
 	// Increment the count
