@@ -653,3 +653,4 @@ inline MDObjectPtr MDObjectPtr::operator[](MDOTypePtr ChildType) { return GetPtr
 
 #endif MXFLIB__MDOBJECT_H
 
+

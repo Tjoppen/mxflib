@@ -347,5 +347,3 @@ inline MDObjectPtr MetadataPtr::operator[](MDOTypePtr ChildType) { return GetPtr
 }
 
 #endif // MXFLIB__METADATA_H
-
-

@@ -1110,5 +1110,3 @@ Uint32 MXFFile::MemoryRead(Uint8 *Data, Uint32 Size)
 	// Return the number of bytes read
 	return Size;
 }
-
-

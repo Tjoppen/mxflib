@@ -475,4 +475,3 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 
 	return Ret;
 }
-

@@ -322,4 +322,3 @@ void mxflib::error(const char *Fmt, ...)
 	vprintf(Fmt, args);
 	va_end(args);
 }
-

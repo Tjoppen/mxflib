@@ -343,3 +343,4 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 
 #endif MXFLIB__MXFFILE_H
 
+

@@ -85,4 +85,3 @@ namespace mxflib
 }
 
 #endif MXFLIB__PRIMER_H
-

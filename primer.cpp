@@ -225,3 +225,4 @@ Uint32 Primer::WritePrimer(DataChunk &Buffer)
 
 	return Bytes;
 }
+
