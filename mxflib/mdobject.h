@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.1.2.5 2004/11/09 15:15:41 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.1.2.6 2004/11/11 09:12:25 matt-beard Exp $
  *
  */
 /*
@@ -788,6 +788,12 @@ namespace mxflib
 		MDObjectPtr GetLink(void) const { return Object->GetLink(); };
 		void SetLink(MDObjectPtr NewLink) { Object->SetLink(NewLink); };
 		DictRefType GetRefType(void) const { return Object->GetRefType(); };
+
+		//! Determine if this object is derived from a specified type (directly or indirectly)
+		bool IsA(std::string BaseType) { return Object->IsA(BaseType); }
+
+		//! Determine if this object is derived from a specified type (directly or indirectly)
+		bool IsA(MDOTypePtr BaseType) { return Object->IsA(BaseType); }
 
 		//! Set the parent details when an object has been read from a file
 		void SetParent(MXFFilePtr File, Uint64 Location, Uint32 NewKLSize) { Object->SetParent(File, Location, NewKLSize); };
