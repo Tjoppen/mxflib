@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: helper.cpp,v 1.2 2004/04/26 18:29:10 asuraparaju Exp $
  *
  */
 /*
@@ -181,7 +181,7 @@ DataChunkPtr mxflib::FileReadChunk(FileHandle InFile, Uint64 Size)
 
 
 //! Set a data chunk from a hex string
-DataChunkPtr Hex2DataChunk(std::string Hex)
+DataChunkPtr mxflib::Hex2DataChunk(std::string Hex)
 {
 	// Build the result chunk
 	DataChunkPtr Ret = new DataChunk();
@@ -230,4 +230,42 @@ DataChunkPtr Hex2DataChunk(std::string Hex)
 	} while(*(p++));
 
 	return Ret;
+}
+
+
+// Find the specified XML file by searching the MXFLIB_DATA_DIR directory
+// then the configured DATADIR path.
+// If no matching file is found, return NULL.
+// TODO: add an mxflib namespace global for command-line/runtime use.
+char *mxflib::lookupDataFilePath(const char *filename)
+{
+	char *buf = new char[FILENAME_MAX];
+
+	// TODO: trap buffer overflows
+
+	// Try under MXFLIB_DATA_DIR env variable (if set)
+	if (getenv("MXFLIB_DATA_DIR"))
+	{
+		sprintf(buf, "%s%c%s", getenv("MXFLIB_DATA_DIR"), DIR_SEPARATOR, filename);
+
+		if (FileExists(buf))
+			return buf;
+	}
+
+	// Try under the legacy MXFLIB_DICT_PATH env variable (if set)
+	if (getenv("MXFLIB_DICT_PATH"))
+	{
+		sprintf(buf, "%s%c%s", getenv("MXFLIB_DICT_PATH"), DIR_SEPARATOR, filename);
+
+		if (FileExists(buf))
+			return buf;
+	}
+
+	// Try under DATADIR compile-time macro
+	sprintf(buf, "%s%c%s", DATADIR, DIR_SEPARATOR, filename);
+
+	if (FileExists(buf))
+		return buf;
+
+	return NULL;
 }

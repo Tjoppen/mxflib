@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: helper.h,v 1.2 2004/04/26 18:29:10 asuraparaju Exp $
  *
  */
 /*
@@ -136,6 +136,8 @@ namespace mxflib
 	//! Set a data chunk from a hex string
 	DataChunkPtr Hex2DataChunk(std::string Hex);
 
+	// File path utility functions
+	char *lookupDataFilePath(const char *filename);
 
 	// File read primitives
 
