@@ -71,6 +71,9 @@ int main_process(int argc, char *argv[])
 {
 	printf("Dump an MXF file using MXFLib\n");
 
+	LoadTypes("types.xml");
+	MDOType::LoadDict("xmldict.xml");
+
 	int num_options = 0;
 	for(int i=1; i<argc; i++)
 	{
@@ -83,21 +86,30 @@ int main_process(int argc, char *argv[])
 				FullIndex = true;
 			else if((argv[i][1] == 'b') || (argv[i][1] == 'B'))
 				FullBody = true;
+			else if((argv[i][1] == 'd') || (argv[i][1] == 'D'))
+			{
+				int Start = 2;
+				if((argv[i][2] == '=') || (argv[i][2] == ':')) Start = 3;
+				if(argv[i][Start]) MDOType::LoadDict(&argv[i][Start]);
+				else if(argc > (i+1))
+				{
+					MDOType::LoadDict(argv[++i]);
+					num_options++;
+				}
+			}
 			else if((argv[i][1] == 'z') || (argv[i][1] == 'Z'))
 				PauseBeforeExit = true;
 		}
 	}
 
-	LoadTypes("types.xml");
-	MDOType::LoadDict("xmldict.xml");
-
 	if (argc - num_options < 2)
 	{
 		printf("\nUsage:   test [-b] [-i] [-v] <filename>\n\n");
-		printf("Options: -b Dump body partitions (rather than just header and footer)\n");
-		printf("         -i Dump full index tables (can be lengthy)\n");
-		printf("         -v Verbose mode - shows lots of debug info\n");
-		printf("         -z Pause for input before final exit\n");
+		printf("Options: -b         Dump body partitions (rather than just header and footer)\n");
+		printf("         -d <dict>  Load supplementary dictionary\n");
+		printf("         -i         Dump full index tables (can be lengthy)\n");
+		printf("         -v         Verbose mode - shows lots of debug info\n");
+		printf("         -z         Pause for input before final exit\n");
 		return 1;
 	}
 
