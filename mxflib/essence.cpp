@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.1.2.8 2004/07/15 16:31:23 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.1.2.9 2004/07/20 11:42:12 matt-beard Exp $
  *
  */
 /*
@@ -1382,8 +1382,12 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 					// All OK, including requested edit rate
 
 					// Update the SampleRate in the Descriptor to the rate in use (which may be different than its native rate)
-					SampleRate->SetInt("Numerator", Ret->EditRate.Numerator);
-					SampleRate->SetInt("Denominator", Ret->EditRate.Denominator);
+					if(!SampleRate) SampleRate = Ret->EssenceDescriptor->AddChild("SampleRate");
+					if(SampleRate)
+					{
+						SampleRate->SetInt("Numerator", Ret->EditRate.Numerator);
+						SampleRate->SetInt("Denominator", Ret->EditRate.Denominator);
+					}
 
 					Ret->WrapOpt->BytesPerEditUnit = Ret->WrapOpt->Handler->GetBytesPerEditUnit();
 
