@@ -38,10 +38,10 @@ using namespace mxflib;
 DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 {
 	// Mask showing forbidden bits for various sizes
-	static const Uint64 Masks[9] = { 0xffffffffffffffff, 0xffffffffffffff00, 
-									 0xffffffffffff0000, 0xffffffffff000000,
-									 0xffffffff00000000, 0xffffff0000000000,
-									 0xffff000000000000, 0xff00000000000000, 0 };
+	static const Uint64 Masks[9] = { UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffff00), 
+									 UINT64_C(0xffffffffffff0000), UINT64_C(0xffffffffff000000),
+									 UINT64_C(0xffffffff00000000), UINT64_C(0xffffff0000000000),
+									 UINT64_C(0xffff000000000000), UINT64_C(0xff00000000000000), 0 };
 	if(Size > 9)
 	{
 		error("Maximum BER size is 9 bytes, however %d bytes specified in call to WriteBER()\n", Size);
@@ -65,7 +65,7 @@ DataChunkPtr mxflib::MakeBER(Uint64 Length, Uint32 Size /*=0*/)
 	if(Size == 0)
 	{
 		if(Length < 0x01000000) Size = 4;
-		else if(Length < 0x0100000000000000) Size = 8;
+		else if(Length < UINT64_C(0x0100000000000000)) Size = 8;
 		else Size = 9;
 	}
 
