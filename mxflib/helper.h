@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.2.2.1 2004/05/18 18:31:40 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.2.2.2 2004/05/26 18:11:25 matt-beard Exp $
  *
  */
 /*
@@ -93,8 +93,10 @@ namespace mxflib
 	}
 
 	//! Build a BER length
-//	class DataChunkPtr;
 	DataChunkPtr MakeBER(Uint64 Length, Uint32 Size = 0);
+
+	//! Read a BER length
+	Length ReadBER(Uint8 **Data, int MaxSize);
 
 	//! Encode a Uint64 as a BER OID subid (7 bits per byte)
 	//! length > 0: length is maximum length of subid
