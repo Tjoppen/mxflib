@@ -39,7 +39,7 @@
  *    - The base class must be derived from RefCount<the-base-class>
  *	  - No derived class can also be derived from a form of RefCount<>
  *	  - The base class must define a virtual destructor
- *    - Member functions and properties not present in the base class must be accessed via the CastSmartPtr() macro as follows:
+ *    - Member functions and properties not present in the base class must be accessed via the SmartPtr_Cast() macro as follows:
  *	\code
  *  class MyBase : public RefCount<MyBase> 
  *  {
@@ -58,7 +58,7 @@
  *  MyBasePtr Special = new MyDerived();
  *
  *  int i = Special->Func();               // Can be accessed normally as it exists on the base class
- *  int j = CastSmartPtr(Special, MyDerived)->AdvancedFunc();
+ *  int j = SmartPtr_Cast(Special, MyDerived)->AdvancedFunc();
  *                                         // Requires casting as it doesn't exist on the base class
  *  \endcode
  *
