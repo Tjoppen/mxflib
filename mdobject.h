@@ -236,8 +236,8 @@ namespace mxflib
 
 		std::string ObjectName;			//!< The name of this object (normally the name of the type)
 
-	public:
-//		StringList ChildrenNames;		//!< Names for each child
+		bool Modified;					//!< True if this object has been modified since being "read"
+										/*!< This is used to automatically update the GenerationUID when writing the object */
 
 	public:
 		MDValuePtr Value;
@@ -252,6 +252,10 @@ namespace mxflib
 
 		MDObjectPtr AddChild(std::string ChildName);
 		MDObjectPtr AddChild(MDObjectPtr ChildObject, bool Replace = false);
+	
+	protected:
+		MDObjectPtr AddChildInternal(MDObjectPtr ChildObject, bool Replace = false);
+	public:
 
 		void RemoveChild(std::string ChildName);
 		void RemoveChild(MDOTypePtr ChildType);
@@ -265,11 +269,11 @@ namespace mxflib
 		MDObjectPtr Child(MDOTypePtr ChildType) { return operator[](ChildType); };
 		MDObjectListPtr ChildList(MDOTypePtr ChildType);
 
-		void SetInt(Int32 Val) { if (Value) Value->SetInt(Val); };
-		void SetInt64(Int64 Val) { if (Value) Value->SetInt64(Val); };
-		void SetUint(Uint32 Val) { if (Value) Value->SetUint(Val); };
-		void SetUint64(Uint64 Val) { if (Value) Value->SetUint64(Val); };
-		void SetString(std::string Val)	{ if (Value) Value->SetString(Val); };
+		void SetInt(Int32 Val) { SetModified(true); if (Value) Value->SetInt(Val); };
+		void SetInt64(Int64 Val) { SetModified(true); if (Value) Value->SetInt64(Val); };
+		void SetUint(Uint32 Val) { SetModified(true); if (Value) Value->SetUint(Val); };
+		void SetUint64(Uint64 Val) { SetModified(true); if (Value) Value->SetUint64(Val); };
+		void SetString(std::string Val)	{ SetModified(true); if (Value) Value->SetString(Val); };
 		Int32 GetInt(Int32 Default = 0) { if (Value) return Value->GetInt(); else return Default; };
 		Int64 GetInt64(Int64 Default = 0) { if (Value) return Value->GetInt64(); else return Default; };
 		Uint32 GetUint(Uint32 Default = 0) { if (Value) return Value->GetUint(); else return Default; };
@@ -277,21 +281,21 @@ namespace mxflib
 		std::string GetString(std::string Default = "")	{ if(Value) return Value->GetString(); else return Default; };
 
 		/* Child value access */
-		void SetInt(const char *ChildName, Int32 Val) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt(Val); };
-		void SetInt64(const char *ChildName, Int64 Val) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt64(Val); };
-		void SetUint(const char *ChildName, Uint32 Val) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint(Val); };
-		void SetUint64(const char *ChildName, Uint64 Val) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint64(Val); };
-		void SetString(const char *ChildName, std::string Val) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetString(Val); };
+		void SetInt(const char *ChildName, Int32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt(Val); };
+		void SetInt64(const char *ChildName, Int64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt64(Val); };
+		void SetUint(const char *ChildName, Uint32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint(Val); };
+		void SetUint64(const char *ChildName, Uint64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint64(Val); };
+		void SetString(const char *ChildName, std::string Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetString(Val); };
 		Int32 GetInt(const char *ChildName, Int32 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt(); else return Default; };
 		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt64(); else return Default; };
 		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint(); else return Default; };
 		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint64(); else return Default; };
 		std::string GetString(const char *ChildName, std::string Default = "") { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetString(); else return Default; };
-		void SetInt(MDOTypePtr ChildType, Int32 Val) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt(Val); };
-		void SetInt64(MDOTypePtr ChildType, Int64 Val) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt64(Val); };
-		void SetUint(MDOTypePtr ChildType, Uint32 Val) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetUint(Val); };
-		void SetUint64(MDOTypePtr ChildType, Uint64 Val) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetUint64(Val); };
-		void SetString(MDOTypePtr ChildType, std::string Val) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetString(Val); };
+		void SetInt(MDOTypePtr ChildType, Int32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt(Val); };
+		void SetInt64(MDOTypePtr ChildType, Int64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt64(Val); };
+		void SetUint(MDOTypePtr ChildType, Uint32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetUint(Val); };
+		void SetUint64(MDOTypePtr ChildType, Uint64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetUint64(Val); };
+		void SetString(MDOTypePtr ChildType, std::string Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetString(Val); };
 		Int32 GetInt(MDOTypePtr ChildType, Int32 Default = 0) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->GetInt(); else return Default; };
 		Int64 GetInt64(MDOTypePtr ChildType, Int64 Default = 0) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->GetInt64(); else return Default; };
 		Uint32 GetUint(MDOTypePtr ChildType, Uint32 Default = 0) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->GetUint(); else return Default; };
@@ -318,7 +322,7 @@ namespace mxflib
 		{
 			push_back(MDObjectNamedList::value_type(NewObject->Name(), NewObject));
 		}
-		
+
 		//! Type access function
 		MDOTypePtr GetType(void) const { return Type; };
 
@@ -349,11 +353,31 @@ namespace mxflib
 			ParentFile = NULL;
 		}
 
+		//! Access function for ParentFile
+		MXFFilePtr GetParentFile(void) { return ParentFile; };
+
 		//! Set the object's UL
 		void SetUL(ULPtr NewUL) { TheUL = NewUL; }
 
 		//! Set the object's tag
 		void SetTag(Tag NewTag) { TheTag = NewTag; }
+
+	protected:
+		//! Sets the modification state of this object
+		/*! \note This function should be used rather than setting "Modified" as a 
+		 *        future revision may "bubble" this up from sub-items to sets and packs
+		 */
+		void SetModified(bool State) { Modified = State; }
+
+		//! Set the GenerationUID of an object iff it has been modified
+		/*! \return true if the GenerationUID has been set, otherwise false
+		 *  \note If the object does not have a GenerationUID property false is returned!
+		 */
+		bool SetGenerationUID(UUIDPtr UID);
+
+	public:
+		//! Has this object been modified?
+		bool IsModified(void) { return Modified; }
 
 		//! Get the location within the ultimate parent
 		Uint64 GetLocation(void);
@@ -367,7 +391,7 @@ namespace mxflib
 			return std::string("0x") + Int64toHexString(GetLocation(),8) + std::string(" in ") + GetSource();
 		}
 
-	private:
+	protected:
 		// Some private helper functions
 		Uint32 ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key);
 		Uint32 ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buffer, Uint32& Length);

@@ -566,7 +566,7 @@ MDObject::MDObject(ULPtr UL)
 
 		ASSERT(Type);
 
-		// Shall we tray and parse this?
+		// Shall we try and parse this?
 		// DRAGONS: Somewhat clunky version for 2-byte tag, 2-byte len
 #define ParseDark true
 		if(ParseDark)
@@ -653,6 +653,8 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 */
 void MDObject::Init(void)
 {
+	SetModified(true); 
+
 	switch(Type->GetContainerType())
 	{
 	case NONE:
@@ -701,18 +703,6 @@ void MDObject::Init(void)
 			Value = NULL;
 		}
 	}
-
-	// If it's a fixed size array build all items
-//	else if(Type->GetContainerType() == ARRAY)
-//	{
-// DRAGONS: Arg! Problems!!!
-//		if(Type->Size > 0)
-//		{
-//			// Add a blank last item - forces all to be created
-//			AddChild(new MDObject(Type), Type->Size - 1);
-//		}
-//	}
-
 };
 
 
@@ -728,6 +718,8 @@ void MDObject::Init(void)
  */
 MDObjectPtr MDObject::AddChild(std::string ChildName)
 {
+	SetModified(true); 
+
 	// Try and find an existing child
 	MDObjectPtr Ret = Child(ChildName);
 
@@ -753,9 +745,23 @@ MDObjectPtr MDObject::AddChild(std::string ChildName)
 //! Add a given MDObject to an MDObject continer
 /*! \return pointer to the object added (for compatibility with other ADDChild funcs)
  *  \return NULL if there was an error
- *  \note If there is already a child of this type it is removed
+ *  \note If there is already a child of this type it is replaces if Replace = true
  */
 MDObjectPtr MDObject::AddChild(MDObjectPtr ChildObject, bool Replace /* = false */)
+{
+	SetModified(true); 
+
+	return AddChildInternal(ChildObject, Replace);
+}
+
+
+//! Same as AddChild(), but does not set "Modified"
+/*! \return pointer to the object added (for compatibility with other ADDChild funcs)
+ *  \return NULL if there was an error
+ *	This function is used when reading an objects children
+ *  \note If there is already a child of this type it is replaces if Replace = true
+ */
+MDObjectPtr MDObject::AddChildInternal(MDObjectPtr ChildObject, bool Replace /* = false */)
 {
 	// If replacing, remove any existing children of this type
 	if (Replace) RemoveChild(ChildObject->Type);
@@ -770,6 +776,8 @@ MDObjectPtr MDObject::AddChild(MDObjectPtr ChildObject, bool Replace /* = false 
 //! Remove any children with a specified name from an MDObject continer
 void MDObject::RemoveChild(std::string ChildName)
 {
+	SetModified(true); 
+
 	MDObjectNamedList::iterator it = begin();
 	while(it != end())
 	{
@@ -793,6 +801,8 @@ void MDObject::RemoveChild(MDOTypePtr ChildType)
 {
 	// Note that we cannot rely on removing by name as names are changeable
 	
+	SetModified(true); 
+
 	MDObjectNamedList::iterator it = begin();
 	while(it != end())
 	{
@@ -816,6 +826,8 @@ void MDObject::RemoveChild(MDOTypePtr ChildType)
  */
 void MDObject::RemoveChild(MDObjectPtr ChildObject)
 {
+	SetModified(true); 
+
 	MDObjectNamedList::iterator it = begin();
 	while(it != end())
 	{
@@ -941,6 +953,8 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 	Uint32 Bytes = 0;
 	Uint32 Count = 0;
 	Uint32 ItemSize = 0;
+
+	SetModified(false); 
 
 	switch(Type->GetContainerType())
 	{
@@ -1190,22 +1204,6 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 					debug("  at 0x%s Set item (%s) %s = %s\n", Int64toHexString(NewItem->GetLocation(), 8).c_str(), Key.GetString().c_str(), NewItem->Name().c_str(), NewItem->GetString().c_str());
 
-/*if(NewItem->Value)
-{
- printf(">Read %s, size = %d, object size = %d (%d)\n>", NewItem->Name().c_str(), ThisBytes, NewItem->Value->GetData().Size, NewItem->Value->size());
- DataChunk Dat = NewItem->Value->PutData();
- int i;
- for(i=0; i<Dat.Size; i++)
- {
-   printf("%02x ", Dat.Data[i]);
- }
- printf("\n>%s\n", NewItem->Value->GetString().c_str());
-}
-else
- printf("Read %s, size = %d, Subs = %d)\n", NewItem->Name().c_str(), ThisBytes, NewItem->Children.size());
-
-printf("Length = %d\n", Length);
-*/
 					if(ThisBytes != Length)
 					{
 						error("Failed to read complete %s value at 0x%s in %s - specified length=%d, read=%d\n", 
@@ -1219,7 +1217,7 @@ printf("Length = %d\n", Length);
 					Buffer += ThisBytes;
 					Bytes += ThisBytes;
 
-					AddChild(NewItem);
+					AddChildInternal(NewItem);
 				}
 			}
 
@@ -1230,6 +1228,34 @@ printf("Length = %d\n", Length);
 		ASSERT(0);
 		return 0;
 	}
+}
+
+
+//! Set the GenerationUID of an object iff it has been modified
+/*! \return true if the GenerationUID has been set, otherwise false
+ *  \note If the object does not have a GenerationUID property false is returned!
+ */
+bool MDObject::SetGenerationUID(UUIDPtr NewGen)
+{
+	if(!IsModified()) return false;
+
+	// Can't have a GenerationUID if not a set or pack
+	MDContainerType CType = Type->GetContainerType();
+	if((CType != SET) && (CType != PACK)) return false;
+
+	// Quit if this object type doesn't have a GenerationUID
+	if(Type->find("GenerationUID") == Type->end()) return false;
+
+	// Find (or add) the GenerationUID property
+	MDObjectPtr GenUID = Child("GenerationUID");
+	if(!GenUID) GenUID = AddChild("GenerationUID");
+
+	ASSERT(GenUID);
+
+	// Set the actual UID
+	GenUID->Value->ReadValue(NewGen->GetValue(), NewGen->Size());
+
+	return true;
 }
 
 
