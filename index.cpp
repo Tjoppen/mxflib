@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.9 2004/01/06 14:25:01 terabrit Exp $
+ *	\version $Id: index.cpp,v 1.10 2004/03/19 03:07:38 terabrit Exp $
  *
  */
 /*
@@ -162,6 +162,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->Location = Loc;
 		Ret->Offset = false;
 		Ret->KeyFrameOffset = 0;
+		Ret->KeyLocation = Ret->Location;
 		Ret->Flags = 0;
 
 		return Ret;
@@ -188,6 +189,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->Exact = false;
 		Ret->Offset = false;
 		Ret->KeyFrameOffset = 0;
+		Ret->KeyLocation = 0;
 		Ret->Flags = 0;
 
 		return Ret;
@@ -206,6 +208,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->Exact = false;
 		Ret->Offset = false;
 		Ret->KeyFrameOffset = 0;
+		Ret->KeyLocation = 0;
 		Ret->Flags = 0;
 
 		return Ret;
@@ -230,6 +233,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->OtherPos = true;
 		Ret->Offset = false;
 		Ret->KeyFrameOffset = 0;
+		Ret->KeyLocation = Ret->Location;
 		Ret->Flags = 0;
 
 		return Ret;
@@ -556,33 +560,23 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
 	// diagnostics
 	printf("\nAddIndexEntries() %d, %d:\n", Size, Count);
 	Uint8 *p = (Uint8*)Entries;
-	int i, j;
+	int i, j, k;
 	for(i=0; i<Count && i<35; i++)
 	{
 		printf( " %3d: %2d %3d  0x%02x  0x", i, (int)(char)p[0], (int)(char)p[1], p[2] );
 
 		for(j=3; j<11 && j<Size; j++) printf("%02x", p[j]);
 
-		for(j=11; j<Size; j++) printf(" 0x%02x%02x", p[j], p[j+1] );
+		for(j=11; j<Size; j+=4)
+		{
+			printf(" 0x");
+			for( k=0; k<4; k++) printf("%02x", p[j+k]);
+		}
 
 		p+=Size;
 		printf("\n");
 	}
 
-	// Add this entry to the end of the Index Entry Array
-/*printf("AddIndexEntries() %d, %d:\n", Size, Count);
-Uint8 *p = (Uint8*)Entries;
-int i;
-for(i=0; i<Count; i++)
-{
-	int j;
-	for(j=0; j<Size; j++)
-	{
-		printf("%02x ", *(p++));
-	}
-	printf("\n");
-}
-*/
 	IndexEntryArray.Set(Size * Count, Entries, IndexEntryArray.Size);
 
 	// Increment the count
@@ -1166,6 +1160,7 @@ void IndexManager::AddEditUnit(int SubStream, Position EditUnit, int KeyOffset /
 
 
 //! Set the offset for a particular edit unit of a stream
+//! DRAGONS: does NOT adjust for multiple substreams in a single GC
 /*! \param SubStream	The stream number, 0 = main stream
 	\param EditUnit		The position of the edit unit being set
 	\param Offset		The stream offset of this edit unit
@@ -1497,8 +1492,7 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 		IndexData *ThisEntry = (*it).second;
 		int Slice = 0;
 		int Pos = 0;
-		bool NewSlice = false;
-		if(ElementSizeList[0] == 0) NewSlice = true;
+
 		Position StreamPos = ThisEntry->StreamOffset[0];
 
 		// Don't build an entry if it is not (yet) complete
@@ -1507,28 +1501,16 @@ if((ThisEntry->Status & StatusTest) != StatusTest) printf("Aborting %d status %0
 
 		// Build the slice table
 		int i;
-		for(i=1; i<StreamCount; i++)
+		for(i=0; i<StreamCount; i++)
 		{
-			if(ElementSizeList[i] != 0)
+			if( i!=StreamCount-1 ) // if this is the last Stream, there is no next Slice
 			{
-				Uint64 NewPos = ThisEntry->StreamOffset[i];
-				if(NewSlice)
+				if( ElementSizeList[i] == 0) // VBR - next Stream will be start of next Slice
 				{
-					SliceOffsets[Slice++] = (Uint32)(NewPos - ThisEntry->StreamOffset[0]);
-					NewSlice = false;
+					Position NextPos=ThisEntry->StreamOffset[i+1];
+					SliceOffsets[Slice]=(Uint32)(ThisEntry->StreamOffset[i+1] - StreamPos);
+					Slice++;
 				}
-				StreamPos = NewPos;
-
-/*				if((Uint32)(NewPos - StreamPos) != ElementSizeList[i])
-				{
-					error("CBR element not constant size\n");
-				} */
-			}
-			else
-			{
-				Uint64 StreamPos = ThisEntry->StreamOffset[i];
-				SliceOffsets[Slice] = (Uint32)(ThisEntry->StreamOffset[i] - ThisEntry->StreamOffset[0]);
-				NewSlice = true;
 			}
 
 			// DRAGONS: Not supporting PosTable yet!
