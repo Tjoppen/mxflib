@@ -34,6 +34,12 @@
 
 #include "mxflib.h"
 
+extern "C"
+{
+#include <Endian.h>
+#include <xmldict.h>
+}
+
 using namespace mxflib;
 
 
@@ -445,7 +451,7 @@ MDOType::MDOType(DictEntry *RootDict) : Dict(RootDict), Parent(NULL)
 			if(RootDict->Parent->RefType != DICT_REF_NONE) RefType = RootDict->Parent->RefType;
 		}
 	}
-};
+}
 
 
 //! Find the MDOType object that defines a named type
@@ -484,7 +490,7 @@ MDOTypePtr MDOType::Find(ULPtr BaseUL)
 	}
 
 	return theType;
-};
+}
 
 
 //! Find the MDOType object that defines a type with a specified Tag
@@ -528,7 +534,7 @@ MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 	}
 
 	return theType;
-};
+}
 
 
 
@@ -585,7 +591,7 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 
 	// Initialise the new object
 	Init();
-};
+}
 
 
 //! MDObject typed constructor
@@ -634,7 +640,7 @@ MDObject::MDObject(ULPtr UL)
 
 	// Initialise the new object
 	Init();
-};
+}
 
 
 //! MDObject typed constructor
@@ -706,7 +712,7 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 
 	// Initialise the new object
 	Init();
-};
+}
 
 
 //! Second part of MDObject constructors
@@ -724,7 +730,7 @@ void MDObject::Init(void)
 		{
 			Value = new MDValue(Type->ValueType);
 
-			if(Type->ValueType->EffectiveClass() == ARRAY)
+			if(Type->ValueType->EffectiveClass() == TYPEARRAY)
 			{
 				// Build the minimum size array
 				Value->Resize(Type->GetDict()->minLength);
@@ -767,7 +773,7 @@ void MDObject::Init(void)
 			Value = NULL;
 		}
 	}
-};
+}
 
 
 //! Add an empty named child to an MDObject continer and return a pointer to it
@@ -803,7 +809,7 @@ MDObjectPtr MDObject::AddChild(std::string ChildName, bool Replace /*=true*/)
 
 	// Return smart pointer to the new object
 	return Ret;
-};
+}
 
 
 //! Add an empty child of a specified type to an MDObject continer and return a pointer to it
@@ -839,7 +845,7 @@ MDObjectPtr MDObject::AddChild(MDOTypePtr ChildType, bool Replace /*=true*/)
 
 	// Return smart pointer to the new object
 	return Ret;
-};
+}
 
 
 //! Add a given MDObject to an MDObject continer
@@ -1398,7 +1404,7 @@ bool MDObject::SetGenerationUID(UUIDPtr NewGen)
 //! Read a key from a memory buffer
 Uint32 MDObject::ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key)
 {
-	int KeySize;
+	Uint32 KeySize;
 
 	switch(Format)
 	{
