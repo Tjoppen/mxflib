@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.1.2.4 2004/05/28 14:45:21 matt-beard Exp $
+ *	\version $Id: klvobject.cpp,v 1.1.2.5 2004/06/14 17:54:54 matt-beard Exp $
  *
  */
 /*
@@ -141,9 +141,15 @@ Length KLVObject::WriteData(const Uint8 *Buffer, Position Start, Length Size)
 	SourceFile->Seek(SourceOffset + KLSize + Start);
 
 	// Write from the specified buffer
-	Length Bytes = (Length)SourceFile->Write(Buffer, Size);
+	return WriteData(SourceFile, Buffer, Size);
+}
 
-	return Bytes;
+
+//! Write data from the a buffer to a specified source file
+Length KLVObject::WriteData(MXFFilePtr &File, const Uint8 *Buffer, Length Size)
+{
+//[Future?]	// Delagate to WriteHandler if defined ??
+	return (Length)File->Write(Buffer, Size);
 }
 
 
@@ -169,8 +175,22 @@ Uint32 KLVObject::WriteKL(Uint32 LenSize /*=0*/)
 	// Seek to the start of the KLV space
 	SourceFile->Seek(SourceOffset);
 
+	// Write to the source file
+	return WriteKL(SourceFile, LenSize);
+}
+
+
+//! Write the key and length of the current DataChunk to the specified file
+/*! The key and length will be written to the source file as set by SetSource.
+ *  If LenSize is zero the length will be formatted to match KLSize (if possible!)
+ *  \note KLSize will be updated as appropriate after the key and length are written
+ */
+Uint32 KLVObject::WriteKL(MXFFilePtr &File, Uint32 LenSize /*=0*/)
+{
+	Position Start = File->Tell();
+
 	// Write the key
-	int Bytes = (int)SourceFile->Write(TheUL->GetValue(), TheUL->Size());
+	int Bytes = (int)File->Write(TheUL->GetValue(), TheUL->Size());
 
 	if(LenSize == 0) 
 	{
@@ -179,13 +199,12 @@ Uint32 KLVObject::WriteKL(Uint32 LenSize /*=0*/)
 	}
 
 	// Write the length
-	SourceFile->WriteBER(ValueLength, LenSize);
+	File->WriteBER(ValueLength, LenSize);
 
 	// Work out the new KLSize
-	KLSize = SourceFile->Tell() - SourceOffset;
+	KLSize = File->Tell() - Start;
 
 	// Return the number of bytes we wrote
 	return KLSize;
 }
-
 

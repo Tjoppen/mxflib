@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.1.2.4 2004/05/28 14:38:59 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.1.2.5 2004/06/14 17:54:54 matt-beard Exp $
  *
  */
 /*
@@ -211,28 +211,52 @@ namespace mxflib
 		 */
 		virtual Uint32 WriteKL(Uint32 LenSize = 0);
 
-		//! Write data from the current DataChunk to the source file
-		/*! \note The data in the chunk will be written to the specified position 
-		 *  <B>regardless of the position from where it was origanally read</b>
+		//! Write the key and length of the current DataChunk to the specified file
+		/*! The key and length will be written to the source file as set by SetSource.
+		 *  If LenSize is zero the length will be formatted to match KLSize (if possible!)
+		 *  \note KLSize will be updated as appropriate after the key and length are written
+		 */
+		Uint32 KLVObject::WriteKL(MXFFilePtr &File, Uint32 LenSize = 0);
+
+		//! Write data from the a specified buffer to the source file
+		/*! \param Buffer The data to write the the source file
+		 *  \param Start The offset from the start of the Value field in the source file. Matches Start parameter in ReadData().
+		 *  \param Size The number of bytes to write - if omitted (or 0) all available bytes will be written.
 		 */
 		virtual Length WriteData(const Uint8 *Buffer, Position Start, Length Size);
 
-		//! Write data from the current DataChunk to the source file
-		/*! \note The data in the chunk will be written to the specified position 
-		 *  <B>regardless of the position from where it was origanally read</b>
+		//! Write data from the current DataChunk to a specified source file
+		/*! The data will be written at the file's current position
+		 */
+		Length WriteData(MXFFilePtr &File, Length Size = 0)
+		{
+			return WriteData(File, Data.Data, ((Size == 0) || (Size > Data.Size)) ? Data.Size : Size); 
+		}
+
+		//! Write data from the a buffer to a specified source file
+		/*! The data will be written at the file's current position
+		 */
+		virtual Length WriteData(MXFFilePtr &File, const Uint8 *Buffer, Length Size = 0);
+
+		//! Write data from a DataChunk to the source file
+		/*! \param Buffer The data to write the the source file
+		 *	\param Start The offset from the start of the Value field in the source file. Matches Start parameter in ReadData().
+		 *  \param Size The number of bytes to write - if omitted (or 0) all available bytes will be written.
 		 */
 		Length WriteData(DataChunkPtr &Buffer, Position Start = 0, Length Size = 0) 
 		{ 
-			return WriteData(Buffer->Data, Start, ((Size == 0) || (Size > (Buffer->Size - Start))) ? Buffer->Size - Start : Size); 
+			return WriteData(Buffer->Data, Start, ((Size == 0) || (Size > Buffer->Size)) ? Buffer->Size : Size); 
 		}
 
 		//! Write data from the current DataChunk to the source file
-		/*! \note The data in the chunk will be written to the specified position 
+		/*! \param Start The offset from the start of the Value field in the source file. Matches Start parameter in ReadData().
+		 *  \param Size The number of bytes to write - if omitted (or 0) all available bytes will be written.
+		 *  \note The data in the chunk will be written to the specified position 
 		 *  <B>regardless of the position from where it was origanally read</b>
 		 */
 		Length WriteData(Position Start = 0, Length Size = 0)
 		{ 
-			return WriteData(Data.Data, Start, ((Size == 0) || (Size > (Data.Size - Start))) ? Data.Size - Start : Size); 
+			return WriteData(Data.Data, Start, ((Size == 0) || (Size > Data.Size)) ? Data.Size : Size); 
 		}
 
 		//! Set a handler to supply data when a read is performed
