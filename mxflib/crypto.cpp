@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.3 2004/11/15 17:28:42 matt-beard Exp $
  *
  */
 /*
@@ -510,7 +510,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	if(Size == -1) EncSize = -1; else EncSize = Size - PlainSize;
 
 	// Read the encrypted bytes
-	Length EncBytes = ReadCryptoDataFrom(PlaintextOffset, EncSize);
+	ReadCryptoDataFrom(PlaintextOffset, EncSize);
 
 	// Append the decrypted data to the plaintext data
 	PlainData->Append(Data);
@@ -543,9 +543,6 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 
 	// Assume that the read will succeed and move the "next" pointer accordingly
 	CurrentReadOffset += BytesToRead;
-
-	// Work out the offset into the encrypted portion of the value
-	Position EncOffset = Offset - PlaintextOffset;
 
 	// Check if all the requested bytes have already been decrypted
 	if(BytesToRead <= PreDecrypted)
@@ -861,9 +858,6 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 
 	// Assume that the write will succeed and move the "next" pointer accordingly
 	CurrentWriteOffset += Size;
-
-	// Work out the offset into the encrypted portion of the value
-	Position EncOffset = Offset - PlaintextOffset;
 
 	// Check if all the bytes will fit in the AwaitingEncryptionBuffer
 	if((!AddPadding) && (Size < (EncryptionGranularity - AwaitingEncryption)))
