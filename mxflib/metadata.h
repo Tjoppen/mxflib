@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.3 2004/12/18 20:41:28 matt-beard Exp $
  *
  */
 /*
@@ -434,7 +434,7 @@ namespace mxflib
 			return AddTrack(TCDD, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
-		// Add an EVENT DM Track
+		//! Add an EVENT DM Track
 		TrackPtr AddDMTrack(Rational EditRate, Int64 DefaultDuration = DurationUnspecified, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, EditRate, DefaultDuration, TrackName, TrackID); }
 		TrackPtr AddDMTrack(Uint32 TrackNumber, Rational EditRate, Int64 DefaultDuration, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
 		{
@@ -443,7 +443,7 @@ namespace mxflib
 			return AddTrack(TCDM, TrackNumber, EditRate, DefaultDuration, TrackName, TrackID);
 		}
 
-		// Add a TIMELINE DM Track
+		//! Add a TIMELINE DM Track
 		TrackPtr AddDMTrack(Rational EditRate, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, EditRate, TrackName, TrackID); }
 		TrackPtr AddDMTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
 		{
@@ -452,7 +452,7 @@ namespace mxflib
 			return AddTrack(TCDM, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
-		// Add a STATIC DM Track
+		//! Add a STATIC DM Track
 		TrackPtr AddDMTrack(std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, TrackName, TrackID); }
 		TrackPtr AddDMTrack(Uint32 TrackNumber, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
 		{
@@ -460,6 +460,9 @@ namespace mxflib
 			static const ULPtr TCDM = new UL(TCDM_Data);
 			return AddTrack(TCDM, TrackNumber, TrackName, TrackID);
 		}
+
+		//! Remove a track from this package
+		void RemoveTrack(TrackPtr &Track);
 
 		//! Update the duration field in each sequence in each track for this package
 		void UpdateDurations(void);
@@ -518,7 +521,7 @@ namespace mxflib
 			MDObjectList::iterator it = ECTypeList->begin();
 			while(it != ECTypeList->end())
 			{
-				if(ECTypeValue == (*it)->PutData()) return;
+				if(ECTypeValue == *((*it)->PutData())) return;
 				it++;
 			}
 
