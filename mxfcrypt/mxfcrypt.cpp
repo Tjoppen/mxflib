@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF e/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.1.2.2 2004/07/05 14:53:00 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.1.2.3 2004/07/05 17:53:12 matt-beard Exp $
  *
  */
 /*
@@ -91,10 +91,6 @@ public:
 
 		memcpy(CurrentIV, IV, 16);
 
-printf("Encrypt::SetIV(");
-for(int i=0; i<16; i++) printf(" %02x", CurrentIV[i]);
-printf(")\n");
-
 		return true; 
 	};
 
@@ -167,8 +163,8 @@ public:
 
 bool Encrypt_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 {
-	printf("0x%08x -> %02x:0x%08x Data for Track 0x%08x, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset(), Object->GetGCTrackNumber());
-	printf("Size = 0x%08x\n", (int)Object->GetLength());
+//	printf("0x%08x -> %02x:0x%08x Data for Track 0x%08x, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset(), Object->GetGCTrackNumber());
+//	printf("Size = 0x%08x\n", (int)Object->GetLength());
 
 	// Create an encrypted vertion of this KLVObject
 	KLVEObjectPtr KLVE = new KLVEObject(Object);
@@ -221,8 +217,8 @@ public:
 
 bool Test_GCFillerHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 {
-	printf("0x%08x -> %02x:0x%08x Filler ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset());
-	printf("Size = 0x%08x\n", (int)Object->GetLength());
+//	printf("0x%08x -> %02x:0x%08x Filler ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset());
+//	printf("Size = 0x%08x\n", (int)Object->GetLength());
 
 	return true;
 }
@@ -339,8 +335,8 @@ public:
 
 bool Decrypt_GCEncryptionHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 {
-	printf("0x%08x -> %02x:0x%08x Encrypted data, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset());
-	printf("Size = 0x%08x\n", (int)Object->GetLength());
+//	printf("0x%08x -> %02x:0x%08x Encrypted data, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset());
+//	printf("Size = 0x%08x\n", (int)Object->GetLength());
 
 	KLVEObjectPtr KLVE = new KLVEObject(Object);
 
@@ -393,8 +389,8 @@ public:
 
 bool Decrypt_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 {
-	printf("0x%08x -> %02x:0x%08x Data for Track 0x%08x, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset(), Object->GetGCTrackNumber());
-	printf("Size = 0x%08x\n", (int)Object->GetLength());
+//	printf("0x%08x -> %02x:0x%08x Data for Track 0x%08x, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset(), Object->GetGCTrackNumber());
+//	printf("Size = 0x%08x\n", (int)Object->GetLength());
 
 	// Write the data without further processing
 	Writer->WriteRaw(Object);
@@ -593,7 +589,7 @@ int main(int argc, char *argv[])
 
 	InFile->Close();
 
-printf("Outfile at 0x%08x\n", (int)OutFile->Tell());
+//printf("Outfile at 0x%08x\n", (int)OutFile->Tell());
 //char *x = "<<END OF FILE>>";
 //OutFile->Write((Uint8*)x, 16);
 	OutFile->Close();
