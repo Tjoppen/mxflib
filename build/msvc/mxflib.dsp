@@ -161,7 +161,7 @@ SOURCE=..\..\debug.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\endian.h
+SOURCE=..\..\mxfendian.h
 # End Source File
 # Begin Source File
 
@@ -233,11 +233,11 @@ SOURCE=..\..\smartptr.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\system.h
+SOURCE=..\..\mxfsystem.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\types.h
+SOURCE=..\..\mxftypes.h
 # End Source File
 # End Group
 # Begin Group "Documentation"
