@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: mxflib.h,v 1.3 2004/11/13 10:25:18 matt-beard Exp $
  *
  */
 /*
@@ -42,6 +42,37 @@ namespace mxflib {}
 
 #include <list>
 #include <map>
+
+
+namespace mxflib
+{
+#define MXFLIB_VERSION_MAJOR "0"
+#define MXFLIB_VERSION_MINOR "5"
+#define MXFLIB_VERSION_TWEAK "0"
+#define MXFLIB_VERSION_BUILD "1"
+#define MXFLIB_VERSION_REL   4
+#define MXFLIB_VERSION_RELTEXT(REL) (REL==1?"-Release":(REL==2?"-Development":(REL==3?"-Patched":(REL==4?"-Beta":(REL==5?"-Private":"")))))
+#define MXFLIB_VERSION_RELNUMBER(REL) (REL==1?"1":(REL==2?"2":(REL==3?"3":(REL==4?"4":(REL==5?"5":"0")))))
+
+	//! Get a human readable version of the library name
+	inline std::string LibraryName(void) { return std::string("MXFLib"); }
+
+	//! Get a human readable version of the library version
+	inline std::string LibraryVersion(void) 
+	{ 
+		return std::string("MXFLib " MXFLIB_VERSION_MAJOR "." MXFLIB_VERSION_MINOR "."
+			                MXFLIB_VERSION_TWEAK "(" MXFLIB_VERSION_BUILD ")")
+			 + std::string( MXFLIB_VERSION_RELTEXT(MXFLIB_VERSION_REL) ); 
+	}
+
+	//! Get a version of the library version suitable for setting ProductVersion
+	inline std::string LibraryProductVersion(void) 
+	{ 
+		return std::string( "\""    MXFLIB_VERSION_MAJOR "\",\"" MXFLIB_VERSION_MINOR 
+			                "\",\"" MXFLIB_VERSION_TWEAK "\",\"" MXFLIB_VERSION_BUILD "\",\"")
+							+ std::string( MXFLIB_VERSION_RELNUMBER(MXFLIB_VERSION_REL)) + std::string("\""); 
+	}
+}
 
 
 
