@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.1.2.2 2004/07/18 10:06:07 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.1.2.3 2004/10/10 18:42:05 terabrit Exp $
  *
  */
 /*
@@ -1057,6 +1057,241 @@ void MDTraits_RawArray::SetString(MDValuePtr Object, std::string Val)
 	} while(*(p++));
 }
 
+/***********************************
+**   UUID Implementations **
+************************************/
+
+std::string MDTraits_UUID::GetString(MDValuePtr Object)
+{
+	std::string Ret;
+	char buf[100];
+
+	int Count = Object->GetData().Size;
+	const Uint8 *Ident = Object->GetData().Data;
+
+	if( !(0x80&Ident[8]) ) // yes, a half-swapped UL can appear in a UUID
+	{	// UL
+		// printed as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
+		// but stored  with upper/lower 8 bytes exchanged
+		// stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
+		sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+									Ident[8],
+									Ident[9],
+									Ident[10],
+									Ident[11],
+									Ident[12],
+									Ident[13],
+									Ident[14],
+									Ident[15],
+									Ident[0],
+									Ident[1],
+									Ident[2],
+									Ident[3],
+									Ident[4],
+									Ident[5],
+									Ident[6],
+									Ident[7]
+		);
+	}
+	else
+	{	// UUID
+		// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// (i.e. network byte order)
+		// printed as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
+		sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+									Ident[0],
+									Ident[1],
+									Ident[2],
+									Ident[3],
+									Ident[4],
+									Ident[5],
+									Ident[6],
+									Ident[7],
+									Ident[8],
+									Ident[9],
+									Ident[10],
+									Ident[11],
+									Ident[12],
+									Ident[13],
+									Ident[14],
+									Ident[15]
+		);
+	}
+	Ret = buf;
+	return Ret ;
+}
+
+/***********************************
+**   Identifier16 Implementations **
+************************************/
+
+std::string MDTraits_Identifier16::GetString(MDValuePtr Object)
+{
+	std::string Ret;
+	char buf[100];
+
+	int Count = Object->GetData().Size;
+	const Uint8 *Ident = Object->GetData().Data;
+
+	if( !(0x80&Ident[0]) )
+	{	// UL
+		// printed as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
+		// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// (i.e. network byte order)
+		sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+									Ident[0],
+									Ident[1],
+									Ident[2],
+									Ident[3],
+									Ident[4],
+									Ident[5],
+									Ident[6],
+									Ident[7],
+									Ident[8],
+									Ident[9],
+									Ident[10],
+									Ident[11],
+									Ident[12],
+									Ident[13],
+									Ident[14],
+									Ident[15]
+		);
+	}
+	else
+	{	// half-swapped UUID
+		// printed as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
+		sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+									Ident[8],
+									Ident[9],
+									Ident[10],
+									Ident[11],
+									Ident[12],
+									Ident[13],
+									Ident[14],
+									Ident[15],
+									Ident[0],
+									Ident[1],
+									Ident[2],
+									Ident[3],
+									Ident[4],
+									Ident[5],
+									Ident[6],
+									Ident[7]
+		);
+	}
+	Ret = buf;
+	return Ret ;
+};
+
+/***********************************
+**   Label Implementations        **
+************************************/
+
+std::string MDTraits_Label::GetString(MDValuePtr Object)
+{
+	std::string Ret;
+
+	int Count = Object->GetData().Size;
+	const Uint8 *Ident = Object->GetData().Data;
+
+	// Look up the Ident (DDEFS were added to aafdict.xml)
+	// if found, emit the Name (should by symbol)
+	// else emit underlying identifier
+
+	MDOTypePtr label = MDOType::Find( UL(Ident) );
+
+	if( label ) Ret = label->Name();
+	else Ret = MDTraits_Identifier16::GetString(Object);
+
+	return Ret ;
+};
+
+/***********************************
+**   UMID Implementations **
+************************************/
+
+std::string MDTraits_UMID::GetString(MDValuePtr Object)
+{
+	std::string Ret;
+	char buf[100];
+
+	int Count = Object->GetData().Size;
+	const Uint8 *Ident = Object->GetData().Data;
+
+	sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x]",
+								Ident[0],
+								Ident[1],
+								Ident[2],
+								Ident[3],
+								Ident[4],
+								Ident[5],
+								Ident[6],
+								Ident[7],
+								Ident[8],
+								Ident[9],
+								Ident[10],
+								Ident[11]
+		);
+	Ret+=buf;
+
+	sprintf( buf, ",%02x,%02x,%02x,%02x,", 
+									Ident[12],
+									Ident[13],
+									Ident[14],
+									Ident[15]
+		);
+	Ret+=buf;
+
+	const Uint8* Material = Ident+16;
+	if( !(0x80&Material[0]) )
+	{	// UL
+		// printed as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
+		// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+		// (i.e. network byte order)
+		sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+									Material[0],
+									Material[1],
+									Material[2],
+									Material[3],
+									Material[4],
+									Material[5],
+									Material[6],
+									Material[7],
+									Material[8],
+									Material[9],
+									Material[10],
+									Material[11],
+									Material[12],
+									Material[13],
+									Material[14],
+									Material[15]
+		);
+	}
+	else
+	{	// half-swapped UUID
+		// printed as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
+		sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+									Material[8],
+									Material[9],
+									Material[10],
+									Material[11],
+									Material[12],
+									Material[13],
+									Material[14],
+									Material[15],
+									Material[0],
+									Material[1],
+									Material[2],
+									Material[3],
+									Material[4],
+									Material[5],
+									Material[6],
+									Material[7]
+		);
+	}
+	Ret += buf;
+	return Ret ;
+};
 
 /********************************************
 **   Array of Raw Arrays Implementations   **
@@ -1136,11 +1371,14 @@ std::string MDTraits_BasicCompound::GetString(MDValuePtr Object)
 		}
 		else
 		{
-			if(Ret.length() != 0) Ret += ", ";
-			Ret += (*it);
-			Ret += "=\"";
+			if(Ret.length() != 0) Ret += "\n";
+			Ret += "<";
+			Ret += (*it).c_str();
+			Ret += ">";
 			Ret += Value->GetString();
-			Ret += "\"";
+			Ret += "</";
+			Ret += (*it).c_str();
+			Ret += ">";
 		}
 		it++;
 	}
@@ -1162,6 +1400,7 @@ void MDTraits_BasicCompound::SetString(MDValuePtr Object, std::string Val)
 		if(OpenQuote == (int)std::string::npos) return;
 
 		// DRAGONS: Should add code here to allow out-of-order items
+		// TODO: not updated to match new GetString() above
 
 		CloseQuote = Val.find("\"",OpenQuote+1);
 		if(CloseQuote == (int)std::string::npos) return;
@@ -1245,7 +1484,7 @@ std::string MDTraits_Rational::GetString(MDValuePtr Object)
 	if(Numerator) Num = Numerator->GetUint();
 	if(Denominator) Den = Denominator->GetUint();
 
-	return Uint2String(Num) + "/" + Uint2String(Den);
+	return Uint2String(Num) + ", " + Uint2String(Den);
 }
 
 
@@ -1257,8 +1496,8 @@ void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
 	Uint32 Num = atoi(Val.c_str());
 
 	Uint32 Den = 1;
-	std::string::size_type Slash = Val.find("/");
-	if(Slash != std::string::npos) Den = atoi(&(Val.c_str()[Slash+1]));
+	std::string::size_type Comma = Val.find(",");
+	if(Comma != std::string::npos) Den = atoi(&(Val.c_str()[Comma+1]));
 
 	if(Numerator) Numerator->SetUint(Num);
 	if(Denominator) Denominator->SetUint(Den);
@@ -1269,7 +1508,7 @@ void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
 **   TimeStamp Implementations   **
 **********************************/
 
-//! Read timestamp from ISO-8601 format string
+//! Write timestamp to ISO-8601 format string
 std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 {
 	MDValuePtr Year = Object["Year"];
@@ -1296,12 +1535,32 @@ std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 	if(Seconds) S = Seconds->GetUint(); else S = 0;
 	if(msBy4) ms = msBy4->GetUint() * 4; else ms = 0;
 
+
+#if defined(AAF_DATES)
+	static const char * const monthNames[] =
+	{
+		    "Month0",
+		    "Jan", "Feb", "Mar",
+			"Apr", "May", "Jun",
+			"Jul", "Aug", "Sep",
+			"Oct", "Nov", "Dec"
+	};
+
+	std::string date = monthNames[ M ];
+
+	return date + " "  + Uint2String(D,2)
+	            + ", " + Uint2String(Y)
+	            + " "  + Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2)
+				+ ":"  + Uint2String(ms,3)
+				+ " GMT";
+#else
 	return Uint2String(Y) + "-" + Uint2String(M,2) + "-" + Uint2String(D,2) + " " +
 		   Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2) + "." + Uint2String(ms,3);
+#endif
 }
 
 
-//! Write timestamp to ISO-8601 format string
+//! Read timestamp from ISO-8601 format string
 void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
 {
 	MDValuePtr Year = Object["Year"];
