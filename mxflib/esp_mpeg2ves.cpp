@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.1.2.2 2004/10/19 16:49:55 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.1.2.3 2004/10/20 15:19:05 matt-beard Exp $
  *
  */
 /*
@@ -616,7 +616,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 					ClosedGOP = (BuffGetU8(InFile) & 0x40)? true:false;
 
 					//if( PictureNumber < 35 )
-					if( ClosedGOP ) debug( "Closed GOP\n" ); else printf( "Open GOP\n" );
+					if( ClosedGOP ) debug( "Closed GOP\n" ); else debug( "Open GOP\n" );
 
 					CurrentPos += 4;
 				}
