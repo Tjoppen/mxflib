@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: types.h,v 1.1.2.1 2004/10/10 18:30:27 terabrit Exp $
  *
  */
 /*
@@ -127,23 +127,147 @@ namespace mxflib
 
 namespace mxflib
 {
-	typedef Identifier<16> UL;
-//	typedef Vector<UL> ULVector;
+	typedef Identifier<16> Identifier16;
+	class UL : public RefCount<UL>, public Identifier16
+	{
+	private:
+		UL();
+	public:
+		UL(const Uint8 *ID) : Identifier16(ID) {};
+		UL(const SmartPtr<UL> ID) { if(ID == NULL) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
+
+		bool operator==(const UL s) { return 0==memcmp( Ident, s.Ident, sizeof(Ident) ); };
+
+		// spit out in AAFx format
+		std::string GetString(void) const
+		{
+			std::string Ret;
+			char buf[100];
+
+			if( !(0x80&Ident[0]) )
+			{	// UL
+				// printed as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
+				// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+				// (i.e. network byte order)
+				sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+											Ident[0],
+											Ident[1],
+											Ident[2],
+											Ident[3],
+											Ident[4],
+											Ident[5],
+											Ident[6],
+											Ident[7],
+											Ident[8],
+											Ident[9],
+											Ident[10],
+											Ident[11],
+											Ident[12],
+											Ident[13],
+											Ident[14],
+											Ident[15]
+				);
+			}
+			else
+			{	// half-swapped UUID
+				// printed as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
+				sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+											Ident[8],
+											Ident[9],
+											Ident[10],
+											Ident[11],
+											Ident[12],
+											Ident[13],
+											Ident[14],
+											Ident[15],
+											Ident[0],
+											Ident[1],
+											Ident[2],
+											Ident[3],
+											Ident[4],
+											Ident[5],
+											Ident[6],
+											Ident[7]
+				);
+			}
+			Ret = buf;
+			return Ret ;
+		}
+	};
 
 	//! A smart pointer to a UL object
 	typedef SmartPtr<UL> ULPtr;
 	typedef std::list<ULPtr> ULList;
+
 }
 
 namespace mxflib
 {
-	typedef Identifier<16> Identifier16;
+	//typedef Identifier<16> Identifier16;
 	class UUID : public RefCount<UUID>, public Identifier16
 	{
 	public:
 		UUID() { MakeUUID(Ident); };
 		UUID(const Uint8 *ID) : Identifier16(ID) {};
 		UUID(const SmartPtr<UUID> ID) { if(ID == NULL) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
+
+		// spit out in AAFx format
+		std::string GetString(void) const
+		{
+			std::string Ret;
+			char buf[100];
+
+			if( !(0x80&Ident[8]) ) // yes, a half-swapped UL can appear in a UUID
+			{	// UL
+				// printed as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
+				// but stored  with upper/lower 8 bytes exchanged
+				// stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
+				sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+											Ident[8],
+											Ident[9],
+											Ident[10],
+											Ident[11],
+											Ident[12],
+											Ident[13],
+											Ident[14],
+											Ident[15],
+											Ident[0],
+											Ident[1],
+											Ident[2],
+											Ident[3],
+											Ident[4],
+											Ident[5],
+											Ident[6],
+											Ident[7]
+				);
+			}
+			else
+			{	// UUID
+				// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+				// (i.e. network byte order)
+				// printed as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
+				sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+											Ident[0],
+											Ident[1],
+											Ident[2],
+											Ident[3],
+											Ident[4],
+											Ident[5],
+											Ident[6],
+											Ident[7],
+											Ident[8],
+											Ident[9],
+											Ident[10],
+											Ident[11],
+											Ident[12],
+											Ident[13],
+											Ident[14],
+											Ident[15]
+				);
+			}
+			Ret = buf;
+			return Ret ;
+		}
 	};
 
 	//! A smart pointer to a UUID object
@@ -204,12 +328,55 @@ namespace mxflib
 namespace mxflib
 {
 	//! Structure for holding fractions
-	struct Rational
+	struct _rational
 	{
 		Int32 Numerator;
 		Int32 Denominator;
+
+		void SetNumerator(Int32 val)
+		{
+			Numerator=Swap(val);
+		}
+		void SetDenominator(Int32 val)
+		{
+			Denominator=Swap(val);
+		}
 	};
+	typedef struct _rational Rational;
+
+	//! Structure for holding major.minor version number
+	struct _version
+	{
+		Uint8 major;
+		Uint8 minor;
+	};
+	typedef struct _version version_t;
+
+	//! Structure for holding timestamps (4ms accuracy)
+	struct _timestamp
+	{
+		Uint16 yr;
+		Uint8 month;
+		Uint8 day;
+		Uint8 hour;
+		Uint8 min;
+		Uint8 sec;
+		Uint8 fraction;
+
+		_timestamp()
+		{
+			yr=0;
+			month=0;
+			day=0;
+			hour=0;
+			min=0;
+			sec=0;
+			fraction=0;
+		};
+	};
+	typedef struct _timestamp timestmp;
 }
+
 
 #endif // MXFLIB__TYPES_H
 

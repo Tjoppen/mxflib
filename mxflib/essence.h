@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.10 2004/09/06 01:02:36 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.11 2004/10/10 18:30:27 terabrit Exp $
  *
  */
 /*
@@ -401,7 +401,7 @@ namespace mxflib
 						if((MaxSize) && (Data->Size > MaxSize))
 						{
 							RemainingData = new DataChunk(Data->Size - MaxSize, &Data->Data[MaxSize]);
-							Data->Resize(MaxSize);
+							Data->Resize((Uint32)MaxSize);
 						}
 					}
 				}

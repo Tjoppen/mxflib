@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.4.2.4 2004/08/18 18:21:34 matt-beard Exp $
+ *	\version $Id: system.h,v 1.4.2.5 2004/10/10 18:30:27 terabrit Exp $
  *
  */
 /*
@@ -213,8 +213,8 @@ namespace mxflib
 	typedef int FileHandle;
 	inline int FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET) == -1 ? -1 : 0; }
 	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END) == -1 ? -1 : 0; }
-	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, size); }
-	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, size); }
+	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, (unsigned int)size); }
+	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, (unsigned int)size); }
 	inline int FileGetc(FileHandle file) { Uint8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return open(filename, _O_BINARY | _O_RDWR ); }
 	inline FileHandle FileOpenRead(const char *filename) { return open(filename, _O_BINARY | _O_RDONLY ); }

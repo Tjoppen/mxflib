@@ -4,7 +4,7 @@
  *  Converted from the version in "klvlib"
  *
  *
- *	\version $Id: endian.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: endian.h,v 1.1.2.1 2004/10/10 18:30:27 terabrit Exp $
  *
  */
 /*
@@ -40,7 +40,8 @@ namespace mxflib
 	inline void PutU8(Uint8 x, unsigned char *dest) { *dest=(x); }
 	inline void PutU16(Uint16 Data, unsigned char *Dest) { PutU8(Data >> 8, Dest); PutU8(Data & 0xff, &Dest[1]); }
 	inline void PutU32(Uint32 Data, unsigned char *Dest) { PutU16(Data >> 16, Dest); PutU16(Data & 0xffff, &Dest[2]); }
-	inline void PutU64(Uint64 Data, unsigned char *Dest) { PutU32(Data >> 32, Dest); PutU32(Data & 0xffffffff, &Dest[4]); }
+	inline void PutU64(Uint64 Data, unsigned char *Dest) { PutU32((Uint32)Data >> 32, Dest); 
+														   PutU32((Uint32)Data & 0xffffffff, &Dest[4]); }
 
 	/*
 	** PutIxx() - Signed versions of PutUxx()

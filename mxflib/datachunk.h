@@ -1,7 +1,7 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.h,v 1.1.2.4 2004/08/18 18:35:25 matt-beard Exp $
+ *	\version $Id: datachunk.h,v 1.1.2.5 2004/10/10 18:30:27 terabrit Exp $
  *
  */
 /*
@@ -60,10 +60,10 @@ namespace mxflib
 		DataChunk() : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) {};
 
 		//! Construct a data chunk with a pre-allocated buffer
-		DataChunk(Uint64 BufferSize) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Resize(BufferSize); };
+		DataChunk(Uint64 BufferSize) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Resize((Uint32)BufferSize); };
 
 		//! Construct a data chunk with contents
-		DataChunk(Uint64 MemSize, const Uint8 *Buffer) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(MemSize, Buffer); };
+		DataChunk(Uint64 MemSize, const Uint8 *Buffer) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set((Uint32)MemSize, Buffer); };
 
 		//! Construct a data chunk from an identifier
 		template<int SIZE> DataChunk(const Identifier<SIZE> *ID)  : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(ID->Size(), ID->GetValue() ); }

@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.1.2.5 2004/09/06 00:13:19 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.1.2.6 2004/10/10 18:30:27 terabrit Exp $
  *
  */
 /*
@@ -121,7 +121,7 @@ namespace mxflib
 
 				// Seek to the end of the current buffer
 				BufferCurrentPos = BufferOffset + Buffer->Size;
-				return Tell();
+				return (int)Tell();
 			}
 
 			return mxflib::FileSeekEnd(Handle);
@@ -232,7 +232,7 @@ namespace mxflib
 					while(it != FileRIP.end())
 					{
 						PA->AddChild("BodySID", false)->SetUint((*it).second->BodySID);
-						PA->AddChild("ByteOffset", false)->SetUint((*it).second->ByteOffset);
+						PA->AddChild("ByteOffset", false)->SetUint((Uint32)(*it).second->ByteOffset);
 						it++;
 					}
 				}
@@ -382,7 +382,7 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 	if(Length > 0)
 	{
 		// Work out how big the key and length are in the file
-		Uint32 KLSize = This->Tell() - Location;
+		Uint32 KLSize = (Uint32)(This->Tell() - Location);
 
 		// Read the actual data
 		DataChunkPtr Data = This->Read(Length);
