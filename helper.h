@@ -27,6 +27,8 @@
 #ifndef MXFLIB__HELPER_H
 #define MXFLIB__HELPER_H
 
+
+#include <time.h>
 #include <string>
 
 namespace mxflib
@@ -56,6 +58,32 @@ namespace mxflib
 		if(Digits > 16) Digits = 16;
 		sprintf(Buffer, "%0*x", Digits, Num);
 		return std::string(Buffer);
+	}
+
+	//! Convert a time to an ISO 8601 string
+	/*! \note ISO 8601 suggests "T" as a separator between date and time. 
+	 *	To get this behaviour set StrictISO to true
+	 *	\note ANSI-C doesn't seem to have a way to get milliseconds */
+	inline std::string Time2String(time_t Time, bool StrictISO = false)
+	{
+		char Buffer[32];
+		
+		if(StrictISO)
+			strftime(Buffer, 31, "%Y-%m-%dT%H:%M:%S.000", localtime( &Time ));
+		else
+			strftime(Buffer, 31, "%Y-%m-%d %H:%M:%S.000", localtime( &Time ));
+
+		return std::string(Buffer);
+	}
+
+	//! Get the current time as an ISO 8601 string
+	/*! \note ISO 8601 suggests "T" as a separator between date and time. 
+	 *	To get this behaviour set StrictISO to true */
+	inline std::string Now2String(bool StrictISO = false)
+	{
+		time_t now_t = time(NULL);
+		
+		return Time2String(now_t, StrictISO);
 	}
 }
 
