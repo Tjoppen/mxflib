@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.1.2.1 2004/10/16 20:24:12 terabrit Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.1.2.2 2004/10/19 16:49:55 matt-beard Exp $
  *
  */
 /*
@@ -60,7 +60,7 @@ EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHand
 
 	// Read the first 512 bytes of the file to allow us to investigate it
 	FileSeek(InFile, 0);
-	BufferBytes = (Uint32)FileRead(InFile, Buffer, 512);
+	BufferBytes = (int)FileRead(InFile, Buffer, 512);
 	
 	// If the file is smaller than 16 bytes give up now!
 	if(BufferBytes < 16) return Ret;
