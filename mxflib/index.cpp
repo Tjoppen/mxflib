@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.4 2004/11/15 14:46:51 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.5 2004/12/18 20:28:12 matt-beard Exp $
  *
  */
 /*
@@ -455,19 +455,18 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		}
 		else
 		{
-			DataChunk Entries;
-			Ptr->WriteObject(Entries);
+			DataChunkPtr Entries = Ptr->WriteObject();
 
-			if(Entries.Size >= 28)
+			if(Entries->Size >= 28)
 			{
-				Uint32 EntryCount = GetU32(&Entries.Data[20]);
-				Uint32 EntrySize = GetU32(&Entries.Data[24]);
+				Uint32 EntryCount = GetU32(&Entries->Data[20]);
+				Uint32 EntrySize = GetU32(&Entries->Data[24]);
 
 				if((Int32)EntrySize != IndexEntrySize)
 				{
 					error("IndexEntryArray items should be %d bytes, but are %d\n", IndexEntrySize, EntrySize);
 				}
-				else Ret->AddIndexEntries(EntryCount, IndexEntrySize, &Entries.Data[28]);
+				else Ret->AddIndexEntries(EntryCount, IndexEntrySize, &Entries->Data[28]);
 			}
 		}
 	} // CBR,VBR
@@ -626,6 +625,7 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 	}
 
 	// Force a bit of space into the buffer then clear the size
+	// TODO: Use allocation granularity
 	Buffer.ResizeBuffer(4096);
 	Buffer.Resize(0);
 
@@ -675,9 +675,8 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 		// Add this segment to the buffer
 		{
-			DataChunk Seg;
-			ThisSegment->WriteObject(Seg, MDOType::GetStaticPrimer());
-			Buffer.Set(Seg.Size, Seg.Data, Buffer.Size);
+			DataChunkPtr Seg = ThisSegment->WriteObject(MDOType::GetStaticPrimer());
+			Buffer.Set(Seg->Size, Seg->Data, Buffer.Size);
 		}
 	}
 	else // VBR Index Table
@@ -740,9 +739,8 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 			// Add this segment to the buffer
 			{
-				DataChunk Seg;
-				ThisSegment->WriteObject(Seg, MDOType::GetStaticPrimer());
-				Buffer.Set(Seg.Size, Seg.Data, Buffer.Size);
+				DataChunkPtr Seg = ThisSegment->WriteObject(MDOType::GetStaticPrimer());
+				Buffer.Set(Seg->Size, Seg->Data, Buffer.Size);
 			}
 
 			it++;
