@@ -89,6 +89,22 @@ SOURCE=..\..\deftypes.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\esp_dvdif.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\esp_mpeg2ves.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\esp_wavepcm.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\essence.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\helper.cpp
 # End Source File
 # Begin Source File
@@ -146,6 +162,22 @@ SOURCE=..\..\debug.h
 # Begin Source File
 
 SOURCE=..\..\endian.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\esp_dvdif.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\esp_mpeg2ves.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\esp_wavepcm.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\essence.h
 # End Source File
 # Begin Source File
 
