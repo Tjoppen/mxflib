@@ -64,7 +64,7 @@ void mxflib::debug(const char *Fmt, ...)
 	vprintf(Fmt, args);
 	va_end(args);
 }
-#endif MXFLIB_DEBUG
+#endif // MXFLIB_DEBUG
 
 //! Display a warning message
 void mxflib::warning(const char *Fmt, ...)
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
 		}
 
 		EssenceParser::WrappingConfigPtr WCP;
-		if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::WrapType::Frame);
+		if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
 		else WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate);
 
 // Fixed now ? ## When PDList is deleted so is the essence parser...
@@ -1499,8 +1499,8 @@ printf("IndexMan[0] -> %d\n", StreamID);
 		ThisPartition->ChangeType("ClosedCompleteHeader");
 		ThisPartition->SetUint64("FooterPartition", FooterPos);
 		ThisPartition->SetUint("IndexSID", 0);				// DRAGONS: If we ever write index in the header this will need to change
-															// DRAGONS: What about BodySID?
 		ThisPartition->SetUint64("IndexByteCount", 0);
+		ThisPartition->SetUint64("BodySID", 1);
 		Out->ReWritePartition(ThisPartition);
 	}
 	else
