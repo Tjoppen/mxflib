@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.4.2.3 2004/07/02 10:01:17 bakerian Exp $
+ *	\version $Id: system.h,v 1.4.2.4 2004/08/18 18:21:34 matt-beard Exp $
  *
  */
 /*
@@ -215,7 +215,7 @@ namespace mxflib
 	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END) == -1 ? -1 : 0; }
 	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, size); }
 	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, size); }
-	inline Uint8 FileGetc(FileHandle file) { Uint8 c; FileRead(file, &c, 1); return c; }
+	inline int FileGetc(FileHandle file) { Uint8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return open(filename, _O_BINARY | _O_RDWR ); }
 	inline FileHandle FileOpenRead(const char *filename) { return open(filename, _O_BINARY | _O_RDONLY ); }
 	inline FileHandle FileOpenNew(const char *filename) { return open(filename, _O_BINARY | _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE); }
@@ -360,7 +360,7 @@ namespace mxflib
 	inline int FileSeekEnd(FileHandle file) { return fseeko(file, 0, SEEK_END); }
 	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return fread(dest, 1, size, file); }
 	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return fwrite(source, 1, size, file); }
-	inline Uint8 FileGetc(FileHandle file) { Uint8 c; FileRead(file, &c, 1); return c; }
+	inline int FileGetc(FileHandle file) { Uint8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return fopen(filename, "r+b" ); }
 	inline FileHandle FileOpenRead(const char *filename) { return fopen(filename, "rb" ); }
 	inline FileHandle FileOpenNew(const char *filename) { return fopen(filename, "w+b"); }
@@ -470,7 +470,7 @@ namespace mxflib
 	int FileSeekEnd(FileHandle file);
 	Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size);
 	Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size);
-	Uint8 FileGetc(FileHandle file);
+	int FileGetc(FileHandle file);
 	FileHandle FileOpen(const char *filename);
 	FileHandle FileOpenRead(const char *filename);
 	FileHandle FileOpenNew(const char *filename);
