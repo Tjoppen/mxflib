@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.1.2.6 2004/06/14 17:26:04 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.1.2.7 2004/06/26 17:59:33 matt-beard Exp $
  *
  */
 /*
@@ -574,7 +574,7 @@ void GCWriter::Flush(void)
 			for(;;)
 			{
 				const int ReadChunkSize = 128 * 1024;
-				Length Bytes = (*it).second.KLVSource->ReadData(Offset, ReadChunkSize);
+				Length Bytes = (*it).second.KLVSource->ReadDataFrom(Offset, ReadChunkSize);
 				Offset += Bytes;
 
 				// Exit when no more data left
@@ -766,21 +766,24 @@ void GCWriter::WriteRaw(KLVObjectPtr Object)
 		StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
 	}
 
+	// Set this fila and position as the destination for the KLVObject
+	Object->SetDestination(LinkedFile);
+
 	// Write the KL
-	StreamOffset += Object->WriteKL(LinkedFile);
+	StreamOffset += Object->WriteKL();
 
 	// Write out all the data
 	Position Offset = 0;
 	for(;;)
 	{
 		const int ReadChunkSize = 128 * 1024;
-		Length Bytes = Object->ReadData(Offset, ReadChunkSize);
-		Offset += Bytes;
+		Length Bytes = Object->ReadDataFrom(Offset, ReadChunkSize);
 
 		// Exit when no more data left
 		if(!Bytes) break;
 
-		StreamOffset += Object->WriteData(LinkedFile);
+		StreamOffset += Object->WriteDataTo(Offset);
+		Offset += Bytes;
 	}
 
 	// DRAGONS: This is a bit of a fudge to cope with new partitions 
