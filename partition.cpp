@@ -5,6 +5,8 @@
  *          from a partition in the file or built in memory
  */
 /*
+ *	$Id: partition.cpp,v 1.9 2003/12/04 13:55:21 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.

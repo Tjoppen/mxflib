@@ -2,6 +2,8 @@
  *	\brief	The main MXFLib header file
  */
 /*
+ *	$Id: mxflib.h,v 1.16 2003/12/04 13:55:21 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.

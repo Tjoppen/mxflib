@@ -5,6 +5,8 @@
  *			Random Index Pack in the file or built by discovering partitions.
  */
 /*
+ *	$Id: rip.cpp,v 1.10 2003/12/04 13:55:21 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.

@@ -2,6 +2,8 @@
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  */
 /*
+ *	$Id: esp_wavepcm.cpp,v 1.4 2003/12/04 13:55:21 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
