@@ -32,7 +32,7 @@
 // Include the KLVLib header
 extern "C"
 {
-#include "KLV.h"						//!< The KLVLib header
+#include "Klv.h"						//!< The KLVLib header
 }
 
 
@@ -178,14 +178,14 @@ namespace mxflib
 		/*! \note Partition properties are updated from the linked metadata
 		 *	\return true if re-write was successful, else false
 		 */
-		bool MXFFile::ReWritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL) 
+		bool ReWritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL) 
 		{
 			return WritePartitionInternal(true, ThisPartition, true, UsePrimer, 0);
 		}
 
 	private:
 		//! Write or re-write a partition pack and associated metadata (and index table segments?)
-		bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer, Uint32 Padding);
+		bool WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer, Uint32 Padding);
 
 	public:
 		//! Write the RIP
@@ -301,7 +301,7 @@ namespace mxflib
 		//! Read from a memory file buffer
 		Uint32 MemoryRead(Uint8 *Data, Uint32 Size);
 	};
-};
+}
 
 
 // DRAGONS: MSVC: Why does this work in a header, but not in the file?
@@ -341,6 +341,4 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 	return Ret;
 }
 
-#endif MXFLIB__MXFFILE_H
-
-
+#endif // MXFLIB__MXFFILE_H
