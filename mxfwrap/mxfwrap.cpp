@@ -356,6 +356,8 @@ int main(int argc, char *argv[])
 		Out->Close();
 	}
 
+	printf("\nDone\n");
+
 	if( DebugMode ) { fprintf( stderr, "press enter to continue..."); getchar(); }
 	return 0;
 }
@@ -1198,7 +1200,7 @@ int Process(	int OutFileNum,
 								IndexMan[0]->SetEditRate((*WrapCfgList_it)->EditRate);
 							}
 							else StreamID = IndexMan[0]->AddSubStream(0, (*WrapCfgList_it)->WrapOpt->BytesPerEditUnit );
-printf("IndexMan[0] -> %d\n", StreamID);
+//printf("IndexMan[0] -> %d\n", StreamID);
 							(*WrapCfgList_it)->WrapOpt->Handler->SetIndexManager(IndexMan[0], StreamID);
 							IndexManCount = 1;
 						}
