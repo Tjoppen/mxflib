@@ -24,7 +24,7 @@
  *	     distribution.
  */
 
-#include "..\mxflib.h"
+#include <mxflib.h>
 
 using namespace mxflib;
 
@@ -59,13 +59,13 @@ int main(int argc, char *argv[])
 	int i;
 	for(i=1; i<argc; i++)
 	{
-		if((argv[i][0] == '/') || (argv[i][0] == '-')) 
+		if(argv[i][0] == '-') 
 			if((argv[i][1] == 'v') || (argv[i][1] == 'V'))
 				DebugMode = true;
 	}
 
 	LoadTypes("types.xml");
-	MDOType::LoadDict("XMLDict.xml");
+	MDOType::LoadDict("xmldict.xml");
 
 	MXFFilePtr TestFile = new MXFFile;
 	TestFile->Open(argv[1], true);
@@ -299,7 +299,7 @@ void mxflib::debug(const char *Fmt, ...)
 	vprintf(Fmt, args);
 	va_end(args);
 }
-#endif MXFLIB_DEBUG
+#endif // MXFLIB_DEBUG
 
 //! Display a warning message
 void mxflib::warning(const char *Fmt, ...)
