@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.2 2004/04/26 18:30:06 asuraparaju Exp $
+ *	\version $Id: system.h,v 1.3 2004/04/26 19:16:33 stuart_hc Exp $
  *
  */
 /*
@@ -46,7 +46,6 @@
 
 // Required headers for non-system specific bits
 #include <time.h>
-#include "config.h"
 
 /************************************************/
 /*           (Hopefully) Common types           */
@@ -207,6 +206,7 @@ namespace mxflib
 
 #else	/* for ISO C++ compilers */
 
+#include "config.h"
 #include <stdlib.h>
 #include <string>
 #include <sys/time.h>
