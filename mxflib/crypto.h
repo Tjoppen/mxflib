@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.8 2004/08/18 18:29:16 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.9 2004/10/19 16:40:18 matt-beard Exp $
  *
  */
 /*
@@ -244,7 +244,11 @@ namespace mxflib
 
 		bool DataLoaded;							//!< True once the AS-DCP header data has been read
 		ULPtr ContextID;							//!< The context ID used to link to encryption metadata
-		Uint64 PlaintextOffset;						//!< Number of unencrypted bytes at start of source data
+		Length PlaintextOffset;						//!< Number of unencrypted bytes at start of source data
+													/*!< DRAGONS: ValueLength is a standard MXF length (signed 64-bit),
+													 *   however the AS-DCP spec uses an unsigned 64-bit for PlaintextOffset.
+													 *   We use a Length for PlaintextOffset to keep comparison signs the same
+													 */
 		ULPtr SourceKey;							//!< Key for the plaintext KLV
 		Length EncryptedLength;						//!< Length of the encrypted KLV Value
 		int SourceLengthFormat;						//!< Number of bytes used to encode SourceLength in the KLVE (allows us to faithfully recreate if required)
@@ -298,10 +302,10 @@ namespace mxflib
 		virtual DataChunkPtr GetDecryptIV(void);
 
 		//! Set the plaintext offset to use when encrypting
-		void SetPlaintextOffset(Uint64 Offset) { PlaintextOffset = Offset; }
+		void SetPlaintextOffset(Length Offset) { PlaintextOffset = Offset; }
 
 		//! Get the plaintext offset of the encrypted data
-		Uint64 GetPlaintextOffset(void) { return PlaintextOffset; }
+		Length GetPlaintextOffset(void) { return PlaintextOffset; }
 
 		//** Construction / desctruction **//
 		KLVEObject(ULPtr ObjectUL);				//!< Construct a new KLVEObject
