@@ -147,7 +147,9 @@ bool SourceClip::MakeLink(UMIDPtr LinkUMID, Uint32 LinkTrackID, Int64 StartPosit
 {
 	SetInt64("StartPosition", StartPosition);
 	SetUint("SourceTrackID", LinkTrackID);
-	SetValue("SourcePackageID", DataChunk(32, LinkUMID->GetValue()));
+	DataChunk *tmp_dc;
+	tmp_dc = new DataChunk(32, LinkUMID->GetValue());
+	SetValue("SourcePackageID", *tmp_dc);
 
 	return true;
 }
