@@ -96,7 +96,7 @@ namespace mxflib
 	public:
 		MDTypePtr Base;					//!< Base class if this is a derived class, else NULL
 		MDTypeList Children;			//!< Types contained in this if it is a compound
-		int Size;						//!< The size of the item multiples of base class items, or 0 if it is variable
+		int Size;						//!< The size of the item in multiples of base class items, or 0 if it is variable
 
 		//! Access function for ContainerType
 //		const MDContainerType &GetContainerType(void) { return (const MDContainerType &)ContainerType; };
@@ -104,7 +104,7 @@ namespace mxflib
 	private:
 		//!	Construct a basic MDType
 		/*! This constructor is private so the ONLY way to create
-		 *	new MDOTypes from outside this class is via AddBasic() etc.
+		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
 		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraits *TypeTraits)
 			: Name(TypeName) , Class(TypeClass) , Traits(TypeTraits) {};
@@ -178,8 +178,14 @@ namespace mxflib
 //		~MDValue();
 ~MDValue() {}; // ## DRAGONS: For debug ONLY!!
 
+		void AddChild(MDValuePtr Child, int Index = -1);
+		void TrimChildren(int Index);
+
+		MDValuePtr operator[](int Index);
+
 		//! Access function for child values of compound items
-		MDValue &Child(const char *ChildName);
+		MDValuePtr operator[](const char *ChildName);
+
 
 		void SetInt(Int32 Val) { Type->Traits->SetInt(this, Val); };
 		void SetInt64(Int64 Val) { Type->Traits->SetInt64(this, Val); };

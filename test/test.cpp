@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 
 	printf("About to load dictionary \"XMLDict.xml\"\n");
 
-	MDOType::LoadDict("XMLDict.xml");
+//	MDOType::LoadDict("XMLDict.xml");
 	
 	RIP TestRIP;
 	TestRIP.AddPartition(new Partition("Part1"),45,67);
@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
 	MDType::AddBasic("Int16", 2);
 	MDType::AddBasic("Int32", 4);
 	MDType::AddBasic("Uint32", 4);
-
+	
 	MDTypePtr Int8Type = MDType::Find("Int8");
 	ASSERT(Int8Type);
 
@@ -55,6 +55,14 @@ int main(int argc, char *argv[])
 
 	MDTypePtr Uint32Type = MDType::Find("Uint32");
 	ASSERT(Uint32Type);
+
+	MDType::AddArray("Uint8Array", Uint8Type);
+	MDTypePtr Uint8ArrayType = MDType::Find("Uint8Array");
+	ASSERT(Uint8ArrayType);
+
+
+
+
 
 //	MDTraits Int8_Traits(Int8_SetInt, Int8_SetInt64, Int8_SetUint, Int8_SetUint64, Int8_SetString,
 //						 Int8_GetInt, Int8_GetInt64, Int8_GetUint, Int8_GetUint64, Int8_GetString);
@@ -71,11 +79,18 @@ int main(int argc, char *argv[])
 	MDTraits_Int32 Int32_Traits;
 	MDTraits_Uint32 Uint32_Traits;
 
+	MDTraits_ISO7 ISO7_Traits;
+
 	Int8Type->SetTraits(&Int8_Traits);
 	Uint8Type->SetTraits(&Uint8_Traits);
 	Int16Type->SetTraits(&Int16_Traits);
 	Int32Type->SetTraits(&Int32_Traits);
 	Uint32Type->SetTraits(&Uint32_Traits);
+
+	MDType::AddInterpretation("ISO7", Uint8Type);
+	MDTypePtr ISO7Type = MDType::Find("ISO7");
+	ASSERT(ISO7Type);
+	ISO7Type->SetTraits(&ISO7_Traits);
 
 	MDValuePtr Test16;
 	MDValuePtr Test32;
@@ -173,6 +188,68 @@ int main(int argc, char *argv[])
 
 	U32i = Test32->GetUint();
 	printf("0x87654321 (unsigned) = 0x%x = %u\n", U32i, U32i);
+
+
+	MDValuePtr TestISO;
+	TestISO = new MDValue("ISO7");
+
+	TestISO->SetString("A");
+	X = TestISO->GetString();
+	printf("\nFirst letter = \"%s\"\n", X.c_str());
+	printf("Value of first letter = %d\n", TestISO->GetInt());
+
+	TestISO->SetString("7");
+	X = TestISO->GetString();
+	printf("\nNumber seven = \"%s\"\n", X.c_str());
+	printf("Value of number seven = %d\n", TestISO->GetInt());
+
+
+	MDValuePtr TestArray;
+	TestArray = new MDValue("Uint8Array");
+	ASSERT(TestArray);
+
+
+	MDValuePtr TestItem = new MDValue("Uint8");
+	TestItem->SetInt(42);
+	TestArray->AddChild(TestItem,3);
+
+	{
+		printf("TestArray Value = ");
+		int i=0;
+		for(;;)
+		{
+			MDValuePtr Test = (*TestArray)[i];
+			if(!Test) break;
+
+			X = Test->GetString();
+			printf("%s, ", X.c_str());
+
+			i++;
+		}
+		printf("\n");
+	}
+
+
+	TestItem = new MDValue("Uint8");
+	TestItem->SetInt(24);
+	TestArray->AddChild(TestItem,2);
+
+	{
+		printf("TestArray Value = ");
+		int i=0;
+		for(;;)
+		{
+			MDValuePtr Test = (*TestArray)[i];
+			if(!Test) break;
+
+			X = Test->GetString();
+			printf("%s, ", X.c_str());
+
+			i++;
+		}
+		printf("\n");
+	}
+
 
 	printf("\nPress RETURN key ");
 	getchar();

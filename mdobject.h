@@ -34,6 +34,8 @@
 #ifndef MXFLIB__MDOBJECT_H
 #define MXFLIB__MDOBJECT_H
 
+#if 0
+
 // Include the KLVLib header
 extern "C"
 {
@@ -151,7 +153,11 @@ namespace mxflib
 		void Init(void);
 		~MDObject();
 
-		void AddChild(MDObject *Child);
+		void AddChild(MDObject *Child, int Index = -1);
+		void MDObject::TrimChildren(int Index);
+
+		MDObjectPtr operator[](int Index);
+
 
 		void SetInt8(Int8 Val) { ASSERT(Size==1); if(Size==1) PutI8(Val, Data); };
 		void SetUint8(Uint8 Val) { ASSERT(Size==1); if(Size==1) PutU8(Val, Data); };
@@ -161,6 +167,7 @@ namespace mxflib
 		void SetUint32(Uint32 Val) { ASSERT(Size==4); if(Size==4) PutU32(Val, Data); };
 		void SetInt64(Int64 Val) { ASSERT(Size==8); if(Size==8) PutI64(Val, Data); };
 		void SetUint64(Uint64 Val) { ASSERT(Size==8); if(Size==8) PutU64(Val, Data); };
+		void SetData(int ValSize, Uint8 *Val);
 		
 		Int8 GetInt8(void) { ASSERT(Size==1); return (Size==1) ? GetI8(Data) : 0; };
 		Uint8 GetUint8(void) { ASSERT(Size==1); return (Size==1) ? GetU8(Data) : 0; };
@@ -170,11 +177,11 @@ namespace mxflib
 		Uint32 GetUint32(void) { ASSERT(Size==4); return (Size==4) ? GetU32(Data) : 0; };
 		Int64 GetInt64(void) { ASSERT(Size==8); return (Size==8) ? GetI64(Data) : 0; };
 		Uint64 GetUint64(void) { ASSERT(Size==8); return (Size==8) ? GetU64(Data) : 0; };
-
-		void SetData(int ValSize, Uint8 *Val);
+		const Uint8 *GetData(void) { return (Size==0) ? NULL : Data; };
 	};
 }
 
+#endif 0
 
 #endif MXFLIB__MDOBJECT_H
 

@@ -293,6 +293,26 @@ std::string mxflib::MDTraits_Uint32::GetString(MDValue *Object)
 };
 
 
+/***************************************
+**   ISO 7-bit char Implementations   **
+***************************************/
+
+//!	Get string from an ISO7
+std::string mxflib::MDTraits_ISO7::GetString(MDValue *Object) 
+{ 
+	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
+	sprintf(Buffer, "%c", GetInt(Object));
+	return std::string(Buffer);
+};
+
+//! Set an ISO7 from a string
+void mxflib::MDTraits_ISO7::SetString(MDValue *Object, std::string Val)
+{
+	const char *StringData = Val.c_str();
+	SetInt(Object, *StringData);
+}
+
+
 #if 0
 
 // Default trait implementations

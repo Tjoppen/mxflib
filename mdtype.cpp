@@ -34,14 +34,17 @@
 
 #include "mxflib.h"
 
+using namespace mxflib;
+
+
 //! Default traits for types without special handling
-mxflib::MDTraits DefaultTraits;
+MDTraits DefaultTraits;
 
 
 //! Add a definition for a basic type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-void mxflib::MDType::AddBasic(std::string TypeName, int TypeSize)
+void MDType::AddBasic(std::string TypeName, int TypeSize)
 {
 	// Can't have a zero length basic type!
 	ASSERT(TypeSize != 0);
@@ -60,11 +63,55 @@ void mxflib::MDType::AddBasic(std::string TypeName, int TypeSize)
 }
 
 
+//! Add a definition for an interpretation type
+/*! DRAGONS: Currently doesn't check for duplicates
+ */
+void MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType)
+{
+	// Can't base on nothing!
+	ASSERT(BaseType);
+
+	// Create a new MDType to manage
+	MDTypePtr NewType = new MDType(TypeName, INTERPRETATION, BaseType->Traits);
+
+	// Set the type size
+	NewType->Size = BaseType->Size;
+
+	// Add to the list of types
+	Types.push_back(NewType);
+
+	// Set the lookup
+	NameLookup[TypeName] = NewType;
+}
+
+
+//! Add a definition for an array type
+/*! DRAGONS: Currently doesn't check for duplicates
+ */
+void MDType::AddArray(std::string TypeName, MDTypePtr BaseType, int Size /* = 0 */)
+{
+	// Can't base on nothing!
+	ASSERT(BaseType);
+
+	// Create a new MDType to manage
+	MDTypePtr NewType = new MDType(TypeName, TYPEARRAY, BaseType->Traits);
+
+	// Set the array size
+	NewType->Size = Size;
+
+	// Add to the list of types
+	Types.push_back(NewType);
+
+	// Set the lookup
+	NameLookup[TypeName] = NewType;
+}
+
+
 //! Find the MDType object that defines a named type
 /*! /ret Pointer to the object
  *  /ret NULL if there is no type of that name
  */
-mxflib::MDTypePtr mxflib::MDType::Find(const char *TypeName)
+MDTypePtr MDType::Find(const char *TypeName)
 {
 	MDTypePtr theType;
 
@@ -83,7 +130,7 @@ mxflib::MDTypePtr mxflib::MDType::Find(const char *TypeName)
 //! MDValue named constructor
 /*! Builds a "blank" variable of a named type
 */
-mxflib::MDValue::MDValue(const char *BaseType)
+MDValue::MDValue(const char *BaseType)
 {
 	Type = MDType::Find(BaseType);
 
@@ -101,7 +148,7 @@ mxflib::MDValue::MDValue(const char *BaseType)
 //! MDValue typed constructor
 /*! Builds a "blank" variable of a specified type
 */
-mxflib::MDValue::MDValue(mxflib::MDType *BaseType)
+MDValue::MDValue(MDType *BaseType)
 {
 	Type = BaseType;
 
@@ -113,7 +160,7 @@ mxflib::MDValue::MDValue(mxflib::MDType *BaseType)
 //! Second part of MDValue constructors
 /*! Builds a "blank" variable
 */
-void mxflib::MDValue::Init(void)
+void MDValue::Init(void)
 {
 	// Start with no value
 	Size = 0;
@@ -123,7 +170,7 @@ void mxflib::MDValue::Init(void)
 //! Set a variable to be a certain size in bytes
 /*!	The old data is NOT copied. This function assumes that this is a viable thing to do!
  */
-void mxflib::MDValue::MakeSize(int NewSize)
+void MDValue::MakeSize(int NewSize)
 {
 	if(Size == NewSize) return;
 	
@@ -142,7 +189,7 @@ void mxflib::MDValue::MakeSize(int NewSize)
 //! Set a variable to be a certain size in bytes
 /*!	The old data is NOT copied. This function assumes that this is a viable thing to do!
  */
-void mxflib::MDValue::SetValue(int ValSize, Uint8 *Val)
+void MDValue::SetValue(int ValSize, Uint8 *Val)
 {
 	if(ValSize > Size)
 	{
@@ -163,16 +210,113 @@ void mxflib::MDValue::SetValue(int ValSize, Uint8 *Val)
 }
 
 
+//! Add a child to an MDValue continer
+/*! If the container is an array the index number of the new object can be
+ *! specified. If the index number is specified and a child already exists
+ *! with that number it is replaced. If the index number is specified and
+ *! it is not the next index available, extra 'empty' objects are added to
+ *! grow the array to the appropriate size.
+ */
+void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
+{
+	ASSERT( Type->Class == TYPEARRAY || Type->Class == COMPOUND );
 
-//std::string mxflib::MDValue::GetString(void) { return std::string("Base"); };
-//std::string mxflib::MDValue_Int8::GetString(void) { return std::string("Int8"); };
+	// Specific array index given
+	if(Index >= 0)
+	{
+		// Can only specify an index for arrays
+		ASSERT( Type->Class == TYPEARRAY );
+
+		int Num = Children.size();
+
+		// Replacing a current entry
+		if(Num > Index)
+		{
+			MDValueList::iterator it = Children.begin();
+
+			// Move to the index point
+			while(Index--) it++;
+
+			// Insert the new item at this point
+			Children.insert(it, Child);
+
+			// Remove the old entry, automatically deleting the object if required
+			Children.erase(it);
+
+			// All done for replace operation
+			return;
+		}
+		else
+		{
+			// Entry padding items required
+			if(Index > Num)
+			{
+				while(Index > Num)
+				{
+					// Insert a new item of the same type at the end
+					Children.push_back(new MDValue(Child->Type));
+
+					Num++;
+				}
+			}
+		}
+	}
+
+	// Add to the list of children
+	Children.push_back(Child);
+};
+
+
+//! Remove children from an MDValue continer
+/*! Remove all but the first "Index" children. 
+ *! Probably only useful for resizing arrays.
+ */
+void MDValue::TrimChildren(int Index)
+{
+	ASSERT( Type->Class == TYPEARRAY || Type->Class == COMPOUND );
+	
+	MDValueList::iterator it = Children.begin();
+
+	// Move to the index point
+	while(Index--) it++;
+
+	// Remove the old entries, automatically deleting the objects if required
+	Children.erase(it, Children.end());
+}
+
+
+//! Access array member within an MDValue array
+/*! DRAGONS: The 
+*/
+MDValuePtr MDValue::operator[](int Index)
+{
+	MDValuePtr Ret = NULL;
+
+	MDValueList::iterator it = Children.begin();
+
+	while(Index--)
+	{
+		// End of list!
+		if(++it == Children.end()) return Ret;
+	}
+
+	// Return a smart pointer to the object
+	Ret = *(it);
+
+	return Ret;
+}
+
+
+
+//std::string MDValue::GetString(void) { return std::string("Base"); };
+//std::string MDValue_Int8::GetString(void) { return std::string("Int8"); };
 
 
 
 //** Static Instantiations for MDType class **
 //********************************************
 
-mxflib::MDTypeList mxflib::MDType::Types;	//!< All types managed by the MDType class
+MDTypeList MDType::Types;	//!< All types managed by the MDType class
 
 //! Map for reverse lookups based on type name
-std::map<std::string, mxflib::MDTypePtr> mxflib::MDType::NameLookup;
+std::map<std::string, MDTypePtr> MDType::NameLookup;
