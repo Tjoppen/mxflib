@@ -1,6 +1,11 @@
 
 Release Notes for mxflib version 0.2.1-Alpha
-==========================================
+============================================
+
+This version adds index table support.
+Currently the index table loading is inefficient, but lookup is fast.
+It also fixes a few bugs in 0.2-Alpha.
+
 
 Changes since version 0.2-Alpha
 ===============================
@@ -14,6 +19,8 @@ Changes since version 0.2-Alpha
 * Fixed bug in reading arrays with > 1 type per entry, they were
   erroneously read in alphabetical order!
 * Fixed bug where MDOTypes where added to ChildOrder twice
+* Index tables now working, though not very efficient loading
+
 
 Changes since version 0.1-Alpha
 ===============================
