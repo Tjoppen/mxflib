@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.7.2.4 2004/07/05 14:40:37 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.7.2.5 2004/07/17 00:25:04 terabrit Exp $
  *
  */
 /*
@@ -61,6 +61,7 @@ static bool SplitMono = false;		// -m
 static bool SplitStereo = false;	// -s
 static bool SplitParts = false;		// -p
 static bool FullIndex = false;		// -f dump full index
+static bool DumpExtraneous = false;		// -x dump extraneous body elements
 
 static unsigned long SplitWaveChannels = 2;	// -w=n
 
@@ -81,7 +82,7 @@ static void DumpBody(PartitionPtr ThisPartition);
 
 int main(int argc, char *argv[])
 {
-	printf("MXFlib File Splitter\n");
+	fprintf( stderr,"MXFlib File Splitter\n" );
 
 	LoadTypes("types.xml");
 	MDOType::LoadDict("xmldict.xml");
@@ -98,9 +99,11 @@ int main(int argc, char *argv[])
 		//fprintf( stderr,"                       [-m] Subdivide AESBWF Elements into mono wave files \n" );
 		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
 		//fprintf( stderr,"                       [-p] Split Partitions \n");
+		fprintf( stderr,"                       [-x] Dump Extraneous Body Elements \n" );
 #ifdef DMStiny
 		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
 #endif
+		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 
 		return 1;
 	}
@@ -142,6 +145,7 @@ int main(int argc, char *argv[])
 					SplitWaveChannels = strtoul( argv[i]+3, NULL, 0 );
 				}
 			}
+			else if(Opt == 'x') DumpExtraneous = true;
 		}
 	}
 
@@ -154,6 +158,7 @@ int main(int argc, char *argv[])
 	if (! TestFile->Open(argv[num_options+1], true))
 	{
 		perror(argv[num_options+1]);
+		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 		exit(1);
 	}
 
@@ -227,9 +232,14 @@ int main(int argc, char *argv[])
 	}
 	theStreams.clear();
 
+	if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
+
 	return 0;
 }
 
+// maximum value size to dump
+// above this, dump will just state size
+#define MAX_DUMPSIZE 128
 
 //! Dump an object and any physical or logical children
 void DumpObject(MDObjectPtr Object, std::string Prefix)
@@ -259,8 +269,29 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 		}
 		else
 		{
+			const char* n=Object->Name().c_str();
 			if(Object->Value)
+			{
+				Uint32 sz=Object->Value->GetData().Size;
+				if( Object->Value->GetData().Size > MAX_DUMPSIZE )
+				{
+					printf("%s%s = RAW[0x%08x]", Prefix.c_str(), Object->Name().c_str(), Object->Value->GetData().Size );
+
+					const unsigned char* p = Object->Value->GetData().Data;
+					int i; for(i=0;i<3;i++)
+					{
+						printf("\n%s%*c      ", Prefix.c_str(), strlen(Object->Name().c_str()), ' ');
+						int j; for(j=0;j<4;j++)
+						{
+							int k; for(k=0;k<4;k++) printf("%02x", *p++); 
+							printf(" ");
+						}
+						if(i==2) printf( "...\n" );
+					}
+				}
+				else
 				printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+			}
 			else
 				printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 		}
@@ -410,9 +441,25 @@ static void DumpBody( PartitionPtr ThisPartition )
 
 			if( !kind.IsValid )
 			{
-				if( !Quiet ) printf( "EXTRANEOUS Element: K=%s L=0x%s\n", 
+				if( !Quiet ) printf( "EXTRANEOUS (non-GC) Element: K=%s L=0x%s\n", 
 															anElement->GetUL()->GetString().c_str(),
 															Int64toHexString( anElement->GetLength(), 8 ).c_str() );
+				if( DumpExtraneous )
+				{
+					// anElement isa KLVObject
+					MDObjectPtr anObj = new MDObject( anElement->GetUL() );
+
+					DataChunk& theChunk = anElement->GetData();
+
+					Uint64 theSize = theChunk.Size;
+					Uint8 *Data = theChunk.Data;
+
+					anObj->ReadValue( theChunk );
+
+					DumpObject( anObj, "   " );
+					printf( "\n" );
+
+				}
 			}
 			else
 			{
