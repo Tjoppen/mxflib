@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.8 2004/05/18 02:02:10 terabrit Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.9 2004/05/20 23:58:38 terabrit Exp $
  *
  */
 /*
@@ -61,6 +61,7 @@ static bool SplitMono = false;		// -m
 static bool SplitStereo = false;	// -s
 static bool SplitParts = false;		// -p
 static bool FullIndex = false;		// -f dump full index
+static bool DumpExtraneous = false;		// -x dump extraneous body elements
 
 static unsigned long SplitWaveChannels = 2;	// -w=n
 
@@ -98,6 +99,7 @@ int main(int argc, char *argv[])
 		//fprintf( stderr,"                       [-m] Subdivide AESBWF Elements into mono wave files \n" );
 		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
 		//fprintf( stderr,"                       [-p] Split Partitions \n");
+		fprintf( stderr,"                       [-x] Dump Extraneous Body Elements \n" );
 #ifdef DMStiny
 		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
 #endif
@@ -143,6 +145,7 @@ int main(int argc, char *argv[])
 					SplitWaveChannels = strtoul( argv[i]+3, NULL, 0 );
 				}
 			}
+			else if(Opt == 'x') DumpExtraneous = true;
 		}
 	}
 
@@ -263,8 +266,17 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 		}
 		else
 		{
+			const char* n=Object->Name().c_str();
 			if(Object->Value)
-				printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+			{
+				Uint32 sz=Object->Value->GetData().Size;
+				if( Object->Value->GetData().Size > 128 )
+				{
+					printf("%s%s = 0x%08x\n", Prefix.c_str(), Object->Name().c_str(), Object->Value->GetData().Size );
+				}
+				else
+					printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+			}
 			else
 				printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 		}
@@ -414,9 +426,24 @@ static void DumpBody( PartitionPtr ThisPartition )
 
 			if( !kind.IsValid )
 			{
-				if( !Quiet ) printf( "EXTRANEOUS Element: K=%s L=0x%s\n", 
+				if( !Quiet ) printf( "EXTRANEOUS (non-GC) Element: K=%s L=0x%s\n", 
 															anElement->GetUL()->GetString().c_str(),
 															Int64toHexString( anElement->GetSize(), 8 ).c_str() );
+				if( DumpExtraneous )
+				{
+					// anElement isa KLVObject
+					MDObjectPtr anObj = new MDObject( anElement->GetUL() );
+
+					DataChunkPtr theChunk = anElement->GetData();
+
+					Uint64 theSize = theChunk->Size;
+					Uint8 *Data = theChunk->Data;
+
+					anObj->ReadValue( *theChunk );
+
+					DumpObject( anObj, "   " );
+
+				}
 			}
 			else
 			{
