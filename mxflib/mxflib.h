@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.6 2005/02/08 12:38:05 matt-beard Exp $
+ *	\version $Id: mxflib.h,v 1.7 2005/03/25 13:13:50 terabrit Exp $
  *
  */
 /*
@@ -48,9 +48,9 @@ namespace mxflib
 {
 #define MXFLIB_VERSION_MAJOR "0"
 #define MXFLIB_VERSION_MINOR "5"
-#define MXFLIB_VERSION_TWEAK "1"
-#define MXFLIB_VERSION_BUILD "3"
-#define MXFLIB_VERSION_REL   1
+#define MXFLIB_VERSION_TWEAK "2"
+#define MXFLIB_VERSION_BUILD "1"
+#define MXFLIB_VERSION_REL   2
 #define MXFLIB_VERSION_RELTEXT(REL) (REL==1?"-Release":(REL==2?"-Development":(REL==3?"-Patched":(REL==4?"-Beta":(REL==5?"-Private":"")))))
 #define MXFLIB_VERSION_RELNUMBER(REL) (REL==1?"1":(REL==2?"2":(REL==3?"3":(REL==4?"4":(REL==5?"5":"0")))))
 
@@ -118,6 +118,8 @@ namespace mxflib
 #include <mxflib/esp_mpeg2ves.h>
 #include <mxflib/esp_wavepcm.h>
 #include <mxflib/esp_dvdif.h>
+#include <mxflib/sopsax.h>
+#include <mxflib/xmlparse.h>
 
 #endif // MXFLIB__MXFLIB_H
 
