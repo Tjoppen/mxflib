@@ -9,7 +9,7 @@ htmldir = $(datadir)/doc/mxflib/html
 
 html_DATA = html/index.html
 
-html/index.html: doxyfile.cfg licence.txt
+html/index.html: doxyfile.cfg license.txt
 	doxygen doxyfile.cfg
 
 license.txt:
