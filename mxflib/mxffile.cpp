@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.3 2004/11/13 13:03:22 matt-beard Exp $
  *
  */
 /*
@@ -983,6 +983,9 @@ Uint64 MXFFile::Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize /*=0*/)
  */
 bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding, Uint32 MinPartitionSize)
 {
+	//! Previous partition if re-writing
+	PartitionPtr OldPartition;
+
 	PrimerPtr ThisPrimer;
 	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = new Primer;
 
@@ -1041,9 +1044,29 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	// Align if required (not if re-writing)
 	if((!ReWrite) && (KAGSize > 1)) Align(KAGSize);
 
+	// Work out the index size
+	Uint64 IndexByteCount = 0;
+	if(IndexData) IndexByteCount = IndexData->Size;
+
 	// Initialy we have no header data
 	Uint64 HeaderByteCount = 0;
 	
+	// Read the old partition pack if re-writing
+	if(ReWrite)
+	{
+		Uint64 Pos = Tell();
+		OldPartition = ReadPartition();
+
+		if(!OldPartition)
+		{
+			error("Failed to read old partition pack in MXFFile::ReWritePartition()\n"); 
+			return false;
+		}
+
+		// Move back to re-write partition pack
+		Seek(Pos);
+	}
+
 	if(IncludeMetadata)
 	{
 		// Build the primer
@@ -1052,36 +1075,38 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		// Set size of header metadata (including the primer)
 		HeaderByteCount = PrimerBuffer.Size + MetaBuffer.Size;
 
+		// TODO: We need to do these calculations even if only rewriting with an index table (it could happen!)
 		if(ReWrite)
 		{
-			Uint64 Pos = Tell();
-			PartitionPtr OldPartition = ReadPartition();
-
-			if(!OldPartition)
-			{
-				error("Failed to read old partition pack in MXFFile::ReWritePartition()\n"); 
-				return false;
-			}
-
-			// Move back to re-write partition pack
-			Seek(Pos);
-
+			// Old sizes in existing partition
 			Uint64 OldHeaderByteCount = OldPartition->GetUint64("HeaderByteCount");
+			Uint64 OldIndexByteCount = 0;
+			if(IndexByteCount) OldIndexByteCount = OldPartition->GetUint64("IndexByteCount");
 
-			// Record the required padding size to make the new partition match the old one
-			Padding =(Uint32)( OldHeaderByteCount - HeaderByteCount);
-			
-			// We can't obey a MinPartitionSize request
-			MinPartitionSize = 0;
+			// Minimum new sizes to obey KAG rules
+			Uint64 NewHeaderByteCount = HeaderByteCount + FillerSize(HeaderByteCount, KAGSize);
+			Uint64 NewIndexByteCount = 0;
+			if(IndexByteCount) NewIndexByteCount = IndexByteCount + FillerSize(IndexByteCount, KAGSize);
+
+			// Record the required extra padding size to make the new partition match the old one
+			Padding =(Uint32)( (OldHeaderByteCount+OldIndexByteCount) - (NewHeaderByteCount+NewIndexByteCount) );
 
 			// Minimum possible filler size is 17 bytes
-			if((HeaderByteCount > OldHeaderByteCount) || (Padding < 17))
+			// TODO: Actually the padding may be OK at < 17 if we are aligning to a KAG. Better checking could be done...
+			if(((NewHeaderByteCount+NewIndexByteCount) > (OldHeaderByteCount+OldIndexByteCount)) || (Padding < 17))
 			{
 				error("Not enough space to re-write updated header at position 0x%s in %s\n", Int64toHexString(Tell(), 8).c_str(), Name.c_str());
 				return false;
 			}
 
-			HeaderByteCount += Padding;
+			// Add the padding to the required section
+			if(IndexByteCount)
+				IndexByteCount = NewIndexByteCount + Padding;
+			else
+				HeaderByteCount = NewHeaderByteCount + Padding;
+
+			// We can't obey a MinPartitionSize request
+			MinPartitionSize = 0;
 		}
 		else
 		{
@@ -1126,8 +1151,17 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	}
 	else
 	{
-		ThisPartition->SetUint("IndexSID", 0);
-		ThisPartition->SetUint64("IndexByteCount", 0);
+		// If we are re-writing, but not writing an index, keep the old index settings
+		if(ReWrite)
+		{
+			ThisPartition->SetUint("IndexSID", OldPartition->GetUint("BodySID"));
+			ThisPartition->SetUint64("IndexByteCount", OldPartition->GetUint64("IndexByteCount"));
+		}
+		else
+		{
+			ThisPartition->SetUint("IndexSID", 0);
+			ThisPartition->SetUint64("IndexByteCount", 0);
+		}
 	}
 
 	// Write the pack

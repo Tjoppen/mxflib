@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.3 2004/11/13 13:03:22 matt-beard Exp $
  *
  */
 /*
@@ -557,7 +557,7 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 					break;
 				}
 			}
-			p++;
+			p--;
 		}
 	}
 
