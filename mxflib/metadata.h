@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.1.2.1 2004/05/26 20:11:36 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.1.2.2 2004/10/10 18:40:36 terabrit Exp $
  *
  */
 /*
@@ -247,6 +247,13 @@ namespace mxflib
 
 namespace mxflib
 {
+	//! Distinguished values of DefaultDuration for event tracks
+    enum
+    {
+        DurationUnspecified = -1,      //!< Item is of an unspecified duration (unknown or not a timeline item)
+        DurationInstantaneous = 0,     //!< Item is instantaneous
+    };
+
 	//! Holds data relating to a package
 	class Package : public ObjectInterface, public RefCount<Package>
 	{
@@ -264,6 +271,9 @@ namespace mxflib
 
 		//! Add a timeline track to the package
 		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, std::string TrackName = "", Uint32 TrackID = 0);
+
+		//! Add an event track to the package
+		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Int64 DefaultDuration, std::string TrackName = "", Uint32 TrackID = 0);
 
 		//! Add a static track to the package
 		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string TrackName = "", Uint32 TrackID = 0);
@@ -300,21 +310,31 @@ namespace mxflib
 			return AddTrack(TCDD, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
+		// Add an EVENT DM Track
+		TrackPtr AddDMTrack(Rational EditRate, Int64 DefaultDuration = DurationUnspecified, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, EditRate, DefaultDuration, TrackName, TrackID); }
+		TrackPtr AddDMTrack(Uint32 TrackNumber, Rational EditRate, Int64 DefaultDuration, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
+		{
+			static const Uint8 TCDM_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
+			static const ULPtr TCDM = new UL(TCDM_Data);
+			return AddTrack(TCDM, TrackNumber, EditRate, DefaultDuration, TrackName, TrackID);
+		}
+
+		// Add a TIMELINE DM Track
 		TrackPtr AddDMTrack(Rational EditRate, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, EditRate, TrackName, TrackID); }
 		TrackPtr AddDMTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
 		{
-			static const Uint8 TCDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
-			static const ULPtr TCDD = new UL(TCDD_Data);
-			return AddTrack(TCDD, TrackNumber, EditRate, TrackName, TrackID);
+			static const Uint8 TCDM_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
+			static const ULPtr TCDM = new UL(TCDM_Data);
+			return AddTrack(TCDM, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
 		// Add a STATIC DM Track
 		TrackPtr AddDMTrack(std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, TrackName, TrackID); }
 		TrackPtr AddDMTrack(Uint32 TrackNumber, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
 		{
-			static const Uint8 TCDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
-			static const ULPtr TCDD = new UL(TCDD_Data);
-			return AddTrack(TCDD, TrackNumber, TrackName, TrackID);
+			static const Uint8 TCDM_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
+			static const ULPtr TCDM = new UL(TCDM_Data);
+			return AddTrack(TCDM, TrackNumber, TrackName, TrackID);
 		}
 
 		//! Update the duration field in each sequence in each track for this package
