@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.7.2.2 2004/05/28 14:58:42 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.7.2.3 2004/05/28 15:38:01 matt-beard Exp $
  *
  */
 /*
@@ -79,7 +79,9 @@ static void DumpIndex(PartitionPtr ThisPartition);
 static void DumpBody(PartitionPtr ThisPartition);
 
 
+// ============================================================================
 //! Test GCReader handler
+// ============================================================================
 class Test_GCReadHandler : public GCReadHandler_Base
 {
 protected:
@@ -105,8 +107,13 @@ bool Test_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 
 	return true;
 }
+// ============================================================================
 
+
+
+// ============================================================================
 //! Test GCReader handler for filler
+// ============================================================================
 class Test_GCFillerHandler : public GCReadHandler_Base
 {
 protected:
@@ -132,6 +139,9 @@ bool Test_GCFillerHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 
 	return true;
 }
+// ============================================================================
+
+
 
 
 int main(int argc, char *argv[])
@@ -212,7 +222,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-/*
+/*	-- work in progress!! --
 	// Read the header partition pack
 	PartitionPtr HeaderPartition = TestFile->ReadPartition();
 	if(!HeaderPartition)
@@ -261,7 +271,10 @@ int main(int argc, char *argv[])
 	@|@|@|@@|\\\ use Package type...
 */
 	
-	// ### Not the right way to scan a file for essence...
+	
+	// ###
+	// ### Not the right way to scan a file for BodySIDs (should check metadata)
+	// ###
 
 	// Start at the beginning of the file
 	TestFile->Seek(0);
@@ -299,7 +312,7 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		// Parse the file until end-of-file or an error
+		// Parse the file until next partition or an error
 		if (!BodyParser->ReadFromFile()) break;
 	}
 
