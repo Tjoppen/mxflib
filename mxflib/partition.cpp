@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.1.2.2 2004/05/18 18:49:46 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.1.2.3 2004/05/19 11:14:28 matt-beard Exp $
  *
  */
 /*
@@ -489,6 +489,40 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 }
 
 
+//! Locate start of Essence Container
+/*! Moves the file pointer for the parent file to the start of the essence container in this partition
+ *  \note If there is no essence in this partition the pointer will be moved to the start of the following partition (or the start of the RIP if this is the footer)
+ */
+bool mxflib::Partition::SeekEssence(void)
+{
+	MXFFilePtr File = Object->GetParentFile();
+	if(!File) { error("Call to Partition::SeekEssence() on a non-file partition\n"); return false; }
+
+	Position BodyLocation = 0;
+
+	Length MetadataSize = GetInt64("HeaderByteCount");
+	Length IndexSize = GetInt64("IndexByteCount");
+
+	// Skip over Partition Pack (and any trailing filler)
+	File->Seek( Object->GetLocation() + 16 );
+	Length Len = File->ReadBER();
+	BodyLocation = SkipFill( File->Tell() + Len );
+	if(!BodyLocation) return false;
+
+	// Skip over Metadata (and any trailing filler)
+	BodyLocation += MetadataSize;
+
+	// Skip over Index (and any trailing filler)
+	BodyLocation += IndexSize;
+
+	// Perform the seek
+	File->Seek(BodyLocation);
+
+	return true;
+}
+
+
+
 // Sequential access to the Elements of the Body
 
 // goto start of body...set the member variables _BodyLocation, _NextBodyLocation
@@ -569,9 +603,9 @@ Uint64 mxflib::Partition::Skip( Uint64 start )
 	if(!NextUL) return 0;
 
 	// Is this a partition pack?
-	if(IsPartitionKey(NextUL->GetValue()) return 0;
+	if(IsPartitionKey(NextUL->GetValue())) return 0;
 
-	return ret
+	return ret;
 }
 
 // skip over any KLVFill
@@ -606,7 +640,7 @@ Uint64 mxflib::Partition::SkipFill( Uint64 start )
 	if(!NextUL) return 0;
 
 	// Is this a partition pack?
-	if(IsPartitionKey(NextUL->GetValue())
+	if(IsPartitionKey(NextUL->GetValue()))
 	{
 		Uint8 byte14 = (NextUL->GetValue())[13];
 		if( byte14 == 2 || byte14 == 3 || byte14 == 4 )	return 0;

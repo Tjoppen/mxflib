@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: partition.h,v 1.1.2.1 2004/05/19 11:14:28 matt-beard Exp $
  *
  */
 /*
@@ -132,6 +132,11 @@ namespace mxflib
 		// DRAGONS: These should be const, but can't make it work!
 		std::map<UUID, MDObjectPtr>& GetRefTargets(void) { return RefTargets; };
 		std::multimap<UUID, MDObjectPtr>& GetUnmatchedRefs(void) { return UnmatchedRefs;	};
+
+
+		//! Locate start of Essence Container
+		bool SeekEssence(void);
+
 
 // Sequential access to the Elements of the Body
 
