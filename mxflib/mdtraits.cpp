@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.2 2004/05/20 23:56:24 terabrit Exp $
+ *	\version $Id: mdtraits.cpp,v 1.3 2004/05/21 20:10:44 terabrit Exp $
  *
  */
 /*
@@ -941,6 +941,10 @@ void MDTraits_Raw::SetString(MDValuePtr Object, std::string Val)
 **   Raw Array Implementations   **
 **********************************/
 
+// maximum value size to dump
+// above this, dump will just state size
+#define MAX_DUMPSIZE 128
+
 std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 {
 	std::string Ret;
@@ -949,10 +953,10 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 
 	Ret = "";
 
-	if( Object->size() >128 )
+	if( Object->size() > MAX_DUMPSIZE )
 	{
 		char Buffer[32];
-		sprintf( Buffer, "array[0x%08x]", Object->size() );
+		sprintf( Buffer, "RAW[0x%08x]", Object->size() );
 		Ret = Buffer;
 		return Ret;
 	}
