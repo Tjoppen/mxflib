@@ -36,5 +36,5 @@ pkginclude_HEADERS = \
 			sopsax.h
 
 rsrc_DATA = \
-			types.xml \
-			xmldict.xml
+			../types.xml \
+			../xmldict.xml
