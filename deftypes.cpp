@@ -28,7 +28,7 @@
 
 extern "C"
 {
-#include "klv.h"
+#include "Klv.h"
 #include "sopSAX.h"
 }
 
@@ -249,7 +249,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 					}
 					else if(strcmp(attr, "endian") == 0)
 					{
-						if(stricmp(val,"yes") == 0) Endian = true;
+						if(strcasecmp(val,"yes") == 0) Endian = true;
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
@@ -360,7 +360,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 					}
 					else if(strcmp(attr, "type") == 0)
 					{
-						if(stricmp(val, "Collection") == 0) Class = ARRAYCOLLECTION;
+						if(strcasecmp(val, "Collection") == 0) Class = ARRAYCOLLECTION;
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
@@ -492,7 +492,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 
 
 //! SAX callback - Deal with end tag of an element
-static void DefTypes_endElement(void *user_data, const char *name)
+extern void DefTypes_endElement(void *user_data, const char *name)
 {
 	DefTypesState *State = (DefTypesState*)user_data;
 
@@ -534,7 +534,7 @@ static void DefTypes_endElement(void *user_data, const char *name)
 
 
 //! SAX callback - Handle warnings during SAX parsing
-static void DefTypes_warning(void *user_data, const char *msg, ...)
+extern void DefTypes_warning(void *user_data, const char *msg, ...)
 {
     char Buffer[1024];			// DRAGONS: Could burst!!
 	va_list args;
@@ -546,7 +546,7 @@ static void DefTypes_warning(void *user_data, const char *msg, ...)
 }
 
 //! SAX callback - Handle errors during SAX parsing
-static void DefTypes_error(void *user_data, const char *msg, ...)
+extern void DefTypes_error(void *user_data, const char *msg, ...)
 {
     char Buffer[1024];			// DRAGONS: Could burst!!
 	va_list args;
@@ -558,7 +558,7 @@ static void DefTypes_error(void *user_data, const char *msg, ...)
 }
 
 //! SAX callback - Handle fatal errors during SAX parsing
-static void DefTypes_fatalError(void *user_data, const char *msg, ...)
+extern void DefTypes_fatalError(void *user_data, const char *msg, ...)
 {
     char Buffer[1024];			// DRAGONS: Could burst!!
 	va_list args;
