@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.3 2004/05/19 13:38:58 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.4 2004/05/26 18:01:37 matt-beard Exp $
  *
  */
 /*
@@ -54,7 +54,7 @@ namespace mxflib
 		//! Set an encryption key
 		/*! \return True if key is accepted
 		 */
-		virtual bool SetKey(Uint32 KeySize, Uint8 *Key) = 0;
+		virtual bool SetKey(Uint32 KeySize, const Uint8 *Key) = 0;
 
 		//! Set an encryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -64,27 +64,55 @@ namespace mxflib
 		 *        and false for any other calls.  This allows different schemes to be
 		 *        used with minimal changes in the calling code.
 		 */
-		virtual bool SetIV(Uint32 IVSize, Uint8 *IV, bool Force = false) = 0;
+		virtual bool SetIV(Uint32 IVSize, const Uint8 *IV, bool Force = false) = 0;
+
+		//! Set an encryption Initialization Vector
+		/*! \return False if Initialization Vector is rejected
+		 *  \note Some crypto schemes, such as cypher block chaining, only require
+		 *        the initialization vector to be set at the start - in these cases
+		 *        Force will be set to true when the vector needs to be initialized,
+		 *        and false for any other calls.  This allows different schemes to be
+		 *        used with minimal changes in the calling code.
+		 */
+		bool SetIV(DataChunk &IV, bool Force = false) { return SetIV(IV.Size, IV.Data, Force); }
+
+		//! Set an encryption Initialization Vector
+		/*! \return False if Initialization Vector is rejected
+		 *  \note Some crypto schemes, such as cypher block chaining, only require
+		 *        the initialization vector to be set at the start - in these cases
+		 *        Force will be set to true when the vector needs to be initialized,
+		 *        and false for any other calls.  This allows different schemes to be
+		 *        used with minimal changes in the calling code.
+		 */
+		bool SetIV(DataChunkPtr &IV, bool Force = false) { return SetIV(IV->Size, IV->Data, Force); }
 
 		//! Get the Initialization Vector that will be used for the next encryption
 		/*! If called immediately after SetIV() with Force=true or SetIV() for a crypto
 		 *  scheme that accepts each offered vector (rather than creating its own ones)
 		 *  the result will be the vector offered in that SetIV() call.
 		 */
-		virtual DataChunk GetIV(void) = 0;
+		virtual DataChunkPtr GetIV(void) = 0;
 
 		//! Can this encryption system safely encrypt in place?
-		virtual bool CanEncryptInPlace(void) = 0;
+		/*! If BlockSize is 0 this function will return true if encryption of all block sizes can be "in place".
+		 *  Otherwise the result will indicate whether the given blocksize can be encrypted "in place".
+		 */
+		virtual bool CanEncryptInPlace(Uint32 BlockSize = 0) = 0;
 
 		//! Encrypt data bytes in place
 		/*! \return true if the encryption is successful
 		 */
-		virtual bool EncryptInPlace(Uint32 Size, Uint8 *Data) = 0;
+		virtual bool EncryptInPlace(Uint32 Size, const Uint8 *Data) = 0;
 
 		//! Encrypt data bytes in place
 		/*! \return true if the encryption is successful
 		 */
-		bool EncryptInPlace(DataChunkPtr &Data) { return EncryptInPlace(Data->Size(), Data->Data()); };
+		bool EncryptInPlace(DataChunk &Data) { return EncryptInPlace(Data.Size, Data.Data); };
+
+		//! Encrypt data bytes in place
+		/*! \return true if the encryption is successful
+		 */
+		bool EncryptInPlace(DataChunkPtr &Data) { return EncryptInPlace(Data->Size, Data->Data); };
 
 		//! Encrypt data and return in a new buffer
 		/*! \return NULL pointer if the encryption is unsuccessful
@@ -94,8 +122,17 @@ namespace mxflib
 		//! Encrypt data and return in a new buffer
 		/*! \return NULL pointer if the encryption is unsuccessful
 		 */
-		DataChunkPtr Encrypt(DataChunkPtr &Data) { return Encrypt(Data->Size(), Data->Data()); };
+		DataChunkPtr Encrypt(DataChunk &Data) { return Encrypt(Data.Size, Data.Data); };
+
+		//! Encrypt data and return in a new buffer
+		/*! \return NULL pointer if the encryption is unsuccessful
+		 */
+		DataChunkPtr Encrypt(DataChunkPtr &Data) { return Encrypt(Data->Size, Data->Data); };
 	};
+
+	// Smart pointer to an encryption wrapper object
+	typedef SmartPtr<Encrypt_Base> EncryptPtr;
+
 
 	//! Base decryptor wrapper class
 	/*! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
@@ -109,7 +146,7 @@ namespace mxflib
 		//! Set a decryption key
 		/*! \return True if key is accepted
 		 */
-		virtual bool SetKey(Uint32 KeySize, Uint8 *Key) = 0;
+		virtual bool SetKey(Uint32 KeySize, const Uint8 *Key) = 0;
 
 		//! Set a decryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -119,17 +156,40 @@ namespace mxflib
 		 *        and false for any other calls.  This allows different schemes to be
 		 *        used with minimal changes in the calling code.
 		 */
-		virtual bool SetIV(Uint32 IVSize, Uint8 *IV, bool Force = false) = 0;
+		virtual bool SetIV(Uint32 IVSize, const Uint8 *IV, bool Force = false) = 0;
+
+		//! Set a decryption Initialization Vector
+		/*! \return False if Initialization Vector is rejected
+		 *  \note Some crypto schemes, such as cypher block chaining, only require
+		 *        the initialization vector to be set at the start - in these cases
+		 *        Force will be set to true when the vector needs to be initialized,
+		 *        and false for any other calls.  This allows different schemes to be
+		 *        used with minimal changes in the calling code.
+		 */
+		bool SetIV(DataChunk &IV, bool Force = false) { return SetIV(IV.Size, IV.Data, Force); }
+
+		//! Set a decryption Initialization Vector
+		/*! \return False if Initialization Vector is rejected
+		 *  \note Some crypto schemes, such as cypher block chaining, only require
+		 *        the initialization vector to be set at the start - in these cases
+		 *        Force will be set to true when the vector needs to be initialized,
+		 *        and false for any other calls.  This allows different schemes to be
+		 *        used with minimal changes in the calling code.
+		 */
+		bool SetIV(DataChunkPtr &IV, bool Force = false) { return SetIV(IV->Size, IV->Data, Force); }
 
 		//! Get the Initialization Vector that will be used for the next encryption
 		/*! If called immediately after SetIV() with Force=true or SetIV() for a crypto
 		 *  scheme that accepts each offered vector (rather than creating its own ones)
 		 *  the result will be the vector offered in that SetIV() call.
 		 */
-		virtual DataChunk GetIV(void) = 0;
+		virtual DataChunkPtr GetIV(void) = 0;
 
 		//! Can this decryption system safely decrypt in place?
-		virtual bool CanEncryptInPlace(void) = 0;
+		/*! If BlockSize is 0 this function will return true if decryption of all block sizes can be "in place".
+		 *  Otherwise the result will indicate whether the given blocksize can be decrypted "in place".
+		 */
+		virtual bool CanDecryptInPlace(Uint32 BlockSize = 0) = 0;
 
 		//! Decrypt data bytes in place
 		/*! \return true if the decryption <i>appears to be</i> successful
@@ -139,7 +199,12 @@ namespace mxflib
 		//! Decrypt data bytes in place
 		/*! \return true if the decryption <i>appears to be</i> successful
 		 */
-		bool DecryptInPlace(DataChunkPtr &Data) { return DecryptInPlace(Data->Size(), Data->Data()); };
+		bool DecryptInPlace(DataChunk &Data) { return DecryptInPlace(Data.Size, Data.Data); };
+
+		//! Decrypt data bytes in place
+		/*! \return true if the decryption <i>appears to be</i> successful
+		 */
+		bool DecryptInPlace(DataChunkPtr &Data) { return DecryptInPlace(Data->Size, Data->Data); };
 
 		//! Decrypt data and return in a new buffer
 		/*! \return NULL pointer if the decryption is unsuccessful
@@ -149,9 +214,172 @@ namespace mxflib
 		//! Decrypt data and return in a new buffer
 		/*! \return NULL pointer if the decryption is unsuccessful
 		 */
-		DataChunkPtr Decrypt(DataChunkPtr &Data) { return Decrypt(Data->Size(), Data->Data()); };
+		DataChunkPtr Decrypt(DataChunk &Data) { return Decrypt(Data.Size, Data.Data); };
+
+		//! Decrypt data and return in a new buffer
+		/*! \return NULL pointer if the decryption is unsuccessful
+		 */
+		DataChunkPtr Decrypt(DataChunkPtr &Data) { return Decrypt(Data->Size, Data->Data); };
 	};
 
+	// Smart pointer to a dencryption wrapper object
+	typedef SmartPtr<Decrypt_Base> DecryptPtr;
+
+
+	//! KLVEObject class
+	/*! This class gives access to single AS-DCP encrypted KLV items within an MXF file with KLVObject interfacing
+	 */
+	class KLVEObject : public KLVObject
+	{
+	protected:
+		EncryptPtr	Encrypt;						//!< Pointer to the encryption wrapper
+		DecryptPtr	Decrypt;						//!< Pointer to the decryption wrapper
+
+		bool DataLoaded;							//!< True once the AS-DCP header data has been read
+		ULPtr ContextID;							//!< The context ID used to link to encryption metadata
+		Uint64 PlaintextOffset;						//!< Number of unencrypted bytes at start of source data
+		ULPtr SourceKey;							//!< Key for the plaintext KLV
+		Length SourceLength;						//!< Length of the plaintext KLV Value
+		int SourceLengthFormat;						//!< Number of bytes used to encode SourceLength in the KLVE (allows us to faithfully recreate if required)
+		Uint8 IV[16];								//!< The Initialization Vector for this KLVE
+		Uint8 Check[16];							//!< The check value for this KLVE
+		int DataOffset;								//!< Offset of the start of the excrypted value from the start of the KLV value
+
+		DataChunkPtr EncryptionIV;						//!< Encryption IV if one has been specified
+
+		/* Some useful constants */
+		//! The AS-DCP encryption system adds 32 bytes to the start of the encrypted data
+		enum { EncryptionOverhead = 32 };
+
+		//! The AS-DCP encryption system forces all encrypted data to be in multiples of 16 bytes
+		enum { EncryptionGranularity = 16 };
+
+	public:
+		//** KLVEObject Specifics **//
+
+		//! Set the encryption wrapper
+		void SetEncrypt(EncryptPtr NewWrapper) { Encrypt = NewWrapper; };
+
+		//! Set the decryption wrapper
+		void SetDecrypt(DecryptPtr NewWrapper) { Decrypt = NewWrapper; };
+
+		//! Set an encryption Initialization Vector
+		/*! \return False if Initialization Vector is rejected
+		 */
+		virtual bool SetEncryptIV(Uint32 IVSize, const Uint8 *IV, bool Force = false)
+		{
+			Force;		// Unused parameter
+
+			EncryptionIV = new DataChunk(IVSize, IV);
+
+			return true;
+		}
+
+		//! Set a decryption Initialization Vector
+		/*! \return False if Initialization Vector is rejected
+		 */
+		virtual bool SetDecryptIV(Uint32 IVSize, const Uint8 *IV, bool Force = false);
+
+		//! Get the Initialization Vector that will be used for the next encryption
+		virtual DataChunkPtr GetEncryptIV(void);
+
+		//! Get the Initialization Vector that will be used for the next decryption
+		virtual DataChunkPtr GetDecryptIV(void);
+
+
+		//** Construction / desctruction **//
+		KLVEObject(ULPtr ObjectUL);				//!< Construct a new KLVEObject
+		KLVEObject(KLVObject &Object);			//!< Construct a KLVEObject linked to an encrypted KLVObject
+		virtual void Init(void);
+		virtual ~KLVEObject() {};
+
+
+		//** KLVObject interfaces **//
+
+		//! Set the source details when an object has been read from a file
+		virtual void SetSource(MXFFilePtr File, Position Location, Uint32 NewKLSize, Length ValueLen)
+		{
+			IsConstructed = false;
+			SourceOffset = Location;
+			KLSize = NewKLSize;
+			SourceFile = File;
+		}
+
+		//! Set the source details when an object is build in memory
+		virtual void SetSource(Position Location, Uint32 NewKLSize, Length ValueLen)
+		{
+			IsConstructed = false;
+			SourceOffset = Location;
+			KLSize = NewKLSize;
+			SourceFile = NULL;
+		}
+
+		//! Get the object's UL
+		virtual ULPtr GetUL(void) { return TheUL; }
+
+		//! Set the object's UL
+		virtual void SetUL(ULPtr NewUL) { TheUL = NewUL; }
+
+		//! Get the location within the ultimate parent
+		virtual Uint64 GetLocation(void) { return SourceOffset; }
+
+		//! Get text that describes where this item came from
+		virtual std::string GetSource(void);
+
+		//! Get the size of the key and length (not of the value)
+		/*! \note For an KLVEObject this actually returns the sum of the size of all parts of the
+		 *        KLV other than the decrypted value - in other words total KLVE length - Source Length
+		 */
+		virtual Uint32 GetKLSize(void);
+
+		//! Get a GCElementKind structure
+		virtual GCElementKind GetGCElementKind(void);
+
+		//! Get the track number of this KLVObject (if it is a GC KLV, else 0)
+		virtual Uint32 GetGCTrackNumber(void);
+
+		//! Get the position of the first byte in the DataChunk as an offset into the file
+		/*! \return -1 allways to indicate that the data cannot be read directly from the file 
+		 */
+		virtual Position GetDataBase(void) { return -1; };
+
+		//! Set the position of the first byte in the DataChunk as an offset into the file
+		/*! \note This function must be used with great care as data may will be written to this location
+		 */
+		virtual void SetDataBase(Position NewBase) { SourceOffset = NewBase; };
+
+		//! Read data from the KLVObject source into the DataChunk
+		/*! If Size is zero an attempt will be made to read all available data (which may be billions of bytes!)
+		 *  \note Any previously read data in the current DataChunk will be discarded before reading the new data
+		 *	\return Number of bytes read - zero if none could be read
+		 */
+		virtual Length ReadData(Position Start = 0, Length Size = 0);
+
+		//! Write data from the current DataChunk to the source file
+		/*! \note The data in the chunk will be written to the specified position 
+		 *  <B>regardless of the position from where it was origanally read</b>
+		 */
+		virtual Length WriteData(Uint8 *Buffer, Position Start = 0, Length Size = 0);
+
+		//! Set a handler to supply data when a read is performed
+		/*! \note If not set it will be read from the source file (if available) or cause an error message
+		 */
+		virtual void SetReadHandler(KLVReadHandlerPtr Handler) { ReadHandler = Handler; }
+
+		//! Get the length of the value field
+		virtual Length GetLength(void) { return ValueLength; }
+
+		//! Get a reference to the data chunk
+		virtual DataChunk& GetData(void) { return Data; }
+
+	protected:
+		//! Load the AS-DCP set data
+		/*! Sets DataLoaded on success
+		 * \return true if all loaded OK, false on error
+		 */
+		bool LoadData(void);
+
+	};
 }
 
 
