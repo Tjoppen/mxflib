@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.6 2004/04/28 11:25:23 terabrit Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.7 2004/04/30 17:30:22 stuart_hc Exp $
  *
  */
 /*
@@ -64,7 +64,9 @@ static bool FullIndex = false;		// -f dump full index
 
 static unsigned long SplitWaveChannels = 2;	// -w=n
 
+#ifdef DMStiny
 static char* DMStinyDict = NULL;						//!< Set to name of DMStiny xmldict
+#endif
 
 //! Output Streams
 FileMap theStreams;
@@ -79,7 +81,7 @@ static void DumpBody(PartitionPtr ThisPartition);
 
 int main(int argc, char *argv[])
 {
-	fprintf( stderr,"MXFlib File Splitter\n" );
+	printf("MXFlib File Splitter\n");
 
 	LoadTypes("types.xml");
 	MDOType::LoadDict("xmldict.xml");
@@ -99,9 +101,8 @@ int main(int argc, char *argv[])
 #ifdef DMStiny
 		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
 #endif
-		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 
-		return -1;
+		return 1;
 	}
 
 	int num_options = 0;
@@ -153,7 +154,6 @@ int main(int argc, char *argv[])
 	if (! TestFile->Open(argv[num_options+1], true))
 	{
 		perror(argv[num_options+1]);
-		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 		exit(1);
 	}
 
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 			// how much data?
 			long datalen = ftell( (*itFile).second.file ) - sizeof( waveheader_t );
 
-			if( !Quiet ) printf( "Updating wave data length = 0x%x\n", datalen );
+			if( !Quiet ) printf( "Updating wave data length = 0x%lx\n", datalen );
 
 			// get wave header
 			waveheader_t wavfmt;
@@ -221,13 +221,11 @@ int main(int argc, char *argv[])
 			fseek( (*itFile).second.file, 0, SEEK_END );
 		}
 
-		if( !Quiet ) printf( "Closing %s, size 0x%x\n", (*itFile).first.c_str(), ftell( (*itFile).second.file ) );
+		if( !Quiet ) printf( "Closing %s, size 0x%lx\n", (*itFile).first.c_str(), ftell( (*itFile).second.file ) );
 		fclose( (*itFile).second.file );
 		itFile++;
 	}
 	theStreams.clear();
-
-	if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 
 	return 0;
 }
