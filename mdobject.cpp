@@ -10,7 +10,7 @@
  *			These classes are currently wrappers around KLVLib structures
  */
 /*
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -97,7 +97,7 @@ void MDOType::DictManager::Load(const char *DictFile)
 			it++;
 		}
 	}
-	
+
 	// DRAGONS: More debug!
 	MDOTypeList::iterator it = TopTypes.begin();
 	while(it != TopTypes.end())
@@ -105,9 +105,10 @@ void MDOType::DictManager::Load(const char *DictFile)
 		debug("MDOType: %s\n", (*it)->GetDict()->Name);
 
 		MDOTypeList::iterator it2 = (*it)->Children.begin();
+		StringList::iterator it2n = (*it)->ChildrenNames.begin();
 		while(it2 != (*it)->Children.end())
 		{
-			debug("  Sub->: %s\n", (*it2)->GetDict()->Name);
+			debug("  Sub->: %s = %s\n", (*it2n).c_str() ,(*it2)->GetDict()->Name);
 
 			MDOTypeList::iterator it3 = (*it2)->Children.begin();
 			while(it3 != (*it2)->Children.end())
@@ -117,6 +118,7 @@ void MDOType::DictManager::Load(const char *DictFile)
 			}
 
 			it2++;
+			it2n++;
 		}
 
 		it++;
@@ -124,9 +126,56 @@ void MDOType::DictManager::Load(const char *DictFile)
 }
 
 
-//! Add a KLVLib DictEntry definition to the managed types
-void MDOType::AddDict(DictEntry *Dict, MDOType *Parent /* = NULL */ )
+//! Convert KLVLib "DictType" enum to text string of type name
+/*! /ret Pointer to a string constant
+ *  /ret "" if the DictType is unknown or is a container (e.g. a pack)
+ */
+char *DictType2Text(DictType Type)
 {
+	typedef std::map<DictType, char *> XLateType;
+	static XLateType XLate;
+
+	if(XLate.empty())
+	{
+		XLate.insert(XLateType::value_type(DICT_TYPE_NONE,"Unknown"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_U8,"Uint8"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_I8,"Int8"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_U16,"Uint16"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_I16,"Int16"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_U32,"Uint32"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_I32,"Int32"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_U64,"Uint64"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_I64,"Int64"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_ISO7,"ISO7"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_UTF8,"UTF8"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_UTF16,"UTF16"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_UUID,"UUID"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_UMID,"UMID"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_LABEL,"Label"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_TIMESTAMP,"TimeStamp"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_VERTYPE,"VerType"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_RATIONAL,"Rational"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_BOOLEAN,"Boolean"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_ISO7STRING,"ISO7String"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_UTF16STRING,"UTF16String"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_IEEEFLOAT64,"Float64"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_UINT8STRING,"Uint8Array")); // DRAGONS: Is this right?
+		XLate.insert(XLateType::value_type(DICT_TYPE_PRODUCTVERSION,"ProductVersion"));
+	}
+
+	XLateType::iterator it = XLate.find(Type);
+	
+	if(it == XLate.end()) return "";
+
+	return (*it).second;
+}
+
+
+//! Add a KLVLib DictEntry definition to the managed types
+void MDOType::AddDict(DictEntry *Dict, MDOTypePtr ParentType /* = NULL */ )
+{
+
+
 	// Create a new MDOType to manage
 	MDOTypePtr NewType = new MDOType(Dict);
 
@@ -136,23 +185,119 @@ void MDOType::AddDict(DictEntry *Dict, MDOType *Parent /* = NULL */ )
 	// If it is a top level type then add it to TopTypes as well
 	if(Dict->Parent == NULL) TopTypes.push_back(NewType);
 
-	// If it is a child of another type then add to the children list
-	if(Parent != NULL) Parent->Children.push_back(NewType);
+	// Record the parent
+	NewType->Parent = ParentType;
 
-	// Add any children of our own
-	DictEntryList *ChildList = Dict->Children;
-	while(ChildList != NULL)
+	// If it is a child of another type then add to the children lists
+	if(ParentType)
 	{
-		// Rinse and repeat!
-		AddDict(ChildList->Link, NewType);
+		ParentType->Children.push_back(NewType);
+		ParentType->ChildrenNames.push_back(Dict->Name);
+	}
 
-		// Iterate through the list
-		ChildList = ChildList->Next;
+	// Build base name for any children
+	MDOTypePtr Scan = ParentType;
+	std::string BaseName = "";
+	while(Scan)
+	{
+		BaseName = std::string(Scan->Dict->Name) + "/" + BaseName;
+		Scan = Scan->Parent;
+	}
+
+	// Copy any children from our base
+	if(Dict->Base)
+	{
+		MDOTypePtr Base = DictLookup[Dict->Base];
+		NewType->Children = Base->Children;
+		NewType->ChildrenNames = Base->ChildrenNames;
+
+		// Add child names to name lookup
+		MDOTypeList::iterator it = NewType->Children.begin();
+		StringList::iterator itn = NewType->ChildrenNames.begin();
+		while(it != NewType->Children.end())
+		{
+			NameLookup[BaseName + (*itn)] = (*it);
+			it++;
+			itn++;
+		}
+	}
+
+	// Get name of this value type
+	// First we do a quick trick to make vectors work as MDValue array types
+	std::string Type;
+	if( (Dict->Type == DICT_TYPE_VECTOR) || (Dict->Type == DICT_TYPE_ARRAY) )
+	{
+		// First see if there is only one item in the vector
+		if(Dict->Children && (Dict->Children->Next == NULL))
+		{
+			// If it is a ref this is more important than the UUID type
+			if(Dict->RefType == DICT_REF_STRONG)
+				Type = "StrongRef";
+			else if(Dict->RefType == DICT_REF_WEAK)
+				Type = "WeakRef";
+			else
+				Type = DictType2Text(Dict->Children->Link->Type);
+
+			if(Type != "")
+			{
+				if(Dict->Type == DICT_TYPE_VECTOR) Type += "Collection";
+				else Type += "Array";
+			}
+		}
+		else
+		{
+			// If more complex type use the vector properties name as the type
+			Type = Dict->Name;
+		}
+	}
+	else
+	{
+		// Not a vector or array, look up the type
+		Type = DictType2Text(Dict->Type);
+	}
+
+printf("%s is a %s\n", Dict->Name, Type.c_str());
+
+	if(Type != "")
+	{
+		NewType->ValueType = MDType::Find(Type.c_str());
+		if(!NewType->ValueType)
+		{
+			std::string Temp = BaseName;
+			Temp += Dict->Name;
+			warning("Object type \"%s\" is of unknown type \"%s\"\n", Temp.c_str(), Type.c_str());
+
+			// Add either a dummy basic, or a dummy raw array
+			if((Dict->minLength > 0) && (Dict->minLength == Dict->maxLength))
+			{
+				NewType->ValueType = MDType::AddBasic(Type, Dict->minLength);
+			}
+			else
+			{
+				NewType->ValueType = MDType::AddArray(Type, MDType::Find("Uint8"));
+			}
+		}
+	}
+	else
+	{
+		// Add any children of our own
+		// Note that this is only done if the type is not a known
+		// MDType because this allows vectors to be handled as
+		// MDValue objects rather than containers
+		DictEntryList *ChildList = Dict->Children;
+		while(ChildList != NULL)
+		{
+			// Rinse and repeat!
+			AddDict(ChildList->Link, NewType);
+
+			// Iterate through the list
+			ChildList = ChildList->Next;
+		}
 	}
 
 	// Set the lookups
 	DictLookup[Dict] = NewType;
-	NameLookup[std::string(Dict->Name)] = NewType;
+	NameLookup[BaseName + std::string(Dict->Name)] = NewType;
 }
 
 
@@ -171,7 +316,7 @@ MDOType::DictManager::~DictManager()
 /*! This constructor is private so the ONLY way to create
  *	new MDOTypes from outside this class is via AddDict()
 */
-MDOType::MDOType(DictEntry *RootDict) : Dict(RootDict) 
+MDOType::MDOType(DictEntry *RootDict) : Dict(RootDict), Parent(NULL)
 {
 	// Can't build an MDOType based on nothing
 	ASSERT( RootDict != NULL );
@@ -206,7 +351,7 @@ MDOType::MDOType(DictEntry *RootDict) : Dict(RootDict)
 /*! /ret Pointer to the object
  *  /ret NULL if there is no type of that name
  */
-MDOType *MDOType::Find(const char *BaseType)
+MDOTypePtr MDOType::Find(const char *BaseType)
 {
 	MDOTypePtr theType;
 
@@ -218,7 +363,7 @@ MDOType *MDOType::Find(const char *BaseType)
 
 	theType = (*it).second;
 
-	return (MDOType*)theType;
+	return theType;
 }
 
 
@@ -228,7 +373,7 @@ MDOType *MDOType::Find(const char *BaseType)
 MDObject::MDObject(const char *BaseType)
 {
 	Type = MDOType::Find(BaseType);
-	if(Type == NULL)
+	if(!Type)
 	{
 		error("Metadata object type \"%s\" doesn't exist\n", BaseType);
 		// DRAGONS: Must sort this!!
@@ -242,7 +387,7 @@ MDObject::MDObject(const char *BaseType)
 //! MDObject typed constructor
 /*! Builds a "blank" metadata object of a specified type
 */
-MDObject::MDObject(MDOType *BaseType) : Type(BaseType) 
+MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType) 
 {
 	// Initialise the new object
 	Init();
@@ -254,111 +399,100 @@ MDObject::MDObject(MDOType *BaseType) : Type(BaseType)
 */
 void MDObject::Init(void)
 {
-	Size = 0;
-	Data = NULL; 
-
 	// If it isn't a container build the basic item
-	if(Type->GetContainerType() == NONE)
+	switch(Type->GetContainerType())
 	{
-		// Build the minimum size item
-		Size = Type->GetDict()->minLength;
-		if(Size)
+	case NONE:
+	case VECTOR:
+	case ARRAY:
 		{
-			Data = new Uint8[Size];
-			memset(Data, 0, Size);
+			Value = new MDValue(Type->ValueType);
+
+			if(Type->ValueType->EffectiveClass() == ARRAY)
+			{
+				// Build the minimum size array
+				Value->ResizeChildren(Type->GetDict()->minLength);
+			}
+		}
+		break;
+
+	default:
+		{
+			Value = NULL;
 		}
 	}
 
 	// If it's a fixed size array build all items
-	else if(Type->GetContainerType() == ARRAY)
-	{
+//	else if(Type->GetContainerType() == ARRAY)
+//	{
 // DRAGONS: Arg! Problems!!!
 //		if(Type->Size > 0)
 //		{
 //			// Add a blank last item - forces all to be created
 //			AddChild(new MDObject(Type), Type->Size - 1);
 //		}
-	}
+//	}
 
 };
 
 
-//! Add a child to an MDObject continer
-/*! If the container is an array the index number of the new object can be
- *! specified. If the index number is specified and a child already exists
- *! with that number it is replaced. If the index number is specified and
- *! it is not the next index available, extra 'empty' objects are added to
- *! grow the array to the appropriate size.
+//! Add an empty named child to an MDObject continer and return a pointer to it
+/*! If a child of this name already exists a pointer to that child is returned
+ *  but the value is not changed.
+ *  /ret NULL if it is not a valid child to add to this type of container
  */
-void MDObject::AddChild(MDObject *Child, int Index /* = -1 */)
+MDObjectPtr MDObject::AddChild(const char *ChildName)
 {
-	ASSERT( Type->GetContainerType() != NONE );
-	
-	// Specific array index given
-	if(Index >= 0)
+	StringList::iterator it = ChildrenNames.begin();
+	MDObjectList::iterator it2 = Children.begin();
+
+	// Try and find an existing child
+	MDObjectPtr Ret = Child(ChildName);
+
+	// Only add a new one if we didn't find it
+	if(!Ret)
 	{
-		// Can only specify an index for arrays
-		ASSERT( Type->GetContainerType() == ARRAY );
-
-		int Num = Children.size();
-
-		// Replacing a current entry
-		if(Num > Index)
+		it = Type->ChildrenNames.begin();
+		MDOTypeList::iterator it3 = Type->Children.begin();
+	
+		while(it != Type->ChildrenNames.end())
 		{
-			MDObjectList::iterator it = Children.begin();
+			ASSERT(it3 != Type->Children.end());
 
-			// Move to the index point
-			while(Index--) it++;
-
-			// Insert the new item at this point
-			Children.insert(it, Child);
-
-			// Remove the old entry, automatically deleting the object if required
-			Children.erase(it);
-
-			// All done for replace operation
-			return;
-		}
-		else
-		{
-			// Entry padding items required
-			if(Index > Num)
+			if(strcmp((*it).c_str(),ChildName) == 0)
 			{
-				MDObjectList::iterator it = Children.begin();
+				// Insert a new item of the correct type at the end
+				MDObjectPtr Ret = new MDObject(*it3);
+				Children.push_back(Ret);
+				ChildrenNames.push_back(*it);
 
-				while(Index > Num)
-				{
-					// Insert a new item of the same type at the end
-					Children.push_back(new MDObject((*it)->Type));
-
-					it++;
-					Num++;
-				}
+				// Return smart pointer to the new object
+				return Ret;
 			}
+			it++;
+			it3++;
 		}
 	}
 
-	// Add to the list of children
-	Children.push_back(Child);
+	return Ret;
 };
 
-
-//! Remove children from an MDObject continer
-/*! Remove all but the first "Index" children. 
- *! Probably only useful for resizing arrays.
- */
-void MDObject::TrimChildren(int Index)
-{
-	ASSERT( Type->GetContainerType() != NONE );
-	
-	MDObjectList::iterator it = Children.begin();
-
-	// Move to the index point
-	while(Index--) it++;
-
-	// Remove the old entries, automatically deleting the objects if required
-	Children.erase(it, Children.end());
-}
+//#//! Remove children from an MDObject continer
+//#/*! Remove all but the first "Index" children. 
+//# *! Probably only useful for resizing arrays.
+//# */
+//#void MDObject::TrimChildren(int Index)
+//#{
+//#	ASSERT( Type->GetContainerType() != NONE );
+//#	
+//#	MDObjectList::iterator it = Children.begin();
+//#
+//#	// Move to the index point
+//#	while(Index--) it++;
+//#
+//#	// Remove the old entries, automatically deleting the objects if required
+//#	Children.erase(it, Children.end());
+//#}
 
 
 //! MDObject destructor
@@ -367,59 +501,88 @@ void MDObject::TrimChildren(int Index)
 MDObject::~MDObject()
 {
 	// Free any memory used
-	if (Size) delete[] Data;
 }
 
 
-//!	Set the value of a metadata object from a "variable sized" chunk
-/*! "variable sized" simply means that it has a size and a pointer
- *	as opposed to the fixed size integer data types
+//#//!	Set the value of a metadata object from a "variable sized" chunk
+//#/*! "variable sized" simply means that it has a size and a pointer
+//# *	as opposed to the fixed size integer data types
+//# *
+//# *	DRAGONS: If a data item is "shrunk" then grows again it may be
+//# *           re-allocated when this is not required...
+//# */
+//#void MDObject::SetData(int ValSize, Uint8 *Val)
+//#{
+//#	// Can only set the value of an individual item
+//#	ASSERT(Type->GetContainerType() == NONE);
+//#
+//#	// Ignore containers in release mode
+//#	if(Type->GetContainerType() != NONE) return;
+//#
+//#	// Make sure we don't make the item bigger than allowed
+//#	int MaxSize = Type->GetDict()->maxLength;
+//#	
+//#	// Enforce the size limit
+//#	if(ValSize > MaxSize) ValSize = MaxSize;
+//#
+//#	// Reallocate the data if it won't fit
+//#	if(Size < ValSize)
+//#	{
+//#		if(Size) delete[] Data;
+//#		Data = new Uint8[ValSize];
+//#	}
+//#
+//#	// Set the new data
+//#	Size = ValSize;
+//#	memcpy(Data, Val, ValSize);
+//#}
+
+
+//#//! Access array member within an MDObject array
+//#/*! DRAGONS: This doesn't work well with SmartPtrs
+//# *           so member function Child() is also available
+//#*/
+//#MDObjectPtr MDObject::operator[](int Index)
+//#{
+//#	MDObjectList::iterator it = Children.begin();
+//#
+//#	while(Index--)
+//#	{
+//#		// End of list!
+//#		if(it == Children.end()) return NULL;
+//#	}
+//#
+//#	// Return a smart pointer to the object
+//#	return *(it);
+//#}
+
+//! Access named sub-item within a compound MDObject
+/*! If the child does not exist in this item then NULL is returned
+ *  even if it is a valid child to have in this type of container
  *
- *	DRAGONS: If a data item is "shrunk" then grows again it may be
- *           re-allocated when this is not required...
- */
-void MDObject::SetData(int ValSize, Uint8 *Val)
-{
-	// Can only set the value of an individual item
-	ASSERT(Type->GetContainerType() == NONE);
-
-	// Ignore containers in release mode
-	if(Type->GetContainerType() != NONE) return;
-
-	// Make sure we don't make the item bigger than allowed
-	int MaxSize = Type->GetDict()->maxLength;
-	
-	// Enforce the size limit
-	if(ValSize > MaxSize) ValSize = MaxSize;
-
-	// Reallocate the data if it won't fit
-	if(Size < ValSize)
-	{
-		if(Size) delete[] Data;
-		Data = new Uint8[ValSize];
-	}
-
-	// Set the new data
-	Size = ValSize;
-	memcpy(Data, Val, ValSize);
-}
-
-
-//! Access array member within an MDObject array
-/*! ?More detail?
+ *  DRAGONS: This doesn't work well with SmartPtrs
+ *           so member function Child() is also available
 */
-MDObjectPtr MDObject::operator[](int Index)
+MDObjectPtr MDObject::operator[](const char *ChildName)
 {
-	MDObjectList::iterator it = Children.begin();
+	StringList::iterator it = ChildrenNames.begin();
+	MDObjectList::iterator it2 = Children.begin();
 
-	while(Index--)
+	while(it != ChildrenNames.end())
 	{
-		// End of list!
-		if(it == Children.end()) return NULL;
+		ASSERT(it2 != Children.end());
+
+		if(strcmp((*it).c_str(),ChildName) == 0)
+		{
+			// Return a smart pointer to the object
+			MDObjectPtr Ret = *(it2);
+			return Ret;
+		}
+		it++;
+		it2++;
 	}
 
-	// Return a smart pointer to the object
-	return *(it);
+	return NULL;
 }
 
 

@@ -26,11 +26,25 @@
 #ifndef MXFLIB__MDTRAITS_H
 #define MXFLIB__MDTRAITS_H
 
+namespace mxflib
+{
+	// Forward declare so the class can include pointers to itself (if required)
+	class MDTraits;
+
+	//! A smart pointer to an MDTraits object
+	typedef SmartPtr<MDTraits> MDTraitsPtr;
+
+	//! A list of smart pointers to MDTraits objects
+	typedef std::list<MDTraitsPtr> MDTraitsList;
+}
+
 
 namespace mxflib
 {
 	// We need access to the MDValue class
 	class MDValue;
+	//! A smart pointer to an MDValue object
+	class MDValuePtr;
 
 	class MDTraits
 	{
@@ -39,42 +53,41 @@ namespace mxflib
 
 	// Default implementations
 	protected:
-		virtual void SetInt(MDValue *Object, Int32 Val);
-		virtual void SetInt64(MDValue *Object, Int64 Val);
-		virtual void SetUint(MDValue *Object, Uint32 Val);
-		virtual void SetUint64(MDValue *Object, Uint64 Val);
-		virtual void SetString(MDValue *Object, std::string Val);
-		virtual Int32 GetInt(MDValue *Object);
-		virtual Int64 GetInt64(MDValue *Object);
-		virtual Uint32 GetUint(MDValue *Object);
-		virtual Uint64 GetUint64(MDValue *Object);
-		virtual std::string GetString(MDValue *Object);
+		virtual void SetInt(MDValuePtr Object, Int32 Val);
+		virtual void SetInt64(MDValuePtr Object, Int64 Val);
+		virtual void SetUint(MDValuePtr Object, Uint32 Val);
+		virtual void SetUint64(MDValuePtr Object, Uint64 Val);
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual Int32 GetInt(MDValuePtr Object);
+		virtual Int64 GetInt64(MDValuePtr Object);
+		virtual Uint32 GetUint(MDValuePtr Object);
+		virtual Uint64 GetUint64(MDValuePtr Object);
+		virtual std::string GetString(MDValuePtr Object);
 
 		// Give the MDValue class access to our internals to call Set/Get functions
 		friend class MDValue;
 	};
 
-	
 	// Extended implementations
 
 	class MDTraits_BasicInt : public MDTraits
 	{
 	protected:
-		virtual void SetInt64(MDValue *Object, Int64 Val);
-		virtual void SetUint(MDValue *Object, Uint32 Val);
-		virtual void SetUint64(MDValue *Object, Uint64 Val);
-		virtual void SetString(MDValue *Object, std::string Val);
-		virtual Int64 GetInt64(MDValue *Object);
-		virtual Uint64 GetUint64(MDValue *Object);
-		virtual std::string GetString(MDValue *Object);
+		virtual void SetInt64(MDValuePtr Object, Int64 Val);
+		virtual void SetUint(MDValuePtr Object, Uint32 Val);
+		virtual void SetUint64(MDValuePtr Object, Uint64 Val);
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual Int64 GetInt64(MDValuePtr Object);
+		virtual Uint64 GetUint64(MDValuePtr Object);
+		virtual std::string GetString(MDValuePtr Object);
 	};
 
 	class MDTraits_Int8 : public MDTraits_BasicInt
 	{
 	protected:
-		virtual void SetInt(MDValue *Object, Int32 Val);
-		virtual Int32 GetInt(MDValue *Object);
-		virtual Uint32 GetUint(MDValue *Object);
+		virtual void SetInt(MDValuePtr Object, Int32 Val);
+		virtual Int32 GetInt(MDValuePtr Object);
+		virtual Uint32 GetUint(MDValuePtr Object);
 	};
 
 	class MDTraits_Uint8 : public MDTraits_Int8
@@ -84,9 +97,9 @@ namespace mxflib
 	class MDTraits_Int16 : public MDTraits_BasicInt
 	{
 	protected:
-		virtual void SetInt(MDValue *Object, Int32 Val);
-		virtual Int32 GetInt(MDValue *Object);
-		virtual Uint32 GetUint(MDValue *Object);
+		virtual void SetInt(MDValuePtr Object, Int32 Val);
+		virtual Int32 GetInt(MDValuePtr Object);
+		virtual Uint32 GetUint(MDValuePtr Object);
 	};
 
 	class MDTraits_Uint16 : public MDTraits_Int16
@@ -96,58 +109,133 @@ namespace mxflib
 	class MDTraits_Int32 : public MDTraits_BasicInt
 	{
 	protected:
-		virtual void SetInt(MDValue *Object, Int32 Val);
-		virtual Int32 GetInt(MDValue *Object);
-		virtual Uint32 GetUint(MDValue *Object);
+		virtual void SetInt(MDValuePtr Object, Int32 Val);
+		virtual Int32 GetInt(MDValuePtr Object);
+		virtual Uint32 GetUint(MDValuePtr Object);
 	};
 
 	class MDTraits_Uint32 : public MDTraits_Int32
 	{
-		virtual std::string GetString(MDValue *Object);
+		virtual std::string GetString(MDValuePtr Object);
 	};
 
-	// DRAGONS: Need 64-bit ints
+	class MDTraits_Int64 : public MDTraits
+	{
+	protected:
+		virtual void SetInt(MDValuePtr Object, Int32 Val);
+		virtual void SetInt64(MDValuePtr Object, Int64 Val);
+		virtual void SetUint(MDValuePtr Object, Uint32 Val);
+		virtual void SetUint64(MDValuePtr Object, Uint64 Val);
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual Int32 GetInt(MDValuePtr Object);
+		virtual Uint32 GetUint(MDValuePtr Object);
+		virtual Int64 GetInt64(MDValuePtr Object);
+		virtual Uint64 GetUint64(MDValuePtr Object);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_Uint64 : public MDTraits_Int64
+	{
+		virtual std::string GetString(MDValuePtr Object);
+	};
 
 	class MDTraits_ISO7 : public MDTraits_Uint8
 	{
-		virtual void SetString(MDValue *Object, std::string Val);
-		virtual std::string GetString(MDValue *Object);
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_UTF16 : public MDTraits_Uint16
+	{
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_Raw : public MDTraits
+	{
+		//DRAGONS: Should probably have set and get integer functions as well
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
 	};
 
 
+	class MDTraits_BasicArray : public MDTraits
+	{
+	protected:
+		virtual void SetInt(MDValuePtr Object, Int32 Val);
+		virtual void SetInt64(MDValuePtr Object, Int64 Val);
+		virtual void SetUint(MDValuePtr Object, Uint32 Val);
+		virtual void SetUint64(MDValuePtr Object, Uint64 Val);
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual Int32 GetInt(MDValuePtr Object);
+		virtual Int64 GetInt64(MDValuePtr Object);
+		virtual Uint32 GetUint(MDValuePtr Object);
+		virtual Uint64 GetUint64(MDValuePtr Object);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+	
+	class MDTraits_BasicStringArray : public MDTraits_BasicArray
+	{
+	protected:
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+	
+	class MDTraits_RawArray : public MDTraits_BasicArray
+	{
+	protected:
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_RawArrayArray : public MDTraits_BasicArray
+	{
+	protected:
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
+	class MDTraits_BasicCompound : public MDTraits
+	{
+		// DRAGONS: What about all the other set and get functions?
+	protected:
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
+	};
+
 /*
-	void Uint8_SetInt(MDValue *Object, Int32 Val);
-	void Uint8_SetInt64(MDValue *Object, Int64 Val);
-	void Uint8_SetUint(MDValue *Object, Uint32 Val);
-	void Uint8_SetUint64(MDValue *Object, Uint64 Val);
-	void Uint8_SetString(MDValue *Object, std::string Val);
-	Int32 Uint8_GetInt(MDValue *Object);
-	Int64 Uint8_GetInt64(MDValue *Object);
-	Uint32 Uint8_GetUint(MDValue *Object);
-	Uint64 Uint8_GetUint64(MDValue *Object);
-	std::string Uint8_GetString(MDValue *Object);
+	void Uint8_SetInt(MDValuePtr Object, Int32 Val);
+	void Uint8_SetInt64(MDValuePtr Object, Int64 Val);
+	void Uint8_SetUint(MDValuePtr Object, Uint32 Val);
+	void Uint8_SetUint64(MDValuePtr Object, Uint64 Val);
+	void Uint8_SetString(MDValuePtr Object, std::string Val);
+	Int32 Uint8_GetInt(MDValuePtr Object);
+	Int64 Uint8_GetInt64(MDValuePtr Object);
+	Uint32 Uint8_GetUint(MDValuePtr Object);
+	Uint64 Uint8_GetUint64(MDValuePtr Object);
+	std::string Uint8_GetString(MDValuePtr Object);
 
-	void Int16_SetInt(MDValue *Object, Int32 Val);
-	void Int16_SetInt64(MDValue *Object, Int64 Val);
-	void Int16_SetUint(MDValue *Object, Uint32 Val);
-	void Int16_SetUint64(MDValue *Object, Uint64 Val);
-	void Int16_SetString(MDValue *Object, std::string Val);
-	Int32 Int16_GetInt(MDValue *Object);
-	Int64 Int16_GetInt64(MDValue *Object);
-	Uint32 Int16_GetUint(MDValue *Object);
-	Uint64 Int16_GetUint64(MDValue *Object);
-	std::string Int16_GetString(MDValue *Object);
+	void Int16_SetInt(MDValuePtr Object, Int32 Val);
+	void Int16_SetInt64(MDValuePtr Object, Int64 Val);
+	void Int16_SetUint(MDValuePtr Object, Uint32 Val);
+	void Int16_SetUint64(MDValuePtr Object, Uint64 Val);
+	void Int16_SetString(MDValuePtr Object, std::string Val);
+	Int32 Int16_GetInt(MDValuePtr Object);
+	Int64 Int16_GetInt64(MDValuePtr Object);
+	Uint32 Int16_GetUint(MDValuePtr Object);
+	Uint64 Int16_GetUint64(MDValuePtr Object);
+	std::string Int16_GetString(MDValuePtr Object);
 
-	void Uint16_SetInt(MDValue *Object, Int32 Val);
-	void Uint16_SetInt64(MDValue *Object, Int64 Val);
-	void Uint16_SetUint(MDValue *Object, Uint32 Val);
-	void Uint16_SetUint64(MDValue *Object, Uint64 Val);
-	void Uint16_SetString(MDValue *Object, std::string Val);
-	Int32 Uint16_GetInt(MDValue *Object);
-	Int64 Uint16_GetInt64(MDValue *Object);
-	Uint32 Uint16_GetUint(MDValue *Object);
-	Uint64 Uint16_GetUint64(MDValue *Object);
-	std::string Uint16_GetString(MDValue *Object);
+	void Uint16_SetInt(MDValuePtr Object, Int32 Val);
+	void Uint16_SetInt64(MDValuePtr Object, Int64 Val);
+	void Uint16_SetUint(MDValuePtr Object, Uint32 Val);
+	void Uint16_SetUint64(MDValuePtr Object, Uint64 Val);
+	void Uint16_SetString(MDValuePtr Object, std::string Val);
+	Int32 Uint16_GetInt(MDValuePtr Object);
+	Int64 Uint16_GetInt64(MDValuePtr Object);
+	Uint32 Uint16_GetUint(MDValuePtr Object);
+	Uint64 Uint16_GetUint64(MDValuePtr Object);
+	std::string Uint16_GetString(MDValuePtr Object);
 */
 }
 

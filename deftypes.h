@@ -1,8 +1,8 @@
-/*! \file	mxflib.h
- *	\brief	The main MXFLib header file
+/*! \file	deftypes.h
+ *	\brief	Header file for deftypes.cpp which loads type definitions
  */
 /*
- *	Copyright (c) 2002, Matt Beard
+ *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -23,27 +23,21 @@
  *	  3. This notice may not be removed or altered from any source
  *	     distribution.
  */
-
-#ifndef MXFLIB__MXFLIB_H
-#define MXFLIB__MXFLIB_H
-
-//! Namespace for all MXFLib items
-namespace mxflib {}
-
-#include "system.h"
-
-#include "debug.h"
-
-#include "smartptr.h"
-
-#include "types.h"
+#ifndef MXFLIB__DEFTYPES_H
+#define MXFLIB__DEFTYPES_H
 
 #include "mdtraits.h"
 #include "mdtype.h"
-#include "deftypes.h"
-#include "mdobject.h"
 
-#include "rip.h"
+// STL Includes
+#include <string>
+#include <list>
+#include <map>
 
-#endif MXFLIB__MXFLIB_H
+namespace mxflib
+{
+	//! Load types from the specified XML definitions
+	int LoadTypes(char *TypesFile);
+}
+#endif MXFLIB__DEFTYPES_H
 

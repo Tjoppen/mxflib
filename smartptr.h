@@ -36,6 +36,10 @@
 #ifndef MXFLIB__SMARTPTR_H
 #define MXFLIB__SMARTPTR_H
 
+//#define PTRDEBUG( x ) x
+#define PTRDEBUG( x )
+
+
 // Ensure we know NULL
 #include <stdlib.h>
 
@@ -89,15 +93,22 @@ namespace mxflib
 		//! Increment the number of references
 		virtual void __IncRefCount() 
 		{
-			__m_counter++; 
+			__m_counter++;
+			
+			PTRDEBUG( debug("0x%08x Increment count -> %d\n", (int)this, __m_counter); )
 		}
 
 		//! Decrement the number of references, if none left delete the object
 		virtual void __DecRefCount()
 		{
 			__m_counter--;
+
+			PTRDEBUG( debug("0x%08x Decrement count -> %d\n", (int)this, __m_counter); )
+			
 			if(__m_counter<=0)
 			{
+				PTRDEBUG( debug("0x%08x Destroying\n", this); )
+
 				__DestroyRef();
 			}
 		}
@@ -123,6 +134,8 @@ namespace mxflib
 		{
 			// No references yet!
 			__m_counter = 0;
+
+			PTRDEBUG( debug("0x%08x Build new (zero) count\n", (int)this); )
 		}
 	};
 }

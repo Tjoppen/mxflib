@@ -34,8 +34,6 @@
 #ifndef MXFLIB__MDOBJECT_H
 #define MXFLIB__MDOBJECT_H
 
-#if 0
-
 // Include the KLVLib header
 extern "C"
 {
@@ -62,7 +60,7 @@ namespace mxflib
 namespace mxflib
 {
 	//! Holds the definition of a metadata object type
-	class MDOType
+	class MDOType : public RefCount<MDOType>
 	{
 	private:
 		//! The KLVLib dictionary entry
@@ -71,8 +69,11 @@ namespace mxflib
 		MDContainerType ContainerType;
 
 	public:
+		MDTypePtr ValueType;			//!< Value type if this is an actual data item, else NULL
 		MDOTypePtr Base;				//!< Base class if this is a derived class, else NULL
 		MDOTypeList Children;			//!< Types normally found inside this type
+		StringList ChildrenNames;		//!< Names for each entry in Children
+		MDOTypePtr Parent;				//!< Parent type if this is a child
 
 		const DictEntry* GetDict(void) { return (const DictEntry*)Dict; };
 
@@ -95,7 +96,7 @@ namespace mxflib
 		static std::map<std::string, MDOTypePtr> NameLookup;
 
 		//! Add a KLVLib DictEntry definition to the managed types
-		static void AddDict(DictEntry *Dict, MDOType *Parent = NULL);
+		static void AddDict(DictEntry *Dict, MDOTypePtr ParentType = NULL);
 
 		//! Internal class to ensure dictionary is freed at application end
 		class DictManager
@@ -117,7 +118,7 @@ namespace mxflib
 		// Load the dictionary
 		static void LoadDict(const char *DictFile) { DictMan.Load(DictFile); };
 
-		static MDOType *Find(const char *BaseType);
+		static MDOTypePtr Find(const char *BaseType);
 	};
 }
 
@@ -126,9 +127,18 @@ namespace mxflib
 {
 	// Forward declare so the class can include pointers to itself
 	class MDObject;
+	class MDObjectPtr;
 
-	//! A smart pointer to an MDObject object
-	typedef SmartPtr<MDObject> MDObjectPtr;
+	//! A smart pointer to an MDObject object (with operator[] overloads)
+	class MDObjectPtr : public SmartPtr<MDObject>
+	{
+	public:
+		MDObjectPtr() : SmartPtr<MDObject>() {};
+		MDObjectPtr(MDObject * ptr) : SmartPtr<MDObject>(ptr) {};
+		
+		//! Child access operator that overcomes dereferencing problems with SmartPtrs
+		MDObjectPtr operator[](const char *ChildName);
+	};
 
 	//! A list of smart pointers to MDObject objects
 	typedef std::list<MDObjectPtr> MDObjectList;
@@ -138,50 +148,49 @@ namespace mxflib
 namespace mxflib
 {
 	//! Metadata Object class
-	class MDObject
+	class MDObject : public RefCount<MDObject>
 	{
 	private:
-		MDOType *Type;
-		int Size;
-		Uint8 *Data;
+		MDOTypePtr Type;
 
 		MDObjectList Children;
+		StringList ChildrenNames;		//!< Names for each entry in Children
+
+	public:
+		MDValuePtr Value;
 
 	public:
 		MDObject(const char *BaseType);
-		MDObject(MDOType *BaseType);
+		MDObject(MDOTypePtr BaseType);
 		void Init(void);
 		~MDObject();
 
-		void AddChild(MDObject *Child, int Index = -1);
-		void MDObject::TrimChildren(int Index);
+		MDObjectPtr AddChild(const char *ChildName);
+// DRAGONS: RemoveChild() ?
 
-		MDObjectPtr operator[](int Index);
+		//! Access function for child values of compound items
+		MDObjectPtr operator[](const char *ChildName);
+		MDObjectPtr Child(const char *ChildName) { return operator[](ChildName); };
 
-
-		void SetInt8(Int8 Val) { ASSERT(Size==1); if(Size==1) PutI8(Val, Data); };
-		void SetUint8(Uint8 Val) { ASSERT(Size==1); if(Size==1) PutU8(Val, Data); };
-		void SetInt16(Int16 Val) { ASSERT(Size==2); if(Size==2) PutI16(Val, Data); };
-		void SetUint16(Uint16 Val) { ASSERT(Size==2); if(Size==2) PutU16(Val, Data); };
-		void SetInt32(Int32 Val) { ASSERT(Size==4); if(Size==4) PutI32(Val, Data); };
-		void SetUint32(Uint32 Val) { ASSERT(Size==4); if(Size==4) PutU32(Val, Data); };
-		void SetInt64(Int64 Val) { ASSERT(Size==8); if(Size==8) PutI64(Val, Data); };
-		void SetUint64(Uint64 Val) { ASSERT(Size==8); if(Size==8) PutU64(Val, Data); };
-		void SetData(int ValSize, Uint8 *Val);
-		
-		Int8 GetInt8(void) { ASSERT(Size==1); return (Size==1) ? GetI8(Data) : 0; };
-		Uint8 GetUint8(void) { ASSERT(Size==1); return (Size==1) ? GetU8(Data) : 0; };
-		Int16 GetInt16(void) { ASSERT(Size==2); return (Size==2) ? GetI16(Data) : 0; };
-		Uint16 GetUint16(void) { ASSERT(Size==2); return (Size==2) ? GetU16(Data) : 0; };
-		Int32 GetInt32(void) { ASSERT(Size==4); return (Size==4) ? GetI32(Data) : 0; };
-		Uint32 GetUint32(void) { ASSERT(Size==4); return (Size==4) ? GetU32(Data) : 0; };
-		Int64 GetInt64(void) { ASSERT(Size==8); return (Size==8) ? GetI64(Data) : 0; };
-		Uint64 GetUint64(void) { ASSERT(Size==8); return (Size==8) ? GetU64(Data) : 0; };
-		const Uint8 *GetData(void) { return (Size==0) ? NULL : Data; };
+		void SetInt(Int32 Val) { Value->SetInt(Val); };
+		void SetInt64(Int64 Val) { Value->SetInt64(Val); };
+		void SetUint(Uint32 Val) { Value->SetUint(Val); };
+		void SetUint64(Uint64 Val) { Value->SetUint64(Val); };
+		void SetString(std::string Val)	{ Value->SetString(Val); };
+		Int32 GetInt(void) { return Value->GetInt(); };
+		Int64 GetInt64(void) { return Value->GetInt64(); };
+		Uint32 GetUint(void) { return Value->GetUint(); };
+		Uint64 GetUint64(void) { return Value->GetUint64(); };
+		std::string GetString(void)	{ return Value->GetString(); };
 	};
 }
 
-#endif 0
+// This simple inlines need to be defined after MDValue
+namespace mxflib
+{
+inline MDObjectPtr MDObjectPtr::operator[](const char *ChildName) { return GetPtr()->operator[](ChildName); };
+}
+
 
 #endif MXFLIB__MDOBJECT_H
 

@@ -1,0 +1,92 @@
+<!-- Smunched version to prevent forward references -->
+<MXFTypes>
+	<Basic>
+		<Float32 detail="32 bit IEEE Floating Point" size="4" endian="no" ref="IEEE 754-1985"/>
+		<Float64 detail="64 bit IEEE Floating Point" size="8" endian="no" ref="IEEE 754-1985"/>
+		<Float80 detail="80 bit IEEE Floating Point" size="10" endian="no" ref="IEEE 754-1985"/>
+		<Int8 detail="8 bit integer" size="1" endian="no"/>
+		<Int16 detail="16 bit integer" size="2" endian="yes"/>
+		<Int24 detail="24 bit integer" size="3" endian="yes"/>
+		<Int32 detail="32 bit integer" size="4" endian="yes"/>
+		<Int64 detail="64 bit integer" size="8" endian="yes"/>
+		<Uint8 detail="8 bit unsigned integer" size="1" endian="no"/>
+		<Uint16 detail="16 bit unsigned integer" size="2" endian="yes"/>
+		<Uint24 detail="24 bit unsigned integer" size="3" endian="yes"/>
+		<Uint32 detail="32 bit unsigned integer" size="4" endian="yes"/>
+		<Uint64 detail="64 bit unsigned integer" size="8" endian="yes"/>
+	</Basic>
+	<Interpretation>
+		<UTF16 detail="Unicode UTF-16 coded character" base="Uint16"/>
+		<Boolean detail="Boolean" base="Uint8"/>
+		<ISO7 detail="ISO 7-Bit Coded Character" base="Uint8" ref="ISO/IEC 646:1991"/>
+		<Length detail="Length in Edit Units" base="Uint64"/>
+		<Position detail="Position measured in Edit Units" base="Uint64"/>
+	</Interpretation>
+
+
+	<Multiple>
+		<UTF16String detail="Unicode UTF-16 coded string" base="UTF16" type="Array"/>
+		<!--		<UTF16Array detail="Array of Unicode UTF-16 coded strings" base="UTF16" type="Cluster"/>  -->
+		<Int32Array detail="Array of Int32" base="Int32" type="Array"/>
+		<Int64Array detail="Array of Int64" base="Int64" type="Array"/>
+		<Uint8Array detail="Array of Uint8" base="Uint8" type="Array"/>
+		<ISO7String detail="ISO 7-Bit coded string" base="ISO7" type="Array"/>
+	</Multiple>
+
+	<Interpretation>
+		<DataStream detail="Data Stream" base="Uint8Array"/>
+		<DataValue detail="Data Value" base="Uint8Array"/>
+		<Identifier detail="Generic Identifier" base="Uint8Array"/>
+		<Opaque detail="Opaque Data" base="Uint8Array"/>
+		<UMID detail="SMPTE UMID" base="Identifier" size="32"/>
+		<UID detail="UID" base="Identifier"/>
+		<Label detail="SMPTE Universal Label" base="Uint8Array" size="16"/>
+		<UUID detail="UUID" base="Identifier" size="16"/>
+		<AUID detail="AUID (byte re-ordered Identifier)" base="UUID"/>
+		<PackageID detail="Package ID" base="UMID"/>
+		<StrongRef detail="Strong Reference" base="UUID"/>
+		<WeakRef detail="Weak Reference" base="UUID"/>
+	</Interpretation>
+
+	<Multiple>
+		<AUIDArray detail="Array of AUIDs" base="AUID" type="Array"/>
+<!--		<UUIDArray detail="Array of UUIDs" base="UUID" type="Array"/> -->
+<!--		<UUIDCollection detail="Collection of UUIDs" base="UUID" type="Collenction"/> -->
+		<LabelCollection detail="Collection of SMPTE Universal Labels" base="Label" type="Collection"/>
+		<StrongRefArray detail="Array of StrongRefs" base="StrongRef" type="Array"/>
+		<StrongRefCollection detail="Collection of StrongRefs" base="StrongRef" type="Collection"/>
+		<WeakRefArray detail="Array of WeakRefs" base="StrongRef" type="Array"/>
+		<WeakRefCollection detail="Collection of WeakRefs" base="WeakRef" type="Collection"/>
+	</Multiple>
+
+	<Compound>
+		<Rational detail="Rational">
+			<Numerator detail="Numerator" type="Uint32"/>
+			<Denominator detail="Denominator" type="Uint32"/>
+		</Rational>
+		<TimeStamp detail="Date and Time">
+			<Year detail="Year" type="Uint16"/>
+			<Month detail="Month" type="Uint8"/>
+			<Day detail="Day" type="Uint8"/>
+			<Hours detail="Hours" type="Uint8"/>
+			<Minutes detail="Minutes" type="Uint8"/>
+			<Seconds detail="Seconds" type="Uint8"/>
+			<msBy4 detail="msBy4" type="Uint8"/>
+		</TimeStamp>
+		<VerType detail="Version Number">
+			<Major detail="Major" type="Uint16"/>
+			<Minor detail="Minor" type="Uint16"/>
+			<Patch detail="Patch" type="Uint16"/>
+			<Build detail="Build" type="Uint16"/>
+			<Release detail="Release" type="Uint16"/>
+		</VerType>
+		<Indirect detail="Indirect Data">
+			<Type detail="Type of Data" type="UL"/>
+			<Data detail="Data" type="Uint8Array"/>
+		</Indirect>
+	</Compound>
+	<!-- TODO 
+Timecode12M,,,,
+Timestamp309M,,,,
+-->
+</MXFTypes>

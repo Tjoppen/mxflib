@@ -32,6 +32,7 @@
  *	     distribution.
  */
 
+
 #include "mxflib.h"
 
 using namespace mxflib;
@@ -44,13 +45,16 @@ MDTraits DefaultTraits;
 //! Add a definition for a basic type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-void MDType::AddBasic(std::string TypeName, int TypeSize)
+MDTypePtr MDType::AddBasic(std::string TypeName, int TypeSize)
 {
 	// Can't have a zero length basic type!
 	ASSERT(TypeSize != 0);
 
 	// Create a new MDType to manage
 	MDTypePtr NewType = new MDType(TypeName, BASIC, &DefaultTraits);
+
+	// Set no base type
+	NewType->Base = NULL;
 
 	// Set the type size
 	NewType->Size = TypeSize;
@@ -60,13 +64,16 @@ void MDType::AddBasic(std::string TypeName, int TypeSize)
 
 	// Set the lookup
 	NameLookup[TypeName] = NewType;
+
+	// Return a pointer to the new type
+	return NewType;
 }
 
 
-//! Add a definition for an interpretation type
+//! Add a definition for an interpretation type (With optional fixed size)
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-void MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType)
+MDTypePtr MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType, int Size /* = 0 */)
 {
 	// Can't base on nothing!
 	ASSERT(BaseType);
@@ -74,27 +81,47 @@ void MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType)
 	// Create a new MDType to manage
 	MDTypePtr NewType = new MDType(TypeName, INTERPRETATION, BaseType->Traits);
 
+	// Set base type
+	NewType->Base = BaseType;
+
 	// Set the type size
-	NewType->Size = BaseType->Size;
+	if(Size == 0)
+	{
+		// Inherit size from base
+		NewType->Size = BaseType->Size;
+	}
+	else
+	{
+		// Force a new fixed size
+		// Note: This is only valid if the base type is variable size!
+		ASSERT(BaseType->Size == 0);
+		NewType->Size = Size;
+	}
 
 	// Add to the list of types
 	Types.push_back(NewType);
 
 	// Set the lookup
 	NameLookup[TypeName] = NewType;
+
+	// Return a pointer to the new type
+	return NewType;
 }
 
 
 //! Add a definition for an array type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-void MDType::AddArray(std::string TypeName, MDTypePtr BaseType, int Size /* = 0 */)
+MDTypePtr MDType::AddArray(std::string TypeName, MDTypePtr BaseType, int Size /* = 0 */)
 {
 	// Can't base on nothing!
 	ASSERT(BaseType);
 
 	// Create a new MDType to manage
 	MDTypePtr NewType = new MDType(TypeName, TYPEARRAY, BaseType->Traits);
+
+	// Set base type
+	NewType->Base = BaseType;
 
 	// Set the array size
 	NewType->Size = Size;
@@ -104,6 +131,34 @@ void MDType::AddArray(std::string TypeName, MDTypePtr BaseType, int Size /* = 0 
 
 	// Set the lookup
 	NameLookup[TypeName] = NewType;
+
+	// Return a pointer to the new type
+	return NewType;
+}
+
+
+//! Add a definition for a compound type
+/*! DRAGONS: Currently doesn't check for duplicates
+ */
+MDTypePtr MDType::AddCompound(std::string TypeName)
+{
+	// Create a new MDType to manage
+	MDTypePtr NewType = new MDType(TypeName, COMPOUND, &DefaultTraits);
+
+	// Set no base type
+	NewType->Base = NULL;
+
+	// Compounds have no type
+	NewType->Size = 0;
+
+	// Add to the list of types
+	Types.push_back(NewType);
+
+	// Set the lookup
+	NameLookup[TypeName] = NewType;
+
+	// Return a pointer to the new type
+	return NewType;
 }
 
 
@@ -127,6 +182,53 @@ MDTypePtr MDType::Find(const char *TypeName)
 }
 
 
+//! Report the effective type of this type
+/*! /note Care must be taken using this function because
+ *        it is easy to end up confused and read properties
+ *        from the "effective" type that should be read
+ *        from the interpretation instead (such as traits)
+ */
+MDTypePtr MDType::EffectiveType(void)
+{
+	// If we are an interpretation then see what of
+	if(Class == INTERPRETATION)
+	{
+		ASSERT(Base);
+		return Base->EffectiveType();
+	}
+
+	return this;
+}
+
+
+//! Report the effective class of this type
+MDTypeClass MDType::EffectiveClass(void)
+{
+	// If we are an interpretation then see what of
+	if(Class == INTERPRETATION)
+	{
+		ASSERT(Base);
+		return Base->EffectiveClass();
+	}
+
+	return Class;
+}
+
+
+//! Report the effective base type of this type
+MDTypePtr MDType::EffectiveBase(void)
+{
+	// If we are an interpretation then see what of
+	if(Class == INTERPRETATION)
+	{
+		ASSERT(Base);
+		return Base->EffectiveBase();
+	}
+
+	return Base;
+}
+
+
 //! MDValue named constructor
 /*! Builds a "blank" variable of a named type
 */
@@ -134,7 +236,7 @@ MDValue::MDValue(const char *BaseType)
 {
 	Type = MDType::Find(BaseType);
 
-	if(Type == NULL)
+	if(!Type)
 	{
 		error("Metadata variable type \"%s\" doesn't exist\n", BaseType);
 		// DRAGONS: Must sort this!!
@@ -148,7 +250,7 @@ MDValue::MDValue(const char *BaseType)
 //! MDValue typed constructor
 /*! Builds a "blank" variable of a specified type
 */
-MDValue::MDValue(MDType *BaseType)
+MDValue::MDValue(MDTypePtr BaseType)
 {
 	Type = BaseType;
 
@@ -165,6 +267,40 @@ void MDValue::Init(void)
 	// Start with no value
 	Size = 0;
 	Data = NULL;
+
+	// If it's a basic type build an empty one
+	if(Type->EffectiveClass() == BASIC)
+	{
+		if(Type->Size)
+		{
+			MakeSize(Type->Size);
+			memset(Data,0,Type->Size);
+		}
+	}
+
+	// If it's a fixed size array build all items
+	else if(Type->EffectiveClass() == TYPEARRAY)
+	{
+		if(Type->Size > 0)
+		{
+			// Build blank array
+			ResizeChildren(Type->Size);
+		}
+	}
+
+	// If it's a compound build all sub-items
+	else if(Type->EffectiveClass() == COMPOUND)
+	{
+		MDTypeList::iterator it;
+		it = Type->Children.begin();
+
+		while(it != Type->Children.end())
+		{
+			// Insert a new item of the appropriate type at the end
+			Children.push_back(new MDValue((*it)));
+			it++;
+		}
+	}
 }
 
 //! Set a variable to be a certain size in bytes
@@ -181,7 +317,7 @@ void MDValue::MakeSize(int NewSize)
 		
 		ASSERT(Data != NULL);
 	}
-	
+
 	Size = NewSize;
 }
 
@@ -219,13 +355,15 @@ void MDValue::SetValue(int ValSize, Uint8 *Val)
  */
 void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 {
-	ASSERT( Type->Class == TYPEARRAY || Type->Class == COMPOUND );
+	MDTypeClass Class = Type->EffectiveClass();
+
+	ASSERT( Class == TYPEARRAY || Class == COMPOUND );
 
 	// Specific array index given
 	if(Index >= 0)
 	{
 		// Can only specify an index for arrays
-		ASSERT( Type->Class == TYPEARRAY );
+		ASSERT( Class == TYPEARRAY );
 
 		int Num = Children.size();
 
@@ -248,7 +386,7 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 		}
 		else
 		{
-			// Entry padding items required
+			// Extra padding items required
 			if(Index > Num)
 			{
 				while(Index > Num)
@@ -267,26 +405,55 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 };
 
 
-//! Remove children from an MDValue continer
-/*! Remove all but the first "Index" children. 
- *! Probably only useful for resizing arrays.
+//! Add or Remove children from an MDValue continer to make a fixed size
+/*! Probably only useful for resizing arrays.
  */
-void MDValue::TrimChildren(int Index)
+void MDValue::ResizeChildren(int Count)
 {
-	ASSERT( Type->Class == TYPEARRAY || Type->Class == COMPOUND );
+	MDTypeClass Class = Type->EffectiveClass();
+
+	ASSERT( Class == TYPEARRAY || Class == COMPOUND );
 	
-	MDValueList::iterator it = Children.begin();
+	// If this function is called for a fixed size array
+	// simply validate the size
+	if(Type->Size) Count = Type->Size;
 
-	// Move to the index point
-	while(Index--) it++;
+	int Current = Children.size();
 
-	// Remove the old entries, automatically deleting the objects if required
-	Children.erase(it, Children.end());
+	// Extra padding items required
+	if(Current < Count)
+	{
+		while(Current < Count)
+		{
+			// Insert a new item of the appropriate type at the end
+			Children.push_back(new MDValue(Type->EffectiveBase()));
+			Current++;
+		}
+
+		Size = Current;
+	}
+	else if (Current > Count)
+	{
+		MDValueList::iterator it = Children.begin();
+
+		// Move to the desired last item
+		while((Count) && (it != Children.end()))
+		{
+			Count--;
+			it++;
+		}
+
+		// Remove the old entries, automatically deleting the objects if required
+		Children.erase(it, Children.end());
+	
+		Size = Children.size();
+	}
 }
 
 
 //! Access array member within an MDValue array
-/*! DRAGONS: The 
+/*! DRAGONS: This doesn't work well with SmartPtrs
+ *           so member function Child() is also available
 */
 MDValuePtr MDValue::operator[](int Index)
 {
@@ -301,11 +468,58 @@ MDValuePtr MDValue::operator[](int Index)
 	}
 
 	// Return a smart pointer to the object
-	Ret = *(it);
+	if(it != Children.end()) Ret = *(it);
 
 	return Ret;
 }
 
+
+//! Access named sub-item within a compound MDValue
+/*! DRAGONS: This doesn't work well with SmartPtrs
+ *           so member function Child() is also available
+*/
+MDValuePtr MDValue::operator[](const char *ChildName)
+{
+	StringList::iterator it = Type->ChildrenNames.begin();
+	MDValueList::iterator it2 = Children.begin();
+
+	while(it != Type->ChildrenNames.end())
+	{
+		ASSERT(it2 != Children.end());
+
+		if(strcmp((*it).c_str(),ChildName) == 0)
+		{
+			// Return a smart pointer to the object
+			MDValuePtr Ret = *(it2);
+			return Ret;
+		}
+		it++;
+		it2++;
+	}
+
+	return NULL;
+}
+
+
+std::string MDValue::ChildName(int Child)
+{
+	MDTypePtr EType = Type->EffectiveType();
+
+	ASSERT(EType->EffectiveClass() == COMPOUND);
+	
+	if(EType->EffectiveClass() != COMPOUND) return "";
+	
+	StringList::iterator it;
+	it = EType->ChildrenNames.begin();
+
+	while(Child--)
+	{
+		if(it != EType->ChildrenNames.end()) it++;
+	}
+
+	if(it == EType->ChildrenNames.end()) return "";
+	return (*it);
+}
 
 
 //std::string MDValue::GetString(void) { return std::string("Base"); };

@@ -41,6 +41,11 @@
 
 namespace mxflib
 {
+	typedef std::list<std::string> StringList;
+}
+
+namespace mxflib
+{
 	// Forward declare so the class can include pointers to itself
 	class MDType;
 
@@ -66,8 +71,12 @@ namespace mxflib
 		BASIC,							//!< A basic, indivisible, type
 		INTERPRETATION,					//!< An interpretation of another class
 		TYPEARRAY,						//!< An array of another class
-		COMPOUND,						//!< A compound type
-		SUB								//!< A sub member of a compound type
+		COMPOUND						//!< A compound type
+	};
+	enum MDArrayClass					//!< Sub-classes of arrays
+	{
+		ARRAYARRAY,						//!< Just a normal array
+		ARRAYCOLLECTION					//!< A collection with count and size
 	};
 }
 
@@ -87,15 +96,18 @@ namespace mxflib
 namespace mxflib
 {
 	//! Holds the definition of a metadata type
-	class MDType
+	class MDType : public RefCount<MDType>
 	{
 	private:
 		std::string Name;				//!< Name of this MDType
 		MDTypeClass Class;				//!< Class of this MDType
+		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
+		MDArrayClass ArrayClass;		//!< Sub-class of array
 
 	public:
 		MDTypePtr Base;					//!< Base class if this is a derived class, else NULL
 		MDTypeList Children;			//!< Types contained in this if it is a compound
+		StringList ChildrenNames;		//!< Corresponding child names if it is a compound
 		int Size;						//!< The size of the item in multiples of base class items, or 0 if it is variable
 
 		//! Access function for ContainerType
@@ -107,11 +119,33 @@ namespace mxflib
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
 		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraits *TypeTraits)
-			: Name(TypeName) , Class(TypeClass) , Traits(TypeTraits) {};
+			: Name(TypeName) , Class(TypeClass) , Traits(TypeTraits)
+			, Endian(false) , ArrayClass(ARRAYARRAY) {};
 
 		//! Add a sub to a compound type
 		void AddSub(std::string SubName, MDTypePtr SubType);
 
+	public:
+		//! Report the effective type of this type
+		MDTypePtr EffectiveType(void);
+
+		//! Report the effective class of this type
+		MDTypeClass EffectiveClass(void);
+
+		//! Report the effective base type of this type
+		MDTypePtr EffectiveBase(void);
+
+		//! Endian access function (set)
+		void SetEndian(bool Val) { Endian = Val; };
+
+		//! Endian access function (get)
+		bool GetEndian(void) { return Endian; };
+
+		//! ArrayClass access function (set)
+		void SetArrayClass(MDArrayClass Val) { ArrayClass = Val; };
+
+		//! ArrayClass access function (get)
+		MDArrayClass GetArrayClass(void) { return ArrayClass; };
 
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
@@ -123,16 +157,16 @@ namespace mxflib
 
 	public:
 		//! Add a new basic type
-		static void AddBasic(std::string TypeName, int TypeSize);
+		static MDTypePtr AddBasic(std::string TypeName, int TypeSize);
 
 		//! Add a new interpretation type
-		static void AddInterpretation(std::string TypeName, MDTypePtr BaseType);
+		static MDTypePtr AddInterpretation(std::string TypeName, MDTypePtr BaseType, int Size = 0);
 
 		//! Add a new array type
-		static void AddArray(std::string TypeName, MDTypePtr BaseType, int ArraySize = 0);
+		static MDTypePtr AddArray(std::string TypeName, MDTypePtr BaseType, int ArraySize = 0);
 
 		//! Add a new compound type
-		static void AddCompound(std::string TypeName);
+		static MDTypePtr AddCompound(std::string TypeName);
 
 		static MDTypePtr Find(const char *TypeName);
 	
@@ -150,9 +184,21 @@ namespace mxflib
 {
 	// Forward declare so the class can include pointers to itself
 	class MDValue;
+	class MDValuePtr;
 
-	//! A smart pointer to an MDValue object
-	typedef SmartPtr<MDValue> MDValuePtr;
+	//! A smart pointer to an MDValue object (with operator[] overloads)
+	class MDValuePtr : public SmartPtr<MDValue>
+	{
+	public:
+		MDValuePtr() : SmartPtr<MDValue>() {};
+		MDValuePtr(MDValue * ptr) : SmartPtr<MDValue>(ptr) {};
+		
+		//! Child access operator that overcomes dereferencing problems with SmartPtrs
+		MDValuePtr operator[](int Index);
+
+		//! Child access operator that overcomes dereferencing problems with SmartPtrs
+		MDValuePtr operator[](const char *ChildName);
+	};
 
 	//! A list of smart pointers to MDValue objects
 	typedef std::list<MDValuePtr> MDValueList;
@@ -162,30 +208,34 @@ namespace mxflib
 namespace mxflib
 {
 	//! Metadata Object class
-	class MDValue
+	class MDValue : public RefCount<MDValue>
 	{
 	private:
-		MDType *Type;
+		MDTypePtr Type;
 		int Size;
 		Uint8 *Data;
 
+	public:
 		MDValueList Children;
 
 	public:
 		MDValue(const char *BaseType);
-		MDValue(MDType *BaseType);
+		MDValue(MDTypePtr BaseType);
 		void Init(void);
 //		~MDValue();
 ~MDValue() {}; // ## DRAGONS: For debug ONLY!!
 
 		void AddChild(MDValuePtr Child, int Index = -1);
-		void TrimChildren(int Index);
+		void ResizeChildren(int Index);
 
 		MDValuePtr operator[](int Index);
+		MDValuePtr Child(int Index) { return operator[](Index); };
 
 		//! Access function for child values of compound items
 		MDValuePtr operator[](const char *ChildName);
-
+		MDValuePtr Child(const char *ChildName) { return operator[](ChildName); };
+		
+		std::string ChildName(int Child);
 
 		void SetInt(Int32 Val) { Type->Traits->SetInt(this, Val); };
 		void SetInt64(Int64 Val) { Type->Traits->SetInt64(this, Val); };
@@ -195,7 +245,7 @@ namespace mxflib
 		Int32 GetInt(void) { return Type->Traits->GetInt(this); };
 		Int64 GetInt64(void) { return Type->Traits->GetInt64(this); };
 		Uint32 GetUint(void) { return Type->Traits->GetUint(this); };
-		Uint64 Gint64(void) { return Type->Traits->GetUint64(this); };
+		Uint64 GetUint64(void) { return Type->Traits->GetUint64(this); };
 		std::string GetString(void)	{ return Type->Traits->GetString(this); };
 
 		int GetSize(void) { return Size; };
@@ -210,6 +260,15 @@ namespace mxflib
 		const Uint8* GetData(void) { return (const Uint8*) Data; };
 	};
 }
+
+
+// These simple inlines need to be defined after MDValue
+namespace mxflib
+{
+inline MDValuePtr MDValuePtr::operator[](int Index) { return operator->()->operator[](Index); };
+inline MDValuePtr MDValuePtr::operator[](const char *ChildName) { return operator->()->operator[](ChildName); };
+}
+
 
 #endif MXFLIB__MDTYPE_H
 
