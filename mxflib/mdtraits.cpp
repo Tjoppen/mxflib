@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.1.2.1 2004/06/14 18:07:37 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.1.2.2 2004/07/18 10:06:07 matt-beard Exp $
  *
  */
 /*
@@ -1241,7 +1241,7 @@ std::string MDTraits_Rational::GetString(MDValuePtr Object)
 	MDValuePtr Denominator = Object["Denominator"];
 
 	Uint32 Num = 0;
-	Uint32 Den = 0;
+	Uint32 Den = 1;
 	if(Numerator) Num = Numerator->GetUint();
 	if(Denominator) Den = Denominator->GetUint();
 
@@ -1256,7 +1256,7 @@ void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
 
 	Uint32 Num = atoi(Val.c_str());
 
-	Uint32 Den = 0;
+	Uint32 Den = 1;
 	std::string::size_type Slash = Val.find("/");
 	if(Slash != std::string::npos) Den = atoi(&(Val.c_str()[Slash+1]));
 
