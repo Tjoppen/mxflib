@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.6 2004/06/26 18:05:29 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.7 2004/07/05 14:43:25 matt-beard Exp $
  *
  */
 /*
@@ -241,7 +241,6 @@ namespace mxflib
 		ULPtr SourceKey;							//!< Key for the plaintext KLV
 		Length EncryptedLength;						//!< Length of the encrypted KLV Value
 		int SourceLengthFormat;						//!< Number of bytes used to encode SourceLength in the KLVE (allows us to faithfully recreate if required)
-		Length OuterLength;							//!< The length field of the containing KLV (the KLVE length not the length of the plaintext data)
 		Uint8 IV[16];								//!< The Initialization Vector for this KLVE
 		Uint8 Check[16];							//!< The check value for this KLVE
 		Int32 DataOffset;							//!< Offset of the start of the excrypted value from the start of the KLV value
