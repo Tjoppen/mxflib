@@ -11,7 +11,7 @@ export ACLOCAL=aclocal
 export LIBTOOLIZE=libtoolize
 export LIBTOOL=libtool
 
-function autoconf_version_msg() {
+autoconf_version_msg () {
     echo
     echo "You must have autoconf 2.50 or greater to bootstrap $package."
     echo "Get the latest version from ftp://ftp.gnu.org/gnu/autoconf/"
@@ -33,7 +33,7 @@ if [ $autoconf_major -le 2 ]; then
 	fi
 fi
 
-function automake_version_msg () { 
+automake_version_msg () { 
     echo
     echo "You must have automake 1.5 or greater to bootstrap $package."
     echo "Get the latest version from ftp://ftp.gnu.org/gnu/automake/"
@@ -64,8 +64,9 @@ test -f $srcfile || {
 	exit 1
 }
 
-rm -f depcomp missing install-sh mkinstalldirs
-rm -f aclocal.m4 configure config.h.in Makefile.in config.guess ltmain.sh config.sub
+rm -f depcomp missing install-sh mkinstalldirs ltmain.sh
+rm -f aclocal.m4 configure config.h.in Makefile.in config.guess config.sub
+rm -rf autom4te.cache
 
 set -x
 $ACLOCAL 
