@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.4 2004/03/28 20:06:29 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.5 2004/04/26 18:23:19 asuraparaju Exp $
  *
  */
 /*
@@ -92,8 +92,6 @@ int main(int argc, char *argv[])
 		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
 		//fprintf( stderr,"                       [-p] Split Partitions \n");
 
-		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
-
 		return -1;
 	}
 
@@ -129,7 +127,6 @@ int main(int argc, char *argv[])
 	if (! TestFile->Open(argv[num_options+1], true))
 	{
 		perror(argv[num_options+1]);
-		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 		exit(1);
 	}
 
@@ -202,8 +199,6 @@ int main(int argc, char *argv[])
 		itFile++;
 	}
 	theStreams.clear();
-
-	if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 
 	return 0;
 }
