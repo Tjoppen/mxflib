@@ -1,7 +1,7 @@
 /*! \file	mdtraits.h
  *	\brief	Definition of traits for MDType definitions
  *
- *	\version $Id: mdtraits.h,v 1.1.2.2 2004/10/10 18:42:25 terabrit Exp $
+ *	\version $Id: mdtraits.h,v 1.1.2.3 2004/10/19 17:55:18 matt-beard Exp $
  *
  */
 /*
@@ -232,13 +232,7 @@ namespace mxflib
 		virtual std::string GetString(MDValuePtr Object);
 	};
 
-	class MDTraits_Identifier16 : public MDTraits_Raw
-	{
-	protected:
-		virtual std::string GetString(MDValuePtr Object);
-	};
-
-	class MDTraits_Label : public MDTraits_Identifier16
+	class MDTraits_Label : public MDTraits_Raw
 	{
 	protected:
 		virtual std::string GetString(MDValuePtr Object);
