@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.3 2004/11/15 17:28:19 matt-beard Exp $
  *
  */
 /*
@@ -283,7 +283,7 @@ namespace mxflib
 		 */
 		virtual bool SetEncryptIV(Uint32 IVSize, const Uint8 *IV, bool Force = false)
 		{
-			Force;		// Unused parameter
+			Force = !(!Force);		// Unused parameter
 
 			EncryptionIV = new DataChunk(IVSize, IV);
 
