@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.3 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.4 2004/11/15 14:46:51 matt-beard Exp $
  *
  */
 /*
@@ -340,6 +340,14 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 //	warning("Index table reading not complete!\n");
 
 	EditUnitByteCount = Segment->GetUint("EditUnitByteCount");
+
+	// Set the index and body SIDs if not yet known
+	// DRAGONS: Should we check that they match when loading later segments?
+	if( IndexSID == 0 )
+	{
+		IndexSID = Segment->GetUint("IndexSID");
+		BodySID = Segment->GetUint("BodySID");
+	}
 
 	if( EditUnitByteCount ) // CBR
 	{

@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.3 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: index.h,v 1.4 2004/11/15 14:46:51 matt-beard Exp $
  *
  */
 /*
@@ -193,7 +193,14 @@ namespace mxflib
 
 	public:
 		//! Construct an IndexTable with no CBRDeltaArray
-		IndexTable() : EditUnitByteCount(0) , BaseDeltaCount(0) { EditRate.Numerator=0; EditUnitByteCount=0; NSL=0; NPE=0; IndexEntrySize=11; };
+		IndexTable() : IndexSID(0), BodySID(0), EditUnitByteCount(0) , BaseDeltaCount(0) 
+		{ 
+			EditRate.Numerator=0; 
+			EditUnitByteCount=0; 
+			NSL=0; 
+			NPE=0; 
+			IndexEntrySize=11; 
+		};
 
 		//! Free any memory used by BaseDeltaArray when this IndexTable is destroyed
 		~IndexTable() 
