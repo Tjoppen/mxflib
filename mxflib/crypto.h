@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.5 2004/06/14 17:06:53 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.6 2004/06/26 18:05:29 matt-beard Exp $
  *
  */
 /*
@@ -102,7 +102,7 @@ namespace mxflib
 		//! Encrypt data bytes in place
 		/*! \return true if the encryption is successful
 		 */
-		virtual bool EncryptInPlace(Uint32 Size, const Uint8 *Data) = 0;
+		virtual bool EncryptInPlace(Uint32 Size, Uint8 *Data) = 0;
 
 		//! Encrypt data bytes in place
 		/*! \return true if the encryption is successful
@@ -178,7 +178,7 @@ namespace mxflib
 		 */
 		bool SetIV(DataChunkPtr &IV, bool Force = false) { return SetIV(IV->Size, IV->Data, Force); }
 
-		//! Get the Initialization Vector that will be used for the next encryption
+		//! Get the Initialization Vector that will be used for the next decryption
 		/*! If called immediately after SetIV() with Force=true or SetIV() for a crypto
 		 *  scheme that accepts each offered vector (rather than creating its own ones)
 		 *  the result will be the vector offered in that SetIV() call.
@@ -239,13 +239,14 @@ namespace mxflib
 		ULPtr ContextID;							//!< The context ID used to link to encryption metadata
 		Uint64 PlaintextOffset;						//!< Number of unencrypted bytes at start of source data
 		ULPtr SourceKey;							//!< Key for the plaintext KLV
-		Length SourceLength;						//!< Length of the plaintext KLV Value
+		Length EncryptedLength;						//!< Length of the encrypted KLV Value
 		int SourceLengthFormat;						//!< Number of bytes used to encode SourceLength in the KLVE (allows us to faithfully recreate if required)
+		Length OuterLength;							//!< The length field of the containing KLV (the KLVE length not the length of the plaintext data)
 		Uint8 IV[16];								//!< The Initialization Vector for this KLVE
 		Uint8 Check[16];							//!< The check value for this KLVE
-		int DataOffset;								//!< Offset of the start of the excrypted value from the start of the KLV value
+		Int32 DataOffset;							//!< Offset of the start of the excrypted value from the start of the KLV value
 
-		DataChunkPtr EncryptionIV;						//!< Encryption IV if one has been specified
+		DataChunkPtr EncryptionIV;					//!< Encryption IV if one has been specified
 
 		/* Some useful constants */
 		//! The AS-DCP encryption system adds 32 bytes to the start of the encrypted data
@@ -289,8 +290,7 @@ namespace mxflib
 
 		//** Construction / desctruction **//
 		KLVEObject(ULPtr ObjectUL);				//!< Construct a new KLVEObject
-		KLVEObject(KLVObjectPtr Object);		//!< Construct a KLVEObject linked to an encrypted KLVObject
-		KLVEObject(KLVObject &Object);			//!< Construct a KLVEObject linked to an encrypted KLVObject
+		KLVEObject(KLVObjectPtr &Object);		//!< Construct a KLVEObject linked to an encrypted KLVObject
 		virtual void Init(void);
 		virtual ~KLVEObject() {};
 
@@ -298,41 +298,23 @@ namespace mxflib
 		//** KLVObject interfaces **//
 		/* DRAGONS: We should prune these and fall back where possible? */
 
-		//! Set the source details when an object has been read from a file
-		virtual void SetSource(MXFFilePtr File, Position Location, Uint32 NewKLSize, Length ValueLen)
-		{
-			IsConstructed = false;
-			SourceOffset = Location;
-			KLSize = NewKLSize;
-			SourceFile = File;
-		}
-
-		//! Set the source details when an object is build in memory
-		virtual void SetSource(Position Location, Uint32 NewKLSize, Length ValueLen)
-		{
-			IsConstructed = false;
-			SourceOffset = Location;
-			KLSize = NewKLSize;
-			SourceFile = NULL;
-		}
-
 		//! Get the object's UL
-		virtual ULPtr GetUL(void) { return TheUL; }
+		virtual ULPtr GetUL(void) 
+		{ 
+			// If we are decrypting, ensure we know the proper plaintext UL
+			if(Decrypt && (!DataLoaded)) LoadData();
+
+			return TheUL; 
+		}
 
 		//! Set the object's UL
 		virtual void SetUL(ULPtr NewUL) { TheUL = NewUL; }
-
-		//! Get the location within the ultimate parent
-		virtual Uint64 GetLocation(void) { return SourceOffset; }
-
-		//! Get text that describes where this item came from
-		virtual std::string GetSource(void);
 
 		//! Get the size of the key and length (not of the value)
 		/*! \note For an KLVEObject this actually returns the sum of the size of all parts of the
 		 *        KLV other than the decrypted value - in other words total KLVE length - Source Length
 		 */
-		virtual Uint32 GetKLSize(void);
+		virtual Int32 GetKLSize(void);
 
 		//! Get a GCElementKind structure
 		virtual GCElementKind GetGCElementKind(void);
@@ -340,49 +322,107 @@ namespace mxflib
 		//! Get the track number of this KLVObject (if it is a GC KLV, else 0)
 		virtual Uint32 GetGCTrackNumber(void);
 
-		//! Get the position of the first byte in the DataChunk as an offset into the file
-		/*! \return -1 allways to indicate that the data cannot be read directly from the file 
+		//! Get text that describes where this item came from
+		virtual std::string GetSource(void);
+
+		//! Read the key and length for this KLVObject from the current source
+		/*! \return The number of bytes read (i.e. KLSize)
 		 */
-		virtual Position GetDataBase(void) { return -1; };
+		virtual Int32 ReadKL(void);
 
-		//! Set the position of the first byte in the DataChunk as an offset into the file
-		/*! \note This function must be used with great care as data may will be written to this location
+		//! Read data from the start of the KLV value into the current DataChunk
+		/*! \param Size Number of bytes to read, if zero all available bytes will be read (which could be billions!)
+		 *  \return The number of bytes read
 		 */
-		virtual void SetDataBase(Position NewBase) { SourceOffset = NewBase; };
+		virtual Length ReadData(Length Size = 0) { return Base_ReadDataFrom(0, Size); }
 
-		//! Read data from the KLVObject source into the DataChunk
-		/*! If Size is zero an attempt will be made to read all available data (which may be billions of bytes!)
-		 *  \note Any previously read data in the current DataChunk will be discarded before reading the new data
-		 *	\return Number of bytes read - zero if none could be read
+		//! Read data from a specified position in the KLV value field into the DataChunk
+		/*! \param Offset Offset from the start of the KLV value from which to start reading
+		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \return The number of bytes read
 		 */
-		virtual Length ReadData(Position Start = 0, Length Size = 0);
+		virtual Length ReadDataFrom(Position Offset, Length Size = -1);
 
-		//! Write the key and length of the current DataChunk to the source file
-		/*! This function writes the entire header - not just the Key and Length
+		//! Write the key and length of the current DataChunk to the destination file
+		/*! The key and length will be written to the source file as set by SetSource.
+		 *  If LenSize is zero the length will be formatted to match KLSize (if possible!)
+		 *  \note If the length will not fit in KLSize then KLSize will be updated
 		 */
-		virtual Uint32 WriteKL(Uint32 LenSize = 0);
+		virtual Int32 WriteKL(Int32 LenSize = 0);
 
-		//! Write the key and length of the current DataChunk to the specified file
-		/*! This function writes the entire header - not just the Key and Length
+		//! Write (some of) the current data to the same location in the destination file
+		/*! \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \return The number of bytes written
 		 */
-		virtual Uint32 WriteKL(MXFFilePtr &File, Uint32 LenSize = 0);
+		virtual Length WriteData(Length Size = -1) { return WriteDataFromTo(0, 0, Size); }
 
-		//! Write data from a specified buffer to the source file
-		virtual Length WriteData(const Uint8 *Buffer, Position Start = 0, Length Size = 0);
-
-		//! Write data from the a buffer to a specified source file
-		virtual Length WriteData(MXFFilePtr &File, const Uint8 *Buffer, Length Size);
-
-		//! Set a handler to supply data when a read is performed
-		/*! \note If not set it will be read from the source file (if available) or cause an error message
+		//! Write (some of) the current data to the same location in the destination file
+		/*! \param Start The offset within the current DataChunk of the first byte to write
+		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \return The number of bytes written
 		 */
-		virtual void SetReadHandler(KLVReadHandlerPtr Handler) { ReadHandler = Handler; }
+		virtual Length WriteDataFrom(Position Start, Length Size = -1) { return WriteDataFromTo(0, Start, Size); }
+
+		//! Write (some of) the current data to a different location in the destination file
+		/*! \param Offset The offset within the KLV value field of the first byte to write
+		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \return The number of bytes written
+		 */
+		virtual Length WriteDataTo(Position Offset, Length Size = -1) { return WriteDataFromTo(Offset, 0, Size); }
+
+		//! Write (some of) the current data to the same location in the destination file
+		/*! \param Offset The offset within the KLV value field of the first byte to write
+		 *  \param Start The offset within the current DataChunk of the first byte to write
+		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \return The number of bytes written
+		 */
+		virtual Length WriteDataFromTo(Position Offset, Position Start, Length Size = -1)
+		{
+			// Calculate default number of bytes to write
+			Length BytesToWrite = Data.Size - Start;
+
+			// Write the requested size (if valid)
+			if((Size > 0) && (Size < BytesToWrite)) BytesToWrite = Size;
+
+			return WriteDataTo(&Data.Data[Start], Offset, BytesToWrite);
+		}
+
+		//! Write data from a given buffer to a given location in the destination file
+		/*! \param Buffer Pointer to data to be written
+		 *  \param Offset The offset within the KLV value field of the first byte to write
+		 *  \param Size The number of bytes to write
+		 *  \return The number of bytes written
+		 *  \note As there may be a need for the implementation to know where within the value field
+		 *        this data lives, there is no WriteData(Buffer, Size) function.
+		 */
+		virtual Length WriteDataTo(Uint8 *Buffer, Position Offset, Length Size);
 
 		//! Get the length of the value field
-		virtual Length GetLength(void) { return ValueLength; }
+		virtual Length GetLength(void) 
+		{ 
+			return ValueLength;
+		}
+/*			// If we are not decrypting then return entire value size
+			if(!Decrypt) return ValueLength;
 
-		//! Get a reference to the data chunk
-		virtual DataChunk& GetData(void) { return Data; }
+			// Try and load the header
+			if(!DataLoaded) if(!LoadData()) return 0;
+
+			// Return the plaintext size
+			return SourceLength; 
+		}
+*/
+
+		//! Set the length of the value field
+		virtual void SetLength(Length NewLength) 
+		{ 
+			ValueLength = NewLength; 
+
+			// Update encrypted length to take account of padding
+			EncryptedLength = (ValueLength + EncryptionGranularity) / EncryptionGranularity;
+			EncryptedLength *= EncryptionGranularity;
+		}
+
 
 	protected:
 		//! Load the AS-DCP set data
