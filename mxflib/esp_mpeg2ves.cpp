@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.1.2.1 2004/10/16 20:24:12 terabrit Exp $
  *
  */
 /*
@@ -60,7 +60,7 @@ EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHand
 
 	// Read the first 512 bytes of the file to allow us to investigate it
 	FileSeek(InFile, 0);
-	BufferBytes = FileRead(InFile, Buffer, 512);
+	BufferBytes = (Uint32)FileRead(InFile, Buffer, 512);
 	
 	// If the file is smaller than 16 bytes give up now!
 	if(BufferBytes < 16) return Ret;
@@ -233,7 +233,7 @@ Int64 MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
 	// Correct the position
 	Int64 iPictureNumber = PictureNumber;		// A wonderful Microsoft omission means we can only convert Int64 -> double, not Uint64
 
-	double Pos = iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator;
+	double Pos = (double)(iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator);
 	Pos /= (SelectedEditRate.Denominator * NativeEditRate.Numerator);
 	
 	return (Int64)floor(Pos + 0.5);
@@ -254,7 +254,7 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, 
 
 	// Make a datachunk with enough space
 	DataChunkPtr Ret = new DataChunk;
-	Ret->Resize(Bytes);
+	Ret->Resize((Uint32)Bytes);
 
 	// Read the data
 	FileRead(InFile, Ret->Data, Bytes);
@@ -285,7 +285,7 @@ Uint64 MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFi
 		int ChunkSize;
 		
 		// Number of bytes to transfer in this chunk
-		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
+		if(Bytes < BUFFERSIZE) ChunkSize = (int)Bytes; else ChunkSize = BUFFERSIZE;
 
 		FileRead(InFile, Buffer, ChunkSize);
 		OutFile->Write(Buffer, ChunkSize);
@@ -365,7 +365,7 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 	}
 
 	// Work out where the sequence extension should be
-	int ExtPos = Start + 12;
+	int ExtPos =(int)( Start + 12);
 	if(LoadIntra) ExtPos += 64;
 	if(LoadNonIntra) ExtPos += 64;
 
@@ -486,6 +486,15 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 
 	Ret->SetUint("ProfileAndLevel", PandL);
 
+#if defined(AS_CNN)
+	// AS-CNN only - default values
+	//! DRAGONS: should be evaluated while wrapping and set when rewriting Header
+	Ret->SetUint("ClosedGOP",			1);				// from IBP Descriptor, check while parsing
+	Ret->SetUint("IdenticalGOP",	1);				// from IBP Descriptor, check while parsing
+	Ret->SetUint("MaxGOP",				15);			// from IBP Descriptor, check while parsing
+	Ret->SetUint("BPictureCount", 2);				// evaluate while parsing
+#endif
+
 	return Ret;
 }
 
@@ -571,7 +580,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 						}
 
 						// Now we have determined if this is an anchor frame we can work out the anchor offset
-						int AnchorOffset = PictureNumber - AnchorFrame;
+						int AnchorOffset = (int)(PictureNumber - AnchorFrame);
 
 						//
 						// Offer this index table data to the index manager
@@ -581,8 +590,8 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 						Manager->OfferTemporalOffset(PictureNumber - (GOPOffset - TemporalReference), GOPOffset - TemporalReference);
 
 						// diagnostics
-/*						if(PictureNumber < 35)
-							printf( "  OfferEditUnit[%3d]: Tpres=%3d Aoff=%2d A=%3d 0x%02x. Reorder Toff[%2d]=%2d\n",
+						if(PictureNumber < 35)
+							debug( "  OfferEditUnit[%3d]: Tpres=%3d Aoff=%2d A=%3d 0x%02x. Reorder Toff[%2d]=%2d\n",
 											(int)PictureNumber,
 											(int)TemporalReference,
 											(int)AnchorOffset,
@@ -591,7 +600,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
                       (int)(PictureNumber - (GOPOffset - TemporalReference)),
                       (int)(GOPOffset - TemporalReference)
 										 );
-*/
+
 					}
 
 					GOPOffset++;
@@ -607,7 +616,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 					ClosedGOP = (BuffGetU8(InFile) & 0x40)? true:false;
 
 					//if( PictureNumber < 35 )
-//					if( ClosedGOP ) printf( "Closed GOP\n" ); else printf( "Open GOP\n" );
+					if( ClosedGOP ) debug( "Closed GOP\n" ); else printf( "Open GOP\n" );
 
 					CurrentPos += 4;
 				}
@@ -646,7 +655,7 @@ int MPEG2_VES_EssenceSubParser::BuffGetU8(FileHandle InFile)
 {
 	if(!BuffCount)
 	{
-		BuffCount = FileRead(InFile, Buffer, MPEG2_VES_BUFFERSIZE);
+		BuffCount = (int)FileRead(InFile, Buffer, MPEG2_VES_BUFFERSIZE);
 		if(BuffCount == 0) return -1;
 
 		BuffPtr = Buffer;
