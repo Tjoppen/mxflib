@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Defines known types
  *
- *	\version $Id: deftypes.cpp,v 1.2 2004/04/26 18:28:29 asuraparaju Exp $
+ *	\version $Id: deftypes.cpp,v 1.2.2.1 2004/05/28 14:00:22 matt-beard Exp $
  *
  */
 /*
@@ -144,7 +144,7 @@ int mxflib::LoadTypes(char *TypesFile)
 	if (! result)
 	{
 		error("sopSAXParseFile failed for %s\n", TypesFile);
-		exit(1);
+		return -1;
 	}
 
 
