@@ -9,6 +9,8 @@
 
 #include "mxflib.h"
 
+#include "primer.h"
+
 #include <list>
 
 namespace mxflib
@@ -28,6 +30,7 @@ namespace mxflib
 									/*!< Note: Version 11 of the MXF spec uses a Uint64 for this
 									 *         field but we are using a Position type here as it
 									 *         makes more sense, and allows distingushed value -1
+									 *<br><br>
 									 *   Note: Distinguished value -1 is used where the location
 									 *         in the file is not known
 									 */
@@ -35,6 +38,7 @@ namespace mxflib
 									/*!< Note: Version 11 of the MXF spec uses a Uint64 for this
 									 *         field but we are using a Position type here as it
 									 *         makes more sense, and allows distingushed value -1
+									 *<br><br>
 									 *   Note: Distinguished value -1 is used where the location
 									 *         of the previous partition in the file is not known
 									 */
@@ -42,8 +46,10 @@ namespace mxflib
 									/*!< Note: Version 11 of the MXF spec uses a Uint64 for this
 									 *         field but we are using a Position type here as it
 									 *         makes more sense, and allows distingushed value -1
+									 *<br><br>
 									 *   Note: Distinguished value -1 is used where the location
 									 *         of the footer partition in the file is not known
+									 *<br><br>
 									 *	 Note: The MXF specification uses 0 as the distinguished
 									 *         value to be used in the partition pack for this 
 									 *         purpose, but it is more convenient to use -1 for
@@ -53,9 +59,11 @@ namespace mxflib
 									/*!< This value starts with the first byte of the key 
 									 *   of the Primer Pack and includes any trailing filler
 									 *   after the last header metadata set
+									 *<br><br>
 									 *   Note: Version 11 of the MXF spec uses a Uint64 for this
 									 *         field but we are using a Position type here as it
 									 *         makes more sense, and allows distingushed value -1
+									 *<br><br>
 									 *   Note: Distinguished value -1 is used where the number
 									 *         of bytes used is not known
 									 */
@@ -63,9 +71,11 @@ namespace mxflib
 									/*!< This value starts with the first byte of the key 
 									 *   of the Primer Pack and includes any trailing filler
 									 *   after the last header metadata set
+									 *<br><br>
 									 *   Note: Version 11 of the MXF spec uses a Uint64 for this
 									 *         field but we are using a Position type here as it
 									 *         makes more sense, and allows distingushed value -1
+									 *<br><br>
 									 *   Note: Distinguished value -1 is used where the number
 									 *         of bytes used is not known
 									 */
@@ -97,7 +107,7 @@ namespace mxflib
 		// Other Properties
 		//******************
 
-		Primer *PrimerPack;			//!< The Primer Pack for this partition
+		Primer *PartitionPrimer;	//!< The Primer for this partition
 									/*!< Or NULL if no primer pack active (only valid
 									 *   if there is no header metadata in this partition
 									 *   OR it has not yet been written)

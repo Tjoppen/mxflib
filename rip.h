@@ -1,4 +1,4 @@
-/*! \file	Rip.h
+/*! \file	rip.h
  *	\brief	Definition of RIP class
  *
  *			The RIP class holds Random Index Pack data, either loaded from a real
@@ -8,7 +8,9 @@
 #define MXFLIB__RIP_H
 
 #include "mxflib.h"
+
 #include "partition.h"
+
 
 #include <list>
 

@@ -1,0 +1,38 @@
+/*!	\file	mxflib.dox
+ *	\brief	Extra details for Doxygen documentation
+ */
+
+/*!	\mainpage MXFLib Documentation
+ *
+ *  \section intro Introduction
+ *	This is the Open Source MXF Library "MXFLib"
+ *
+ *	\section dragons Here Be Dragons
+ *	In earlier times when explorers were mapping areas that they had discovered
+ *	they would sometimes have a large unexplored area that for some reason they
+ *	just didn't want to investigate. To explain the lack of any detail they would
+ *	just write "Here be Dragons" on that area. People reading the map would stay
+ *	clear until some mad fool was brave enough to go in and sort out what was
+ *	really there.
+ *	<br><br>
+ *	In modern times programmers often come across scary areas that they don't
+ *	want to deal with at this point (although they do need exploring later) and
+ *	if they are nice they will warn people. In this code the word "DRAGONS" is
+ *	used to flag an area where dangers lurk and brave programmers are sought to
+ *	go and slay them before they wreak havoc on the whole project!
+ *	<br><br>
+ *	Actually the "Here Be Dragons" thing is nearly as much of a myth as drogons
+ *	themselves. For more details see <a href="http://www.maphist.nl/extra/herebedragons.html">this article</a>
+ *	<br><br>
+ *	<a href="http://www.octopull.demon.co.uk/c++/dragons/">An interesting use of "Here Be Dragons" in teaching C++</a>
+ *
+ *  \section todo Still To Do...
+ *
+ *    - Finish the code
+ *    - Finish the documentation
+ *  
+ *	\section contact Contact Info
+ *
+ *  matt@beard.org
+ */
+

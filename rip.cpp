@@ -1,4 +1,4 @@
-/*! \file	RIP.cpp
+/*! \file	rip.cpp
  *	\brief	Implementation of RIP class
  *
  *			The RIP class holds Random Index Pack data, either loaded from a real
@@ -7,8 +7,9 @@
 
 #include "rip.h"
 
+
 //! Random Index Pack constructor
-/*! Sets the pack as generated (as it obviously hasn't been read yet 
+/*! Sets the pack as generated (as it obviously hasn't been read yet)
 */
 mxflib::RIP::RIP()
 {
