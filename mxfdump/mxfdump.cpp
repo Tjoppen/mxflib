@@ -29,6 +29,12 @@
 
 using namespace mxflib;
 
+#ifdef COMPILED_DICT
+#include <mxflib/dict_types.h>
+#include <mxflib/dict_classes.h>
+#endif
+
+
 #include <stdio.h>
 #include <iostream>
 
@@ -71,8 +77,16 @@ int main_process(int argc, char *argv[])
 {
 	printf("Dump an MXF file using MXFLib\n");
 
+
+#ifdef COMPILED_DICT
+	printf("- using compile-time dictionary\n");
+	LoadTypes(dict_types);
+	LoadClasses(dict_classes);
+#else
+	printf("- using run-time dictionary\n");
 	LoadTypes("types.xml");
 	MDOType::LoadDict("xmldict.xml");
+#endif
 
 	int num_options = 0;
 	for(int i=1; i<argc; i++)
