@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.1.2.3 2004/05/26 18:15:52 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.1.2.4 2004/05/28 14:38:59 matt-beard Exp $
  *
  */
 /*
@@ -149,6 +149,7 @@ namespace mxflib
 			SourceOffset = Location;
 			KLSize = NewKLSize;
 			SourceFile = File;
+			ValueLength = ValueLen;
 		}
 
 		//! Set the source details when an object is build in memory
@@ -162,6 +163,7 @@ namespace mxflib
 			SourceOffset = Location;
 			KLSize = NewKLSize;
 			SourceFile = NULL;
+			ValueLength = ValueLen;
 		}
 
 		//! Get the object's UL
