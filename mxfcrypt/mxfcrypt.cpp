@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.4 2004/12/18 20:19:36 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.5 2005/02/05 13:11:59 matt-beard Exp $
  *
  */
 /*
@@ -45,8 +45,7 @@ using namespace std;
 // Product GUID and version text for this release
 Uint8 ProductGUID_Data[16] = { 0x84, 0x62, 0x40, 0xf1, 0x47, 0xed, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x53 };
 string CompanyName = "freeMXF.org";
-string ProductNameEnc = "mxfcrypt file encrypt utility";
-string ProductNameDec = "mxfcrypt file decrypt utility";
+string ProductName = "mxfcrypt file de/encrypt utility";
 string ProductVersion = "Based on " + LibraryVersion();
 
 //! Plaintext offset to use when encrypting
@@ -563,8 +562,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 	// Build an Ident set describing us and link into the metadata
 	MDObjectPtr Ident = new MDObject("Identification");
 	Ident->SetString("CompanyName", CompanyName);
-	if(DecryptMode) Ident->SetString("ProductName", ProductNameDec);
-	else Ident->SetString("ProductName", ProductNameEnc);
+	Ident->SetString("ProductName", ProductName);
 	Ident->SetString("VersionString", ProductVersion);
 	Ident->SetString("ToolkitVersion", LibraryProductVersion());
 	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
