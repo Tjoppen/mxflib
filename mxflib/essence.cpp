@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.1.2.2 2004/05/19 11:12:36 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.1.2.3 2004/05/19 11:18:39 matt-beard Exp $
  *
  */
 /*
@@ -916,6 +916,7 @@ bool BodyReader::MakeGCReader(Uint32 BodySID, GCReadHandlerPtr DefaultHandler /*
  */
 bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 {
+	bool Ret;
 	GCReaderPtr Reader;
 
 	// First check if we need to re-initialise
@@ -950,13 +951,19 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 		NewPartition->SeekEssence();
 
 		// Read and handle data
-		return Reader->ReadFromFile(File->Tell(), StreamOffset, SingleKLV);
+		Ret = Reader->ReadFromFile(File->Tell(), StreamOffset, SingleKLV);
+
+		// We have now initialized the reader
+		NewPos = false;
+	}
+	else
+	{
+		// Continue from the previous read 
+		Reader = GetGCReader(CurrentBodySID);
+		if(!Reader) return true;
+		Ret = Reader->ReadFromFile(SingleKLV);
 	}
 
-	// Continue from the previous read 
-	Reader = GetGCReader(CurrentBodySID);
-	if(!Reader) return true;
-	bool Ret = Reader->ReadFromFile(SingleKLV);
 	CurrentPos = Reader->GetFileOffset();
 
 	// If the read failed (or was stopped) reinitialize next time around
