@@ -57,10 +57,9 @@ namespace mxflib
 
 namespace mxflib
 {
-	//! Draft version of Identifier base type (DRAGONS)
 	template <int SIZE> class Identifier : public RefCount<Identifier>
 	{
-	private:
+	protected:
 		Uint8 Ident[SIZE];
 	public:
 		Identifier(const Uint8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
@@ -118,15 +117,68 @@ namespace mxflib
 namespace mxflib
 {
 	typedef Identifier<16> UL;
-	typedef Identifier<16> UUID;
-	typedef Vector<UL> ULVector;
+
+//	typedef Vector<UL> ULVector;
 
 	//! A smart pointer to a UL object
 	typedef SmartPtr<UL> ULPtr;
+}
+
+namespace mxflib
+{
+	typedef Identifier<16> Identifier16;
+	class UUID : public Identifier16
+	{
+	public:
+		UUID() { MakeUUID(Ident); };
+		UUID(const Uint8 *ID) : Identifier16(ID) {};
+		UUID(const SmartPtr<UUID> ID) { if(ID == NULL) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
+	};
 
 	//! A smart pointer to a UUID object
-	typedef SmartPtr<UL> UUIDPtr;
+	typedef SmartPtr<UUID> UUIDPtr;
 }
+
+
+namespace mxflib
+{
+	typedef Identifier<32> Identifier32;
+	class UMID : public Identifier32
+	{
+	public:
+		UMID(const Uint8 *ID = NULL) : Identifier32(ID) {};
+		UMID(const SmartPtr<UMID> ID) { if(ID == NULL) memset(Ident,0,32); else memcpy(Ident,ID->Ident, 32); };
+
+		//! Get the UMID's instance number
+		/*! \note The number returned interprets the instance number as big-endian */
+		Uint32 GetInstance(void)
+		{
+			return (Ident[13] << 16) | (Ident[14] << 8) | Ident[15];
+		}
+
+		//! Set the UMID's instance number
+		/*! \note The number is set as big-endian */
+		//	DRAGONS: Should add an option to generate a random instance number
+		void SetInstance(int Instance, int Method = -1)
+		{
+			Uint8 Buffer[4];
+			PutU32(Instance, Buffer);
+
+			// Set the instance number
+			memcpy(&Ident[13], &Buffer[1], 3);
+
+			// Set the method if a new one is specified
+			if(Method >= 0)
+			{
+				Ident[11] = (Ident[11] & 0xf0) | Method;
+			}
+		}
+	};
+
+	//! A smart pointer to a UMID object
+	typedef SmartPtr<UMID> UMIDPtr;
+}
+
 
 namespace mxflib
 {

@@ -59,11 +59,9 @@ namespace mxflib
 namespace mxflib
 {
 	//! Holds data relating to a single partition
-	class Partition : public RefCount<Partition>
+	class Partition : public ObjectInterface, public RefCount<Partition>
 	{
 	public:
-		MDObjectPtr Object;				//!< The MDObject for this partition pack
-
 		PrimerPtr PartitionPrimer;		//!< The Primer for this partition
 										/*!< Or NULL if no primer pack active (only valid
 										 *   if there is no header metadata in this partition
@@ -82,6 +80,15 @@ namespace mxflib
 		Partition(MDOTypePtr BaseType) { Object = new MDObject(BaseType); };
 		Partition(ULPtr BaseUL) { Object = new MDObject(BaseUL); };
 
+		//! Reload the metadata tree - DRAGONS: not an ideal way of doing this
+		void UpdateMetadata(ObjectInterface *NewObject) { ClearMetadata(); AddMetadata(NewObject->Object); };
+
+		//! Reload the metadata tree - DRAGONS: not an ideal way of doing this
+		void UpdateMetadata(MDObjectPtr NewObject) { ClearMetadata(); AddMetadata(NewObject); };
+		
+		//! Add a metadata object to the header metadata belonging to a partition
+		/*! Note that any strongly linked objects are also added */
+		void AddMetadata(ObjectInterface *NewObject) { AddMetadata(NewObject->Object); };
 		void AddMetadata(MDObjectPtr NewObject);
 
 		//! Clear all header metadata for this partition (including the primer)
@@ -106,6 +113,14 @@ namespace mxflib
 		//! Read any index table segments from a file
 		MDObjectListPtr ReadIndex(MXFFilePtr File, Uint64 Size);
 
+		//! Set the KAG for this partition
+		void SetKAG(Uint64 KAG)
+		{
+			MDObjectPtr Ptr = Object->Child("KAGSize");
+			ASSERT(Ptr);
+			Ptr->SetUint64(KAG);
+		}
+
 //		//! Read the partition from a buffer
 //		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size);
 
@@ -116,52 +131,6 @@ namespace mxflib
 
 	private:
 		void ProcessChildRefs(MDObjectPtr ThisObject);
-
-	public:
-		// ** MDObject Interface **
-		std::string Name(void) { return Object->Name(); };
-		std::string FullName(void) { return Object->FullName(); };
-
-		void SetInt(const char *ChildName, Int32 Val) { Object->SetInt(ChildName, Val); };
-		void SetInt64(const char *ChildName, Int64 Val) { Object->SetInt64(ChildName, Val); };
-		void SetUint(const char *ChildName, Uint32 Val) { Object->SetUint(ChildName, Val); };
-		void SetUint64(const char *ChildName, Uint64 Val) { Object->SetUint64(ChildName, Val); };
-		void SetString(const char *ChildName, std::string Val) { Object->SetString(ChildName, Val); };
-		Int32 GetInt(const char *ChildName, Int32 Default = 0) { return Object->GetInt(ChildName, Default); };
-		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { return Object->GetInt64(ChildName, Default); };
-		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { return Object->GetUint(ChildName, Default); };
-		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { return Object->GetUint64(ChildName, Default); };
-		std::string GetString(const char *ChildName, std::string Default = "") { return Object->GetString(ChildName, Default); };
-		void SetInt(MDOTypePtr ChildType, Int32 Val) { Object->SetInt(ChildType, Val); };
-		void SetInt64(MDOTypePtr ChildType, Int64 Val) { Object->SetInt64(ChildType, Val); };
-		void SetUint(MDOTypePtr ChildType, Uint32 Val) { Object->SetUint(ChildType, Val); };
-		void SetUint64(MDOTypePtr ChildType, Uint64 Val) { Object->SetUint64(ChildType, Val); };
-		void SetString(MDOTypePtr ChildType, std::string Val) { Object->SetString(ChildType, Val); };
-		Int32 GetInt(MDOTypePtr ChildType, Int32 Default = 0) { return Object->GetInt(ChildType, Default); };
-		Int64 GetInt64(MDOTypePtr ChildType, Int64 Default = 0) { return Object->GetInt64(ChildType, Default); };
-		Uint32 GetUint(MDOTypePtr ChildType, Uint32 Default = 0) { return Object->GetUint(ChildType, Default); };
-		Uint64 GetUint64(MDOTypePtr ChildType, Uint64 Default = 0) { return Object->GetUint64(ChildType, Default); };
-		std::string GetString(MDOTypePtr ChildType, std::string Default = "") { return Object->GetString(ChildType, Default); };
-
-		//! Read the object's value from a memory buffer
-		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer = NULL) { return Object->ReadValue(Buffer, Size, UsePrimer); };
-		
-		MDOTypePtr GetType(void) const { return Object->GetType(); };
-		MDObjectPtr GetLink(void) const { return Object->GetLink(); };
-		void SetLink(MDObjectPtr NewLink) { Object->SetLink(NewLink); };
-		DictRefType GetRefType(void) const { return Object->GetRefType(); };
-
-		//! Set the parent details when an object has been read from a file
-		void SetParent(MXFFilePtr File, Uint64 Location, Uint32 NewKLSize) { Object->SetParent(File, Location, NewKLSize); };
-
-		//! Set the parent details when an object has been read from memory
-		void SetParent(MDObjectPtr ParentObject, Uint64 Location, Uint32 NewKLSize) { Object->SetParent(ParentObject, Location, NewKLSize); };
-
-		bool IsModified(void) { return Object->IsModified(); }
-
-		Uint64 GetLocation(void) { return Object->GetLocation(); }
-		std::string GetSource(void) { return Object->GetSource(); }
-		std::string GetSourceLocation(void) { return Object->GetSourceLocation(); }
 	};
 }
 

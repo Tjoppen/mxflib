@@ -57,6 +57,12 @@ namespace mxflib
 		//! Construct a data chunk with a pre-allocated buffer
 		DataChunk(Uint64 BufferSize) : DataSize(0), Size(0) , Data(NULL) { Resize(BufferSize); };
 
+		//! Construct a data chunk with contents
+		DataChunk(Uint64 MemSize, const Uint8 *Buffer) : DataSize(0), Size(0), Data(NULL) { Set(MemSize, Buffer); };
+
+		//! Construct a data chunk from an identifier
+		template<int SIZE> DataChunk(const Identifier<SIZE> *ID)  : DataSize(0), Size(0) , Data(NULL) { Set(ID->Size(), ID->GetValue() ); };
+
 		//! Data chunk copy constructor
 		DataChunk(const DataChunk &Chunk) : DataSize(0), Size(0) , Data(NULL) { Set(Chunk.Size, Chunk.Data); };
 
@@ -80,12 +86,43 @@ namespace mxflib
 			DataSize = Size = NewSize;
 		}
 
-		//! Set some data into the data chunk (expanding it if required)
+		//! Resize the data buffer, preserving contents
+		/*! The buffer is resized to <b>at least</b> NewSize, but Size remains unchanged */
+		void ResizeBuffer(Uint32 NewSize)
+		{
+			if(DataSize >= NewSize) return;
+
+			Uint8 *NewData = new Uint8[NewSize];
+			if(Size) memcpy(NewData, Data, Size);
+			if(Data) delete[] Data;
+			Data = NewData;
+			DataSize = NewSize;
+		}
+
+		//! Set some data into a data chunk (expanding it if required)
+		void Set(DataChunk &Buffer, Uint32 Start = 0)
+		{
+			Set(Buffer.Size, Buffer.Data, Start);
+		}
+
+		//! Set some data into a data chunk (expanding it if required)
 		void Set(Uint32 MemSize, const Uint8 *Buffer, Uint32 Start = 0)
 		{
 			if(Size < (MemSize + Start)) Resize(MemSize + Start);
 
 			memcpy(&Data[Start], Buffer, MemSize);
+		}
+
+		//! Append some data to a data chunk
+		void Append(DataChunk &Buffer)
+		{
+			Set(Buffer.Size, Buffer.Data, Size);
+		}
+
+		//! Append some data to a data chunk
+		void Append(Uint32 MemSize, const Uint8 *Buffer)
+		{
+			Set(MemSize, Buffer, Size);
 		}
 
 		DataChunk& operator=(const DataChunk &Right)

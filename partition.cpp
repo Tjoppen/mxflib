@@ -33,6 +33,7 @@ using namespace mxflib;
 
 
 //! Add a metadata object to the header metadata belonging to a partition
+/*! Note that any strongly linked objects are also added */
 void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 {
 	// Start out without a target
@@ -44,13 +45,16 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 	// Add us to the list of all items
 	AllMetadata.push_back(NewObject);
 
-	// Add this object to the ref target list if it is one
+	// Add this object to the ref target list if it is one. At the same time any objects
+	// linked from this object (before this function was called) are added as well
 	// Note: although nothing currently does it it is theoretically possible to
 	//       have more than one target entry in a set
 	MDObjectNamedList::iterator it = NewObject->begin();
 	while(it != NewObject->end())
 	{
-		if((*it).second->GetRefType() == DICT_REF_TARGET)
+		DictRefType RefType = (*it).second->GetRefType();
+
+		if(RefType == DICT_REF_TARGET)
 		{
 			if((*it).second->Value->size() != 16)
 			{
@@ -91,6 +95,45 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 				}
 			}
 		}
+		else if(RefType == DICT_REF_STRONG)
+		{
+			MDObjectPtr Link = (*it).second->GetLink();
+			if(Link)
+			{
+				AddMetadata(Link);
+
+				// Prevent the new item being top-level (which it may be as we are not added yet)
+				// DRAGONS: There is surely a better way than this!!
+				TopLevelMetadata.remove(Link);
+			}
+		} 
+		else if(!((*it).second->empty()))
+		{
+			MDObjectNamedList::iterator it2 = (*it).second->begin();
+			MDObjectNamedList::iterator itend2 = (*it).second->end();
+			while(it2 != itend2)
+			{
+				if((*it2).second->GetRefType() == DICT_REF_STRONG)
+				{
+					MDObjectPtr Link = (*it2).second->GetLink();
+					if(Link)
+					{
+						AddMetadata(Link);
+
+						// Prevent the new item being top-level (which it may be as we are not added yet)
+						// DRAGONS: There is surely a better way than this!!
+						TopLevelMetadata.remove(Link);
+					}
+				}
+				else if(!((*it2).second->empty()))
+				{
+					error("Internal error for object %s - Cannot process nesting > 2 in AddMetadata()\n",
+						   (*it2).second->FullName().c_str());
+				}
+				it2++;
+			}
+		}
+
 		it++;
 	}
 
@@ -108,31 +151,35 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 	MDObjectNamedList::iterator it = ThisObject->begin();
 	while(it != ThisObject->end())
 	{
-		DictRefType Ref = (*it).second->GetRefType();
-		if((Ref == DICT_REF_STRONG) || (Ref == DICT_REF_WEAK))
+		// Only try to match references if not already matched
+		if(!(*it).second->GetLink())
 		{
-			if((*it).second->Value->size() != 16)
+			DictRefType Ref = (*it).second->GetRefType();
+			if((Ref == DICT_REF_STRONG) || (Ref == DICT_REF_WEAK))
 			{
-				error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
-					  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->size());
-			}
-			else
-			{
-				UUIDPtr ID = new UUID((*it).second->Value->PutData().Data);
-				std::map<UUID, MDObjectPtr>::iterator mit = RefTargets.find(*ID);
-
-				if(mit == RefTargets.end())
+				if((*it).second->Value->size() != 16)
 				{
-					// Not matched yet, so add to the list of outstanding refs
-					UnmatchedRefs.insert(std::multimap<UUID, MDObjectPtr>::value_type(*ID, (*it).second));
+					error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
+						  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->size());
 				}
 				else
 				{
-					// Make the link
-					(*it).second->SetLink((*mit).second);
+					UUIDPtr ID = new UUID((*it).second->Value->PutData().Data);
+					std::map<UUID, MDObjectPtr>::iterator mit = RefTargets.find(*ID);
 
-					// If we have made a strong ref, remove the target from the top level
-					if(Ref == DICT_REF_STRONG) TopLevelMetadata.remove((*mit).second);
+					if(mit == RefTargets.end())
+					{
+						// Not matched yet, so add to the list of outstanding refs
+						UnmatchedRefs.insert(std::multimap<UUID, MDObjectPtr>::value_type(*ID, (*it).second));
+					}
+					else
+					{
+						// Make the link
+						(*it).second->SetLink((*mit).second);
+
+						// If we have made a strong ref, remove the target from the top level
+						if(Ref == DICT_REF_STRONG) TopLevelMetadata.remove((*mit).second);
+					}
 				}
 			}
 		}

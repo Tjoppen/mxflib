@@ -1293,7 +1293,7 @@ std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 	if(Seconds) S = Seconds->GetUint(); else S = 0;
 	if(msBy4) ms = msBy4->GetUint() * 4; else ms = 0;
 
-	return Uint2String(Y) + "/" + Uint2String(M,2) + "/" + Uint2String(D,2) + " " +
+	return Uint2String(Y) + "-" + Uint2String(M,2) + "-" + Uint2String(D,2) + " " +
 		   Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2) + "." + Uint2String(ms,3);
 }
 
@@ -1316,7 +1316,7 @@ void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
 	Uint32 S;
 	Uint32 ms;
 
-	sscanf(Val.c_str(), "%d/%d/%d", &Y, &M, &D);
+	sscanf(Val.c_str(), "%d-%d-%d", &Y, &M, &D);
 	std::string::size_type Pos = Val.find("T");
 	if(Pos == std::string::npos) Pos = Val.find(" ");
 	if(Pos != std::string::npos) sscanf(&(Val.c_str()[Pos]), "%d:%d:%d.%d", &H, &Min, &S, &ms);

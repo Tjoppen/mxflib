@@ -1,14 +1,30 @@
 
-Release Notes for mxflib version 0.2.2-Alpha
+Release Notes for mxflib version 0.2.3-Alpha
 ============================================
 
-A few minor bug-fixes
+The first version with file writing!
+
+
+Changes since version 0.2.2-Alpha
+============================================
+
+* Fixed a problem where sparse index table lookups didn't work
+* Added Higher level objects (Package, Track etc.)
+* Added ObjectInterface to allow pseudo derived types
+* Fixed problem with ScanRIP in very small files with 
+  FooterPartition==0 in header
+* Revised Partition so it is no longer derived from MDObject
+* Added WriteObject()
+* Fixed problem where BuildRIP failed if all that was in the file 
+  was a singe partition pack
+* Fixed a bug where batches of 0 items were incorrectly read
 
 
 Changes since version 0.2.1-Alpha
 =================================
 
-* Fixed problem where mxffile::Seek() returned the wrong value in files with a run-in
+* Fixed problem where mxffile::Seek() returned the wrong value in 
+  files with a run-in
 * Revised the front page of the documentation
 
 

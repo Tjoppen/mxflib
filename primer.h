@@ -50,14 +50,32 @@ namespace mxflib
 
 namespace mxflib
 {
+	// Required to make MSVC compile!
+	typedef std::map<Tag, UL> Primer_Root;
+
 	//! Holds local tag to metadata definition UL mapping
-	class Primer : public std::map<Tag, UL>, public RefCount<Primer>
+	class Primer : public Primer_Root, public RefCount<Primer>
 	{
+		Tag NextDynamic;						//! Next dynamic tag to try
+		std::map<UL, Tag> TagLookup;			//! Reverse lookup for locating a tag for a given UL
+
 	public:
+		Primer() { NextDynamic = 0xffff; };
 		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size);
+
+		//! Write this primer to a memory buffer
+		Uint32 WritePrimer(DataChunk &Buffer);
+
+		Tag Lookup(ULPtr ItemUL, Tag TryTag = 0);
+
+		//! Insert a new child type
+		std::pair<iterator, bool> insert(value_type Val) 
+		{ 
+			TagLookup.insert(std::map<UL, Tag>::value_type(Val.second, Val.first));
+			return Primer_Root::insert(Val);
+		}
 	};
 }
-
 
 #endif MXFLIB__PRIMER_H
 

@@ -230,6 +230,7 @@ char *DictType2Text(DictType Type)
 		XLate.insert(XLateType::value_type(DICT_TYPE_UINT8STRING,"Uint8Array")); // DRAGONS: Is this right?
 		XLate.insert(XLateType::value_type(DICT_TYPE_PRODUCTVERSION,"ProductVersion"));
 		XLate.insert(XLateType::value_type(DICT_TYPE_RAW,"Uint8Array"));
+		XLate.insert(XLateType::value_type(DICT_TYPE_I32ARRAY,"Int32Array"));
 	}
 
 	XLateType::iterator it = XLate.find(Type);
@@ -496,8 +497,9 @@ MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 
 //! MDObject named constructor
 /*! Builds a "blank" metadata object of a named type
-*/
-MDObject::MDObject(const char *BaseType)
+ *	\note packs are built with defaut values
+ */
+MDObject::MDObject(std::string BaseType)
 {
 	Type = MDOType::Find(BaseType);
 	if(Type)
@@ -506,13 +508,13 @@ MDObject::MDObject(const char *BaseType)
 	}
 	else
 	{
-		error("Metadata object type \"%s\" doesn't exist\n", BaseType);
+		error("Metadata object type \"%s\" doesn't exist\n", BaseType.c_str());
 
 		Type = MDOType::Find("Unknown");
 
 		ASSERT(Type);
 
-		ObjectName = "Unknown (" + std::string(BaseType) + ")";
+		ObjectName = "Unknown (" + BaseType + ")";
 	}
 
 	IsConstructed = true;
@@ -530,7 +532,8 @@ MDObject::MDObject(const char *BaseType)
 
 //! MDObject typed constructor
 /*! Builds a "blank" metadata object of a specified type
-*/
+ *	\note packs are built with defaut values
+ */
 MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType) 
 {
 	ObjectName = BaseType->Name();
@@ -550,7 +553,8 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 
 //! MDObject typed constructor
 /*! Builds a "blank" metadata object of a specified type
-*/
+ *	\note packs are built with defaut values
+ */
 MDObject::MDObject(ULPtr UL) 
 {
 	Type = MDOType::Find(UL);
@@ -598,7 +602,8 @@ MDObject::MDObject(ULPtr UL)
 
 //! MDObject typed constructor
 /*! Builds a "blank" metadata object of a specified type
-*/
+ *	\note packs are built with defaut values
+ */
 MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 {
 	Primer::iterator it = BasePrimer->find(BaseTag);
@@ -650,7 +655,8 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 
 //! Second part of MDObject constructors
 /*! Builds a "blank" metadata object
-*/
+ *	\note packs are built with defaut values
+ */
 void MDObject::Init(void)
 {
 	SetModified(true); 
@@ -688,7 +694,9 @@ void MDObject::Init(void)
 				}
 				else
 				{
-					insert(new MDObject(Current));
+					MDObjectPtr NewItem = new MDObject(Current);
+					NewItem->SetDefault();
+					insert(NewItem);
 				}
 
 				it++;
@@ -707,21 +715,21 @@ void MDObject::Init(void)
 
 
 //! Add an empty named child to an MDObject continer and return a pointer to it
-/*! If a child of this name already exists a pointer to that child is returned
- *  but the value is not changed.
+/*! If Replace is true (or not supplied) and a child of this name already 
+ *	exists a pointer to that child is returned but the value is not changed.
  *  \return NULL if it is not a valid child to add to this type of container
  *	\note If you want to add an child that is non-standard (i.e. not listed
  *        as a child in the container's MDOType then you must build the child
  *        then add it with AddChild(MDObjectPtr)
- *  \note If you want to add a second child of the same name to an object
- *        you must build the child and then add it with AddChild(MDObjectPtr)
  */
-MDObjectPtr MDObject::AddChild(std::string ChildName)
+MDObjectPtr MDObject::AddChild(std::string ChildName, bool Replace /*=true*/)
 {
+	MDObjectPtr Ret;
+
 	SetModified(true); 
 
-	// Try and find an existing child
-	MDObjectPtr Ret = Child(ChildName);
+	// Try and find an existing child (if replacing)
+	if(Replace) Ret = Child(ChildName); else Ret = NULL;
 
 	// Only add a new one if we didn't find it
 	if(!Ret)
@@ -733,7 +741,43 @@ MDObjectPtr MDObject::AddChild(std::string ChildName)
 		if(it == Type->end()) return Ret;
 
 		// Insert a new item of the correct type
-		MDObjectPtr Ret = new MDObject((*it).second);
+		Ret = new MDObject((*it).second);
+		insert(Ret);
+	}
+
+	// Return smart pointer to the new object
+	return Ret;
+};
+
+
+//! Add an empty child of a specified type to an MDObject continer and return a pointer to it
+/*! If Replace is true (or not supplied) and a child of this type already 
+ *	exists a pointer to that child is returned but the value is not changed.
+ *  \return NULL if it is not a valid child to add to this type of container
+ *	\note If you want to add an child that is non-standard (i.e. not listed
+ *        as a child in the container's MDOType then you must build the child
+ *        then add it with AddChild(MDObjectPtr)
+ */
+MDObjectPtr MDObject::AddChild(MDOTypePtr ChildType, bool Replace /*=true*/)
+{
+	MDObjectPtr Ret;
+
+	SetModified(true); 
+
+	// Try and find an existing child (if replacing)
+	if(Replace) Ret = Child(ChildType); else Ret = NULL;
+
+	// Only add a new one if we didn't find it
+	if(!Ret)
+	{
+		// Find the child definition
+		MDOType::iterator it = Type->find(ChildType->Name());
+
+		// Return NULL if not found
+		if(it == Type->end()) return Ret;
+
+		// Insert a new item of the correct type
+		Ret = new MDObject((*it).second);
 		insert(Ret);
 	}
 
@@ -982,7 +1026,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			}
 
 			Bytes = 8;
-			Size = ItemSize;
+			if(Count) Size = ItemSize; else Size = 0;
 		}
 		// Fall through and process as an array
 
@@ -1231,6 +1275,44 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 }
 
 
+//! Has this object (including any child objects) been modified?
+bool MDObject::IsModified(void)
+{ 
+	if(Modified) return true;
+
+	if(!empty())
+	{
+		MDObjectNamedList::iterator it = begin();
+
+		while(it != end())
+		{
+			if((*it).second->IsModified()) return true;
+			it++;
+		}
+	}
+
+	return false; 
+}
+
+
+//! Clear the modified flag on this object and any contained objects
+void MDObject::ClearModified(void)
+{ 
+	Modified = false;
+
+	if(!empty())
+	{
+		MDObjectNamedList::iterator it = begin();
+
+		while(it != end())
+		{
+			(*it).second->ClearModified();
+			it++;
+		}
+	}
+}
+
+
 //! Set the GenerationUID of an object iff it has been modified
 /*! \return true if the GenerationUID has been set, otherwise false
  *  \note If the object does not have a GenerationUID property false is returned!
@@ -1296,7 +1378,7 @@ Uint32 MDObject::ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer,
 //! Read a length field from a memory buffer
 Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buffer, Uint32& Length)
 {
-	int LenSize;
+//	int LenSize;
 
 	switch(Format)
 	{
@@ -1320,7 +1402,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 			break;
 		}
 
-	case DICT_LEN_2_BYTE:		{ LenSize = 2;  Length = GetU16(Buffer); };
+	case DICT_LEN_2_BYTE://		{ LenSize = 2;  Length = GetU16(Buffer); };
 		{ 
 			if(Size >= 2) 
 			{ 
@@ -1332,7 +1414,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 			break;
 		}
 
-	case DICT_LEN_4_BYTE:		{ LenSize = 4;  Length = GetU32(Buffer); };
+	case DICT_LEN_4_BYTE://		{ LenSize = 4;  Length = GetU32(Buffer); };
 		{ 
 			if(Size >= 4) 
 			{ 
@@ -1370,6 +1452,487 @@ std::string mxflib::MDObject::GetSource(void)
 	return std::string("memory buffer");
 }
 
+//! Write this object, and any strongly linked sub-objects, to a memory buffer
+/*! The object must be at the outer or top KLV level. 
+ *	The objects are appended to the buffer
+ *	\return The number of bytes written
+ */
+Uint32 MDObject::WriteLinkedObjects(DataChunk &Buffer, PrimerPtr UsePrimer /*=NULL*/)
+{
+	Uint32 Bytes = 0;
+
+	Bytes = WriteObject(Buffer, NULL, UsePrimer);
+
+	MDObjectNamedList::iterator it = begin();
+	while(it != end())
+	{
+		if((*it).second->Link)
+		{
+			if((*it).second->GetRefType() == DICT_REF_STRONG) Bytes += (*it).second->Link->WriteLinkedObjects(Buffer, UsePrimer);
+		}
+		else if(!((*it).second->empty()))
+		{
+			MDObjectNamedList::iterator it2 = (*it).second->begin();
+			MDObjectNamedList::iterator itend2 = (*it).second->end();
+			while(it2 != itend2)
+			{
+				if((*it2).second->Link)
+				{
+					if((*it2).second->GetRefType() == DICT_REF_STRONG) 
+					{
+						Bytes += (*it2).second->Link->WriteLinkedObjects(Buffer, UsePrimer);
+					}
+				}
+				else if(!((*it2).second->empty()))
+				{
+					error("Internal error for object %s - Cannot process nesting > 2 in WriteLinkedObjects()\n",
+						   (*it2).second->FullName().c_str());
+				}
+				it2++;
+			}
+		}
+		it++;
+	}
+
+	return Bytes;
+}
+
+
+//! Write this object to a memory buffer
+/*! The object is appended to the buffer
+ *	\return The number of bytes written
+ */
+Uint32 MDObject::WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer /*=NULL*/)
+{
+	Uint32 Bytes = 0;
+
+	DictLenFormat LenFormat;
+
+//printf("WriteObject(%s) ", FullName().c_str());
+	// DRAGONS: Should we update GenerationUID here ?
+
+	// Write the key (and determine the length format)
+	if(!ParentObject)
+	{
+//printf("no parent\n");
+		Bytes += WriteKey(Buffer, DICT_KEY_AUTO, UsePrimer);
+		LenFormat = DICT_LEN_BER;
+	}
+	else
+	{
+//printf("Parent %s, ", ParentObject->FullName().c_str());
+		const DictEntry *Dict = ParentObject->Type->GetDict();
+		ASSERT(Dict);
+
+		// Only sets need keys
+		if((Dict->Type == DICT_TYPE_UNIVERSAL_SET) || (Dict->Type == DICT_TYPE_LOCAL_SET))
+		{
+			Bytes = WriteKey(Buffer, Dict->KeyFormat, UsePrimer);
+//printf("Key = %s, ", Buffer.GetString().c_str());
+		}
+
+		if((Dict->Type == DICT_TYPE_VECTOR) || (Dict->Type == DICT_TYPE_ARRAY))
+		{
+			LenFormat = DICT_LEN_NONE;
+		}
+		else
+		{
+			LenFormat = Dict->LenFormat;
+		}
+//printf("Dict->Type = %d, ", Dict->Type);
+//if(LenFormat == DICT_LEN_BER) printf("Length = BER\n");
+//else printf("Length = %d-byte\n", (int)LenFormat);
+	}
+
+	// The rest depends on the container type
+	MDContainerType CType = Type->GetContainerType();
+
+	// Build value
+	if(CType == BATCH || CType == ARRAY)
+	{
+		Uint32 Count = 0;
+		Uint32 Size;
+
+		// DRAGONS: Pre-allocating a buffer could speed things up
+		DataChunk Val;
+
+		// Work out how many sub-items per child 
+		Uint32 SubCount = Type->ChildOrder.size();
+		
+		// Count of remaining subs for this item
+		Uint32 Subs = 0;
+
+		MDObjectNamedList::iterator it = begin();
+
+		while(it != end())
+		{
+			// Start of an item
+			if(Subs == 0)
+			{
+				Subs = SubCount;
+				Size = 0;
+				Count++;
+			}
+			Uint32 ThisBytes = (*it).second->WriteObject(Val, this, UsePrimer);
+			Bytes += ThisBytes;
+			Size += ThisBytes;
+			
+			Subs--;
+			it++;
+		}
+
+		// Determine item size if batch is empty
+		// May not be strictly required, but 0 items of 0 size is a little dubious
+		if(Count == 0)
+		{
+			DataChunk Temp;
+
+			StringList::iterator it = Type->ChildOrder.begin();
+			while(it != Type->ChildOrder.end())
+			{
+				MDOType::iterator it2 = Type->find(*it);
+				ASSERT(it2 != Type->end());
+				MDOTypePtr ChildType = (*it2).second;
+				ASSERT(ChildType);
+
+				MDObjectPtr Ptr = new MDObject(ChildType);
+				Ptr->WriteObject(Temp, this, UsePrimer);
+				it++;
+			}
+			Size = Temp.Size;
+		}
+
+		if(CType == BATCH)
+		{
+			// Write the length and batch header
+			Bytes += WriteLength(Buffer, Val.Size+8, LenFormat);
+			Uint8 Buff[4];
+			PutU32(Count, Buff);
+			Buffer.Append(4, Buff);
+			PutU32(Size, Buff);
+			Buffer.Append(4, Buff);
+			Bytes += 8;
+		}
+		else
+		{
+			Bytes += WriteLength(Buffer, Val.Size, LenFormat);
+		}
+
+		// Append this data
+		Buffer.Append(Val);
+		Bytes += Val.Size;
+//printf("  > %s\n", Val.GetString().c_str());
+	}
+	else if(CType == PACK)
+	{
+//printf("  *PACK*\n");
+		// DRAGONS: Pre-allocating a buffer could speed things up
+		DataChunk Val;
+
+		// Ensure we write the pack out in order
+		StringList::iterator it = Type->ChildOrder.begin();
+
+		while(it != Type->ChildOrder.end())
+		{
+			MDObjectPtr Ptr = Child(*it);
+			if(!Ptr)
+			{
+				error("Pack %s is missing sub-item %s\n", FullName().c_str(), (*it).c_str());
+			}
+			else
+			{
+				Bytes += Ptr->WriteObject(Val, this, UsePrimer);
+			}
+			it++;
+		}
+
+		// Write the length of the value
+		Bytes += WriteLength(Buffer, Val.Size, LenFormat);
+
+		// Append this data
+		Buffer.Append(Val);
+		Bytes += Val.Size;
+//printf("  > %s\n", Val.GetString().c_str());
+	}
+	else if(!empty())
+	{
+//printf("  *Not Empty*\n");
+		// DRAGONS: Pre-allocating a buffer could speed things up
+		DataChunk Val;
+
+		MDObjectNamedList::iterator it = begin();
+
+		while(it != end())
+		{
+			Bytes += (*it).second->WriteObject(Val, this, UsePrimer);
+			it++;
+		}
+
+		// Write the length of the value
+		Bytes += WriteLength(Buffer, Val.Size, LenFormat);
+
+		// Append this data
+		Buffer.Append(Val);
+		Bytes += Val.Size;
+//printf("  > %s\n", Val.GetString().c_str());
+	}
+	else if(Value)
+	{
+//printf("  *Value*\n");
+		DataChunk Val = Value->PutData();
+		Bytes += WriteLength(Buffer, Val.Size, LenFormat);
+		Buffer.Append(Val);
+		Bytes += Val.Size;
+//printf("  > %s\n", Val.GetString().c_str());
+	}
+	else
+	{
+//printf("  *Empty!*\n");
+		Bytes += WriteLength(Buffer, 0, LenFormat);
+	}
+
+	return Bytes;
+}
+
+
+//! Write a length field to a memory buffer
+/*!	The length is <b>appended</b> to the specified buffer
+ *	\param Buffer	The buffer to receive the length
+ *	\param Length	The length to be written
+ *	\param Format	The format to use for the length
+ *	\param Size		The total number of bytes to write for a BER length (or 0 for auto)
+ *	\return Number of bytes written
+ *	\note If the format is BER and a size is specified it will be overridden for
+ *		  lengths that will not fit. However an error message will be produced.
+ */
+Uint32 MDObject::WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat Format, Uint32 Size /*=0*/)
+{
+	switch(Format)
+	{
+	default:
+	case DICT_LEN_NONE:
+		return 0;
+
+	case DICT_LEN_BER:
+		{
+			DataChunk BER = MakeBER(Length, Size);
+			Buffer.Append(BER);
+			return BER.Size;
+		}
+
+	case DICT_LEN_1_BYTE:		
+		{ 
+			Uint8 Buff;
+			PutU8(Length, &Buff);
+
+			Buffer.Append(1, &Buff);
+			return 1;
+		}
+
+	case DICT_LEN_2_BYTE:
+		{ 
+			Uint8 Buff[2];
+			PutU16(Length, Buff);
+
+			Buffer.Append(2, Buff);
+			return 2;
+		}
+
+	case DICT_LEN_4_BYTE:
+		{ 
+			Uint8 Buff[4];
+			PutU32(Length, Buff);
+
+			Buffer.Append(4, Buff);
+			return 4;
+		}
+	}
+}
+
+
+//! Write an objects key
+/*!	The key is <b>appended</b> to the specified buffer
+ *	\return Number of bytes written
+ *	\note If the object has no parent the full UL will be written, otherwise
+ *		  the parent will be examined to determine the type of key to write.
+ *	\note If a 2-byte local tag is used the primer UsePrimer is used to determine
+ *		  the correct tag. UsePrimer will be updated if it doesn't yet incude the tag
+ */
+Uint32 MDObject::WriteKey(DataChunk &Buffer, DictKeyFormat Format, PrimerPtr UsePrimer /*=NULL*/)
+{
+	switch(Format)
+	{
+	default:
+	case DICT_KEY_NONE:
+		return 0;
+
+	case DICT_KEY_AUTO:
+		{
+			if(!TheUL)
+			{
+				error("Call to WriteKey() for %s, but the UL is not known\n", FullName().c_str());
+				return 0;
+			}
+
+			Buffer.Append(16, TheUL->GetValue());
+			return 16;
+		}
+
+	case DICT_KEY_2_BYTE:
+		{ 
+			ASSERT(UsePrimer);
+			
+			if(!TheUL)
+			{
+				error("Call to WriteKey() for %s, but the UL is not known\n", FullName().c_str());
+				return 0;
+			}
+
+			Tag UseTag = UsePrimer->Lookup(TheUL,TheTag);
+			Uint8 Buff[2];
+			PutU16(UseTag, Buff);
+
+			Buffer.Append(2, Buff);
+			return 2;
+		}
+
+	case DICT_KEY_1_BYTE:		
+	case DICT_KEY_4_BYTE:
+		{ 
+			ASSERT(0);
+			error("Call to WriteKey() for %s, but 1 and 4 byte tags not currently supported\n", FullName().c_str());
+			return 0;
+		}
+	}
+}
+
+
+//! Make a link from this reference source to the specified target set
+/*! If the target set already has an instanceUID it will be used, otherwise
+ *	one will be added.
+ *	\return true on success, else false
+ *	\note The link will be made from the source <b>property</b> to the target <b>set</b>
+ *		  so be aware that "this" must be a reference source property and "TargetSet"
+ *		  must be a set (or pack) containing an InstanceUID property which is a
+ *		  reference target
+ */
+bool MDObject::MakeLink(MDObjectPtr TargetSet)
+{
+	Uint8 TheUID[16];
+	
+	// Does the target set already have an InstanceUID?
+	MDObjectPtr InstanceUID = TargetSet["InstanceUID"];
+
+	// If not add one
+	if(!InstanceUID)
+	{
+		InstanceUID = TargetSet->AddChild("InstanceUID");
+
+		// If this failed then chances are the set is not a reference target
+		if(!InstanceUID)
+		{
+			error("Attempt to reference %s from %s failed\n", FullName().c_str(), TargetSet->FullName().c_str());
+			return false;
+		}
+
+		MakeUUID(TheUID);
+		InstanceUID->ReadValue(TheUID, 16);
+	}
+	else
+	{
+		DataChunk Data = InstanceUID->Value->PutData();
+		ASSERT(Data.Size == 16);
+		memcpy(TheUID, Data.Data, 16);
+	}
+
+	// Validate that we are a reference source
+	// Note: The link will be attempted even if an error is produced
+	//		 This is intentional as it may be valid in a later file spec
+	DictRefType RType = Type->GetRefType();
+	if((RType != DICT_REF_STRONG) && (RType != DICT_REF_WEAK))
+	{
+		error("Attempting to reference %s from %s (which is not a reference source)\n",
+			   FullName().c_str(), TargetSet->FullName().c_str());
+	}
+
+	// Make the link
+	ReadValue(TheUID, 16);
+	Link = TargetSet;
+
+	return true;
+}
+
+//! Set an object to its distinguished value
+/*! \return true if distinguished value set, else false */
+bool MDObject::SetDValue(void)
+{
+	DictEntry const *Dict = Type->GetDict();
+
+	if(!Dict) return false;
+
+	if(!Dict->HasDValue) return false;
+
+	SetModified(true);
+	ReadValue(Dict->DValue, Dict->DValueLen);
+
+	return true;
+}
+
+
+//! Is an object set to its distinguished value?
+/*! \return true if distinguished value set, else false */
+bool MDObject::IsDValue(void)
+{
+	DictEntry const *Dict = Type->GetDict();
+
+	if(!Dict) return false;
+	if(!Dict->HasDValue) return false;
+
+	DataChunk DVal = PutData();
+	if(DVal.Size != Dict->DValueLen) return false;
+	
+	if(memcmp(DVal.Data, Dict->DValue, DVal.Size) == 0) return true;
+
+	return false;
+}
+
+
+//! Make a copy of this object
+MDObjectPtr MDObject::MakeCopy(void)
+{
+	MDObjectPtr Ret = new MDObject(Type);
+
+	MDObjectNamedList::iterator it = begin();
+	while(it != end())
+	{
+		Ret->insert((*it).second->MakeCopy());
+		it++;
+	}
+
+	if(Value)
+	{
+		Ret->Value = new MDValue(Value->GetType());
+		Ret->Value->ReadValue(Value->PutData());
+	}
+
+	// Somewhat dangerous!!
+	if(Link) 
+	{
+		Ret->Link = Link;
+		if(GetRefType() == DICT_REF_STRONG)
+		{
+			warning("Copy made of %s which is a StrongRef!\n", FullName().c_str()); 
+		}
+	}
+
+	// Copy any properties that are safe to copy
+	Ret->TheUL = TheUL;
+	Ret->TheTag = TheTag;
+
+	SetModified(true);
+
+	return Ret;
+}
 
 
 //** Static Instantiations for MDOType class **

@@ -36,6 +36,10 @@ extern "C"
 }
 
 
+// For find()
+#include <algorithm>
+
+
 // KLUDGE!! MSVC can't cope with template member functions!!!
 namespace mxflib
 {
@@ -65,6 +69,7 @@ namespace mxflib
 		~MXFFile() { if(isOpen) Close(); };
 
 		bool Open(std::string FileName, bool ReadOnly = false );
+		bool OpenNew(std::string FileName);
 		bool Close(void);
 
 		bool ReadRunIn(void);
@@ -99,9 +104,78 @@ namespace mxflib
 		MDObjectPtr ReadObject(PrimerPtr UsePrimer = NULL) { return MXFFile__ReadObjectBase<MDObjectPtr, MDObject>(this, UsePrimer); };
 		PartitionPtr ReadPartition(void) { return MXFFile__ReadObjectBase<PartitionPtr, Partition>(this); };
 
+/*		void WriteObject(MDObjectPtr Object, PrimerPtr UsePrimer = NULL) 
+		{ 
+			DataChunk Buffer;
+			Object->WriteObject(Buffer, UsePrimer);
+			FileWrite(Handle, Buffer.Data, Buffer.Size);
+		};
+*/
+		//! Write a partition pack to the file
+		void WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL);
+
+		//! Write a partition pack and associated metadata (and index table segments?)
+		void WritePartition(PartitionPtr ThisPartition) { WritePartition(ThisPartition, true, NULL); };
+
+		//! Write a partition pack and associated metadata (and index table segments?)
+		void WritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer) { WritePartition(ThisPartition, true, UsePrimer); };
+
+		//! Write a partition pack and (optionally) associated metadata (and index table segments?)
+		void WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer = NULL);
+
+		//! Write the RIP
+		void WriteRIP(void)
+		{
+			MDObjectPtr RIPObject = new MDObject("RandomIndexMetadata");
+			ASSERT(RIPObject);
+
+			if(RIPObject)
+			{
+				MDObjectPtr PA = RIPObject->AddChild("PartitionArray");
+
+				ASSERT(PA);
+				if(PA)
+				{
+					RIP::iterator it = FileRIP.begin();
+					while(it != FileRIP.end())
+					{
+						PA->AddChild("BodySID", false)->SetUint((*it)->BodySID);
+						PA->AddChild("ByteOffset", false)->SetUint((*it)->ByteOffset);
+						it++;
+					}
+				}
+				
+				// Calculate the pack length
+				RIPObject->SetUint("Length", 16 + 4 + (FileRIP.size() * 12) + 4);
+
+				DataChunk Buffer;
+				RIPObject->WriteObject(Buffer);
+				FileWrite(Handle, Buffer.Data, Buffer.Size);
+			}
+		}
+
+		//! Write a filler to align to a specified KAG
+		Uint64 Align(Uint32 KAGSize);
+
 		ULPtr ReadKey(void);
 		Uint64 ReadBER(void);
 
+		//! Write a BER length
+		/*! \param Length	The length to be written
+		 *	\param Size		The total number of bytes to use for BER length (or 0 for auto)
+		 *	\note If the size is specified it will be overridden for lengths
+		 *		  that will not fit. However an error message will be produced.
+		 */
+		Uint32 WriteBER(Uint64 Length, Uint32 Size = 0) { DataChunk BER = MakeBER(Length, Size); Write(BER); return BER.Size; };
+
+		//! Write raw data
+		Uint64 Write(Uint8 *Buffer, Uint32 Size) { return FileWrite(Handle, Buffer, Size); };
+
+		//! Write the contents of a DataChunk
+		Uint64 Write(DataChunk &Data) { return FileWrite(Handle, Data.Data, Data.Size); };
+
+		//! Write 8-bit unsigned integer
+		void WriteU8(Uint8 Val) { unsigned char Buffer[1]; PutU8(Val, Buffer); FileWrite(Handle, Buffer, 1); }
 
 		//! Read 8-bit unsigned integer
 		Uint8 ReadU8(void) { unsigned char Buffer[1]; if(FileRead(Handle, Buffer, 1) == 1) return GetU8(Buffer); else return 0; }
@@ -126,8 +200,10 @@ namespace mxflib
 		
 		//! Read 64-bit signed integer (casts from unsigned version)
 		Int64 ReadI64(void) { return (Int64)ReadU64(); }
-	};
 
+		protected:
+			Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan);
+	};
 };
 
 

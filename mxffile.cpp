@@ -61,6 +61,27 @@ bool mxflib::MXFFile::Open(std::string FileName, bool ReadOnly /* = false */ )
 }
 
 
+//! Create and open the named MXF file
+bool mxflib::MXFFile::OpenNew(std::string FileName)
+{
+	if(isOpen) Close();
+
+	// Record the name
+	Name = FileName;
+
+	Handle = KLVFileOpenNew(FileName.c_str());
+
+	if(!KLVFileValid(Handle)) return false;
+
+	isOpen = true;
+
+	// No run-in yet
+	RunInSize = 0;
+
+	return true;
+}
+
+
 //! Read the files run-in (if it exists)
 /*! The run-in is placed in property run-in
  *	After this function the file pointer is at the start of the non-run in data
@@ -195,8 +216,8 @@ bool mxflib::MXFFile::ReadRIP(void)
 	// If the RIP size would be bigger than the file it can't be a valid RIP
 	if(RIPSize > Location) return false;
 
-	// If we have a valid RIP then RIPSize bytes back will be the RIP key
-	Uint64 RIPStart = Seek(Location - RIPSize);
+	// If we have a valid RIP then RIPSize bytes from back the end of the file will be the RIP key
+	Uint64 RIPStart = Seek(FileEnd - RIPSize);
 	DataChunkPtr RIPKey = Read(16);
 
 	// Something went wrong with the read!
@@ -272,9 +293,6 @@ bool mxflib::MXFFile::ReadRIP(void)
  */
 bool mxflib::MXFFile::ScanRIP(Uint64 MaxScan /* = 1024*1024 */ )
 {
-	// Size of scan chunk when looking for footer key
-	static const ScanChunkSize = 4096;
-
 	// Remove any old data
 	FileRIP.clear();
 
@@ -288,103 +306,34 @@ bool mxflib::MXFFile::ScanRIP(Uint64 MaxScan /* = 1024*1024 */ )
 	if(!Header) return false;
 
 	Uint64 FooterPos = Header->GetInt64("FooterPartition");
+	
 	if(FooterPos == 0)
 	{
-		// If too small a scan range is given we can't scan!
-		if(MaxScan < 20) return false;
-
-		Uint64 ScanLeft = MaxScan;			// Number of bytes left to scan
-		Uint64 FileEnd = SeekEnd();			// The file end
-		Uint64 ScanPos = FileEnd;			// Last byte of the current scan chunk
-
-		while(ScanLeft)
-		{
-			Uint64 ThisScan;				// Number of bytes to scan this time
-			
-			// Scan the number of bytes left, limited to the chunk size
-			if(ScanLeft > ScanChunkSize) ThisScan = ScanChunkSize; else ThisScan = ScanLeft;
-			
-			// Don't scan off the start of the file
-			if(ThisScan > (ScanPos+1)) ThisScan = (ScanPos+1);
-
-			// Quit if we ran out of bytes to scan
-			if(ThisScan == 0) return false;
-
-			// Read this chunk
-//printf("Scanning %d bytes at %d, file size = %d\n", int(ThisScan), int(ScanPos - ThisScan), int(FileEnd));
-			Seek(ScanPos - ThisScan);
-			DataChunkPtr Chunk = Read(ThisScan);
-//printf("Read %d bytes\n", int(Chunk->Size));
-
-			// Quit if the read failed
-			if(Chunk->Size != ThisScan) return false;
-
-			unsigned char *p = Chunk->Data;
-			int i;
-			for(i=0; i<ThisScan; i++)
-			{
-				if(*p == 0x06)
-				{
-					// Find the byte following the 0x06
-					unsigned char next;
-					if(i < (ThisScan-1)) 
-						// Next byte in the buffer
-						next = p[1]; 
-					else 
-					{
-						// Next byte is not in the buffer - read it from the file
-						Seek(ScanPos);
-						next = ReadI8();
-					}
-
-					// Matched 0x06 0x0e - could be a key...
-					if(next == 0x0e)
-					{
-						// Locate the 0x06 in the file
-						Uint64 Location = Seek(ScanPos - (ThisScan - i));
-						DataChunkPtr Key = Read(16);
-
-						if(Key->Size == 16)
-						{
-							MDOTypePtr Type = MDOType::Find(new UL(Key->Data));
-							if(Type)
-							{
-								if(Type->Name().find("Footer") != std::string::npos)
-								{
-									debug("Found %s at 0x%s\n", Type->Name().c_str(), Int64toHexString(Location, 8).c_str());
-									
-									// Flag that the footer has been found, and record its location
-									FooterPos = Location;
-									break;
-								}
-							}
-						}
-					}
-				}
-				p++;
-			}
-
-			// If we found the footer in this chunk then scan no more
-			if(FooterPos != 0) break;
-
-			// Move back through the file
-			if(ScanPos > ThisScan) ScanPos -= ThisScan; else return false;
-		}
-
-		// If the scan failed exit now
+		FooterPos = ScanRIP_FindFooter(MaxScan);
 		if(FooterPos == 0) return false;
 	}
 
-
 	// Store the footer in the RIP and loop back through all other partitions
 	Uint64 PartitionPos = FooterPos;
+	
+	bool AllOK = true;
 	for(;;)
 	{
 		Seek(PartitionPos);
 		PartitionPtr ThisPartition = ReadPartition();
 
 		// If any partition read fails abort the scan
-		if(!ThisPartition) return false;
+		// But attempt to store the header first
+		if(!ThisPartition)
+		{
+			// Header read failed - things are bad!
+			if(PartitionPos == 0) return false;
+			
+			// Try and read the header, then return failure
+			AllOK = false;
+			PartitionPos = 0;
+			continue;
+		}
 
 		Uint32 BodySID = ThisPartition->GetUint("BodySID");
 
@@ -407,7 +356,101 @@ bool mxflib::MXFFile::ScanRIP(Uint64 MaxScan /* = 1024*1024 */ )
 		PartitionPos = NewPos;
 	}
 
-	return true;
+	return AllOK;
+}
+
+
+//! Scan for the footer
+/*! \return The location of the footer, or 0 if scan failed */
+Uint64 MXFFile::ScanRIP_FindFooter(Uint64 MaxScan)
+{
+	Uint64 FooterPos;
+
+	// Size of scan chunk when looking for footer key
+	static const ScanChunkSize = 4096;
+
+	// If too small a scan range is given we can't scan!
+	if(MaxScan < 20) return 0;
+
+	Uint64 ScanLeft = MaxScan;			// Number of bytes left to scan
+	Uint64 FileEnd = SeekEnd();			// The file end
+	Uint64 ScanPos = FileEnd;			// Last byte of the current scan chunk
+
+	while(ScanLeft)
+	{
+		Uint64 ThisScan;				// Number of bytes to scan this time
+		
+		// Scan the number of bytes left, limited to the chunk size
+		if(ScanLeft > ScanChunkSize) ThisScan = ScanChunkSize; else ThisScan = ScanLeft;
+		
+		// Don't scan off the start of the file
+		if(ThisScan > ScanPos) ThisScan = ScanPos;
+
+		// Quit if we ran out of bytes to scan
+		if(ThisScan == 0) return 0;
+
+		// Read this chunk
+//printf("Scanning %d bytes at %d, file size = %d\n", int(ThisScan), int(ScanPos - ThisScan), int(FileEnd));
+		Seek(ScanPos - ThisScan);
+		DataChunkPtr Chunk = Read(ThisScan);
+//printf("Read %d bytes\n", int(Chunk->Size));
+
+		// Quit if the read failed
+		if(Chunk->Size != ThisScan) return 0;
+
+		unsigned char *p = Chunk->Data;
+		int i;
+		for(i=0; i<ThisScan; i++)
+		{
+			if(*p == 0x06)
+			{
+				// Find the byte following the 0x06
+				unsigned char next;
+				if(i < (ThisScan-1)) 
+					// Next byte in the buffer
+					next = p[1]; 
+				else 
+				{
+					// Next byte is not in the buffer - read it from the file
+					Seek(ScanPos);
+					next = ReadI8();
+				}
+
+				// Matched 0x06 0x0e - could be a key...
+				if(next == 0x0e)
+				{
+					// Locate the 0x06 in the file
+					Uint64 Location = Seek(ScanPos - (ThisScan - i));
+					DataChunkPtr Key = Read(16);
+
+					if(Key->Size == 16)
+					{
+						MDOTypePtr Type = MDOType::Find(new UL(Key->Data));
+						if(Type)
+						{
+							if(Type->Name().find("Footer") != std::string::npos)
+							{
+								debug("Found %s at 0x%s\n", Type->Name().c_str(), Int64toHexString(Location, 8).c_str());
+								
+								// Flag that the footer has been found, and record its location
+								FooterPos = Location;
+								break;
+							}
+						}
+					}
+				}
+			}
+			p++;
+		}
+
+		// If we found the footer in this chunk then scan no more
+		if(FooterPos != 0) break;
+
+		// Move back through the file
+		if(ScanPos > ThisScan) ScanPos -= ThisScan; else return 0;
+	}
+
+	return FooterPos;
 }
 
 
@@ -453,7 +496,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 		return false;
 	}
 
-	while(!Eof())
+	for(;;)
 	{
 		Uint32 BodySID = 0;
 		MDObjectPtr Ptr = ThisPartition["BodySID"];
@@ -692,3 +735,179 @@ ULPtr mxflib::MXFFile::ReadKey(void)
 
 	return Ret;
 }
+
+
+
+//! Write a partition pack to the file
+/*! The property "ThisPartition" is updated to reflect the correct location in the file
+ *	\note This function only writes the partition pack, unlike WritePartition which 
+ *	      writes the metadata (and index table segments as well - possibly)
+ */
+void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer /*=NULL*/) 
+{ 
+	DataChunk Buffer;
+	ThisPartition->SetInt64("ThisPartition", Tell());
+
+	// Adjust properties for a footer
+	if(ThisPartition->Name().find("Footer") != std::string::npos)
+	{
+		ThisPartition->SetInt64("FooterPartition", Tell());
+		ThisPartition->SetUint("BodySID", 0);
+	}
+
+	// Add this partition to the RIP, but don't store the partition as we don't
+	// own it and therefore cannot prevent changes after writing
+	FileRIP.AddPartition(NULL, Tell(), ThisPartition->GetUint("BodySID"));
+
+	ThisPartition->WriteObject(Buffer, UsePrimer);
+	FileWrite(Handle, Buffer.Data, Buffer.Size);
+};
+
+
+//! Write a filler to align to a specified KAG
+/*! \return The position after aligning */
+Uint64 MXFFile::Align(Uint32 KAGSize)
+{
+	if(KAGSize == 0) KAGSize = 1;
+
+	Uint64 Pos = Tell();
+
+	// Work out how far into a KAG we are
+	Uint32 Offset = Pos % KAGSize;
+
+	// Don't insert anything if we are already aligned
+	if(Offset == 0) return Pos;
+
+	// Work out the required filler size
+	Uint32 Fill = KAGSize - Offset;
+
+	// Adjust so that the filler can fit
+	// Note that for very small KAGs the filler may be several KAGs long
+	while(Fill < 17) Fill += KAGSize;
+
+	// The filler type - don't perform the lookup each time!
+	static MDOTypePtr FillType = MDOType::Find("KLVFill");
+	ASSERT(FillType);
+
+	// Write the filler key
+	Write(FillType->GetDict()->GlobalKey, FillType->GetDict()->GlobalKeyLen);
+
+	// Calculate filler length for shortform BER length
+	Fill -= 17;
+	if(Fill <= 127)
+	{
+		WriteU8(Fill);
+	}
+	else
+	{
+		// Adjust for 4-byte BER length
+		Fill -= 3;
+		if(Fill <= 0x00ffffff)
+		{
+			Write(MakeBER(Fill, 4));
+		}
+		else
+		{
+			// Must fit in 5-byte BER as we are only working with a Uint32
+			Fill -= 1;
+			Write(MakeBER(Fill, 5));
+		}
+	}
+
+	// Write the filler value
+	// DRAGONS: Not efficient
+	while(Fill--) WriteU8(0);
+
+	return Tell();
+}
+
+
+//! Write a partition pack and associated metadata (and index table segments?)
+/*! \note Partition properties are updated from the linked metadata */
+void MXFFile::WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer /*=NULL*/) 
+{
+	PrimerPtr ThisPrimer;
+	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = new Primer;
+
+	DataChunk PrimerBuffer;
+	DataChunk MetaBuffer;
+
+	// Write all objects
+	MDObjectList::iterator it = ThisPartition->TopLevelMetadata.begin();
+	while(it != ThisPartition->TopLevelMetadata.end())
+	{
+		if(IncludeMetadata) (*it)->WriteLinkedObjects(MetaBuffer, ThisPrimer);
+
+		// Update partition pack settings from the preface (if we find one)
+		if((*it)->Name() == "Preface")
+		{
+			// Update OP label
+			MDObjectPtr DstPtr = ThisPartition["OperationalPattern"];
+			MDObjectPtr SrcPtr = (*it)["OperationalPattern"];
+			if((SrcPtr) && (DstPtr))
+			{
+				DstPtr->ReadValue(SrcPtr->Value->PutData());
+			}
+
+			// Update essence containers
+			DstPtr = ThisPartition["EssenceContainers"];
+			if(DstPtr)
+			{
+				DstPtr->clear();
+				SrcPtr = (*it)["EssenceContainers"];
+
+				if(SrcPtr)
+				{
+					MDObjectNamedList::iterator it2 = SrcPtr->begin();
+					while(it2 != SrcPtr->end())
+					{
+						DstPtr->AddChild("EssenceContainer", false)->ReadValue((*it2).second->Value->PutData());
+						it2++;
+					}
+				}
+			}
+		}
+
+		it++;
+	}
+	
+	if(IncludeMetadata)
+	{
+		// Build the primer
+		ThisPrimer->WritePrimer(PrimerBuffer);
+
+		// Set size of header metadata (including the primer)
+		ThisPartition->SetInt("HeaderByteCount", PrimerBuffer.Size + MetaBuffer.Size);
+	}
+	else
+	{
+		ThisPartition->SetInt("HeaderByteCount", 0);
+	}
+
+	// Get the KAG size
+	Uint32 KAGSize = ThisPartition->GetUint("KAGSize");
+
+	// Align if required
+	if(KAGSize > 1) Align(KAGSize);
+
+	// Write the pack
+	WritePartitionPack(ThisPartition);
+
+	if(IncludeMetadata)
+	{
+		// Align if required
+		if(KAGSize > 1) Align(KAGSize);
+
+		// Write the primer
+		Write(PrimerBuffer);
+
+		// Write the other header metadata
+		Write(MetaBuffer);
+	}
+
+	// If not a footer align to the KAG
+	if(ThisPartition->Name().find("Footer") == std::string::npos)
+	{
+		if(KAGSize > 1) Align(KAGSize);
+	}
+};

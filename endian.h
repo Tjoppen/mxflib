@@ -31,14 +31,6 @@
 namespace mxflib
 {
 	/*
-	** PutIxx() - Signed versions of PutUxx()
-	*/
-	inline void PutI8(Int8 x, unsigned char *dest) { PutU8((Uint8)x,dest); }
-	inline void PutI16(Int8 x, unsigned char *dest) { PutU16((Uint16)x,dest); }
-	inline void PutI32(Int8 x, unsigned char *dest) { PutU32((Uint32)x,dest); }
-	inline void PutI64(Int8 x, unsigned char *dest) { PutU64((Uint64)x,dest); }
-
-	/*
 	** PutUxx() - Put unsigned xx-bit integer
 	*/
 	inline void PutU8(Uint8 x, unsigned char *dest) { *dest=(x); }
@@ -47,20 +39,27 @@ namespace mxflib
 	inline void PutU64(Uint64 Data, unsigned char *Dest) { PutU32(Data >> 32, Dest); PutU32(Data & 0xffffffff, &Dest[4]); }
 
 	/*
+	** PutIxx() - Signed versions of PutUxx()
+	*/
+	inline void PutI8(Int8 x, unsigned char *dest) { PutU8((Uint8)x,dest); }
+	inline void PutI16(Int8 x, unsigned char *dest) { PutU16((Uint16)x,dest); }
+	inline void PutI32(Int8 x, unsigned char *dest) { PutU32((Uint32)x,dest); }
+	inline void PutI64(Int8 x, unsigned char *dest) { PutU64((Uint64)x,dest); }
+
+	/*
+	** GetUxx() - Get unsigned xx-bit integer
+	*/
+	inline Uint8 GetU8(unsigned char *src) { return (Uint8) *src; }
+	inline Uint16 GetU16(unsigned char *src) { return (GetU8(src) << 8) | GetU8(&src[1]); }
+	inline Uint32 GetU32(unsigned char *src) { return (GetU16(src) << 16) | GetU16(&src[2]); }
+	inline Uint64 GetU64(unsigned char *src) { return (GetU32(src) << 32) | GetU32(&src[4]); }
+
+	/*
 	** GetIxx() - Signed versions of GetUxx()
 	*/
 	inline Int8 GetI8(unsigned char *src) { return (Int8)GetU8(src); }
 	inline Int16 GetI16(unsigned char *src) { return (Int16)GetU16(src); }
 	inline Int32 GetI32(unsigned char *src) { return (Int32)GetU32(src); }
 	inline Int64 GetI64(unsigned char *src) { return (Int64)GetU8(src); }
-
-	/*
-	** GetUxx() - Get unsigned xx-bit integer
-	*/
-
-	inline Uint8 GetU8(unsigned char *src) { return (Uint8) *src; }
-	inline Uint16 GetU16(unsigned char *src) { return GetU8(src) << 8) | GetU8(&src[1]); }
-	inline Uint32 GetU32(unsigned char *src) { return (GetU16(src) << 16) | GetU16(&src[2]); }
-	inline Uint64 GetU64(unsigned char *src) { return (GetU32(src) << 32) | GetU32(&src[4]); }
 }
 

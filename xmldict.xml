@@ -188,11 +188,11 @@
 		<Sequence detail="Strong Reference to Sequence Set" use="required" type="UUID" minLength="16" maxLength="16" key="48 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 02 04 00 00" ref="strong" target="StructuralComponent"/>
 	</GenericTrack>
 	<StaticTrack base="GenericTrack" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 3a 00"/>
-	<Track base="StaticTrack" detail="Track" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 3b 00">
+	<Track base="GenericTrack" detail="Track" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 3b 00">
 		<EditRate detail="Edit Rate of Track" use="required" type="Rational" minLength="8" maxLength="8" key="4b 01" globalKey="06 0e 2b 34 01 01 01 02  05 30 04 05 00 00 00 00"/>
 		<Origin detail="An Offset used to resolved timeline references to this track. The start of the track has this timeline value measured in Edit Units." use="required" type="Position" minLength="8" maxLength="8" key="4b 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 03 01 03 00 00"/>
 	</Track>
-	<EventTrack base="StaticTrack" detail="Event Track" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 39 00">
+	<EventTrack base="GenericTrack" detail="Event Track" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 39 00">
 		<EventEditRate detail="Edit Rate of Event Track" use="required" type="Rational" minLength="8" maxLength="8" key="49 01" globalKey="06 0e 2b 34 01 01 01 02  05 30 04 02 00 00 00 00"/>
 		<EventOrigin detail="An Offset used to resolved timeline references to this event track. The start of the event track has this timeline value measured in Edit Units." use="optional" type="Position" minLength="8" maxLength="8" key="49 02" globalKey="06 0e 2b 34 01 01 01 05  07 02 01 03 01 0b 00 00" default="0"/>
 	</EventTrack>
@@ -262,9 +262,7 @@
 		<DisplayF2Offset detail="Topness Adjustment for Displayed Picture" type="Int32" minLength="4" maxLength="4" key="32 17" globalKey="06 0e 2b 34 01 01 01 05  04 01 03 02 07 00 00 00" use="optional" default="0"/>
 		<AspectRatio detail="Specifies the horizontal to vertical aspect ratio of the whole image as it is to be presented to avoid geometric distortion (and hence including any black edges)" type="Rational" minLength="8" maxLength="8" key="32 0E" globalKey="06 0e 2b 34 01 01 01 01  04 01 01 01 01 00 00 00" use="best effort" dvalue="0/0"/>
 		<ActiveFormatDescriptor detail="Specifies the intended framing of the content within the displayed image" type="Uint8" minLength="1" maxLength="1" key="32 18" globalKey="06 0e 2b 34 01 01 01 05  04 01 03 02 09 00 00 00" use="optional"/>
-		<VideoLineMap detail="First active line in each field" key="32 0d" globalKey="06 0e 2b 34 01 01 01 02  04 01 03 02 05 00 00 00" type="subVector" use="best effort">
-			<VideoLine detail="First Active Line" type="Int32" minLength="4" maxLength="4" dvalue="0"/>
-		</VideoLineMap>
+		<VideoLineMap detail="First active line in each field" key="32 0d" globalKey="06 0e 2b 34 01 01 01 02  04 01 03 02 05 00 00 00" type="Int32Array" use="best effort" dvalue="0,0"/>
 		<AlphaTransparency detail="Is Alpha Inverted" type="Uint8" minLength="1" maxLength="1" key="32 0F" globalKey="06 0e 2b 34 01 01 01 02  05 20 01 02 00 00 00 00" use="optional"/>
 		<Gamma detail="Registered UL of known Gamma" type="Label" minLength="16" maxLength="16" key="32 10" globalKey="06 0e 2b 34 01 01 01 01  04 01 02 01 01 01 02 00" use="optional"/>
 		<ImageAlignmentFactor detail="Byte Boundary alignment required for Low Level Essence Storage" type="Uint32" minLength="4" maxLength="4" key="32 11" globalKey="06 0e 2b 34 01 01 01 02  04 18 01 01 00 00 00 00" use="optional"/>
@@ -313,4 +311,16 @@
 			<SubDescriptorUID detail="File Descriptor" type="UUID" minLength="16" maxLength="16"/>
 		</SubDescriptorUIDs>
 	</MultipleDescriptor>
+	<MPEG2VideoDescriptor base="CDCIEssenceDescriptor" detail="Defines the MPEG2 Picture Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 51 00">
+		<SingleSequence detail="TRUE if the essence consists of a single MPEG sequence. False if there are a number of sequences. This flag implies that the sequence header information is not varying in the essence stream." use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 02 00 00"/>
+		<ConstantBFrames detail="TRUE if the number of B frames is always constant" use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 03 00 00" default="false"/>
+		<CodedContentType detail="0= &quot;Unknown&quot;,1= &quot;Progressive&quot;, 2= &quot;Interlaced&quot;, 3= &quot;Mixed&quot;: an enumerated value which tells if the underlying content which was MPEG coded was of a known type" use="optional" type="Uint8" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 04 00 00" default="0"/>
+		<LowDelay detail="TRUE if low delay mode was used in the sequence" use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 05 00 00" default="false"/>
+		<ClosedGOP detail="TRUE if closed_gop is set in all GOP Headers, per 13818-1 IBP descriptor" use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 06 00 00" default="false"/>
+		<IdenticalGOP detail="TRUE if every GOP in the sequence is constructed the same, per 13818-1 IBP descriptor" use="optional" type="Boolean" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 07 00 00" default="false"/>
+		<MaxGOP detail="Specifies the maximum occurring spacing between I frames, per 13818-1 IBP descriptor. A value of 0 or the absence of this property implies no limit to the maximum GOP" use="optional" type="Uint16" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 08 00 00" default="0"/>
+		<BPictureCount detail="Specifies the maximum number of B pictures between P or I frames, equivalent to 13818-2 annex D (M-1)" use="optional" type="Uint16" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 09 00 00"/>
+		<BitRate detail="Maximum bit rate of MPEG video elementary stream in bit/s as defined in ISO-13818-2 bit_rate property" use="optional" type="Uint32" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 0b 00 00"/>
+		<ProfileAndLevel detail="Specifies the MPEG-2 video profile and level. The value is taken directly from the profile_and_level_indication in the MPEG-2 sequence header extension. For main profile @ main level, the value is 0x48. For 4:2:2 profile @ main level, the value is 0x85" use="optional" type="Uint8" globalKey="06 0e 2b 34 01 01 01 05  04 01 06 02 01 0a 00 00"/>
+	</MPEG2VideoDescriptor>
 </MXFDictionary>

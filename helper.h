@@ -64,14 +64,17 @@ namespace mxflib
 	/*! \note ISO 8601 suggests "T" as a separator between date and time. 
 	 *	To get this behaviour set StrictISO to true
 	 *	\note ANSI-C doesn't seem to have a way to get milliseconds */
-	inline std::string Time2String(time_t Time, bool StrictISO = false)
+	inline std::string Time2String(full_time Time, bool StrictISO = false)
 	{
 		char Buffer[32];
 		
 		if(StrictISO)
-			strftime(Buffer, 31, "%Y-%m-%dT%H:%M:%S.000", localtime( &Time ));
+			strftime(Buffer, 31, "%Y-%m-%dT%H:%M:%S.", localtime( &Time.time ));
 		else
-			strftime(Buffer, 31, "%Y-%m-%d %H:%M:%S.000", localtime( &Time ));
+			strftime(Buffer, 31, "%Y-%m-%d %H:%M:%S.", localtime( &Time.time ));
+
+		// Append the milliseconds
+		sprintf(&Buffer[strlen(Buffer)], "%03d", Time.msBy4 * 4);
 
 		return std::string(Buffer);
 	}
@@ -81,10 +84,17 @@ namespace mxflib
 	 *	To get this behaviour set StrictISO to true */
 	inline std::string Now2String(bool StrictISO = false)
 	{
-		time_t now_t = time(NULL);
+		full_time now = GetTime();
 		
-		return Time2String(now_t, StrictISO);
+		return Time2String(now, StrictISO);
 	}
+
+	//! Build a BER length
+	class DataChunk;
+	DataChunk MakeBER(Uint64 Length, Uint32 Size = 0);
+
+	// Build a new UMID
+	UMIDPtr MakeUMID(int Type);
 }
 
 #endif MXFLIB__HELPER_H

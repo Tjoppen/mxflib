@@ -41,13 +41,26 @@ bool DebugMode = false;
 
 void DumpObject(MDObjectPtr Object, std::string Prefix);
 
+
+
+
+//################### DEBUG ######################
+bool MakeFile(void);
+
+
+
 int main(int argc, char *argv[])
 {
 	printf("Test Program for MXFLib\n");
 
 	if(argc < 2)
 	{
-		printf("\nUsage:  Test <filename>\n");
+LoadTypes("types.xml");
+MDOType::LoadDict("XMLDict.xml");
+//DebugMode = true;
+
+MakeFile();
+//		printf("\nUsage:  Test <filename>\n");
 		return -1;
 	}
 
@@ -93,6 +106,7 @@ int main(int argc, char *argv[])
 					DumpObject(*it2,"  ");
 					it2++;
 				}
+				printf("\n");
 			}
 
 			// Read any index table segments!
@@ -204,6 +218,25 @@ int main(int argc, char *argv[])
 */
 	TestFile->Close();
 
+/*	PrimerPtr NewPrimer = new Primer;
+
+	unsigned char Key[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x04, 0x04, 0x06, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00 };
+	
+	Tag ThisTag = NewPrimer->Lookup(new UL(Key));
+	printf("Tag    = %s\n", Tag2String(ThisTag).c_str());
+
+	Key[11] = 5;
+	ThisTag = NewPrimer->Lookup(new UL(Key));
+	printf("NewTag = %s\n", Tag2String(ThisTag).c_str());
+
+	ThisTag = NewPrimer->Lookup(new UL(Key));
+	printf("NewTag = %s\n", Tag2String(ThisTag).c_str());
+
+	Key[12] = 1;
+	ThisTag = NewPrimer->Lookup(new UL(Key));
+	printf("NewTag = %s\n", Tag2String(ThisTag).c_str());
+*/
+
 	return 0;
 }
 
@@ -230,10 +263,17 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 	}
 	else
 	{
-		if(Object->Value)
-			printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+		if(Object->IsDValue())
+		{
+			printf("%s%s = <Unknown>\n", Prefix.c_str(), Object->Name().c_str());
+		}
 		else
-			printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
+		{
+			if(Object->Value)
+				printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+			else
+				printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
+		}
 
 		MDObjectNamedList::iterator it = Object->begin();
 		while(it != Object->end())
@@ -246,30 +286,45 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 	return;
 }
 
-/*
+
 bool MakeFile(void)
 {
-	MDObjectPtr Preface = new MDObject("Preface");
-	ASSERT(Preface);
+//=========================
+/*{
+	MXFFilePtr Out = new MXFFile;
+	Out->OpenNew("Test.mxf");
+	Out->WritePartition(ThisPartition);
+	Out->Close();
+}*/
+//=========================
 
 	std::string Now = Now2String();
+	MetadataPtr MData = new Metadata(Now);
+	ASSERT(MData);
 
-	Preface->AddChild("LastModifiedDate")->SetString(Now);
-	Preface->AddChild("Version")->SetInt(258);
+	PackagePtr MaterialPackage = MData->AddMatarialPackage("Material Package");
+	MData->SetPrimaryPackage(MaterialPackage);
 
-	Preface->AddChild("Identifications");
-	Preface->AddChild("ContentStorage");
-	// To set later: OperationalPattern
-	Preface->AddChild("EssenceContainers");
-	Preface->AddChild("DMSchemes");
+	MaterialPackage->AddPictureTrack(0x12345678);
+//	MaterialPackage->AddTrack(NULL, 0x12345678, "Picture");
 
+	// ==== Build a file ====
 
+	PartitionPtr ThisPartition = new Partition("ClosedCompleteHeader");
+	ASSERT(ThisPartition);
+	ThisPartition->SetKAG(256);			// Everything else can stay at default
 
+	ThisPartition->AddMetadata(MData);
+
+	MXFFilePtr Out = new MXFFile;
+	Out->OpenNew("Test.mxf");
+	Out->WritePartition(ThisPartition);
+	Out->Close();
 
 	return true;
 }
 
-*/
+
 
 // Debug and error messages
 #include <stdarg.h>

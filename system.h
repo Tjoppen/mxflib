@@ -38,6 +38,10 @@
 #ifndef MXFLIB__SYSTEM_H
 #define MXFLIB__SYSTEM_H
 
+// Required headers for non-system specific bits
+#include <time.h>
+
+
 /************************************************/
 /*           (Hopefully) Common types           */
 /************************************************/
@@ -54,6 +58,12 @@ namespace mxflib
 	typedef int Int32;					//!< Signed 32-bit integer
 	typedef short int Int16;			//!< Signed 16-bit integer
 	typedef signed char Int8;			//!< Signed 8-bit integer
+
+	struct full_time					//!< Structure for holding accurate time (to nearest 4ms)
+	{
+		time_t	time;
+		int		msBy4;
+	};
 }
 
 
@@ -70,6 +80,7 @@ namespace mxflib
 #include <crtdbg.h>						//!< Debug header
 #include <stdlib.h>						//!< Required for integer conversions
 #include <string>						//!< Required for strings
+#include <windows.h>					//!< Required for system specifics (such as GUID)
 
 namespace mxflib
 {
@@ -131,12 +142,14 @@ namespace mxflib
 #include <io.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/timeb.h>
 
 	typedef int FileHandle;
 	inline Uint64 FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET); }
 	inline Uint64 FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END); }
 	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, size); }
 	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, size); }
+	inline Uint8 FileGetc(FileHandle file) { Uint8 c; FileRead(file, &c, 1); return c; }
 	inline FileHandle FileOpen(const char *filename) { return open(filename, _O_BINARY | _O_RDWR ); }
 	inline FileHandle FileOpenRead(const char *filename) { return open(filename, _O_BINARY | _O_RDONLY ); }
 	inline FileHandle FileOpenNew(const char *filename) { return open(filename, _O_BINARY | _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE); }
@@ -145,6 +158,22 @@ namespace mxflib
 	inline Uint64 FileTell(FileHandle file) { return _telli64(file); }
 	inline void FileClose(FileHandle file) { close(file); }
 
+	/********* Acurate time *********/
+	inline full_time GetTime(void)
+	{
+		full_time Ret;
+		_timeb tb;
+		_ftime(&tb);
+		Ret.time = tb.time;
+		Ret.msBy4 = tb.millitm / 4;
+		return Ret;
+	}
+
+	/******** UUID Generation ********/
+	inline void MakeUUID(Uint8 *Buffer)
+	{
+		CoCreateGuid(reinterpret_cast<GUID*>(Buffer));
+	}
 }
 
 #define ASSERT _ASSERT					//!< Debug assert

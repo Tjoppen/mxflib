@@ -96,7 +96,7 @@ void mxflib::RIP::AddPartition(PartitionPtr Part,
 		it++;
 	}
 
-	// Note: Should nevr get here
+	// Note: Should never get here
 }
 
 

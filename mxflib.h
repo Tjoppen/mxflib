@@ -34,6 +34,8 @@ namespace mxflib {}
 
 #include "debug.h"
 
+#include "endian.h"
+
 #include "smartptr.h"
 
 #include "types.h"
@@ -41,6 +43,7 @@ namespace mxflib {}
 #include "helper.h"
 
 #include "datachunk.h"
+
 #include "mdtraits.h"
 #include "mdtype.h"
 #include "deftypes.h"
@@ -57,6 +60,8 @@ namespace mxflib
 #include "klvobject.h"
 
 #include "mdobject.h"
+
+#include "metadata.h"
 
 #include "rip.h"
 

@@ -330,6 +330,7 @@ namespace mxflib
 		// to prevent users tinkering!
 		Uint32 MakeSize(Uint32 NewSize);
 
+		Uint32 ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
 		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, int Count=0);
 
 		//! Get a reference to the data chunk (const to prevent setting!!)
@@ -345,12 +346,26 @@ namespace mxflib
 			}
 			else
 			{
-				MDValue::iterator it = begin();
-				while(it != end())
+				// Compounds must be written in the correct order
+				if(Type->EffectiveClass() == COMPOUND)
 				{
-					DataChunk SubItem = (*it).second->PutData();
-					Ret.Set(SubItem.Size, SubItem.Data, Ret.Size);
-					it++;
+					StringList::iterator it = Type->ChildOrder.begin();
+					while(it != Type->ChildOrder.end())
+					{
+						DataChunk SubItem = Child(*it)->PutData();
+						Ret.Set(SubItem.Size, SubItem.Data, Ret.Size);
+						it++;
+					}
+				}
+				else
+				{
+					MDValue::iterator it = begin();
+					while(it != end())
+					{
+						DataChunk SubItem = (*it).second->PutData();
+						Ret.Set(SubItem.Size, SubItem.Data, Ret.Size);
+						it++;
+					}
 				}
 			}
 
@@ -358,6 +373,7 @@ namespace mxflib
 		};
 
 		//! Set data into the datachunk
+		// DRAGONS: This is dangerous!!
 		void SetData(Uint32 MemSize, const Uint8 *Buffer) 
 		{ 
 			Data.Resize(MemSize); 

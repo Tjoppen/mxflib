@@ -88,7 +88,7 @@ namespace mxflib
 //		MDOTypeList Children;			//!< Types normally found inside this type
 //		StringList ChildrenNames;		//!< Names for each entry in Children
 //		MDOTypePtr ArrayType;			//!< Type of sub items if this is an array
-		StringList ChildOrder;			//!< Child names in order for compound types
+		StringList ChildOrder;			//!< Child names in order for packs
 		MDOTypePtr Parent;				//!< Parent type if this is a child
 		ULPtr TypeUL;					//!< The UL for this type, or NULL
 
@@ -200,7 +200,7 @@ namespace mxflib
 	public:
 		MDObjectPtr() : SmartPtr<MDObject>() {};
 		MDObjectPtr(MDObject * ptr) : SmartPtr<MDObject>(ptr) {};
-		
+
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
@@ -243,16 +243,17 @@ namespace mxflib
 		MDValuePtr Value;
 
 	public:
-		MDObject(const char *BaseType);
+		MDObject(std::string BaseType);
 		MDObject(MDOTypePtr BaseType);
 		MDObject(ULPtr BaseUL);
 		MDObject(Tag BaseTag, PrimerPtr BasePrimer);
 		void Init(void);
 		~MDObject();
 
-		MDObjectPtr AddChild(std::string ChildName);
+		MDObjectPtr AddChild(std::string ChildName, bool Replace = true);
+		MDObjectPtr AddChild(MDOTypePtr ChildType, bool Replace = true);
 		MDObjectPtr AddChild(MDObjectPtr ChildObject, bool Replace = false);
-	
+
 	protected:
 		MDObjectPtr AddChildInternal(MDObjectPtr ChildObject, bool Replace = false);
 	public:
@@ -274,33 +275,66 @@ namespace mxflib
 		void SetUint(Uint32 Val) { SetModified(true); if (Value) Value->SetUint(Val); };
 		void SetUint64(Uint64 Val) { SetModified(true); if (Value) Value->SetUint64(Val); };
 		void SetString(std::string Val)	{ SetModified(true); if (Value) Value->SetString(Val); };
+		bool SetDValue(void);
+		void SetValue(DataChunk &Source) { ReadValue(Source); }
+		void SetValue(MDObjectPtr Source) { ReadValue(Source->Value->PutData()); }
 		Int32 GetInt(Int32 Default = 0) { if (Value) return Value->GetInt(); else return Default; };
 		Int64 GetInt64(Int64 Default = 0) { if (Value) return Value->GetInt64(); else return Default; };
 		Uint32 GetUint(Uint32 Default = 0) { if (Value) return Value->GetUint(); else return Default; };
 		Uint64 GetUint64(Uint64 Default = 0) { if(Value) return Value->GetUint64(); else return Default; };
 		std::string GetString(std::string Default = "")	{ if(Value) return Value->GetString(); else return Default; };
+		bool IsDValue(void);
+
+		//! Set the default value for this object
+		/*! \return true is a default value is set, else false */
+		bool SetDefault(void)
+		{
+			if(!Value) return false;
+
+			ASSERT(Type);
+
+			const DictEntry *Dict = Type->GetDict();
+
+			if(!Dict) return false;
+			if(!Dict->HasDefault) return false;
+			if(!Dict->Default) return false;
+			
+			Value->ReadValue(Dict->Default, Dict->DefaultLen);
+
+			return true;
+		}
 
 		/* Child value access */
-		void SetInt(const char *ChildName, Int32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt(Val); };
-		void SetInt64(const char *ChildName, Int64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt64(Val); };
-		void SetUint(const char *ChildName, Uint32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint(Val); };
-		void SetUint64(const char *ChildName, Uint64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint64(Val); };
-		void SetString(const char *ChildName, std::string Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetString(Val); };
+		// For set functions AddChild is used (without replace option)
+		// to ensure that the child exists and to set the modified flag
+		void SetInt(const char *ChildName, Int32 Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetInt(Val); };
+		void SetInt64(const char *ChildName, Int64 Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetInt64(Val); };
+		void SetUint(const char *ChildName, Uint32 Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetUint(Val); };
+		void SetUint64(const char *ChildName, Uint64 Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetUint64(Val); };
+		void SetString(const char *ChildName, std::string Val) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->SetString(Val); };
+		bool SetDValue(const char *ChildName) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) return Ptr->SetDValue(); else return false; };
+		void SetValue(const char *ChildName, DataChunk &Source) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->ReadValue(Source); }
+		void SetValue(const char *ChildName, MDObjectPtr Source) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) Ptr->ReadValue(Source->Value->PutData()); }
 		Int32 GetInt(const char *ChildName, Int32 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt(); else return Default; };
 		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt64(); else return Default; };
 		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint(); else return Default; };
 		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint64(); else return Default; };
 		std::string GetString(const char *ChildName, std::string Default = "") { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetString(); else return Default; };
+		bool IsDValue(const char *ChildName) { MDObjectPtr Ptr = operator[](ChildName); if (Ptr) return Ptr->IsDValue(); else return false; };
 		void SetInt(MDOTypePtr ChildType, Int32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt(Val); };
 		void SetInt64(MDOTypePtr ChildType, Int64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt64(Val); };
 		void SetUint(MDOTypePtr ChildType, Uint32 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetUint(Val); };
 		void SetUint64(MDOTypePtr ChildType, Uint64 Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetUint64(Val); };
 		void SetString(MDOTypePtr ChildType, std::string Val) { SetModified(true); MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetString(Val); };
+		bool SetDValue(MDOTypePtr ChildType) { MDObjectPtr Ptr = AddChild(ChildType); if (Ptr) return Ptr->SetDValue(); else return false; };
+		void SetValue(MDOTypePtr ChildType, MDObjectPtr Source) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->ReadValue(Source->Value->PutData()); }
+		void SetValue(MDOTypePtr ChildType, DataChunk &Source) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->ReadValue(Source); }
 		Int32 GetInt(MDOTypePtr ChildType, Int32 Default = 0) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->GetInt(); else return Default; };
 		Int64 GetInt64(MDOTypePtr ChildType, Int64 Default = 0) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->GetInt64(); else return Default; };
 		Uint32 GetUint(MDOTypePtr ChildType, Uint32 Default = 0) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->GetUint(); else return Default; };
 		Uint64 GetUint64(MDOTypePtr ChildType, Uint64 Default = 0) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->GetUint64(); else return Default; };
 		std::string GetString(MDOTypePtr ChildType, std::string Default = "") { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->GetString(); else return Default; };
+		bool IsDValue(MDOTypePtr ChildType) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->IsDValue(); else return false; };
 
 		/* Child raw data access */
 		//! Get a reference to the data chunk (const to prevent setting!!)
@@ -309,8 +343,26 @@ namespace mxflib
 		//! Build a data chunk with all this items data (including child data)
 		const DataChunk PutData(void) { if(Value) return Value->PutData(); else return DataChunk(); };
 
+		//! Read the object's value from a data chunk
+		Uint32 ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
+
 		//! Read the object's value from a memory buffer
 		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer = NULL);
+
+		//! Write this object to a memory buffer
+		Uint32 WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer);
+
+		//! Write this top level object to a memory buffer
+		/*! The object must be at the outer or top KLV level. The object is appended to the buffer
+		 *	\return The number of bytes written
+		 */
+		Uint32 WriteObject(DataChunk &Buffer, PrimerPtr UsePrimer = NULL)
+		{
+			return WriteObject(Buffer, NULL, UsePrimer);
+		}
+
+		//! Write this object, and any strongly linked sub-objects, to a memory buffer
+		Uint32 WriteLinkedObjects(DataChunk &Buffer, PrimerPtr UsePrimer = NULL);
 
 		//! Report the name of this item (the name of its type)
 		std::string Name(void) { return ObjectName; };
@@ -328,6 +380,11 @@ namespace mxflib
 
 		//! Link access functions
 		MDObjectPtr GetLink(void) const { return Link; };
+
+		//! Make a link from this reference source to the specified target set
+		bool MakeLink(MDObjectPtr TargetSet);
+		
+		//! Record that a link exists (not the same as making a link - see MakeLink)
 		void SetLink(MDObjectPtr NewLink) { Link = NewLink; };
 
 		//! Ref access function
@@ -362,6 +419,25 @@ namespace mxflib
 		//! Set the object's tag
 		void SetTag(Tag NewTag) { TheTag = NewTag; }
 
+		//! Change the type of an MDObject
+		/*! \note This may result in very wrong data - exercise great care! */
+		bool ChangeType(std::string NewType)
+		{
+			MDOTypePtr Ptr = MDOType::Find(NewType);
+
+			if(!Ptr) return false;
+
+			Type = Ptr;
+			ObjectName = Type->Name();
+			TheUL = Type->GetUL();
+			TheTag = 0;
+
+			return true;
+		}
+
+		//! Make a copy of this object
+		MDObjectPtr MakeCopy(void);
+
 	protected:
 		//! Sets the modification state of this object
 		/*! \note This function should be used rather than setting "Modified" as a 
@@ -376,8 +452,11 @@ namespace mxflib
 		bool SetGenerationUID(UUIDPtr UID);
 
 	public:
-		//! Has this object been modified?
-		bool IsModified(void) { return Modified; }
+		//! Has this object (including any child objects) been modified?
+		bool IsModified(void);
+
+		//! Clear the modified flag on this object and any contained objects
+		void ClearModified(void);
 
 		//! Get the location within the ultimate parent
 		Uint64 GetLocation(void);
@@ -393,10 +472,116 @@ namespace mxflib
 
 	protected:
 		// Some private helper functions
-		Uint32 ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key);
-		Uint32 ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buffer, Uint32& Length);
+		static Uint32 ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key);
+		static Uint32 ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buffer, Uint32& Length);
+		Uint32 WriteKey(DataChunk &Buffer, DictKeyFormat Format, PrimerPtr UsePrimer = NULL);
+		static Uint32 WriteLength(DataChunk &Buffer, Uint64 Length, DictLenFormat Format, Uint32 Size = 0);
 	};
 }
+
+
+namespace mxflib
+{
+	//! Interface for any class containing an MDObject that needs to behave like an MDObject
+	/*! This class is required to prevent the need for polymorphism
+	 *	which doesn't really work with smart pointers
+	 */
+	class ObjectInterface
+	{
+	public:
+		MDObjectPtr Object;				//!< The MDObject for this item
+
+	public:
+		// ** MDObject Interface **
+		std::string Name(void) { return Object->Name(); };
+		std::string FullName(void) { return Object->FullName(); };
+
+		//! Access function for child values of compound items
+		MDObjectPtr operator[](std::string ChildName) { return Object->operator[](ChildName); };
+		MDObjectPtr Child(std::string ChildName) { return Object->operator[](ChildName); };
+		MDObjectListPtr ChildList(std::string ChildName) { return Object->ChildList(ChildName); };
+		MDObjectPtr operator[](MDOTypePtr ChildType) { return Object->operator[](ChildType); };
+		MDObjectPtr Child(MDOTypePtr ChildType) { return Object->operator[](ChildType); };
+		MDObjectListPtr ChildList(MDOTypePtr ChildType) { return Object->ChildList(ChildType); };
+
+		MDObjectPtr AddChild(std::string ChildName, bool Replace = true) { return Object->AddChild(ChildName, Replace); };
+		MDObjectPtr AddChild(MDObjectPtr ChildObject, bool Replace = false) { return Object->AddChild(ChildObject, Replace); };
+
+		void RemoveChild(std::string ChildName) { Object->RemoveChild(ChildName); };
+		void RemoveChild(MDOTypePtr ChildType) { Object->RemoveChild(ChildType); };
+		void RemoveChild(MDObjectPtr ChildObject) { Object->RemoveChild(ChildObject); };
+
+		void SetInt(const char *ChildName, Int32 Val) { Object->SetInt(ChildName, Val); };
+		void SetInt64(const char *ChildName, Int64 Val) { Object->SetInt64(ChildName, Val); };
+		void SetUint(const char *ChildName, Uint32 Val) { Object->SetUint(ChildName, Val); };
+		void SetUint64(const char *ChildName, Uint64 Val) { Object->SetUint64(ChildName, Val); };
+		void SetString(const char *ChildName, std::string Val) { Object->SetString(ChildName, Val); };
+		bool SetDValue(const char *ChildName) { return Object->SetDValue(ChildName); };
+		void SetValue(const char *ChildName, DataChunk &Source) { Object->SetValue(ChildName, Source); }
+		void SetValue(const char *ChildName, MDObjectPtr Source) { Object->SetValue(ChildName, Source); }
+		Int32 GetInt(const char *ChildName, Int32 Default = 0) { return Object->GetInt(ChildName, Default); };
+		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { return Object->GetInt64(ChildName, Default); };
+		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { return Object->GetUint(ChildName, Default); };
+		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { return Object->GetUint64(ChildName, Default); };
+		std::string GetString(const char *ChildName, std::string Default = "") { return Object->GetString(ChildName, Default); };
+		bool IsDValue(const char *ChildName) { return Object->IsDValue(ChildName); };
+		void SetInt(MDOTypePtr ChildType, Int32 Val) { Object->SetInt(ChildType, Val); };
+		void SetInt64(MDOTypePtr ChildType, Int64 Val) { Object->SetInt64(ChildType, Val); };
+		void SetUint(MDOTypePtr ChildType, Uint32 Val) { Object->SetUint(ChildType, Val); };
+		void SetUint64(MDOTypePtr ChildType, Uint64 Val) { Object->SetUint64(ChildType, Val); };
+		void SetString(MDOTypePtr ChildType, std::string Val) { Object->SetString(ChildType, Val); };
+		bool SetDValue(MDOTypePtr ChildType) { return Object->SetDValue(ChildType); };
+		void SetValue(MDOTypePtr ChildType, DataChunk &Source) { Object->SetValue(ChildType, Source); }
+		void SetValue(MDOTypePtr ChildType, MDObjectPtr Source) { Object->SetValue(ChildType, Source); }
+		Int32 GetInt(MDOTypePtr ChildType, Int32 Default = 0) { return Object->GetInt(ChildType, Default); };
+		Int64 GetInt64(MDOTypePtr ChildType, Int64 Default = 0) { return Object->GetInt64(ChildType, Default); };
+		Uint32 GetUint(MDOTypePtr ChildType, Uint32 Default = 0) { return Object->GetUint(ChildType, Default); };
+		Uint64 GetUint64(MDOTypePtr ChildType, Uint64 Default = 0) { return Object->GetUint64(ChildType, Default); };
+		std::string GetString(MDOTypePtr ChildType, std::string Default = "") { return Object->GetString(ChildType, Default); };
+		bool IsDValue(MDOTypePtr ChildType) { return Object->IsDValue(ChildType); };
+
+		//! Read the object's value from a data chunk
+		Uint32 ReadValue(const DataChunk &Chunk) { return Object->ReadValue(Chunk.Data, Chunk.Size); };
+
+		//! Read the object's value from a memory buffer
+		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer = NULL) { return Object->ReadValue(Buffer, Size, UsePrimer); };
+
+		//! Write this object to a memory buffer
+		Uint32 WriteObject(DataChunk &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer) { return Object->WriteObject(Buffer, ParentObject, UsePrimer); };
+
+		//! Write this top level object to a memory buffer
+		/*! The object must be at the outer or top KLV level. The object is appended to the buffer
+		 *	\return The number of bytes written
+		 */
+		Uint32 WriteObject(DataChunk &Buffer, PrimerPtr UsePrimer /*=NULL*/)
+		{
+			return Object->WriteObject(Buffer, NULL, UsePrimer);
+		}
+
+		MDOTypePtr GetType(void) const { return Object->GetType(); };
+		MDObjectPtr GetLink(void) const { return Object->GetLink(); };
+		void SetLink(MDObjectPtr NewLink) { Object->SetLink(NewLink); };
+		DictRefType GetRefType(void) const { return Object->GetRefType(); };
+
+		//! Set the parent details when an object has been read from a file
+		void SetParent(MXFFilePtr File, Uint64 Location, Uint32 NewKLSize) { Object->SetParent(File, Location, NewKLSize); };
+
+		//! Set the parent details when an object has been read from memory
+		void SetParent(MDObjectPtr ParentObject, Uint64 Location, Uint32 NewKLSize) { Object->SetParent(ParentObject, Location, NewKLSize); };
+
+		bool IsModified(void) { return Object->IsModified(); }
+
+		//! Clear the modified flag on this object and any contained objects
+		void ClearModified(void) { Object->ClearModified(); }
+
+		Uint64 GetLocation(void) { return Object->GetLocation(); }
+		std::string GetSource(void) { return Object->GetSource(); }
+		std::string GetSourceLocation(void) { return Object->GetSourceLocation(); }
+
+		bool ChangeType(std::string NewType) { return Object->ChangeType(NewType); };
+	};
+}
+
 
 // These simple inlines need to be defined after MDObject
 namespace mxflib

@@ -95,3 +95,121 @@ Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
 	return Size;
 }
 
+
+//! Determine the tag to use for a given UL
+/*! If the UL has not yet been used the correct static or dynamic tag will 
+ *	be determined and added to the primer
+ *	\return The tag to use, or 0 if no more dynamic tags available
+ */
+Tag Primer::Lookup(ULPtr ItemUL, Tag TryTag /*=0*/)
+{
+	// If a tag has been suggested then try that
+	if(TryTag != 0)
+	{
+		// Is it known by us?
+		Primer::iterator it = find(TryTag);
+		if(it != end())
+		{
+			// Only use it if the UL matches
+			if(!memcmp((*it).second.GetValue(), ItemUL->GetValue(), 16)) return TryTag;
+		}
+		else
+		{
+			// It could be the right tag, but not yet in this primer
+			// DRAGONS: Not implementer yet!!!
+		}
+	}
+
+	// Do we have this UL already?
+	std::map<UL, Tag>::iterator it = TagLookup.find(ItemUL);
+	if(it != TagLookup.end())
+	{
+		return (*it).second;
+	}
+
+	// Try and find the type with this UL
+	MDOTypePtr Type = MDOType::Find(ItemUL);
+	if(Type)
+	{
+		const DictEntry *Dict = Type->GetDict();
+		if((!Dict) || (Dict->KeyLen != 2) || (Dict->Key == NULL))
+		{
+			// No static tag supplied - fall through and use a dynamic tag
+		}
+		else
+		{
+			Tag ThisTag = (Dict->Key[0] << 8) + Dict->Key[1];
+			insert(Primer::value_type(ThisTag, ItemUL));
+			return ThisTag;
+		}
+	}
+
+	// Generate a dynamic tag
+	// DRAGONS: Not very efficient
+	while(NextDynamic >= 0x8000)
+	{
+		if(find(NextDynamic) == end())
+		{
+			Tag Ret = NextDynamic;
+			NextDynamic--;
+			insert(Primer::value_type(Ret, ItemUL));
+			return Ret;
+		}
+		NextDynamic--;
+	}
+
+	//! Out of dynamic tags!
+	error("Run out of dynamic tags!\n");
+	return 0;
+}
+
+
+//! Write this primer to a memory buffer
+/*! The primer will be <b>appended</b> to the DataChunk */
+Uint32 Primer::WritePrimer(DataChunk &Buffer)
+{
+	Uint32 Bytes;
+
+	// Work out the primer value size first (to allow us to pre-allocate)
+	Uint64 PrimerLen = Uint64(size()) * 18 + 8;
+
+	// Re-size buffer to the probable final size
+	Buffer.ResizeBuffer(Buffer.Size + 16 + 4 + PrimerLen);
+
+	// Lookup the type to get the key - Static so only need to lookup once
+	static MDOTypePtr PrimerType = MDOType::Find("Primer");
+	ASSERT(PrimerType);
+	static const DictEntry *PrimerDict = PrimerType->GetDict();
+	ASSERT(PrimerDict);
+	ASSERT(PrimerDict->Key);
+
+	Buffer.Append(PrimerDict->KeyLen, PrimerDict->Key);
+	Bytes = PrimerDict->KeyLen;
+
+	// Add the length
+	DataChunk BER = MakeBER(PrimerLen);
+	Buffer.Append(BER);
+	Bytes += BER.Size;
+
+	// Add the vector header
+	Uint8 Temp[4];
+	PutU32(size(), Temp);
+	Buffer.Append(4, Temp);
+	Bytes += 4;
+
+	PutU32(18, Temp);
+	Buffer.Append(4, Temp);
+	Bytes += 4;
+
+	// Write the primer data
+	iterator it = begin();
+	while(it != end())
+	{
+		PutU16((*it).first, Temp);
+		Buffer.Append(2, Temp);
+		Buffer.Append(16, (*it).second.GetValue());
+		it++;
+	}
+
+	return Bytes;
+}
