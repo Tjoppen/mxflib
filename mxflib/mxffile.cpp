@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.4 2004/12/18 20:40:35 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.5 2005/01/26 15:34:33 matt-beard Exp $
  *
  */
 /*
@@ -1153,7 +1153,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		// If we are re-writing, but not writing an index, keep the old index settings
 		if(ReWrite)
 		{
-			ThisPartition->SetUint("IndexSID", OldPartition->GetUint("BodySID"));
+			ThisPartition->SetUint("IndexSID", OldPartition->GetUint("IndexSID"));
 			ThisPartition->SetUint64("IndexByteCount", OldPartition->GetUint64("IndexByteCount"));
 		}
 		else
