@@ -3,7 +3,7 @@ AT_BANNER([[Checking mxfwrap]])
 AT_SETUP([mxfwrap])
 
 AT_CHECK([mxfwrap -a -f -r25/1 ../../small.wav ../../mxfwrap_wav.mxf], 0,
-[[Simple MXF wrapping application
+[[MXFlib File Wrapper
 
 KAGSize     = 1
 
@@ -23,8 +23,8 @@ Processing output file "../../mxfwrap_wav.mxf"
 Done
 ]])
 
-AT_CHECK([wc -c ../../mxfwrap_wav.mxf], 0,
-[[  20271 ../../mxfwrap_wav.mxf
+AT_CHECK([wc -c ../../mxfwrap_wav.mxf | sed 's/  */ /g'], 0,
+[[ 20315 ../../mxfwrap_wav.mxf
 ]])
 
 AT_CLEANUP
