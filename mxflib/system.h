@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.4.2.9 2004/11/11 11:34:51 matt-beard Exp $
+ *	\version $Id: system.h,v 1.4.2.10 2004/11/11 18:24:27 matt-beard Exp $
  *
  */
 /*
@@ -178,6 +178,13 @@ namespace mxflib
 //! Allow command-line switches to be prefixed with '/' or '-'
 #define IsCommandLineSwitchPrefix(x) ( (x == '/') || (x == '-'))
 
+	//! Pause for user input (with prompt) e.g. for debugging purposes
+	inline void PauseForInput(void)
+	{
+		printf("Press enter key...");
+		getchar();
+		printf("\n");
+	}
 }
 #else // _MSC_VER
 namespace mxflib
@@ -344,6 +351,14 @@ namespace mxflib
 		if(Digits > 30) Digits = 30;
 		sprintf(Buffer,"%0*llx", Digits, Val );
 		return std::string(Buffer);
+	}
+
+	//! Pause for user input (with prompt) e.g. for debugging purposes
+	inline void PauseForInput(void)
+	{
+		printf("Press enter key...");
+		getchar();
+		printf("\n");
 	}
 
 #ifndef _WIN32
