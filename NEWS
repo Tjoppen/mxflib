@@ -1,0 +1,101 @@
+Release Notes for mxflib version 0.3.5-Alpha
+============================================
+
+Changes since version 0.3.2-Alpha
+=================================
+
+* Added kludge code to allow compilation under gcc 3.3.x which has a known bug with complex template classes and forward declares
+* Removed dependency on KLVLib by adding new dictionary loading code
+* GetDict() No longer exists - replaced with various accessors
+* Made MDObject::TypeUL protected with GetTypeUL() accessor
+* Made MDObject::ValueType protected with GetValueType() accessor
+* Made MDObject::ChildOrder protected with GetChildOrder() accessor
+* Made MDType::EffectiveClass() and MDType::EffectiveType() const funcs
+* Make DataChunk::Set(), DataChunk::Append() and MXFFile::Write() take const references not normal refs
+* Added "RAW" data type to types.xml rather than hard-coding
+* Changed "TimeStamp" data type to "Timestamp" as per SMPTE-377M
+* Fixed bug where IndexManager destructor was badly wrong!
+* BugFix: Change KLVFile to FileHandle in mxffile.h
+* Added IndexManager class to support complex index table building
+* Added many index table options to mxfwrap
+* Moved index writing into MXFFile functions WritePartitionWithIndex()
+* Fixed problem where HeaderByteSize was wrong in the footer
+  if KAGSize > 1 and IndexByteCount > 0
+* Corrected AnchorOffset in MPEG index tables
+* Corrected Operational Pattern qualifiers in mxfwrap
+
+Changes since version 0.3.1-Alpha
+=================================
+
+* Ported to Linux (x86, AMD64, Alpha, StrongARM), FreeBSD (x86), MacOS X 10.2 (PowerPC), Solaris (SPARC) and IRIX (MIPS)
+* Ported to ISO C++ compilers including GCC 3.2 (not yet GCC 3.3.x - see README), MIPSpro C++ 7.3, Sun Forte C++ 5.4, Intel C++ 7.0, Borland C++ 5.0
+* For portability, FileSeek() and FileSeekEnd() no longer return the current file position, only a value indicating success or failure.  Use a subsequent FileTell() to get the file position.
+* Change to include path.  Now all includes are of the form <mxflib/mxflib.h> to avoid clobbering system includes during installation.
+* Clip wrapping works.  Tested with MPEG-2 and DV essence.
+* Fixed crash when looking up index tables with more than 2979 edit units
+* Fixed index entry corruption when writing index tables for essence size >2GB
+* Fixed minor crashes and unintended behaviours discovered on other platforms
+* Removed '/' as option character in mxfwrap, mxftest. Use '-' instead.
+* Code cleanups for gcc, icc and other compilers' warnings
+
+
+Changes since version 0.3-Alpha
+===============================
+
+* Fixed "silly" bug in integer traits on big-endian platforms!
+* Fixed bug in parsing MPEG headers where LoadIntra and LoadNonIntra
+  were 1 bit out of place.
+* Essence parsing is now performed in special EssenceParser classes
+* Project mpegwrap has been replaced by project mxfwrap
+* Static local variables in functions have been removed or made const
+  to make thread-safety easier
+
+
+Changes since version 0.2.2-Alpha
+=================================
+
+* Fixed "silly" bug in PutIxx() which only wrote 1 byte!
+* Fixed a problem where sparse index table lookups didn't work
+* Added Higher level objects (Package, Track etc.)
+* Added ObjectInterface to allow pseudo derived types
+* Fixed problem with ScanRIP in very small files with 
+  FooterPartition==0 in header
+* Revised Partition so it is no longer derived from MDObject
+* Added WriteObject()
+* Fixed problem where BuildRIP failed if all that was in the file 
+  was a singe partition pack
+* Fixed a bug where batches of 0 items were incorrectly read
+
+
+Changes since version 0.2.1-Alpha
+=================================
+
+* Fixed problem where mxffile::Seek() returned the wrong value in 
+  files with a run-in
+* Revised the front page of the documentation
+
+
+Changes since version 0.2-Alpha
+===============================
+
+* New child value access functions added to MDObject, with (optional)
+  default values for missing children.
+* MDObject is now derived from MDObjectNamedList which contains all
+  children, rather than containing a property which lists children
+* Added "fudge" code to deal with arrays that are not the last item
+  in a "fixed length" pack.
+* Fixed bug in reading arrays with > 1 type per entry, they were
+  erroneously read in alphabetical order!
+* Fixed bug where MDOTypes where added to ChildOrder twice
+* Index tables now working, though not very efficient loading
+
+
+Changes since version 0.1-Alpha
+===============================
+
+* Each MDObject stores information about where it came from which can be
+  read using functions Location() and Source()
+* Code now handles differences in HeaderByteCount between version 10 and 
+  version 11a.
+* Rational and TimeStamp compounds have their own traits
+* Various minor bugs cleaned up
