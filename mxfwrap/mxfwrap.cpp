@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.16.2.4 2004/11/06 14:47:50 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.16.2.5 2004/11/11 18:25:08 matt-beard Exp $
  *
  */
 /*
@@ -224,9 +224,26 @@ ULPtr OP2bUL = new UL(OP2b_Data);
 
 
 
-int main(int argc, char *argv[])
+//! Should we pause before exit?
+bool PauseBeforeExit = false;
+
+// Declare main process function
+int main_process(int argc, char *argv[]);
+
+//! Do the main processing and pause if required
+int main(int argc, char *argv[]) 
+{ 
+	int Ret = main_process(argc, argv);
+
+	if(PauseBeforeExit) PauseForInput();
+
+	return Ret;
+}
+
+//! Do the main processing (less any pause before exit)
+int main_process(int argc, char *argv[])
 {
-	fprintf( stderr, "MXFlib File Wrapper\n" );
+	printf( "MXFlib File Wrapper\n\n" );
 
 	// Build an essence parser
 	EssenceParser EssParse;
@@ -506,6 +523,10 @@ bool ParseCommandLine(int &argc, char **argv)
 				char *temp;
 				KAGSize = strtoul(Val, &temp, 0);
 			}
+			else if(Opt == 'z') 
+			{
+				PauseBeforeExit = true;
+			}
 			else if(Opt == 'r')
 			{
 				int N, D; // Use ints in case Int32 is not the same size as "int" on this platform
@@ -590,8 +611,9 @@ bool ParseCommandLine(int &argc, char **argv)
 		printf("                 (early rather than late)\n");
 		printf("    -r=<n>/<d> = Force edit rate (if possible)\n");
 		printf("    -s         = Interleave essence containers for streaming\n");
-		printf("    -u         = Update the header after writing footer\n\n");
-		printf("    -v         = Verbose mode\n\n");
+		printf("    -u         = Update the header after writing footer\n");
+		printf("    -v         = Verbose mode\n");
+		printf("    -z         = Pause for input before final exit\n");
 
 #ifdef DMStiny
 		printf("   -td         = Enable DMStiny with default dictionary DMStiny.xml\n");

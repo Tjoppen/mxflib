@@ -50,7 +50,24 @@ static bool FullBody = false;
 static void DumpObject(MDObjectPtr Object, std::string Prefix);
 
 
-int main(int argc, char *argv[])
+//! Should we pause before exit?
+bool PauseBeforeExit = false;
+
+// Declare main process function
+int main_process(int argc, char *argv[]);
+
+//! Do the main processing and pause if required
+int main(int argc, char *argv[]) 
+{ 
+	int Ret = main_process(argc, argv);
+
+	if(PauseBeforeExit) PauseForInput();
+
+	return Ret;
+}
+
+//! Do the main processing (less any pause before exit)
+int main_process(int argc, char *argv[])
 {
 	printf("Dump an MXF file using MXFLib\n");
 
@@ -62,10 +79,12 @@ int main(int argc, char *argv[])
 			num_options++;
 			if((argv[i][1] == 'v') || (argv[i][1] == 'V'))
 				DebugMode = true;
-			if((argv[i][1] == 'i') || (argv[i][1] == 'I'))
+			else if((argv[i][1] == 'i') || (argv[i][1] == 'I'))
 				FullIndex = true;
-			if((argv[i][1] == 'b') || (argv[i][1] == 'B'))
+			else if((argv[i][1] == 'b') || (argv[i][1] == 'B'))
 				FullBody = true;
+			else if((argv[i][1] == 'z') || (argv[i][1] == 'Z'))
+				PauseBeforeExit = true;
 		}
 	}
 
@@ -78,6 +97,7 @@ int main(int argc, char *argv[])
 		printf("Options: -b Dump body partitions (rather than just header and footer)\n");
 		printf("         -i Dump full index tables (can be lengthy)\n");
 		printf("         -v Verbose mode - shows lots of debug info\n");
+		printf("         -z Pause for input before final exit\n");
 		return 1;
 	}
 

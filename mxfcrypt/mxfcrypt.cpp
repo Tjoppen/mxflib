@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.1.2.6 2004/11/11 10:14:54 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.1.2.7 2004/11/11 18:22:48 matt-beard Exp $
  *
  */
 /*
@@ -415,9 +415,26 @@ bool DebugMode = false;
 //! Flag for decrypt rather than encrypt
 bool DecryptMode = false;
 
+//! Should we pause before exit?
+bool PauseBeforeExit = false;
+
 #include <time.h>
 
-int main(int argc, char *argv[])
+// Declare main process function
+int main_process(int argc, char *argv[]);
+
+//! Do the main processing and pause if required
+int main(int argc, char *argv[]) 
+{ 
+	int Ret = main_process(argc, argv);
+
+	if(PauseBeforeExit) PauseForInput();
+
+	return Ret;
+}
+
+//! Do the main processing (less any pause before exit)
+int main_process(int argc, char *argv[])
 {
 	printf("MXF en/decrypt utility\n");
 
@@ -431,6 +448,8 @@ int main(int argc, char *argv[])
 				DebugMode = true;
 			else if((argv[i][1] == 'd') || (argv[i][1] == 'D'))
 				DecryptMode = true;
+			else if((argv[i][1] == 'z') || (argv[i][1] == 'Z'))
+				PauseBeforeExit = true;
 			else if((argv[i][1] == 'p') || (argv[i][1] == 'P'))
 			{
 				if((argv[i][2] != '=') && (argv[i][2] != ':'))

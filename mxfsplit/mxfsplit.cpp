@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.7.2.8 2004/11/06 13:56:48 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.7.2.9 2004/11/11 18:24:50 matt-beard Exp $
  *
  */
 /*
@@ -80,33 +80,29 @@ static void DumpIndex(PartitionPtr ThisPartition);
 static void DumpBody(PartitionPtr ThisPartition);
 
 
-int main(int argc, char *argv[])
+//! Should we pause before exit?
+bool PauseBeforeExit = false;
+
+// Declare main process function
+int main_process(int argc, char *argv[]);
+
+//! Do the main processing and pause if required
+int main(int argc, char *argv[]) 
+{ 
+	int Ret = main_process(argc, argv);
+
+	if(PauseBeforeExit) PauseForInput();
+
+	return Ret;
+}
+
+//! Do the main processing (less any pause before exit)
+int main_process(int argc, char *argv[])
 {
-	fprintf( stderr,"MXFlib File Splitter\n" );
+	printf("MXFlib File Splitter\n" );
 
 	LoadTypes("types.xml");
 	MDOType::LoadDict("xmldict.xml");
-
-	if(argc < 2)
-	{
-		fprintf( stderr,"\nUsage:  mxfsplit [-qv] <filename> \n" );
-		fprintf( stderr,"                       [-q] Quiet (default is Terse) \n" );
-		fprintf( stderr,"                       [-v] Verbose (Debug) \n" );
-		fprintf( stderr,"                       [-f] Dump Full Index \n" );
-		//fprintf( stderr,"                       [-i] Split Index Table Segments \n" );
-		//fprintf( stderr,"                       [-g] Split Generic Containers into Elements \n" );
-		fprintf( stderr,"                     [-w:n] Split AESBWF Elements into n-channel wave files \n" );
-		//fprintf( stderr,"                       [-m] Subdivide AESBWF Elements into mono wave files \n" );
-		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
-		//fprintf( stderr,"                       [-p] Split Partitions \n");
-		fprintf( stderr,"                       [-x] Dump Extraneous Body Elements \n" );
-#ifdef DMStiny
-		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
-#endif
-		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
-
-		return 1;
-	}
 
 	int num_options = 0;
 	for(int i=1; i<argc; i++)
@@ -149,6 +145,27 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if((argc-num_options) < 2)
+	{
+		fprintf( stderr,"\nUsage:  mxfsplit [-qv] <filename> \n" );
+		fprintf( stderr,"                       [-q] Quiet (default is Terse) \n" );
+		fprintf( stderr,"                       [-v] Verbose (Debug) \n" );
+		fprintf( stderr,"                       [-f] Dump Full Index \n" );
+		//fprintf( stderr,"                       [-i] Split Index Table Segments \n" );
+		//fprintf( stderr,"                       [-g] Split Generic Containers into Elements \n" );
+		fprintf( stderr,"                     [-w:n] Split AESBWF Elements into n-channel wave files \n" );
+		//fprintf( stderr,"                       [-m] Subdivide AESBWF Elements into mono wave files \n" );
+		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
+		//fprintf( stderr,"                       [-p] Split Partitions \n");
+		fprintf( stderr,"                       [-x] Dump Extraneous Body Elements \n" );
+		fprintf( stderr,"                       [-z] Pause for input before final exit\n");
+#ifdef DMStiny
+		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
+#endif
+
+		return 1;
+	}
+
 #ifdef DMStiny
 	// load the DMStiny Dictionary
 	if( DMStinyDict ) MDOType::LoadDict( DMStinyDict );
@@ -158,8 +175,7 @@ int main(int argc, char *argv[])
 	if (! TestFile->Open(argv[num_options+1], true))
 	{
 		perror(argv[num_options+1]);
-		if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
-		exit(1);
+		return 1;
 	}
 
 	// Get a RIP (however possible)
@@ -231,8 +247,6 @@ int main(int argc, char *argv[])
 		itFile++;
 	}
 	theStreams.clear();
-
-	if( !Quiet ) { fprintf( stderr,"press enter to continue..."); getchar(); }
 
 	return 0;
 }
