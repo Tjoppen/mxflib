@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.7.2.7 2004/11/05 16:50:14 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.7.2.8 2004/11/06 13:56:48 matt-beard Exp $
  *
  */
 /*
@@ -269,10 +269,10 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 		}
 		else
 		{
-			const char* n=Object->Name().c_str();
+//			const char* n=Object->Name().c_str();
 			if(Object->Value)
 			{
-				Uint32 sz=Object->Value->GetData().Size;
+//				Uint32 sz=Object->Value->GetData().Size;
 				if( Object->Value->GetData().Size > MAX_DUMPSIZE )
 				{
 					printf("%s%s = RAW[0x%08x]", Prefix.c_str(), Object->Name().c_str(), Object->Value->GetData().Size );
@@ -283,7 +283,7 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 						printf("\n%s%*c      ", Prefix.c_str(), strlen(Object->Name().c_str()), ' ');
 						int j; for(j=0;j<4;j++)
 						{
-							int k; for(k=0;k<4;k++) printf("%02x", *p++); 
+							int k; for(k=0;k<4;k++) printf("%02x", *p++);
 							printf(" ");
 						}
 						if(i==2) printf( "...\n" );

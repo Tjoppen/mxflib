@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.1.2.5 2004/11/05 16:50:13 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.1.2.6 2004/11/06 13:56:48 matt-beard Exp $
  *
  */
 /*
@@ -197,7 +197,7 @@ namespace mxflib
 			// If we haven't determined the sample sequence we do it now
 			if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
 
-			if(SelectedWrapping->ThisWrapType == WrappingOption::WrapType::Frame) 
+			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 
 			{
 				// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
 				return SampleSize*ConstSamples + 16 + 4;

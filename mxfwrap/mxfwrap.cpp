@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.16.2.2 2004/11/05 16:50:14 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.16.2.3 2004/11/06 13:56:48 matt-beard Exp $
  *
  */
 /*
@@ -865,11 +865,11 @@ void SetStreamIndex(BodyStreamPtr &ThisStream, bool isCBR)
 
 		if(IsolatedIndex)
 		{
-			if(UseIndex) ThisStream->SetIndexType(BodyStream::IndexType::StreamIndexCBRFooterIsolated);
+			if(UseIndex) ThisStream->SetIndexType(BodyStream::StreamIndexCBRFooterIsolated);
 		}
 		else
 		{
-			if(UseIndex) ThisStream->SetIndexType(BodyStream::IndexType::StreamIndexCBRFooter);
+			if(UseIndex) ThisStream->SetIndexType(BodyStream::StreamIndexCBRFooter);
 		}
 	}
 	// Set VBR indexing flags
@@ -880,15 +880,15 @@ void SetStreamIndex(BodyStreamPtr &ThisStream, bool isCBR)
 
 		if(IsolatedIndex)
 		{
-			if(UseIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexFullFooterIsolated);
-			if(SparseIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexSparseFooterIsolated);
-			if(SprinkledIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexSprinkledIsolated);
+			if(UseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexFullFooterIsolated);
+			if(SparseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSparseFooterIsolated);
+			if(SprinkledIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSprinkledIsolated);
 		}
 		else
 		{
-			if(UseIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexFullFooter);
-			if(SparseIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexSparseFooter);
-			if(SprinkledIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexSprinkled);
+			if(UseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexFullFooter);
+			if(SparseIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSparseFooter);
+			if(SprinkledIndex) ThisStream->AddIndexType(BodyStream::StreamIndexSprinkled);
 		}
 	}
 }
@@ -898,7 +898,7 @@ int Process(	int OutFileNum,
 							MXFFilePtr Out,
 							EssenceParser::WrappingConfigList WrapCfgList,
 							Rational EditRate,
-							UMIDPtr *FPUMID 
+							UMIDPtr *FPUMID
 					 )
 
 {

@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.1.2.4 2004/11/05 16:50:14 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.1.2.5 2004/11/06 13:56:48 matt-beard Exp $
  *
  */
 /*
@@ -78,8 +78,8 @@ namespace mxflib
 	{
 	public:
 		PackageParent() : ParentPtr<Package>() {}
-		PackageParent(Package * ptr) : ParentPtr<Package>(ptr) {}
-		
+		PackageParent(IRefCount<Package> * ptr) : ParentPtr<Package>(ptr) {}
+
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
@@ -96,7 +96,7 @@ namespace mxflib
 	public:
 		TrackPtr() : SmartPtr<Track>() {}
 		TrackPtr(IRefCount<Track> * ptr) : SmartPtr<Track>(ptr) {};
-		
+
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
@@ -111,8 +111,8 @@ namespace mxflib
 	{
 	public:
 		TrackParent() : ParentPtr<Track>() {}
-		TrackParent(Track * ptr) : ParentPtr<Track>(ptr) {}
-		
+		TrackParent(IRefCount<Track> * ptr) : ParentPtr<Track>(ptr) {}
+
 		//! Child access operators that overcome dereferencing problems with ParentPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
@@ -130,7 +130,7 @@ namespace mxflib
 		Component(std::string BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
 		Component(MDOTypePtr BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
 		Component(ULPtr BaseUL) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
-		
+
 		//! Allow polymorphic destructors
 		virtual ~Component() {};
 	};
@@ -170,7 +170,7 @@ namespace mxflib
 		//! Build a pointer to an existing object
 		/*! \note The IRefCount has to be to a Component because that is what TimecodeComponent is derived from */
 		TimecodeComponentPtr(IRefCount<Component> * ptr) : SmartPtr<TimecodeComponent>((IRefCount<TimecodeComponent> *)ptr) {};
-		
+
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
@@ -187,7 +187,7 @@ namespace mxflib
 		//! Build a pointer to an existing object
 		/*! \note The IRefCount has to be to a Component because that is what DMSegment is derived from */
 		DMSegmentPtr(IRefCount<Component> * ptr) : SmartPtr<DMSegment>((IRefCount<DMSegment> *)ptr) {};
-		
+
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);

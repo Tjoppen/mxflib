@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.13 2004/11/05 16:50:13 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.14 2004/11/06 13:56:48 matt-beard Exp $
  *
  */
 /*
@@ -544,10 +544,10 @@ namespace mxflib
 			virtual bool EndOfItem(void) 
 			{ 
 				// If we are clip wrapping then we only end when no more data
-				if(Caller->GetWrapType() == WrappingOption::WrapType::Clip) return EndOfData;
+				if(Caller->GetWrapType() == WrappingOption::Clip) return EndOfData;
 
 				// Otherwise items end when there is no data remaining from the last read
-				return !RemainingData; 
+				return !RemainingData;
 			}
 
 			//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
@@ -643,7 +643,7 @@ namespace mxflib
 		//! Get the wrapping type that has been selected by Use()
 		WrappingOption::WrapType GetWrapType(void)
 		{
-			if(!SelectedWrapping) return WrappingOption::WrapType::None;
+			if(!SelectedWrapping) return WrappingOption::None;
 
 			return SelectedWrapping->ThisWrapType;
 		}
@@ -1082,12 +1082,12 @@ namespace mxflib
 	protected:
 		MXFFilePtr File;						//!< File from which to read
 		Position CurrentPos;					//!< Current position within file
-		
+
 		bool NewPos;							//!< The value of CurrentPos has been updated by a seek - therefore reading must be reinitialized!
 		bool SeekInited;						//!< True once the per SID seek system has been initialized
 		bool AtPartition;						//!< Are we (to our knowledge) at the start of a partition pack?
 		bool AtEOF;								//!< Are we (to our knowledge) at the end of the file?
-		
+
 		Uint32 CurrentBodySID;					//!< The currentBodySID being processed
 		
 		GCReadHandlerPtr GCRDefaultHandler;		//!< Default handler to use for new GCReaders
@@ -1578,7 +1578,7 @@ namespace mxflib
 		 *        with metadata an extra partition pack will be written with no metadata after writing the metadata
 		 *  \return true if metadata should be written with this partition pack
 		 */
-		virtual bool HandlePartition(BodyWriterPtr &Caller, Uint32 BodySID, Uint32 IndexSID) = 0;
+		virtual bool HandlePartition(BodyWriterPtr Caller, Uint32 BodySID, Uint32 IndexSID) = 0;
 	};
 
 	//! Smart pointer to a BodyWriterHandler
@@ -1621,8 +1621,8 @@ namespace mxflib
 			StreamInfo() { Active = false; }
 
 			//! Copy constructor
-			StreamInfo(const StreamInfo &rhs) 
-			{ 
+			StreamInfo(const StreamInfo &rhs)
+			{
 				Active = rhs.Active;
 				Stream = rhs.Stream;
 				StopAfter = rhs.StopAfter;
@@ -1639,7 +1639,7 @@ namespace mxflib
 
 		//! Destination file
 		MXFFilePtr File;
-		
+
 		//! List of streams to write
 		StreamInfoList StreamList;
 
@@ -1802,7 +1802,7 @@ namespace mxflib
 		//! Determine if all body partitions have been written
 		/*! Will be false until after the last required WritePartition() call
 		 */
-		bool BodyDone(void) { return (State == BodyState::BodyStateFooter) || (State == BodyState::BodyStateDone); }
+		bool BodyDone(void) { return (State == BodyStateFooter) || (State == BodyStateDone); }
 
 		//! Write the file footer
 		/*! No essence will be written, but index tables will be written if required.

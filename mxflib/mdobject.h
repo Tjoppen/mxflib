@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.1.2.3 2004/11/05 16:50:13 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.1.2.4 2004/11/06 13:56:48 matt-beard Exp $
  *
  */
 /*
@@ -335,7 +335,7 @@ namespace mxflib
 	{
 	public:
 		MDObjectParent() : ParentPtr<MDObject>() {};
-		MDObjectParent(MDObject * ptr) : ParentPtr<MDObject>(ptr) {};
+		MDObjectParent(IRefCount<MDObject> * ptr) : ParentPtr<MDObject>(ptr) {};
 
 		//! Set value from a smart pointer
 		/*! \note Not a perfect operator= as no return value is created (too inefficient) */

@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.1.2.4 2004/11/05 16:50:14 matt-beard Exp $
+ *	\version $Id: partition.h,v 1.1.2.5 2004/11/06 13:56:48 matt-beard Exp $
  *
  */
 /*
@@ -62,7 +62,7 @@ namespace mxflib
 	{
 	public:
 		PartitionParent() : ParentPtr<Partition>() {};
-		PartitionParent(Partition * ptr) : ParentPtr<Partition>(ptr) {};
+		PartitionParent(IRefCount<Partition> * ptr) : ParentPtr<Partition>(ptr) {};
 		
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);

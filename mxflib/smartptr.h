@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.1.2.2 2004/11/05 16:50:14 matt-beard Exp $
+ *	\version $Id: smartptr.h,v 1.1.2.3 2004/11/06 13:56:48 matt-beard Exp $
  *
  */
 /*
@@ -110,12 +110,14 @@ namespace mxflib
 	template <class T> class RefCount : public IRefCount<T>
 	{
 	protected:
-		int __m_counter;								//!< The actual reference count
+		int __m_counter;									//!< The actual reference count
 
-		std::list<ParentPtr<T>*> ParentPointers;		//!< List of parent pointers to this object
+		typedef ParentPtr<T> LocalParent;					//!< Parent pointer to this type
+		typedef std::list<LocalParent*> LocalParentList;	//!< List of pointers to parent pointers
+		LocalParentList ParentPointers;						//!< List of parent pointers to this object
 
 		//! Increment the number of references
-		virtual void __IncRefCount() 
+		virtual void __IncRefCount()
 		{
 			__m_counter++;
 
@@ -170,8 +172,8 @@ namespace mxflib
 		}
 
 		//! Add a parent pointer to this object
-		virtual void AddRef(ParentPtr<T> &Ptr) 
-		{ 
+		virtual void AddRef(ParentPtr<T> &Ptr)
+		{
 			PTRDEBUG( debug("Adding ParentPtr(0x%08x)\n", (int)&Ptr); )
 			ParentPointers.push_back(&Ptr);
 		}
@@ -179,7 +181,7 @@ namespace mxflib
 		//! Delete a parent pointer to this object
 		virtual void DeleteRef(ParentPtr<T> &Ptr)
 		{
-			std::list<ParentPtr<T>*>::iterator it = ParentPointers.begin();
+			typename LocalParentList::iterator it = ParentPointers.begin();
 			while(it != ParentPointers.end())
 			{
 				if((*it) == &Ptr)
@@ -218,7 +220,7 @@ namespace mxflib
 		PTRCHECK
 		(
 		public:
-			virtual std::string PrintInfo(void) 
+			virtual std::string PrintInfo(void)
 			{
 				char buffer[1024];
 				sprintf(&buffer[0], "Item size = %d :", sizeof(T));
@@ -246,7 +248,7 @@ namespace mxflib
 	// Clear all parent pointers
 	template <class T> void mxflib::RefCount<T>::ClearParents(void)
 	{
-		std::list<ParentPtr<T>*>::iterator it = ParentPointers.begin();
+		typename LocalParentList::iterator it = ParentPointers.begin();
 		while(it != ParentPointers.end())
 		{
 			(*it)->ClearFromParent();
@@ -256,11 +258,11 @@ namespace mxflib
 }
 
 
-namespace mxflib 
+namespace mxflib
 {
 	//! Smart pointer with reference counting and auto object deletion
 	/*!	<b>Usage:</b>
-	 *	
+	 *
 	 *	1. In a program block
 	 *	<pre><tt>
 	 *	SmartPtr<MyClass> ptr1(new MyClass); // creates object 1
@@ -357,13 +359,8 @@ namespace mxflib
 		}
 */
 
-/*	DRAGONS:  KLUDGE to fix gcc 3.3.x bug */
-/*  DRAGONS:  If this klidge is removed ParentPtr will need updating to ensure it works with non-RefCount versions */
-/*void __Assign(void *ptr)
-{
-	// Always use the smart version... this won't work with classes not derived from RefCount<>
-	__Assign((IRefCount<T>*)ptr);
-};*/
+/*	DRAGONS:  KLUDGE to fix gcc 3.3.x bug - remove generic assign and force all smart pointer targets to be derived from IRefCount<> */
+/*	DRAGONS:  If this klidge is undone ParentPtr will need updating to ensure it works with non-RefCount versions */
 
 		//!	Assign a 'smart' object to this smart pointer
 		/*!	This method is picked over __Assign(void *ptr)
@@ -376,7 +373,7 @@ namespace mxflib
 		virtual void __Assign(IRefCount<T> *refcount)
 		{
 			PTRDEBUG( if(DebugName.size()) debug("%s changing from 0x%08x to 0x%08x\n", DebugName.c_str(), (int)__m_refcount, (int)refcount); )
-			
+
 			// Attach us to the new object first
 			// This is important in case we are assigned to
 			// the same thing we are already attatched to,
@@ -535,19 +532,19 @@ namespace mxflib
 		}
 
 		//!	Construct a parent pointer to an object
-		ParentPtr(T * ptr)
+		ParentPtr(IRefCount<T> * ptr)
 		{
 			__m_refcount = NULL;
 			__Assign(ptr);
 		}
 
 		//! Destructor clears the pointer without decrementing the count
-		~ParentPtr() 
+		~ParentPtr()
 		{
 			// Remove us from the old parent's list of parent pointers
 			if(__m_refcount) __m_refcount->DeleteRef(*this);
 
-			__m_refcount = NULL; 
+			__m_refcount = NULL;
 		}
 
 		//! Set value from a smart pointer
