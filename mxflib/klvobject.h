@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.1.2.5 2004/06/14 17:54:54 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.1.2.6 2004/06/26 17:57:36 matt-beard Exp $
  *
  */
 /*
@@ -78,7 +78,7 @@ namespace mxflib
 
 namespace mxflib
 {
-	//! Base class for GCReader handlers
+	//! Base class for KLVObject Reader handlers
 	/*! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
 	 */
 	class KLVReadHandler_Base : public RefCount<KLVReadHandler_Base>
@@ -90,16 +90,42 @@ namespace mxflib
 		//! Read data from the source into the KLVObject
 		/*! \param Object KLVObject to receive the data
 		 *  \param Start Offset from the start of the KLV value to start reading
-		 *  \param Size Number of bytes to read, if zero all available bytes will be read (which gould be billions!)
+		 *  \param Size Number of bytes to read, if zero all available bytes will be read (which could be billions!)
 		 *  \return The count of bytes read (may be less than Size if less available)
 		 *  \note A call to ReadData must replace the current contents of the KLVObject's DataChunk
 		 *        with the new data - no original data should be preserved
 		 */
 		virtual Length ReadData(KLVObjectPtr Object, Position Start = 0, Length Size = 0) = 0;
+
+//		//! Read the key and length of the KLVObject
+//		virtual Int32 ReadKL(KLVObjectPtr Object) { return -1;}
 	};
 
 	//! Smart pointer for the base KLVObject read handler
 	typedef SmartPtr<KLVReadHandler_Base> KLVReadHandlerPtr;
+
+
+//	//! Base class for KLVObject write handlers
+//	/*! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
+//	 */
+//	class KLVWriteHandler_Base : public RefCount<KLVWriteHandler_Base>
+//	{
+//	public:
+//		//! Base destructor
+//		virtual ~KLVReadHandler_Base();
+//
+//		//! Write data from the KLVObject to the destination
+//		/*! \param Object KLVObject that is the data source
+//		 *  \param Buffer Location of the data to write
+//		 *  \param Start Offset from the start of the KLV value of the first byte to be written
+//		 *  \param Size Number of bytes to be written
+//		 *  \return The count of bytes written
+//		 */
+//		virtual Length WriteData(KLVObjectPtr Object, const Uint8 *Buffer, Position Start = 0, Length Size = 0) = 0;
+//	};
+//
+//	//! Smart pointer for the base KLVObject read handler
+//	typedef SmartPtr<KLVWriteHandler_Base> KLVWriteHandlerPtr;
 
 
 	//! KLV Object class
@@ -116,54 +142,59 @@ namespace mxflib
 	class KLVObject : public RefCount<KLVObject>
 	{
 	protected:
-		bool IsConstructed;				//!< True if this object is constructed, false if read from a file or a parent object
-		Position SourceOffset;			//!< The position of the first byte in the DataChunk as an offset into the file (-1 if not available)
-		Uint32 KLSize;					//!< Size of this objects KL if read from file or memory buffer
-		MXFFilePtr SourceFile;			//!< Pointer to source file if read from a file
-		ULPtr TheUL;					//!< The UL for this object (if known)
-		Length ValueLength;				//!< Length of the value field
+		Int32 KLSize;						//!< Size of this object's KL if read from file or memory buffer
+		Int32 DestKLSize;					//!< Size of this object's KL as written to the destination file (or -1 if not yet written)
+		MXFFilePtr SourceFile;				//!< Pointer to source file if read from a file
+		Position SourceOffset;				//!< The position of the first byte of the <b>key</b> as an offset into the source file (-1 if not available)
+		MXFFilePtr DestFile;				//!< Pointer to destination file if to be written to a file
+		Position DestOffset;				//!< The position of the first byte of the <b>key</b> as an offset into the destination file (-1 if not available)
+		ULPtr TheUL;						//!< The UL for this object (if known)
+		Length ValueLength;					//!< Length of the value field
 
-		DataChunk Data;					//!< The raw data for this item (if available)
+		DataChunk Data;						//!< The raw data for this item (if available)
+		Position DataBase;					//!< The offset of the first byte in the DataChunk from the start of the KLV value field
 
-		KLVReadHandlerPtr ReadHandler;	//!< A read-handler to supply data in response to read requests. If NULL data will be read from SourceFile (if available)
+		KLVReadHandlerPtr ReadHandler;		//!< A read-handler to supply data in response to read requests. If NULL data will be read from SourceFile (if available)
+//		KLVWriteHandlerPtr WriteHandler;	//!< A read-handler to supply data in response to read requests. If NULL data will be read from SourceFile (if available)
 
-		//## NOTE: Ensure any new properties are copied by the KLVObject --> KLVEObject copy constructor ##
+		//## DRAGONS: Ensure any new properties are copied by the KLVObject --> KLVEObject copy constructor ##
 
 		//@@@ Is this another MSVC bug?  KLVEObject can't access protected KLVObject properties from KLVEObject constructor!!
 		friend class KLVEObject;
 
 	public:
-		KLVObject(ULPtr ObjectUL);
+		KLVObject(ULPtr ObjectUL = NULL);
 		virtual void Init(void);
 		virtual ~KLVObject() {};		//!< Virtual to allow sub-classing and polymorphic pointers
 
 		//! Set the source details when an object has been read from a file
 		/*! \param File The source file of this KLVObject
-		 *  \param Location The byte offset of the start of the <b>key</b> of the KLV from the start of the file
-		 *  \param NewKLSize The total length of the key and the length field
-		 *  \param ValueLen The length of the value field of the KLV
+		 *  \param Location The byte offset of the start of the <b>key</b> of the KLV from the start of the file (current position if -1)
 		 */
-		virtual void SetSource(MXFFilePtr File, Position Location, Uint32 NewKLSize, Length ValueLen)
+		virtual void SetSource(MXFFilePtr File, Position Location = -1)
 		{
-			IsConstructed = false;
-			SourceOffset = Location;
-			KLSize = NewKLSize;
 			SourceFile = File;
-			ValueLength = ValueLen;
+			if(Location < 0) SourceOffset = File->Tell();
+			else SourceOffset = Location;
+
+			// If we don't have a destination file assume it is the same as the source file
+			if(!DestFile)
+			{
+				DestFile = File;
+				DestOffset = SourceOffset;
+			}
 		}
 
-		//! Set the source details when an object is build in memory
-		/*! \param Location The byte offset of the start of the <b>key</b> of the KLV within the allocated memory block
-		 *  \param NewKLSize The total length of the key and the length field
-		 *  \param ValueLen The length of the value field of the KLV
+		//! Set the destination details for the object to be written to a file
+		/*! \param File The destination file of this KLVObject
+		 *  \param Location The byte offset of the start of the <b>key</b> of the KLV from the start of the file, if omitted (or -1) the current position in that file will be used
 		 */
-		virtual void SetSource(Position Location, Uint32 NewKLSize, Length ValueLen)
+		virtual void SetDestination(MXFFilePtr File, Position Location = -1)
 		{
-			IsConstructed = false;
-			SourceOffset = Location;
-			KLSize = NewKLSize;
-			SourceFile = NULL;
-			ValueLength = ValueLen;
+			DestFile = File;
+
+			if(Location < 0) DestOffset = File->Tell();
+			else DestOffset = Location;
 		}
 
 		//! Get the object's UL
@@ -173,13 +204,23 @@ namespace mxflib
 		virtual void SetUL(ULPtr NewUL) { TheUL = NewUL; }
 
 		//! Get the location within the ultimate parent
-		virtual Uint64 GetLocation(void) { return SourceOffset; }
+		virtual Position GetLocation(void) { return SourceOffset; }
 
 		//! Get text that describes where this item came from
 		virtual std::string GetSource(void);
 
+		//! Get text that describes exactly where this item came from
+		std::string GetSourceLocation(void) 
+		{
+			if(!SourceFile) return std::string("KLVObject created in memory");
+			return std::string("0x") + Int64toHexString(GetLocation(),8) + std::string(" in ") + GetSource();
+		}
+
 		//! Get the size of the key and length (not of the value)
-		virtual Uint32 GetKLSize(void) { return KLSize; }
+		virtual Int32 GetKLSize(void) { return KLSize; }
+
+		//! Set the size of the key and length (not of the value)
+		virtual void SetKLSize(Int32 NewKLSize) { KLSize = NewKLSize; }
 
 		//! Get a GCElementKind structure
 		virtual GCElementKind GetGCElementKind(void) { return mxflib::GetGCElementKind(TheUL); }
@@ -190,82 +231,143 @@ namespace mxflib
 		//! Get the position of the first byte in the DataChunk as an offset into the file
 		/*! \return -1 if the data has not been read from a file (or the offset cannot be determined) 
 		 */
-		virtual Position GetDataBase(void) { return SourceFile ? SourceOffset : -1; };
+		virtual Position GetDataBase(void) { return DataBase; };
 
 		//! Set the position of the first byte in the DataChunk as an offset into the file
 		/*! \note This function must be used with great care as data may will be written to this location
 		 */
-		virtual void SetDataBase(Position NewBase) { SourceOffset = NewBase; };
+		virtual void SetDataBase(Position NewBase) { DataBase = NewBase; };
 
-		//! Read data from the KLVObject source into the DataChunk
-		/*! If Size is zero an attempt will be made to read all available data (which may be billions of bytes!)
-		 *  \note Any previously read data in the current DataChunk will be discarded before reading the new data
-		 *	\return Number of bytes read - zero if none could be read
+		//! Read the key and length for this KLVObject from the current source
+		/*! \return The number of bytes read (i.e. KLSize)
 		 */
-		virtual Length ReadData(Position Start = 0, Length Size = 0);
+		virtual Int32 ReadKL(void) { return Base_ReadKL(); }
 
-		//! Write the key and length of the current DataChunk to the source file
+		//! Base verion: Read the key and length for this KLVObject from the current source
+		/*! \return The number of bytes read (i.e. KLSize)
+		 *
+		 *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+		 *           It is therefore vital that the function does not call any "virtual" KLVObject
+		 *           functions, directly or indirectly.
+		 */
+		Int32 Base_ReadKL(void);
+
+		//! Read data from the start of the KLV value into the current DataChunk
+		/*! \param Size Number of bytes to read, if zero all available bytes will be read (which could be billions!)
+		 *  \return The number of bytes read
+		 */
+		virtual Length ReadData(Length Size = 0) { return Base_ReadDataFrom(0, Size); }
+
+		//! Read data from a specified position in the KLV value field into the DataChunk
+		/*! \param Offset Offset from the start of the KLV value from which to start reading
+		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \return The number of bytes read
+		 */
+		virtual Length ReadDataFrom(Position Offset, Length Size = -1) { return Base_ReadDataFrom(Offset, Size); }
+
+		//! Base verion: Read data from a specified position in the KLV value field into the DataChunk
+		/*! \param Offset Offset from the start of the KLV value from which to start reading
+		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \return The number of bytes read
+		 *
+		 *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+		 *           It is therefore vital that the function does not call any "virtual" KLVObject
+		 *           functions, directly or indirectly.
+		 */
+		Length Base_ReadDataFrom(Position Offset, Length Size = -1);
+
+		//! Write the key and length of the current DataChunk to the destination file
 		/*! The key and length will be written to the source file as set by SetSource.
 		 *  If LenSize is zero the length will be formatted to match KLSize (if possible!)
-		 *  \note If the length will not fit in KLSize then KLSize will be updated
 		 */
-		virtual Uint32 WriteKL(Uint32 LenSize = 0);
+		virtual Int32 WriteKL(Int32 LenSize = 0) { return Base_WriteKL(LenSize); }
 
-		//! Write the key and length of the current DataChunk to the specified file
+		//! Base verion: Write the key and length of the current DataChunk to the destination file
 		/*! The key and length will be written to the source file as set by SetSource.
 		 *  If LenSize is zero the length will be formatted to match KLSize (if possible!)
-		 *  \note KLSize will be updated as appropriate after the key and length are written
+		 *
+		 *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+		 *           It is therefore vital that the function does not call any "virtual" KLVObject
+		 *           functions, directly or indirectly.
 		 */
-		Uint32 KLVObject::WriteKL(MXFFilePtr &File, Uint32 LenSize = 0);
+		Int32 Base_WriteKL(Int32 LenSize = 0);
 
-		//! Write data from the a specified buffer to the source file
-		/*! \param Buffer The data to write the the source file
-		 *  \param Start The offset from the start of the Value field in the source file. Matches Start parameter in ReadData().
-		 *  \param Size The number of bytes to write - if omitted (or 0) all available bytes will be written.
-		 */
-		virtual Length WriteData(const Uint8 *Buffer, Position Start, Length Size);
 
-		//! Write data from the current DataChunk to a specified source file
-		/*! The data will be written at the file's current position
+		//! Write (some of) the current data to the same location in the destination file
+		/*! \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \return The number of bytes written
 		 */
-		Length WriteData(MXFFilePtr &File, Length Size = 0)
+		virtual Length WriteData(Length Size = -1) { return WriteDataFromTo(0, 0, Size); }
+
+		//! Write (some of) the current data to the same location in the destination file
+		/*! \param Start The offset within the current DataChunk of the first byte to write
+		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \return The number of bytes written
+		 */
+		virtual Length WriteDataFrom(Position Start, Length Size = -1) { return WriteDataFromTo(0, Start, Size); }
+
+		//! Write (some of) the current data to a different location in the destination file
+		/*! \param Offset The offset within the KLV value field of the first byte to write
+		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \return The number of bytes written
+		 */
+		virtual Length WriteDataTo(Position Offset, Length Size = -1) { return WriteDataFromTo(Offset, 0, Size); }
+
+		//! Write (some of) the current data to the same location in the destination file
+		/*! \param Offset The offset within the KLV value field of the first byte to write
+		 *  \param Start The offset within the current DataChunk of the first byte to write
+		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \return The number of bytes written
+		 */
+		virtual Length WriteDataFromTo(Position Offset, Position Start, Length Size = -1)
 		{
-			return WriteData(File, Data.Data, ((Size == 0) || (Size > Data.Size)) ? Data.Size : Size); 
+			// Calculate default number of bytes to write
+			Length BytesToWrite = Data.Size - Start;
+
+			// Write the requested size (if valid)
+			if((Size > 0) && (Size < BytesToWrite)) BytesToWrite = Size;
+
+			return Base_WriteDataTo(&Data.Data[Start], Offset, BytesToWrite);
 		}
 
-		//! Write data from the a buffer to a specified source file
-		/*! The data will be written at the file's current position
+		//! Write data from a given buffer to a given location in the destination file
+		/*! \param Buffer Pointer to data to be written
+		 *  \param Offset The offset within the KLV value field of the first byte to write
+		 *  \param Size The number of bytes to write
+		 *  \return The number of bytes written
+		 *  \note As there may be a need for the implementation to know where within the value field
+		 *        this data lives, there is no WriteData(Buffer, Size) function.
 		 */
-		virtual Length WriteData(MXFFilePtr &File, const Uint8 *Buffer, Length Size = 0);
+		virtual Length WriteDataTo(Uint8 *Buffer, Position Offset, Length Size) { return Base_WriteDataTo(Buffer, Offset, Size); }
 
-		//! Write data from a DataChunk to the source file
-		/*! \param Buffer The data to write the the source file
-		 *	\param Start The offset from the start of the Value field in the source file. Matches Start parameter in ReadData().
-		 *  \param Size The number of bytes to write - if omitted (or 0) all available bytes will be written.
+		//! Base verion: Write data from a given buffer to a given location in the destination file
+		/*! \param Buffer Pointer to data to be written
+		 *  \param Offset The offset within the KLV value field of the first byte to write
+		 *  \param Size The number of bytes to write
+		 *  \return The number of bytes written
+		 *
+ 		 *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
+		 *           It is therefore vital that the function does not call any "virtual" KLVObject
+		 *           functions, directly or indirectly.
 		 */
-		Length WriteData(DataChunkPtr &Buffer, Position Start = 0, Length Size = 0) 
-		{ 
-			return WriteData(Buffer->Data, Start, ((Size == 0) || (Size > Buffer->Size)) ? Buffer->Size : Size); 
-		}
+		Length Base_WriteDataTo(Uint8 *Buffer, Position Offset, Length Size);
 
-		//! Write data from the current DataChunk to the source file
-		/*! \param Start The offset from the start of the Value field in the source file. Matches Start parameter in ReadData().
-		 *  \param Size The number of bytes to write - if omitted (or 0) all available bytes will be written.
-		 *  \note The data in the chunk will be written to the specified position 
-		 *  <B>regardless of the position from where it was origanally read</b>
-		 */
-		Length WriteData(Position Start = 0, Length Size = 0)
-		{ 
-			return WriteData(Data.Data, Start, ((Size == 0) || (Size > Data.Size)) ? Data.Size : Size); 
-		}
 
 		//! Set a handler to supply data when a read is performed
 		/*! \note If not set it will be read from the source file (if available) or cause an error message
 		 */
 		virtual void SetReadHandler(KLVReadHandlerPtr Handler) { ReadHandler = Handler; }
 
+//		//! Set a handler to supply data when a write is performed
+//		/*! \note If not set it will be written to destination file (if available) or cause an error message
+//		 */
+//		virtual void SetWriteHandler(KLVWriteHandlerPtr Handler) { WriteHandler = Handler; }
+
 		//! Get the length of the value field
 		virtual Length GetLength(void) { return ValueLength; }
+
+		//! Set the length of the value field
+		virtual void SetLength(Length NewLength) { ValueLength = NewLength; }
 
 		//! Get a reference to the data chunk
 		virtual DataChunk& GetData(void) { return Data; }
