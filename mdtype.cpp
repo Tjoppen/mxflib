@@ -39,7 +39,117 @@
 */
 mxflib::MDDict::MDDict(const char *DictFile)
 {
-	MainDict = LoadDictionary(DictFile);
+	// Load the KLVLib dictionary
+	MainDict = LoadXMLDictionary(DictFile);
+
+	if(MainDict == NULL)
+	{
+		error("Couldn't open dictionary file \"%s\"\n", DictFile);
+		return;
+	}
+
+	// DRAGONS: Debug code in here to dump the top level
+	DictEntry *Dict = MainDict;
+	while(Dict != NULL)
+	{
+		DictEntry *p = Dict->Parent;
+		while(p)
+		{
+			debug("*");
+			p = p->Parent;
+		};
+
+		debug("DictEntry: %s\n", Dict->Name);
+
+		// Add any top level types (and their children)
+		if(Dict->Parent == NULL)
+		{
+			AddDict(Dict);
+		}
+
+		// Continue looping
+		Dict = Dict->Next;
+	}
+
+
+	// DRAGONS: Clumbsy code to sort out base types
+	{
+		MDTypeList::iterator it = AllTypes.begin();
+
+		while(it != AllTypes.end())
+		{
+			DictEntry *Base = (*it)->GetDict()->Base;
+
+			if(Base != NULL)
+			{
+				if( DictLookup.find(Base) == DictLookup.end() )
+				{
+					error("Missing base type for MDType \"%s\"\n", (*it)->GetDict()->Name);
+				}
+				else
+				{
+					(*it)->Base = DictLookup[Base];
+				}
+			}
+			it++;
+		}
+	}
+	
+	// DRAGONS: More debug!
+	MDTypeList::iterator it = TopTypes.begin();
+	while(it != TopTypes.end())
+	{
+		debug("MDType: %s\n", (*it)->GetDict()->Name);
+
+		MDTypeList::iterator it2 = (*it)->Children.begin();
+		while(it2 != (*it)->Children.end())
+		{
+			debug("  Sub->: %s\n", (*it2)->GetDict()->Name);
+
+			MDTypeList::iterator it3 = (*it2)->Children.begin();
+			while(it3 != (*it2)->Children.end())
+			{
+				debug("    SubSub->: %s\n", (*it3)->GetDict()->Name);
+				it3++;
+			}
+
+			it2++;
+		}
+
+		it++;
+	}
+}
+
+
+//! Add a KLVLib DictEntry definition to the managed types
+mxflib::MDDict::AddDict(DictEntry *Dict, MDType *Parent /* = NULL */ )
+{
+	// Create a new MDType to manage
+	MDTypePtr NewType = new MDType(Dict);
+
+	// Add to the list of all types
+	AllTypes.push_back(NewType);
+
+	// If it is a top level type then add it to TopTypes as well
+	if(Dict->Parent == NULL) TopTypes.push_back(NewType);
+
+	// If it is a child of another type then add to the children list
+	if(Parent != NULL) Parent->Children.push_back(NewType);
+
+	// Add any children of our own
+	DictEntryList *ChildList = Dict->Children;
+	while(ChildList != NULL)
+	{
+		// Rinse and repeat!
+		AddDict(ChildList->Link, NewType);
+
+		// Iterate through the list
+		ChildList = ChildList->Next;
+	}
+
+	// Set the lookups
+	DictLookup[Dict] = NewType;
+	NameLookup[std::string(Dict->Name)] = NewType;
 }
 
 
@@ -54,4 +164,127 @@ mxflib::MDDict::~MDDict()
 
 
 
+//! MDDict constructor
+/*! Loads the dictionary from the specified file
+*/
+mxflib::MDType::MDType(DictEntry *RootDict) : Dict(RootDict) 
+{
+	// Can't build an MDType based on noting
+	ASSERT( RootDict != NULL );
 
+	//! Determine the container type
+	if( (RootDict->Type == DICT_TYPE_UNIVERSAL_SET) 
+	  ||(RootDict->Type == DICT_TYPE_LOCAL_SET) )
+	{
+		ContainerType = SET;
+	}
+	else if( (RootDict->Type == DICT_TYPE_UNIVERSAL_SET) 
+		   ||(RootDict->Type == DICT_TYPE_LOCAL_SET) )
+	{
+		ContainerType = PACK;
+	}
+	else if(RootDict->Type == DICT_TYPE_VECTOR)
+	{
+		ContainerType = VECTOR;
+	}
+	else if(RootDict->Type == DICT_TYPE_ARRAY)
+	{
+		ContainerType = ARRAY;
+	}
+	else
+	{
+		ContainerType = NONE;
+	}
+};
+
+
+//! MDObject named constructor
+/*! Builds a "blank" metadata object of a named type
+*/
+mxflib::MDObject::MDObject(char *BaseType)
+{
+	MDType *
+}
+
+//! MDObject typed constructor
+/*! Builds a "blank" metadata object of a specified type
+*/
+mxflib::MDObject::MDObject(MDType *BaseType) : Type(BaseType) 
+{
+	Init();
+};
+
+
+//! Second part of MDObject constructors
+/*! Builds a "blank" metadata object
+*/
+void mxflib::MDObject::Init(void)
+{
+	Size = 0;
+	Data = NULL; 
+
+	// If it isn't a container build the basic item
+	if(Type->GetContainerType() == NONE)
+	{
+		// Build the minimum size item
+		Size = Type->GetDict()->minLength;
+		if(Size)
+		{
+			Data = new Uint8[Size];
+			memset(Data, 0, Size);
+		}
+	}
+};
+
+
+void mxflib::MDObject::AddChild(MDObject *Child)
+{
+	ASSERT( Type->GetContainerType() != NONE );
+	
+	// Add to the list of children
+	Children.push_back(Child);
+};
+
+
+//! MDObject destructor
+/*! Frees the data of the object if it exists
+*/
+mxflib::MDObject::~MDObject()
+{
+	// Free any memory used
+	if (Size) delete[] Data;
+}
+
+
+//!	Set the value of a metadata object from a "variable sized" chunk
+/*! "variable sized" simply means that it has a size and a pointer
+ *	as opposed to the fixed size integer data types
+ *
+ *	DRAGONS: If a data item is "shrunk" then grows again it may be
+ *           re-allocated when this is not required...
+ */
+void mxflib::MDObject::SetData(int ValSize, Uint8 *Val)
+{
+	// Can only set the value of an individual item
+	ASSERT(Type->GetContainerType() == NONE);
+
+	// Ignore containers in release mode
+	if(Type->GetContainerType() != NONE) return;
+
+	// Make sure we don't make the item bigger than allowed
+	int MaxSize = Type->GetDict()->maxLength;
+	
+	// Enforce the size limit
+	if(ValSize > MaxSize) ValSize = MaxSize;
+
+	// Reallocate the data if it won't fit
+	if(Size < ValSize)
+	{
+		if(Size) delete[] Data;
+		Data = new Uint8[ValSize];
+	}
+
+	// Set the new data
+	Size = ValSize;
+	memcpy(Data, Val, ValSize);
+}

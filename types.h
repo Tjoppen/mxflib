@@ -80,16 +80,4 @@ namespace mxflib
 	typedef Vector<UL> ULVector;
 }
 
-namespace mxflib
-{
-	//! Draft Variable Type Definition (VTypeDef) class (DRAGONS)
-	class VTypeDef
-	{
-	private:
-		char *TypeName;
-		int Size;
-		bool isVector;
-	};
-}
-
 #endif MXFLIB__TYPES_H

@@ -294,9 +294,7 @@ namespace mxflib
 		//! Give access to members of T
 		T * operator ->()
 		{
-#ifdef _ASSERT
-	        _ASSERT(GetPtr()!=NULL);
-#endif
+	        ASSERT(GetPtr()!=NULL);
 	        return GetPtr();
 	    }
 
