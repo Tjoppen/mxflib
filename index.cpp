@@ -44,12 +44,12 @@ void IndexTable::Purge(Uint64 FirstPosition, Uint64 LastPosition)
 	// Erase all complete segments up to the last position
 	while(it != SegmentMap.end())
 	{
-		if( ((*it).first + (*it).second->EntryCount - 1) <= LastPosition)
-			it = SegmentMap.erase(it);
+		if( (Uint64)((*it).first + (*it).second->EntryCount - 1) <= LastPosition)
+			SegmentMap.erase(it++);
 		else
 			break;
 	}
-};
+}
 
 
 //! Add a single index entry creating segments as required
@@ -132,7 +132,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 		else
 		{
 			// Can't index a stream if we don't have a delta to it
-			if(SubItem >= BaseDeltaCount)
+			if((int)SubItem >= BaseDeltaCount)
 			{
 				Ret->Exact = false;
 			}
@@ -221,7 +221,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 	Ptr++;
 
 	// Apply temporal re-ordering if we should, but only if we have details of the exact sub-item
-	if(Reorder && (TemporalOffset != 0) && (SubItem < Segment->DeltaCount) && (Segment->DeltaArray[SubItem].PosTableIndex < 0))
+	if(Reorder && (TemporalOffset != 0) && ((int)SubItem < Segment->DeltaCount) && (Segment->DeltaArray[SubItem].PosTableIndex < 0))
 	{
 		return Lookup(EditUnit + TemporalOffset, SubItem, false);
 	}
@@ -244,7 +244,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, Uint32 SubItem /* =0 */, bool 
 	// Note: At this point Ptr indexes the start of the SliceOffset array
 
 	// If we don't have details of the exact sub-item return the start of the edit unit
-	if(SubItem >= Segment->DeltaCount)
+	if((int)SubItem >= Segment->DeltaCount)
 	{
 		Ret->Exact = false;
 		Ret->Offset = false;
@@ -581,7 +581,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 			Ret->EntryCount = GetU32(&Entries.Data[20]);
 			Uint32 EntrySize = GetU32(&Entries.Data[24]);
 			
-			if(EntrySize != IndexEntrySize)
+			if((int)EntrySize != IndexEntrySize)
 			{
 				error("IndexEntryArray items should be %d bytes, but are %d\n", IndexEntrySize, EntrySize);
 			}
@@ -706,7 +706,7 @@ IndexSegmentPtr IndexSegment::AddIndexSegmentToIndexTable(IndexTablePtr ParentTa
 	}
 
 	return Segment;
-};
+}
 
 
 //! Write this index table to a memory buffer
