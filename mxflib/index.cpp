@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.1.2.1 2004/06/14 17:53:03 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.1.2.2 2004/07/17 00:24:24 terabrit Exp $
  *
  */
 /*
@@ -557,8 +557,9 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
 	int NewSize = (EntryCount * Parent->IndexEntrySize) + (Count * Size);
 	if(NewSize > 0xffff) return false;
 
-	// diagnostics
-/*	printf("\nAddIndexEntries() %d, %d:\n", Size, Count);
+// diagnostics
+#ifdef MXFLIB_DEBUG
+	printf("\nAddIndexEntries() %d, %d:\n", Size, Count);
 	Uint8 *p = (Uint8*)Entries;
 	int i, j, k;
 	for(i=0; i<Count && i<35; i++)
@@ -576,7 +577,8 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
 		p+=Size;
 		printf("\n");
 	}
-*/
+#endif // MXFLIB_DEBUG
+
 	IndexEntryArray.Set(Size * Count, Entries, IndexEntryArray.Size);
 
 	// Increment the count
@@ -1029,7 +1031,7 @@ IndexManager::IndexManager(int PosTableIndex, Uint32 ElementSize)
 
 
 //! Add a sub-stream
-/*! \return Sub-stream ID or 0 if error */
+/*! \ret Sub-stream ID or 0 if error */
 int IndexManager::AddSubStream(int PosTableIndex, Uint32 ElementSize)
 {
 	// If we have finalised the format we can't add a new stream
