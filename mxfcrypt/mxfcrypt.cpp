@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF e/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.1.2.1 2004/06/26 16:48:42 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.1.2.2 2004/07/05 14:53:00 matt-beard Exp $
  *
  */
 /*
@@ -34,13 +34,12 @@ using namespace mxflib;
 #include <stdio.h>
 #include <stdlib.h>
 
+// Include AES encryption from OpenSSL
+#include "aes.h"
+
+
 using namespace std;
 
-//####################### DEBUG
-//####################### DEBUG
-	MXFFilePtr OutFile;
-//####################### DEBUG
-//####################### DEBUG
 
 // base library version
 const char* BaseVersion = "based on mxflib 0.4-Alpha";
@@ -52,15 +51,25 @@ string ProductName = "mxfcrypt file de/encrypt utility";
 string ProductVersion = BaseVersion;
 
 // ============================================================================
-//! Basic encryption class - currently does **NO ENCRYPTION**
+//! Basic encryption class - currently does AES encryption
 // ============================================================================
 class BasicEncrypt : public Encrypt_Base
 {
+protected:
+	AES_KEY CurrentKey;
+	Uint8 CurrentIV[16];
+
 public:
 	//! Set an encryption key
 	/*! \return True if key is accepted
 	 */
-	bool SetKey(Uint32 KeySize, const Uint8 *Key) { /*** DO NOTHING ***/  return true; };
+	bool SetKey(Uint32 KeySize, const Uint8 *Key) 
+	{
+		int Ret = AES_set_encrypt_key(Key, 128, &CurrentKey);
+
+		// Return true only if key setting was OK
+		return Ret ? false : true; 
+	};
 
 	//! Set an encryption Initialization Vector
 	/*! \return False if Initialization Vector is rejected
@@ -70,25 +79,45 @@ public:
 	 *        and false for any other calls.  This allows different schemes to be
 	 *        used with minimal changes in the calling code.
 	 */
-	bool SetIV(Uint32 IVSize, const Uint8 *IV, bool Force = false) { /*** DO NOTHING ***/  return true; };
+	bool SetIV(Uint32 IVSize, const Uint8 *IV, bool Force = false) 
+	{ 
+		if(!Force) return false;
+
+		if(IVSize != 16)
+		{
+			error("IV for AES encryption must by 16 bytes, tried to use IV of size %d\n", IVSize);
+			return false;
+		}
+
+		memcpy(CurrentIV, IV, 16);
+
+printf("Encrypt::SetIV(");
+for(int i=0; i<16; i++) printf(" %02x", CurrentIV[i]);
+printf(")\n");
+
+		return true; 
+	};
 
 	//! Get the Initialization Vector that will be used for the next encryption
 	/*! If called immediately after SetIV() with Force=true or SetIV() for a crypto
 	 *  scheme that accepts each offered vector (rather than creating its own ones)
 	 *  the result will be the vector offered in that SetIV() call.
 	 */
-	DataChunkPtr GetIV(void) { return new DataChunk; }
+	DataChunkPtr GetIV(void) 
+	{
+		return new DataChunk(16, CurrentIV);
+	}
 
 	//! Can this encryption system safely encrypt in place?
 	/*! If BlockSize is 0 this function will return true if encryption of all block sizes can be "in place".
 	 *  Otherwise the result will indicate whether the given blocksize can be encrypted "in place".
 	 */
-	bool CanEncryptInPlace(Uint32 BlockSize = 0) { return true; };
+	bool CanEncryptInPlace(Uint32 BlockSize = 0) { return false; }
 
 	//! Encrypt data bytes in place
 	/*! \return true if the encryption is successful
 	 */
-	bool EncryptInPlace(Uint32 Size, Uint8 *Data);
+	bool EncryptInPlace(Uint32 Size, Uint8 *Data) { return false; }
 
 	//! Encrypt data and return in a new buffer
 	/*! \return NULL pointer if the encryption is unsuccessful
@@ -97,25 +126,18 @@ public:
 };
 
 
-//! Encrypt data bytes in place
-/*! \return true if the encryption is successful
- */
-bool BasicEncrypt::EncryptInPlace(Uint32 Size, Uint8 *Data)
-{
-	/* DO NOTHING */
-
-	return true;
-}
-
-
 //! Encrypt data and return in a new buffer
 /*! \return NULL pointer if the encryption is unsuccessful
  */
 DataChunkPtr BasicEncrypt::Encrypt(Uint32 Size, const Uint8 *Data)
 {
-	DataChunkPtr Ret = new DataChunk(Size, Data);
+	// Calculate size of encrypted data (always a multiple of 16-bytes)
+	Uint32 RetSize = (Size + 15) / 16;
+	RetSize *= 16;
 
-	if(!EncryptInPlace(Ret->Size, Ret->Data)) return NULL;
+	DataChunkPtr Ret = new DataChunk(RetSize);
+
+	AES_cbc_encrypt(Data, Ret->Data, Size, &CurrentKey, CurrentIV, AES_ENCRYPT);
 
 	return Ret;
 }
@@ -152,16 +174,23 @@ bool Encrypt_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 	KLVEObjectPtr KLVE = new KLVEObject(Object);
 
 	// Set an encryption wrapper
-	KLVE->SetEncrypt(new BasicEncrypt);
+	BasicEncrypt *Enc = new BasicEncrypt;
+	KLVE->SetEncrypt(Enc);
+
+	// ##@@##@@
+	// ##@@##@@ Set a dummy encryption key...
+	// ##@@##@@
+
+	char *Key = "This is a dummy encryption key to use with the AES encryption system";
+	Enc->SetKey( strlen(Key), (Uint8*)Key);
+
 
 	// Set a basic IV
 	const Uint8 IV[16] = { 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0 };
 	KLVE->SetEncryptIV(16, IV, true);
 
 	// Write the encrypted data
-printf("Outfile at [0x%08x->", (int)OutFile->Tell());
 	Writer->WriteRaw(SmartPtr_Cast(KLVE, KLVObject));
-printf("0x%08x]\n", (int)OutFile->Tell());
 
 	return true;
 }
@@ -202,15 +231,25 @@ bool Test_GCFillerHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 
 
 // ============================================================================
-//! Basic decryption class - currently does **NO DECRYPTION**
+//! Basic decryption class - currently does AES decryption
 // ============================================================================
 class BasicDecrypt : public Decrypt_Base
 {
+protected:
+	AES_KEY CurrentKey;
+	Uint8 CurrentIV[16];
+
 public:
 	//! Set an encryption key
 	/*! \return True if key is accepted
 	 */
-	bool SetKey(Uint32 KeySize, const Uint8 *Key) { /*** DO NOTHING ***/  return true; };
+	bool SetKey(Uint32 KeySize, const Uint8 *Key) 
+	{
+		int Ret = AES_set_decrypt_key(Key, 128, &CurrentKey);
+
+		// Return true only if key setting was OK
+		return Ret ? false : true; 
+	};
 
 	//! Set a decryption Initialization Vector
 	/*! \return False if Initialization Vector is rejected
@@ -220,25 +259,41 @@ public:
 	 *        and false for any other calls.  This allows different schemes to be
 	 *        used with minimal changes in the calling code.
 	 */
-	bool SetIV(Uint32 IVSize, const Uint8 *IV, bool Force = false) { /*** DO NOTHING ***/  return true; };
+	bool SetIV(Uint32 IVSize, const Uint8 *IV, bool Force = false)
+	{ 
+		if(!Force) return false;
+
+		if(IVSize != 16)
+		{
+			error("IV for AES encryption must by 16 bytes, tried to use IV of size %d\n", IVSize);
+			return false;
+		}
+
+		memcpy(CurrentIV, IV, 16);
+
+		return true; 
+	};
 
 	//! Get the Initialization Vector that will be used for the next decryption
 	/*! If called immediately after SetIV() with Force=true or SetIV() for a crypto
 	 *  scheme that accepts each offered vector (rather than creating its own ones)
 	 *  the result will be the vector offered in that SetIV() call.
 	 */
-	DataChunkPtr GetIV(void) { return new DataChunk; }
+	DataChunkPtr GetIV(void)
+	{
+		return new DataChunk(16, CurrentIV);
+	}
 
 	//! Can this decryption system safely decrypt in place?
 	/*! If BlockSize is 0 this function will return true if decryption of all block sizes can be "in place".
 	 *  Otherwise the result will indicate whether the given blocksize can be decrypted "in place".
 	 */
-	bool CanDecryptInPlace(Uint32 BlockSize = 0) { return true; };
+	bool CanDecryptInPlace(Uint32 BlockSize = 0) { return false; }
 
 	//! Decrypt data bytes in place
 	/*! \return true if the decryption <i>appears to be</i> successful
 	 */
-	bool DecryptInPlace(Uint32 Size, Uint8 *Data);
+	bool DecryptInPlace(Uint32 Size, Uint8 *Data) { return false; }
 
 	//! Decrypt data and return in a new buffer
 	/*! \return true if the decryption <i>appears to be</i> successful
@@ -247,25 +302,15 @@ public:
 };
 
 
-//! Decrypt data bytes in place
-/*! \return true if the decryption <i>appears to be</i> successful
- */
-bool BasicDecrypt::DecryptInPlace(Uint32 Size, Uint8 *Data)
-{
-	/* DO NOTHING */
-
-	return true;
-}
-
 
 //! Decrypt data and return in a new buffer
 /*! \return NULL pointer if the encryption is unsuccessful
  */
 DataChunkPtr BasicDecrypt::Decrypt(Uint32 Size, const Uint8 *Data)
 {
-	DataChunkPtr Ret = new DataChunk(Size, Data);
+	DataChunkPtr Ret = new DataChunk(Size);
 
-	if(!DecryptInPlace(Ret->Size, Ret->Data)) return NULL;
+	AES_cbc_encrypt(Data, Ret->Data, Size, &CurrentKey, CurrentIV, AES_DECRYPT);
 
 	return Ret;
 }
@@ -300,7 +345,15 @@ bool Decrypt_GCEncryptionHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Ob
 	KLVEObjectPtr KLVE = new KLVEObject(Object);
 
 	// Set a decryption wrapper
-	KLVE->SetDecrypt(new BasicDecrypt);
+	BasicDecrypt *Dec = new BasicDecrypt;
+	KLVE->SetDecrypt(Dec);
+
+	// ##@@##@@
+	// ##@@##@@ Set a dummy encryption key...
+	// ##@@##@@
+
+	char *Key = "This is a dummy encryption key to use with the AES encryption system";
+	Dec->SetKey( strlen(Key), (Uint8*)Key);
 
 //	// Set a basic IV
 //	const Uint8 IV[16] = { 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0 };
@@ -445,8 +498,7 @@ int main(int argc, char *argv[])
 
 ***/
 	
-///	MXFFilePtr OutFile = new MXFFile;
-OutFile = new MXFFile;
+	MXFFilePtr OutFile = new MXFFile;
 	if(!OutFile->OpenNew(argv[num_options+2]))
 	{
 		error("Can't open output file\n");
