@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.4 2004/11/16 09:32:20 matt-beard Exp $
+ *	\version $Id: mxflib.h,v 1.5 2004/12/18 20:34:27 matt-beard Exp $
  *
  */
 /*
@@ -74,7 +74,8 @@ namespace mxflib
 	}
 }
 
-
+//! Touch an unused parameter in such a way that no compiler warnings are produced, but optimizer will remove anything we do
+#define UNUSED_PARAMETER(x) ( x=x )
 
 #include <mxflib/debug.h>
 
@@ -117,8 +118,6 @@ namespace mxflib
 #include <mxflib/esp_mpeg2ves.h>
 #include <mxflib/esp_wavepcm.h>
 #include <mxflib/esp_dvdif.h>
-
-#include <mxflib/waveheader.h>
 
 #endif // MXFLIB__MXFLIB_H
 
