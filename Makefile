@@ -1,7 +1,16 @@
+# $Id: Makefile,v 1.4 2003/12/03 16:13:20 stuart_hc Exp $
+#
+# Default values assume you have g++, klvlib installed in /usr/local/* and
+# a uuid library called libuuid.a (E.g. GNU/Linux with e2fsprogs)
+#
+# For builds with klvlib in a parallel directory use:
+#	make KLVINC=../klvlib KLVLIB=../klvlib
+#
 CXX = g++
-KLVINST = /usr/local
-CXXFLAGS = -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -I.. -I$(KLVINST)/include -g -Wall
-KLVLIB = -L$(KLVINST)/lib -lklv
+KLVINC = /usr/local/include
+KLVLIB = /usr/local/lib
+CXXFLAGS = -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -I.. -I$(KLVINC) -g -Wall
+UUIDLIB = -luuid
 INSTALL_PREFIX = /usr/local
 
 all: mxfwrap/mxfwrap test/mxftest
@@ -132,10 +141,10 @@ rip.o: rip.cpp mxflib.h system.h debug.h forward.h smartptr.h \
 	$(CXX) $(CXXFLAGS) -c $<
 
 mxfwrap/mxfwrap: libmxf.a mxfwrap/mxfwrap.cpp
-	$(CXX) $(CXXFLAGS) mxfwrap/mxfwrap.cpp -o mxfwrap/mxfwrap -L. -lmxf $(KLVLIB) -luuid
+	$(CXX) $(CXXFLAGS) mxfwrap/mxfwrap.cpp -o mxfwrap/mxfwrap -L. -lmxf -L$(KLVLIB) -lklv $(UUIDLIB)
 
 test/mxftest: libmxf.a test/test.cpp
-	$(CXX) $(CXXFLAGS) test/test.cpp -o test/mxftest -L. -lmxf $(KLVLIB) -luuid
+	$(CXX) $(CXXFLAGS) test/test.cpp -o test/mxftest -L. -lmxf -L$(KLVLIB) -lklv $(UUIDLIB)
 
 
 install: libmxf.a mxfwrap/mxfwrap test/mxftest
