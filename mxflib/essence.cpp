@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.1.2.1 2004/05/18 18:30:09 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.1.2.2 2004/05/19 11:12:36 matt-beard Exp $
  *
  */
 /*
@@ -692,7 +692,7 @@ bool GCReader::ReadFromFile(bool SingleKLV /*=false*/)
 		if(!Object)	return false;
 
 		// Is this a partition pack?
-		if(IsPartitionKey(Object->GetUL()->GetValue()) return true;
+		if(IsPartitionKey(Object->GetUL()->GetValue())) return true;
 
 		// Handle the data
 		bool Ret = HandleData(Object);
@@ -798,7 +798,7 @@ void GCReader::StopReading(bool PushBackKLV /*=false*/)
 
 //! Construct a body reader and associate it with an MXF file
 BodyReader::BodyReader(MXFFilePtr File)
-	: File(FIle)
+	: File(File)
 {
 	CurrentPos = 0;					// Start at the beginning
 	NewPos = true;					// Force reading to be initialized
@@ -813,7 +813,7 @@ BodyReader::BodyReader(MXFFilePtr File)
 //! Seek to a specific point in the file
 /*! \return New location or -1 on seek error
  */
-Position BodyReader::Seek(Position Pos = 0)
+Position BodyReader::Seek(Position Pos /*=0*/)
 {
 	File->Seek(Pos);				// Move the file pointer
 	CurrentPos = File->Tell();		// Find out where we ended up
@@ -847,7 +847,7 @@ bool BodyReader::IsAtPartition(void)
 
 	// Otherwise read the next key to find out
 	File->Seek(CurrentPos);
-	ULPtr ThisUL = GetUL(File);
+	ULPtr ThisUL = File->ReadKey();
 
 	// Can't be true if we can't read a key
 	if(!ThisUL) return false;
@@ -867,7 +867,7 @@ bool BodyReader::Eof(void)
 	File->Seek(CurrentPos);
 	
 	// Did the seek set EOF?
-	if(File->FileEof()) 
+	if(File->Eof()) 
 	{
 		AtEOF = true;
 		return true;
@@ -888,10 +888,10 @@ bool BodyReader::Eof(void)
 //! Make a GCReader for the specified BodySID
 /*! \return true on success, false on error (such as there is already a GCReader for this BodySID)
  */
-bool BodyReader::MakeGCReader(Uint32 BodySID, GCReadHandlerPtr DefaultHandler = NULL, GCReadHandlerPtr FillerHandler = NULL);
+bool BodyReader::MakeGCReader(Uint32 BodySID, GCReadHandlerPtr DefaultHandler /*=NULL*/, GCReadHandlerPtr FillerHandler /*=NULL*/)
 {
 	// Don't try to make two readers for the same SID
-	if(GerGCReader(BodySID)) return false;
+	if(GetGCReader(BodySID)) return false;
 
 	// Make the new reader
 	GCReaderPtr Reader = new GCReader(File, DefaultHandler ? DefaultHandler : GCRDefaultHandler, FillerHandler ? FillerHandler : GCRFillerHandler);
@@ -914,7 +914,7 @@ bool BodyReader::MakeGCReader(Uint32 BodySID, GCReadHandlerPtr DefaultHandler = 
  *  \return true if all went well, false end-of-file, an error occured or StopReading() 
  *          was called on the current GCReader
  */
-bool BodyReader::ReadFromFile(bool SingleKLV = false)
+bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 {
 	GCReaderPtr Reader;
 
@@ -922,7 +922,7 @@ bool BodyReader::ReadFromFile(bool SingleKLV = false)
 	if(NewPos)
 	{
 		// Start at the new location
-		File->Seek(CurrentPosition);
+		File->Seek(CurrentPos);
 
 		PartitionPtr NewPartition;				// Pointer to the new partition pack
 		do
@@ -938,7 +938,7 @@ bool BodyReader::ReadFromFile(bool SingleKLV = false)
 			if(!NewPartition) return false;
 
 			CurrentBodySID = NewPartition["BodySID"]->GetUint();
-			if(CurrentBodySID != 0) Reader = GCReader[CurrentBodySID];
+			if(CurrentBodySID != 0) Reader = GetGCReader(CurrentBodySID);
 		
 		// Loop until we find a partition with essence data and for which we have a GCReader
 		} while(!Reader);
@@ -946,37 +946,114 @@ bool BodyReader::ReadFromFile(bool SingleKLV = false)
 		// Set the stream offset
 		Position StreamOffset = NewPartition["BodyOffset"]->GetUint64();
 		
-		## Skip metadata and index
+		// Index the start of the essence data
+		NewPartition->SeekEssence();
 
+		// Read and handle data
 		return Reader->ReadFromFile(File->Tell(), StreamOffset, SingleKLV);
 	}
 
 	// Continue from the previous read 
-	Reader = GCReader[CurrentBodySID];
+	Reader = GetGCReader(CurrentBodySID);
 	if(!Reader) return true;
-	return Reader->ReadFromFile(SingleKLV);
+	bool Ret = Reader->ReadFromFile(SingleKLV);
+	CurrentPos = Reader->GetFileOffset();
 
-#### How do we switch BodySID??
+	// If the read failed (or was stopped) reinitialize next time around
+	if(Ret) NewPos = true;
+	else
+	{
+		// Also reinitialize next time if we are at the end of this partition
+		File->Seek(CurrentPos);
+		if( IsAtPartition()) NewPos = true;
+	}
+
+	return Ret;
 }
 
-		//! Resync after possible loss or corruption of body data
-		/*! Searches for the next partition pack and moves file pointer to that point
-		 *  \return false if an error (or EOF found)
-		 */
-		bool Resync();
 
-		/*** Functions for use by read handlers ***/
+//! Resync after possible loss or corruption of body data
+/*! Searches for the next partition pack and moves file pointer to that point
+ *  \return false if an error (or EOF found)
+ */
+bool BodyReader::Resync()
+{
+	// Do we actually need to resync?
+	if(IsAtPartition()) return true;
 
-		//! Get the BodySID of the most recent read
-		Uint32 GetBodySID(void);
+	// Loop around until we have re-synced
+	for(;;)
+	{
+		// Read the next key to see if we are yet in sync
+		File->Seek(CurrentPos);
+		ULPtr ThisUL = File->ReadKey();
 
+		// Fail if we can't read a key
+		if(!ThisUL) return false;
 
-	protected:
-		//! Initialize the per SID seek system
-		/*! To allow us to seek to byte offsets within a file we need to initialize 
-		 *  various structures - seeking is not always possible!!
-		 *  \return False if seeking could not be initialized (perhaps because the file is not seekable)
-		 */
-		bool InitSeek(void);
-	};
+		// Validate the start of the key (to see if it is a standard MXF key)
+		const Uint8 *Key = ThisUL->GetValue();
+		if((Key[0] == 0x06) && (Key[1] == 0x0e) && (Key[2] == 0x2b) && (Key[3] == 34))
+		{
+			// It seems to be a key - is it a partition pack key? If so we are bac in sync
+			if(IsPartitionKey(Key))
+			{
+				AtPartition= true;
+				NewPos = true;							// Force read to be reinitialized
+				return true;
+			}
+
+			// Skip over this key...
+			Length Len = File->ReadBER();
+			if(Len < 0) return false;
+
+			CurrentPos += Len + 16;
+
+			continue;
+		}
+
+		// At this point we have read a key that does not start with the same 4 bytes as standard MXF keys
+		// This could mean that we have found a valid non-SMPTE key, or that we have encountered a portion
+		// of the file where data is missing or corrupted.  We not try a byte-by-byte search for a partition
+		// key
+
+		for(;;)
+		{
+			// Scan 64k at a time
+			const Uint64 BufferLen = 1024 * 65536;
+			DataChunkPtr Buffer = File->Read(BufferLen);
+			if(Buffer->Size < 16) return false;
+
+			Int32 i;									// Loop variable
+			Int32 End = Buffer->Size - 15;				// End of loop - 15 bytes early to allow 16-byte compares
+			Uint8 *p = Buffer->Data;						// Use moving pointer for faster compares
+			for(i=0; i<End; i++)
+			{
+				// Only perform full partition key check if it looks promising
+				if((*p == 0x06) && (p[1] == 0x0e))
+				{
+					if(IsPartitionKey(p))
+					{
+						CurrentPos += i;				// Move pointer to new partition pack
+						NewPos = true;					// Force read to be reinitialized
+						AtPartition= true;
+		
+						return true;
+					}
+				}
+				p++;
+			}
+
+			CurrentPos += End;
+			File->Seek(CurrentPos);
+		}
+	}
 }
+
+
+//! Initialize the per SID seek system
+/*! To allow us to seek to byte offsets within a file we need to initialize 
+ *  various structures - seeking is not always possible!!
+ *  \return False if seeking could not be initialized (perhaps because the file is not seekable)
+ */
+// bool BodyReader::InitSeek(void);
