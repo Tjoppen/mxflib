@@ -285,15 +285,6 @@ namespace mxflib
 			__Assign(sp.__m_refcount);
 		}
 
-		//!	Construct a smart pointer that takes its target from another smart pointer
-		/*! This constructor allows casting of smart pointers, however care must be taken because
-		    not only is a pointer being cast but both classes must be derived from IRefCount */
-		SmartPtr(const IRefCount &sp)
-		{
-			__m_refcount = NULL;
-			__Assign(sp.__m_refcount);
-		}
-
 		//! Detatch this pointer from the object before destruction
 		virtual ~SmartPtr()
 		{

@@ -33,7 +33,6 @@ using namespace mxflib;
 
 using namespace std;
 
-
 //! Debug flag for KLVLib
 extern "C" int Verbose = 0;
 
@@ -41,7 +40,6 @@ extern "C" int Verbose = 0;
 bool DebugMode = false;
 
 void DumpObject(MDObjectPtr Object, std::string Prefix);
-
 
 int main(int argc, char *argv[])
 {
@@ -79,7 +77,7 @@ int main(int argc, char *argv[])
 		PartitionPtr ThisPartition = TestFile->ReadPartition();
 		if(ThisPartition)
 		{
-			DumpObject(MDObjectPtr(ThisPartition),"");
+			DumpObject(ThisPartition->Object,"");
 
 			if(ThisPartition->ReadMetadata() == 0)
 			{
@@ -162,9 +160,9 @@ int main(int argc, char *argv[])
 			printf("  BodySID 0x%04x is at 0x%s", (*it)->BodySID, Int64toHexString((*it)->ByteOffset,8).c_str());
 
 			if((*it)->ThePartition)
-				printf(" is a %s\n", (*it)->ThePartition->Name().c_str());
+				printf(" type %s\n", (*it)->ThePartition->Name().c_str());
 			else
-				printf(" is not loaded\n");
+				printf(" and is not loaded\n");
 
 			it++;
 		}
@@ -179,15 +177,15 @@ int main(int argc, char *argv[])
 			printf("  BodySID 0x%04x is at 0x%s", (*it)->BodySID, Int64toHexString((*it)->ByteOffset,8).c_str());
 
 			if((*it)->ThePartition)
-				printf(" is a %s\n", (*it)->ThePartition->Name().c_str());
+				printf(" type %s\n", (*it)->ThePartition->Name().c_str());
 			else
-				printf(" is not loaded\n");
+				printf(" and is not loaded\n");
 
 			it++;
 		}
 	}
 
-	if(TestFile->BuildRIP())
+/*	if(TestFile->BuildRIP())
 	{
 		printf("\nBuilt RIP\n");
 		PartitionInfoList::iterator it = TestFile->FileRIP.begin();
@@ -196,14 +194,14 @@ int main(int argc, char *argv[])
 			printf("  BodySID 0x%04x is at 0x%s", (*it)->BodySID, Int64toHexString((*it)->ByteOffset,8).c_str());
 
 			if((*it)->ThePartition)
-				printf(" is a %s\n", (*it)->ThePartition->Name().c_str());
+				printf(" type %s\n", (*it)->ThePartition->Name().c_str());
 			else
-				printf(" is not loaded\n");
+				printf(" and is not loaded\n");
 
 			it++;
 		}
 	}
-
+*/
 	TestFile->Close();
 
 	return 0;
@@ -214,6 +212,8 @@ int main(int argc, char *argv[])
 void DumpObject(MDObjectPtr Object, std::string Prefix)
 {
 //	printf("0x%s in %s : ", Int64toHexString(Object->GetLocation(),8).c_str(), Object->GetSource().c_str());
+
+	if(Object->IsModified()) printf("%s%s is *MODIFIED*\n", Object->FullName().c_str(), Prefix.c_str() );
 
 	if(Object->GetLink())
 	{
@@ -246,8 +246,30 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 	return;
 }
 
+/*
+bool MakeFile(void)
+{
+	MDObjectPtr Preface = new MDObject("Preface");
+	ASSERT(Preface);
+
+	std::string Now = Now2String();
+
+	Preface->AddChild("LastModifiedDate")->SetString(Now);
+	Preface->AddChild("Version")->SetInt(258);
+
+	Preface->AddChild("Identifications");
+	Preface->AddChild("ContentStorage");
+	// To set later: OperationalPattern
+	Preface->AddChild("EssenceContainers");
+	Preface->AddChild("DMSchemes");
 
 
+
+
+	return true;
+}
+
+*/
 
 // Debug and error messages
 #include <stdarg.h>
