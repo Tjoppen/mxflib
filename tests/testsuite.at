@@ -28,4 +28,6 @@ m4_include([types.at])
 
 m4_include([mxfdump.at])
 
+m4_include([mxfsplit.at])
+
 m4_include([mxfwrap.at])
