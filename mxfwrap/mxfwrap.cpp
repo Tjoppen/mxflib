@@ -229,11 +229,12 @@ int main(int argc, char *argv[])
 
 	// Load the dictionaries
 	LoadTypes("types.xml");
-	MDOType::LoadDict("XMLDict.xml");
+	MDOType::LoadDict("xmldict.xml");
 
 	// Parse command line options and exit on error
 	ForceEditRate.Numerator = 0;
-	if(!ParseCommandLine(argc, argv)) return -1;
+	if(!ParseCommandLine(argc, argv))
+		return 1;
 
 #ifdef DMStiny
 	// load the DMStiny Dictionary
@@ -257,7 +258,7 @@ int main(int argc, char *argv[])
 		if(!FileValid(InFile[i]))
 		{
 			error("Can't open input file \"%s\"\n", InFilename[i]);
-			return -2;
+			return 2;
 		}
 
 		// Build a list of parsers with their descriptors for this essence
@@ -266,7 +267,7 @@ int main(int argc, char *argv[])
 		if(PDList->empty())
 		{
 			error("Could not identify the essence in file \"%s\"\n", InFilename[i]);
-			return -3;
+			return 3;
 		}
 
 		EssenceParser::WrappingConfigPtr WCP;
@@ -278,7 +279,7 @@ int main(int argc, char *argv[])
 		if(!WCP)
 		{
 			error("Could not identify a wrapping mode for the essence in file \"%s\"\n", InFilename[i]);
-			return -4;
+			return 4;
 		}
 
 		// Ensure the essence descriptor reflects the new wrapping
@@ -345,7 +346,7 @@ int main(int argc, char *argv[])
 		if(!Out->OpenNew(OutFilename[OutFileNum]))
 		{
 			error("Can't open output file \"%s\"\n", OutFilename[OutFileNum]);
-			return -5;
+			return 5;
 		}
 
 		printf( "\nProcessing output file \"%s\"\n", OutFilename[OutFileNum]);
@@ -441,9 +442,9 @@ bool ParseCommandLine(int &argc, char **argv)
 	int i;
 	for(i=1; i<argc;)
 	{
-		if((argv[i][0] == '/') || (argv[i][0] == '-'))
+		if (IsCommandLineSwitchPrefix(argv[i][0]))
 		{
-			char *p = &argv[i][1];					// The option less the '-' or '/'
+			char *p = &argv[i][1];					// The option less the '-'
 			char Opt = tolower(*p);					// The option itself (in lower case)
 			char *Val = "";							// Any value attached to the option
 			if(strlen(p) > 2) Val = &p[2];			// Only set a value if one found
