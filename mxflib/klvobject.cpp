@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.1.2.3 2004/05/26 18:15:52 matt-beard Exp $
+ *	\version $Id: klvobject.cpp,v 1.1.2.4 2004/05/28 14:45:21 matt-beard Exp $
  *
  */
 /*
@@ -50,9 +50,11 @@ void KLVObject::Init(void)
 	SourceOffset = -1;
 	KLSize = 0;
 	SourceFile = NULL;
+	ValueLength = 0;
 
 //	ObjectName = "";
 }
+
 
 
 //! Get text that describes where this item came from
