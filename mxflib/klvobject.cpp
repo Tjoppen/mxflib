@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.1.2.6 2004/06/26 18:08:20 matt-beard Exp $
+ *	\version $Id: klvobject.cpp,v 1.1.2.7 2004/07/05 14:48:48 matt-beard Exp $
  *
  */
 /*
@@ -53,6 +53,7 @@ void KLVObject::Init(void)
 	DestFile = NULL;
 	DestOffset = -1;
 	ValueLength = 0;
+	OuterLength = 0;
 
 	DataBase = 0;
 
@@ -90,7 +91,7 @@ Int32 KLVObject::Base_ReadKL(void)
 	if(!TheUL) return 0;
 
 	// Read the length
-	ValueLength = SourceFile->ReadBER();
+	ValueLength = OuterLength = SourceFile->ReadBER();
 
 	// Work out the size of the key and length
 	KLSize = SourceFile->Tell() - SourceOffset;
@@ -127,7 +128,7 @@ Length KLVObject::Base_ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	}
 
 	// Initially plan to read all the bytes available
-	Length BytesToRead = ValueLength - Offset;
+	Length BytesToRead = OuterLength - Offset;
 
 	// Limit to specified size if > 0 and if < available
 	if( Size && (Size < BytesToRead)) BytesToRead = Size;
@@ -160,7 +161,7 @@ Length KLVObject::Base_ReadDataFrom(Position Offset, Length Size /*=-1*/)
  *           It is therefore vital that the function does not call any "virtual" KLVObject
  *           functions, directly or indirectly.
  */
-Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/)
+Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/, Length NewLength /*=-1*/)
 {
 	if(!DestFile)
 	{
@@ -186,8 +187,11 @@ Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/)
 		if(Bytes > 0) LenSize = Bytes;
 	}
 
+	// Decide what length to write (Use ValueLength unless something else is supplied)
+	if(NewLength < 0) NewLength = ValueLength;
+
 	// Write the length
-	DestFile->WriteBER(ValueLength, LenSize);
+	DestFile->WriteBER(NewLength, LenSize);
 
 	// Work out the new KLSize
 	DestKLSize = DestFile->Tell() - DestOffset;

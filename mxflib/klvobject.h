@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.1.2.6 2004/06/26 17:57:36 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.1.2.7 2004/07/05 14:48:48 matt-beard Exp $
  *
  */
 /*
@@ -150,6 +150,7 @@ namespace mxflib
 		Position DestOffset;				//!< The position of the first byte of the <b>key</b> as an offset into the destination file (-1 if not available)
 		ULPtr TheUL;						//!< The UL for this object (if known)
 		Length ValueLength;					//!< Length of the value field
+		Length OuterLength;					//!< The length of the entire readable value space - in basic KLV types this is always ValueLength, derived types may add some hidden overhead
 
 		DataChunk Data;						//!< The raw data for this item (if available)
 		Position DataBase;					//!< The offset of the first byte in the DataChunk from the start of the KLV value field
@@ -284,13 +285,14 @@ namespace mxflib
 
 		//! Base verion: Write the key and length of the current DataChunk to the destination file
 		/*! The key and length will be written to the source file as set by SetSource.
-		 *  If LenSize is zero the length will be formatted to match KLSize (if possible!)
+		 *  If LenSize is zero the length will be formatted to match KLSize (if possible!).
+		 *  The length written can be overridden by using parameter NewLength
 		 *
 		 *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
 		 *           It is therefore vital that the function does not call any "virtual" KLVObject
 		 *           functions, directly or indirectly.
 		 */
-		Int32 Base_WriteKL(Int32 LenSize = 0);
+		Int32 Base_WriteKL(Int32 LenSize = 0, Length NewLength = -1);
 
 
 		//! Write (some of) the current data to the same location in the destination file
@@ -367,7 +369,7 @@ namespace mxflib
 		virtual Length GetLength(void) { return ValueLength; }
 
 		//! Set the length of the value field
-		virtual void SetLength(Length NewLength) { ValueLength = NewLength; }
+		virtual void SetLength(Length NewLength) { ValueLength = OuterLength = NewLength; }
 
 		//! Get a reference to the data chunk
 		virtual DataChunk& GetData(void) { return Data; }
