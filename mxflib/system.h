@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.4.2.2 2004/06/14 18:04:26 matt-beard Exp $
+ *	\version $Id: system.h,v 1.4.2.3 2004/07/02 10:01:17 bakerian Exp $
  *
  */
 /*
@@ -73,7 +73,7 @@ namespace mxflib
 
 
 	// Runtime detection of endian-ness using detection code that executes once.
-	// The variable littleEndian is then used to check if bytes read/written to 
+	// The variable littleEndian is then used to check if bytes read/written to
 	// files need to be swapped.
 	static bool IsLittleEndian()
 	{
@@ -350,7 +350,7 @@ namespace mxflib
 
 #define DIR_SEPARATOR		'/'
 #define PATH_SEPARATOR		':'
-#define #DEFAULT_DICT_PATH	"/usr/local/share/mxflib/"
+#define DEFAULT_DICT_PATH	"/usr/local/share/mxflib/"
 
 
 	/******** 64-bit file-I/O ********/
