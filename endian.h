@@ -5,6 +5,8 @@
  *
  */
 /*
+ *	$Id: endian.h,v 1.8 2003/11/25 18:30:20 stuart_hc Exp $
+ *
  *	Copyright (c) 2001 BBC R&D and 2003 Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -50,34 +52,32 @@ namespace mxflib
 	/*
 	** GetUxx() - Get unsigned xx-bit integer
 	*/
-	inline Uint8 GetU8(unsigned char *src) { return (Uint8) *src; }
-	inline Uint16 GetU16(unsigned char *src) { return (GetU8(src) << 8) | GetU8(&src[1]); }
-	inline Uint32 GetU32(unsigned char *src) { return (GetU16(src) << 16) | GetU16(&src[2]); }
-	inline Uint64 GetU64(unsigned char *src) { return ((Uint64)GetU32(src) << 32) | GetU32(&src[4]); }
+	inline Uint8 GetU8(const unsigned char *src) { return (Uint8) *src; }
+	inline Uint16 GetU16(const unsigned char *src) { return (GetU8(src) << 8) | GetU8(&src[1]); }
+	inline Uint32 GetU32(const unsigned char *src) { return (GetU16(src) << 16) | GetU16(&src[2]); }
+	inline Uint64 GetU64(const unsigned char *src) { return ((Uint64)GetU32(src) << 32) | (GetU32(&src[4])); }
 
 	/*
 	** GetIxx() - Signed versions of GetUxx()
 	*/
-	inline Int8 GetI8(unsigned char *src) { return (Int8)GetU8(src); }
-	inline Int16 GetI16(unsigned char *src) { return (Int16)GetU16(src); }
-	inline Int32 GetI32(unsigned char *src) { return (Int32)GetU32(src); }
-	inline Int64 GetI64(unsigned char *src) { return (Int64)GetU64(src); }
+	inline Int8 GetI8(const unsigned char *src) { return (Int8)GetU8(src); }
+	inline Int16 GetI16(const unsigned char *src) { return (Int16)GetU16(src); }
+	inline Int32 GetI32(const unsigned char *src) { return (Int32)GetU32(src); }
+	inline Int64 GetI64(const unsigned char *src) { return (Int64)GetU64(src); }
 
 	/*
 	** GetUxx_LE() - Get LITTLE ENDIAN unsigned xx-bit integer
 	*/
-	inline Uint8 GetU8_LE(unsigned char *src) { return (Uint8) *src; }
-	inline Uint16 GetU16_LE(unsigned char *src) { return GetU8_LE(src) | (GetU8_LE(&src[1]) << 8); }
-	inline Uint32 GetU32_LE(unsigned char *src) { return GetU16_LE(src) | (GetU16_LE(&src[2]) << 16); }
-	inline Uint64 GetU64_LE(unsigned char *src) { return GetU32_LE(src) | ((Uint64)(GetU32_LE(&src[4])) << 32); }
+	inline Uint8 GetU8_LE(const unsigned char *src) { return (Uint8) *src; }
+	inline Uint16 GetU16_LE(const unsigned char *src) { return GetU8_LE(src) | (GetU8_LE(&src[1]) << 8); }
+	inline Uint32 GetU32_LE(const unsigned char *src) { return GetU16_LE(src) | (GetU16_LE(&src[2]) << 16); }
+	inline Uint64 GetU64_LE(const unsigned char *src) { return GetU32_LE(src) | ((Uint64)(GetU32_LE(&src[4])) << 32); }
 
 	/*
 	** GetIxx_LE() - Signed versions of GetUxx_LE()
 	*/
-	inline Int8 GetI8_LE(unsigned char *src) { return (Int8)GetU8_LE(src); }
-	inline Int16 GetI16_LE(unsigned char *src) { return (Int16)GetU16_LE(src); }
-	inline Int32 GetI32_LE(unsigned char *src) { return (Int32)GetU32_LE(src); }
-	inline Int64 GetI64_LE(unsigned char *src) { return (Int64)GetU64_LE(src); }
+	inline Int8 GetI8_LE(const unsigned char *src) { return (Int8)GetU8_LE(src); }
+	inline Int16 GetI16_LE(const unsigned char *src) { return (Int16)GetU16_LE(src); }
+	inline Int32 GetI32_LE(const unsigned char *src) { return (Int32)GetU32_LE(src); }
+	inline Int64 GetI64_LE(const unsigned char *src) { return (Int64)GetU64_LE(src); }
 }
-
-
