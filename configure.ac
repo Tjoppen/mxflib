@@ -9,6 +9,15 @@ AM_INIT_AUTOMAKE(mxflib, alpha-0.3.3)
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_RANLIB
+if test "$CXX" = "g++"; then
+	gcc_version=`$CXX -dumpversion`
+	case $gcc_version in
+		2.95*)
+			AC_MSG_ERROR($CXX version $gcc_version is known to mis-compile MXFlib - use g++ 3.x or newer)
+			;;
+	esac
+fi
+
 
 # Checks for libraries.
 # FIXME: Replace `main' with a function in `-lmxf':
@@ -36,6 +45,13 @@ AC_FUNC_MEMCMP
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([floor gettimeofday memmove memset strcasecmp strerror strtoul])
+
+# Check for doxygen (needed for building docs)
+AC_CHECK_PROG(HAVE_DOXYGEN, doxygen, true, false)
+if test $HAVE_DOXYGEN = "false"; then
+             AC_MSG_WARN([*** doxygen not found, docs will not be built])
+fi
+AM_CONDITIONAL(HAVE_DOXYGEN, $HAVE_DOXYGEN)
 
 DEFAULT_INCLUDES=""
 CXXFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DDATADIR=\\\"\$(datadir)/mxflib\\\" -g -Wall"
