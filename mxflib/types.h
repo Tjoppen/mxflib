@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.1.2.2 2004/10/10 18:34:28 terabrit Exp $
+ *	\version $Id: types.h,v 1.1.2.3 2004/10/19 18:05:32 matt-beard Exp $
  *
  */
 /*
@@ -33,6 +33,10 @@
 // Ensure NULL is available
 #include <stdlib.h>
 
+// Standard library includes
+#include <list>
+
+
 /*                        */
 /* Basic type definitions */
 /*                        */
@@ -44,13 +48,15 @@ namespace mxflib
 
 	typedef Uint16 Tag;					//!< 2-byte tag for local sets
 
+	//! Pair of Uint32 values
 	typedef std::pair<Uint32, Uint32> U32Pair;
 }
+
 
 // Some string conversion utilities
 namespace mxflib
 {
-	// String version of a tag
+	//! String version of a tag
 	inline std::string Tag2String(Tag value)
 	{
 		char Buffer[8];
@@ -111,162 +117,152 @@ namespace mxflib
 
 }
 
-#include <list>
-
-
-/*namespace mxflib
-{
-	//! Draft version of Vector base type (DRAGONS)
-	template <class T> class Vector : public std::list<T>
-	{
-	private:
-	public:
-	};
-}
-*/
-
 namespace mxflib
 {
+	//! 16-byte identifier
 	typedef Identifier<16> Identifier16;
+
+	//! Universal Label class with optimized comparison and string formatting
 	class UL : public RefCount<UL>, public Identifier16
 	{
 	private:
+		//! Prevent default construction
 		UL();
+
 	public:
+		//! Construct a UL from a sequence of bytes
+		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
+		 */
 		UL(const Uint8 *ID) : Identifier16(ID) {};
+
+		//! Construct a UL as a copy of another UL
 		UL(const SmartPtr<UL> ID) { if(ID == NULL) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
 
-		bool operator==(const UL s) { return 0==memcmp( Ident, s.Ident, sizeof(Ident) ); };
+		//! Copy constructor
+		UL(const UL &RHS) { memcpy(Ident,RHS.Ident, 16); };
 
-		// spit out in AAFx format
+		//! Fast compare a UL based on testing most-likely to fail bytes first
+		/*! We use an unrolled loop with modified order for best efficiency
+		 *  DRAGONS: There may be a slightly faster way that will prevent pipeline stalling, but this is fast enough!
+		 */
+		bool operator==(const UL RHS) 
+		{
+			// Most differences are in the second 8 bytes so we check those first
+			Uint8 const *pLHS = &Ident[8];
+			Uint8 const *pRHS = &RHS.Ident[8];
+			
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 8
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 9
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 10
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 11
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 12
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 13
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 14
+			if(*pLHS != *pRHS) return false;			// Test byte 15
+
+			// Now we test the first 8 bytes, but in reverse as the first 4 are almost certainly "06 0e 2b 34"
+			// We use predecrement from the original start values so that the compiler will optimize the address calculation if possible
+			pLHS = &Ident[8];
+			pRHS = &RHS.Ident[8];
+			
+			if(*--pLHS != *--pRHS) return false;		// Test byte 7
+			if(*--pLHS != *--pRHS) return false;		// Test byte 6
+			if(*--pLHS != *--pRHS) return false;		// Test byte 5
+			if(*--pLHS != *--pRHS) return false;		// Test byte 4
+			if(*--pLHS != *--pRHS) return false;		// Test byte 3
+			if(*--pLHS != *--pRHS) return false;		// Test byte 2
+			if(*--pLHS != *--pRHS) return false;		// Test byte 1
+			
+			return (*--pLHS == *--pRHS);				// Test byte 0
+		}
+
+		//! Produce a human-readable string in one of the "standard" formats
 		std::string GetString(void) const
 		{
-			std::string Ret;
-			char buf[100];
+			char Buffer[100];
 
+			// Check which format should be used
 			if( !(0x80&Ident[0]) )
-			{	// UL
-				// printed as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
-				// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+			{	
+				// This is a UL rather than a UUID packed into a UL datatype
+				// Print as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
+				// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
 				// (i.e. network byte order)
-				sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
-											Ident[0],
-											Ident[1],
-											Ident[2],
-											Ident[3],
-											Ident[4],
-											Ident[5],
-											Ident[6],
-											Ident[7],
-											Ident[8],
-											Ident[9],
-											Ident[10],
-											Ident[11],
-											Ident[12],
-											Ident[13],
-											Ident[14],
-											Ident[15]
-				);
+				sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+							       Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7],
+							       Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15]
+						);
 			}
 			else
-			{	// half-swapped UUID
-				// printed as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
-				sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-											Ident[8],
-											Ident[9],
-											Ident[10],
-											Ident[11],
-											Ident[12],
-											Ident[13],
-											Ident[14],
-											Ident[15],
-											Ident[0],
-											Ident[1],
-											Ident[2],
-											Ident[3],
-											Ident[4],
-											Ident[5],
-											Ident[6],
-											Ident[7]
-				);
+			{	
+				// Half-swapped UUID
+				// Print as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
+				sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+							       Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15],
+							       Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7]
+						);
 			}
-			Ret = buf;
-			return Ret ;
+
+			return std::string(Buffer);
 		}
 	};
 
 	//! A smart pointer to a UL object
 	typedef SmartPtr<UL> ULPtr;
-	typedef std::list<ULPtr> ULList;
 
+	//! A list of smart pointers to UL objects
+	typedef std::list<ULPtr> ULList;
 }
+
 
 namespace mxflib
 {
-	//typedef Identifier<16> Identifier16;
+	//! Universally Unique Identifier class with string formatting
 	class UUID : public RefCount<UUID>, public Identifier16
 	{
 	public:
+		//! Construct a new UUID with a new unique value
 		UUID() { MakeUUID(Ident); };
+
+		//! Construct a UUID from a sequence of bytes
+		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
+		 */
 		UUID(const Uint8 *ID) : Identifier16(ID) {};
+
+		//! Construct a UUID as a copy of another UUID
 		UUID(const SmartPtr<UUID> ID) { if(ID == NULL) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
 
-		// spit out in AAFx format
+		//! Copy constructor
+		UUID(const UUID &RHS) { memcpy(Ident,RHS.Ident, 16); };
+
+		//! Produce a human-readable string in one of the "standard" formats
 		std::string GetString(void) const
 		{
-			std::string Ret;
-			char buf[100];
+			char Buffer[100];
 
-			if( !(0x80&Ident[8]) ) // yes, a half-swapped UL can appear in a UUID
-			{	// UL
-				// printed as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
-				// but stored  with upper/lower 8 bytes exchanged
-				// stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
-				sprintf (buf, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
-											Ident[8],
-											Ident[9],
-											Ident[10],
-											Ident[11],
-											Ident[12],
-											Ident[13],
-											Ident[14],
-											Ident[15],
-											Ident[0],
-											Ident[1],
-											Ident[2],
-											Ident[3],
-											Ident[4],
-											Ident[5],
-											Ident[6],
-											Ident[7]
-				);
+			// Check which format should be used
+			if( !(0x80&Ident[8]) )
+			{	// Half-swapped UL packed into a UUID datatype
+				// Print as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
+				// Stored with upper/lower 8 bytes exchanged
+				// Stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
+				sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
+							       Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15],
+							       Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7]
+						);
 			}
 			else
 			{	// UUID
-				// stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
+				// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
 				// (i.e. network byte order)
-				// printed as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
-				sprintf (buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-											Ident[0],
-											Ident[1],
-											Ident[2],
-											Ident[3],
-											Ident[4],
-											Ident[5],
-											Ident[6],
-											Ident[7],
-											Ident[8],
-											Ident[9],
-											Ident[10],
-											Ident[11],
-											Ident[12],
-											Ident[13],
-											Ident[14],
-											Ident[15]
-				);
+				// Print as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
+				sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+							       Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7],
+							       Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15]
+						);
 			}
-			Ret = buf;
-			return Ret ;
+
+			return std::string(Buffer);
 		}
 	};
 
@@ -281,12 +277,22 @@ namespace mxflib
 	class UMID : public RefCount<UMID>,  public Identifier32
 	{
 	public:
+		//! Construct a new UMID either from a sequence of bytes, or as a NULL UMID (32 zero bytes)
+		/*! \note The byte string must contain at least 32 bytes or errors will be produced when it is used
+		 */
 		UMID(const Uint8 *ID = NULL) : Identifier32(ID) {};
+
+		//! Construct a UMID from a sequence of bytes
+		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
+		 */
 		UMID(const SmartPtr<UMID> ID) { if(ID == NULL) memset(Ident,0,32); else memcpy(Ident,ID->Ident, 32); };
+
+		//! Copy constructor
+		UMID(const UMID &RHS) { memcpy(Ident,RHS.Ident, 16); };
 
 		//! Get the UMID's instance number
 		/*! \note The number returned interprets the instance number as big-endian */
-		Uint32 GetInstance(void)
+		Uint32 GetInstance(void) const
 		{
 			return (Ident[13] << 16) | (Ident[14] << 8) | Ident[15];
 		}
@@ -328,53 +334,11 @@ namespace mxflib
 namespace mxflib
 {
 	//! Structure for holding fractions
-	struct _rational
+	struct Rational
 	{
-		Int32 Numerator;
-		Int32 Denominator;
-
-		void SetNumerator(Int32 val)
-		{
-			Numerator=Swap(val);
-		}
-		void SetDenominator(Int32 val)
-		{
-			Denominator=Swap(val);
-		}
+		Int32 Numerator;				//!< Numerator of the fraction (top number)
+		Int32 Denominator;				//!< Denominator of the fraction (bottom number)
 	};
-	typedef struct _rational Rational;
-
-	//! Structure for holding major.minor version number
-	struct _version
-	{
-		Uint8 major;
-		Uint8 minor;
-	};
-	typedef struct _version version_t;
-
-	//! Structure for holding timestamps (4ms accuracy)
-	struct _timestamp
-	{
-		Uint16 yr;
-		Uint8 month;
-		Uint8 day;
-		Uint8 hour;
-		Uint8 min;
-		Uint8 sec;
-		Uint8 fraction;
-
-		_timestamp()
-		{
-			yr=0;
-			month=0;
-			day=0;
-			hour=0;
-			min=0;
-			sec=0;
-			fraction=0;
-		};
-	};
-	typedef struct _timestamp timestmp;
 }
 
 
