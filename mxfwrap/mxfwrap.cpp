@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.16 2004/04/30 17:31:25 stuart_hc Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.17 2004/05/18 02:04:50 terabrit Exp $
  *
  */
 /*
@@ -38,7 +38,7 @@ using namespace mxflib;
 using namespace std;
 
 // base library version
-const char* BaseVersion = "based on mxflib 0.3.3.2";
+const char* BaseVersion = "based on mxflib 0.4.0";
 
 // DMStiny
 #ifdef DMStiny
@@ -226,7 +226,7 @@ ULPtr OP2bUL = new UL(OP2b_Data);
 
 int main(int argc, char *argv[])
 {
-	printf("MXFlib File Wrapper\n\n");
+	fprintf( stderr, "MXFlib File Wrapper\n" );
 
 	// Build an essence parser
 	EssenceParser EssParse;
@@ -1215,7 +1215,7 @@ int Process(	int OutFileNum,
 								IndexMan[0]->SetEditRate((*WrapCfgList_it)->EditRate);
 							}
 							else StreamID = IndexMan[0]->AddSubStream(0, (*WrapCfgList_it)->WrapOpt->BytesPerEditUnit );
-//printf("IndexMan[0] -> %d\n", StreamID);
+if( DebugMode) printf("IndexMan[0] -> %d\n", StreamID);
 							(*WrapCfgList_it)->WrapOpt->Handler->SetIndexManager(IndexMan[0], StreamID);
 							IndexManCount = 1;
 						}
