@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: primer.cpp,v 1.3 2004/12/18 20:38:07 matt-beard Exp $
  *
  */
 /*
@@ -180,7 +180,7 @@ Tag Primer::Lookup(ULPtr ItemUL, Tag TryTag /*=0*/)
 
 //! Write this primer to a memory buffer
 /*! The primer will be <b>appended</b> to the DataChunk */
-Uint32 Primer::WritePrimer(DataChunk &Buffer)
+Uint32 Primer::WritePrimer(DataChunkPtr &Buffer)
 {
 	Uint32 Bytes;
 
@@ -188,28 +188,28 @@ Uint32 Primer::WritePrimer(DataChunk &Buffer)
 	Uint64 PrimerLen = Uint64(size()) * 18 + 8;
 
 	// Re-size buffer to the probable final size
-	Buffer.ResizeBuffer((Uint32)(Buffer.Size + 16 + 4 + PrimerLen));
+	Buffer->ResizeBuffer((Uint32)(Buffer->Size + 16 + 4 + PrimerLen));
 
 	// Lookup the type to get the key - Static so only need to lookup once
 	static MDOTypePtr PrimerType = MDOType::Find("Primer");
 	ASSERT(PrimerType);
 
-	Buffer.Append(PrimerType->GetKey());
+	Buffer->Append(PrimerType->GetKey());
 	Bytes = PrimerType->GetKey().Size;
 
 	// Add the length
 	DataChunkPtr BER = MakeBER(PrimerLen);
-	Buffer.Append(*BER);
+	Buffer->Append(*BER);
 	Bytes += BER->Size;
 
 	// Add the vector header
 	Uint8 Temp[4];
 	PutU32(size(), Temp);
-	Buffer.Append(4, Temp);
+	Buffer->Append(4, Temp);
 	Bytes += 4;
 
 	PutU32(18, Temp);
-	Buffer.Append(4, Temp);
+	Buffer->Append(4, Temp);
 	Bytes += 4;
 
 	// Write the primer data
@@ -217,8 +217,8 @@ Uint32 Primer::WritePrimer(DataChunk &Buffer)
 	while(it != end())
 	{
 		PutU16((*it).first, Temp);
-		Buffer.Append(2, Temp);
-		Buffer.Append(16, (*it).second.GetValue());
+		Buffer->Append(2, Temp);
+		Buffer->Append(16, (*it).second.GetValue());
 		it++;
 	}
 

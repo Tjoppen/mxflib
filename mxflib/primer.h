@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: primer.h,v 1.2 2004/12/18 20:38:07 matt-beard Exp $
  *
  */
 /*
@@ -70,7 +70,7 @@ namespace mxflib
 		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size);
 
 		//! Write this primer to a memory buffer
-		Uint32 WritePrimer(DataChunk &Buffer);
+		Uint32 WritePrimer(DataChunkPtr &Buffer);
 
 		//! Determine the tag to use for a given UL
 		Tag Lookup(ULPtr ItemUL, Tag TryTag = 0);
