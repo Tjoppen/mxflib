@@ -203,7 +203,7 @@ bool MPEG2_VES_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
 	double Ratio = FloatNative / FloatUse;
 	if(Ratio == floor(Ratio))
 	{
-		EditRatio = unsigned int(Ratio);
+		EditRatio = (unsigned int)(Ratio);
 		return true;
 	}
 
@@ -231,7 +231,7 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, 
 	FileRead(InFile, Ret->Data, Bytes);
 
 	return Ret; 
-};
+}
 
 
 //! Write a number of wrapping items from the specified stream to an MXF file
@@ -244,7 +244,7 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, 
  */
 Uint64 MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/)
 {
-	const int BUFFERSIZE = 32768;
+	const unsigned int BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
@@ -310,7 +310,7 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 
 	Uint32 BitRate = (Buffer[8] << 10) | (Buffer[9] << 2) | (Buffer[10] >> 6);
 
-	if(BitRate = 0x3ffff) warning("Building MPEG2VideoDescriptor - bit_rate = -1\n");
+	if(BitRate == 0x3ffff) warning("Building MPEG2VideoDescriptor - bit_rate = -1\n");
 
 	// Assume some values if no extension found
 	Uint8 PandL = 0;
@@ -327,7 +327,12 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 	}
 	else
 	{
-		LoadNonIntra = Buffer[11 + 64] & 0x01;
+		// Skip over the intra buffer and read the non-intra flag
+		FileSeek(InFile, Start + 11 + 64);
+		Uint8 Flags;
+		FileRead(InFile, &Flags, 1);
+
+		LoadNonIntra = Flags & 0x01;
 	}
 
 	// Work out where the sequence extension should be
@@ -470,7 +475,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 	Count *= EditRatio;
 
 	// Return anything we can find if clip wrapping
-	if((Count == 0) && (SelectedWrapping == WrappingOption::Clip)) Count = 0xffffffffffffffff;
+	if((Count == 0) && (SelectedWrapping == WrappingOption::Clip)) Count = UINT64_C(0xffffffffffffffff);
 
 	while(Count)
 	{
@@ -606,7 +611,7 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 	FileSeek(InFile, CurrentStart);
 
 	return CurrentPos - CurrentStart;
-};
+}
 
 
 //! Get a byte from the current stream
