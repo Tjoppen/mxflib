@@ -1,5 +1,5 @@
 EXTRA_DIST = dox.bat \
-			build/rpm/mxflib.spec
+			build/rpm/mxflib.spec \
 			build/msvc/mxflib.dsw \
 			build/msvc/mxflib.dsp \
 			build/msvc/all.dsp \
