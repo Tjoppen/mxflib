@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.9 2004/05/20 23:58:38 terabrit Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.10 2004/05/21 20:11:13 terabrit Exp $
  *
  */
 /*
@@ -237,6 +237,9 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+// maximum value size to dump
+// above this, dump will just state size
+#define MAX_DUMPSIZE 128
 
 //! Dump an object and any physical or logical children
 void DumpObject(MDObjectPtr Object, std::string Prefix)
@@ -270,9 +273,21 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 			if(Object->Value)
 			{
 				Uint32 sz=Object->Value->GetData().Size;
-				if( Object->Value->GetData().Size > 128 )
+				if( Object->Value->GetData().Size > MAX_DUMPSIZE )
 				{
-					printf("%s%s = 0x%08x\n", Prefix.c_str(), Object->Name().c_str(), Object->Value->GetData().Size );
+					printf("%s%s = RAW[0x%08x]", Prefix.c_str(), Object->Name().c_str(), Object->Value->GetData().Size );
+
+					const unsigned char* p = Object->Value->GetData().Data;
+					int i; for(i=0;i<3;i++)
+					{
+						printf("\n%s%*c      ", Prefix.c_str(), strlen(Object->Name().c_str()), ' ');
+						int j; for(j=0;j<4;j++)
+						{
+							int k; for(k=0;k<4;k++) printf("%02x", *p++); 
+							printf(" ");
+						}
+						if(i==2) printf( "...\n" );
+					}
 				}
 				else
 					printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
@@ -442,6 +457,7 @@ static void DumpBody( PartitionPtr ThisPartition )
 					anObj->ReadValue( *theChunk );
 
 					DumpObject( anObj, "   " );
+					printf( "\n" );
 
 				}
 			}
