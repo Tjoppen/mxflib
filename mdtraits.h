@@ -87,7 +87,7 @@ namespace mxflib
 	};
 
 	//! Special unsigned integer ReadValue
-	Uint32 ReadValueUint(MDValuePtr Object, const const Uint8 *Buffer, Uint32 Size, int Count=0);
+	Uint32 ReadValueUint(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count=0);
 
 	class MDTraits_Int8 : public MDTraits_BasicInt
 	{
