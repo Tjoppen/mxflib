@@ -1,6 +1,20 @@
 
-Release Notes for mxflib version 0.3.1-Alpha
+Release Notes for mxflib version 0.3.2-Alpha
 ============================================
+
+Changes since version 0.3.1-Alpha
+=================================
+
+* Ported to Linux (x86, AMD64, Alpha, StrongARM), FreeBSD (x86), MacOS X 10.2 (PowerPC), Solaris (SPARC) and IRIX (MIPS)
+* Ported to ISO C++ compilers including GCC 3.2 (not yet GCC 3.3.x - see README), MIPSpro C++ 7.3, Sun Forte C++ 5.4, Intel C++ 7.0, Borland C++ 5.0
+* For portability, FileSeek() and FileSeekEnd() no longer return the current file position, only a value indicating success or failure.  Use a subsequent FileTell() to get the file position.
+* Change to include path.  Now all includes are of the form <mxflib/mxflib.h> to avoid clobbering system includes during installation.
+* Clip wrapping works.  Tested with MPEG-2 and DV essence.
+* Fixed crash when looking up index tables with more than 2979 edit units
+* Fixed index entry corruption when writing index tables for essence size >2GB
+* Fixed minor crashes and unintended behaviours discovered on other platforms
+* Removed '/' as option character in mxfwrap, mxftest. Use '-' instead.
+* Code cleanups for gcc, icc and other compilers' warnings
 
 
 Changes since version 0.3-Alpha
