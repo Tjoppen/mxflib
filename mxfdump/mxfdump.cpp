@@ -1,5 +1,5 @@
-/*! \file	test.cpp
- *	\brief	Test program for MXFLib
+/*! \file	mxfdump.cpp
+ *	\brief	Simple application to dump an MXF file using MXFLib
  */
 /*
  *	Copyright (c) 2003, Matt Beard
@@ -52,7 +52,7 @@ static void DumpObject(MDObjectPtr Object, std::string Prefix);
 
 int main(int argc, char *argv[])
 {
-	printf("Test Program for MXFLib\n");
+	printf("Dump an MXF file using MXFLib\n");
 
 	int num_options = 0;
 	for(int i=1; i<argc; i++)
