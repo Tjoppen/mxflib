@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.1.2.5 2004/06/14 18:03:18 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.1.2.6 2004/10/10 18:36:14 terabrit Exp $
  *
  */
 /*
@@ -60,7 +60,7 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 
 		if(RefType == DICT_REF_TARGET)
 		{
-			if((*it).second->Value->size() != 16)
+			if((*it).second->Value->GetData().Size != 16)
 			{
 				error("Metadata Object \"%s/%s\" should be a reference target (a UUID), but has size %d\n",
 					  NewObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
@@ -161,10 +161,10 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 			DictRefType Ref = (*it).second->GetRefType();
 			if((Ref == DICT_REF_STRONG) || (Ref == DICT_REF_WEAK))
 			{
-				if((*it).second->Value->size() != 16)
+				if((*it).second->Value->GetData().Size != 16)
 				{
 					error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
-						  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->size());
+						  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
 				}
 				else
 				{
@@ -253,7 +253,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 
 		MDOTypePtr FirstType = MDOType::Find(FirstUL);
 
-		if(FirstType->Name() == "KLVFill")
+		if(FirstType && FirstType->Name() == "KLVFill")
 		{
 			// Skip over the filler, recording how far we went
 			Position NewLocation = File->ReadBER();
@@ -261,7 +261,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 			Bytes = NewLocation - Location;
 			Location = NewLocation;
 		}
-		else if(FirstType->Name() != "Primer")
+		else if(FirstType && FirstType->Name() != "Primer")
 		{
 			error("First KLV following a partition pack (and any trailing filler) must be a Primer, however %s found at 0x%s in %s\n", 
 				  FirstType->Name().c_str(), Int64toHexString(Location,8).c_str(), File->Name.c_str());
@@ -319,7 +319,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 		Bytes++;
 		if(Len >= 0x80)
 		{
-			Uint32 i = Len & 0x7f;
+			Uint32 i = (Uint32)Len & 0x7f;
 			if(Size < i)
 			{
 				error("Incomplete BER length at 0x%s in \"%s\"\n", Int64toHexString(File->Tell(),8).c_str(), File->Name.c_str() );
@@ -359,7 +359,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 			if(NewItem->Name() == "Primer")
 			{
 				PartitionPrimer = new Primer;
-				Uint32 ThisBytes = PartitionPrimer->ReadValue(BuffPtr, Len);
+				Uint32 ThisBytes = PartitionPrimer->ReadValue(BuffPtr, (Uint32)Len);
 				Size -= ThisBytes;
 				Bytes += ThisBytes;
 				BuffPtr += ThisBytes;
@@ -382,9 +382,9 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 		
 		if(Len)
 		{
-			NewItem->SetParent(File, BytesAtItemStart + Location, Bytes - BytesAtItemStart);
+			NewItem->SetParent(File, BytesAtItemStart + Location,(Uint32)( Bytes - BytesAtItemStart));
 
-			Uint32 ThisBytes = NewItem->ReadValue(BuffPtr, Len, PartitionPrimer);
+			Uint32 ThisBytes = NewItem->ReadValue(BuffPtr,(Uint32) Len, PartitionPrimer);
 
 			Size -= ThisBytes;
 			Bytes += ThisBytes;
