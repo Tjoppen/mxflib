@@ -21,9 +21,9 @@ int main(void)
 }
 ]])
 
-AT_CHECK([g++ -I../../.. input.c], 0, [ignore])
+AT_CHECK([rm -f a.out a.exe && g++ -I../../.. input.c], 0, [ignore])
 
-AT_CHECK([./a.out], 0,
+AT_CHECK([if test -f a.exe; then ./a.exe; else ./a.out; fi], 0,
 [[4294967295
 4294967296
 4294967296
