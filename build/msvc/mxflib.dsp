@@ -64,7 +64,7 @@ LIB32=link.exe -lib
 # PROP Intermediate_Dir "Debug"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
-# ADD CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /I "..\.." /I "..\..\..\klvlib" /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
+# ADD CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /I "..\..\.." /I "..\..\..\klvlib" /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
 # ADD RSC /l 0x809 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -161,10 +161,6 @@ SOURCE=..\..\debug.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mxfendian.h
-# End Source File
-# Begin Source File
-
 SOURCE=..\..\esp_dvdif.h
 # End Source File
 # Begin Source File
@@ -209,11 +205,23 @@ SOURCE=..\..\metadata.h
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\endian.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\mxffile.h
 # End Source File
 # Begin Source File
 
 SOURCE=..\..\mxflib.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\system.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\types.h
 # End Source File
 # Begin Source File
 
@@ -230,14 +238,6 @@ SOURCE=..\..\rip.h
 # Begin Source File
 
 SOURCE=..\..\smartptr.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\mxfsystem.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\mxftypes.h
 # End Source File
 # End Group
 # Begin Group "Documentation"

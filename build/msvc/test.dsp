@@ -97,6 +97,16 @@ PostBuild_Cmds=copy /y debug\test.exe ..\..
 # Begin Source File
 
 SOURCE=..\..\test\test.cpp
+
+!IF  "$(CFG)" == "test - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "test - Win32 Debug"
+
+# ADD CPP /I "..\..\.."
+# SUBTRACT CPP /I "..\.."
+
+!ENDIF 
+
 # End Source File
 # End Group
 # Begin Group "Header Files"

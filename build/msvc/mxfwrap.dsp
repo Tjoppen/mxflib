@@ -96,6 +96,16 @@ PostBuild_Cmds=copy /y debug\mxfwrap.exe ..\..
 # Begin Source File
 
 SOURCE=..\..\mxfwrap\mxfwrap.cpp
+
+!IF  "$(CFG)" == "mxfwrap - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "mxfwrap - Win32 Debug"
+
+# ADD CPP /I "..\..\.."
+# SUBTRACT CPP /I "..\.."
+
+!ENDIF 
+
 # End Source File
 # End Group
 # Begin Group "Header Files"
@@ -108,5 +118,3 @@ SOURCE=..\..\mxfwrap\mxfwrap.cpp
 # End Group
 # End Target
 # End Project
-
-
