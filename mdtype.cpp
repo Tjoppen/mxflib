@@ -34,6 +34,9 @@
 
 #include "mxflib.h"
 
+//! Default traits for types without special handling
+mxflib::MDTraits DefaultTraits;
+
 
 //! Add a definition for a basic type
 /*! DRAGONS: Currently doesn't check for duplicates
@@ -44,7 +47,7 @@ void mxflib::MDType::AddBasic(std::string TypeName, int TypeSize)
 	ASSERT(TypeSize != 0);
 
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, BASIC);
+	MDTypePtr NewType = new MDType(TypeName, BASIC, &DefaultTraits);
 
 	// Set the type size
 	NewType->Size = TypeSize;

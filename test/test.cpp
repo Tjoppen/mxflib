@@ -36,64 +36,147 @@ int main(int argc, char *argv[])
 	TestRIP.AddPartition(new Partition("Part3"),67,67);
 
 	MDType::AddBasic("Int8", 1);
+	MDType::AddBasic("Uint8", 1);
 	MDType::AddBasic("Int16", 2);
+	MDType::AddBasic("Int32", 4);
+	MDType::AddBasic("Uint32", 4);
 
 	MDTypePtr Int8Type = MDType::Find("Int8");
 	ASSERT(Int8Type);
 
-	MDTraits Int8_Traits(Int8_SetInt, Int8_SetInt64, Int8_SetUint, Int8_SetUint64, Int8_SetString,
-						 Int8_GetInt, Int8_GetInt64, Int8_GetUint, Int8_GetUint64, Int8_GetString);
+	MDTypePtr Uint8Type = MDType::Find("Uint8");
+	ASSERT(Uint8Type);
 
-	Int8Type->SetTraits(Int8_Traits);
+	MDTypePtr Int16Type = MDType::Find("Int16");
+	ASSERT(Int16Type);
 
-	MDValuePtr Test;
+	MDTypePtr Int32Type = MDType::Find("Int32");
+	ASSERT(Int32Type);
 
-	Test = new MDValue("Int16");
+	MDTypePtr Uint32Type = MDType::Find("Uint32");
+	ASSERT(Uint32Type);
+
+//	MDTraits Int8_Traits(Int8_SetInt, Int8_SetInt64, Int8_SetUint, Int8_SetUint64, Int8_SetString,
+//						 Int8_GetInt, Int8_GetInt64, Int8_GetUint, Int8_GetUint64, Int8_GetString);
+
+//	MDTraits Uint8_Traits(Uint8_SetInt, Uint8_SetInt64, Uint8_SetUint, Uint8_SetUint64, Uint8_SetString,
+//						  Uint8_GetInt, Uint8_GetInt64, Uint8_GetUint, Uint8_GetUint64, Uint8_GetString);
+
+//	MDTraits Int16_Traits(Int16_SetInt, Int16_SetInt64, Int16_SetUint, Int16_SetUint64, Int16_SetString,
+//						  Int16_GetInt, Int16_GetInt64, Int16_GetUint, Int16_GetUint64, Int16_GetString);
+
+	MDTraits_Int8 Int8_Traits;
+	MDTraits_Uint8 Uint8_Traits;
+	MDTraits_Int16 Int16_Traits;
+	MDTraits_Int32 Int32_Traits;
+	MDTraits_Uint32 Uint32_Traits;
+
+	Int8Type->SetTraits(&Int8_Traits);
+	Uint8Type->SetTraits(&Uint8_Traits);
+	Int16Type->SetTraits(&Int16_Traits);
+	Int32Type->SetTraits(&Int32_Traits);
+	Uint32Type->SetTraits(&Uint32_Traits);
+
+	MDValuePtr Test16;
+	MDValuePtr Test32;
+
+	Test16 = new MDValue("Int16");
+	Test32 = new MDValue("Int32");
 	
 	std::string X;
-	X = Test->GetString();
+	X = Test16->GetString();
 	printf("Int16 uses %s\n", X.c_str());
 	
-	Test = new MDValue("Int8");
+	MDValuePtr Test8 = new MDValue("Uint8");
 
-	X = Test->GetString();
+	X = Test8->GetString();
 	printf("Int8 uses %s\n", X.c_str());
 
-	Test->SetInt(42);
-	X = Test->GetString();
+	Test8->SetInt(42);
+	X = Test8->GetString();
 	printf("The answer = \"%s\"\n", X.c_str());
 
-	Test->SetInt(-1);
-	X = Test->GetString();
+	Test16->SetInt(-1);
+	X = Test16->GetString();
 	printf("i*i = \"%s\"\n", X.c_str());
 
-	Test->SetInt(0x12345678);
-	X = Test->GetString();
+	Test8->SetInt(0x12345678);
+	X = Test8->GetString();
 	printf("0x12345678 = \"%s\"\n", X.c_str());
 
-	Test->SetInt(0x34567890);
-	X = Test->GetString();
+	Test16->SetInt(0x34567890);
+	X = Test16->GetString();
 	printf("0x34567890 = \"%s\"\n", X.c_str());
 
-	Test->SetInt(0x87654321);
-	X = Test->GetString();
+	Test8->SetInt(0x87654321);
+	X = Test8->GetString();
 	printf("0x87654321 = \"%s\"\n", X.c_str());
 
 	Int8 i8 = (Int8) (0x87654321);
 	printf("Casting gives %d\n", (int)i8);
 
-	Test->SetString("42");
-	printf("Value = %d, %x\n",Test->GetInt(), Test->GetInt()); 
+	Test16->SetString("42");
+	printf("Value = %d, %x\n",Test16->GetInt(), Test16->GetInt()); 
 
 	Uint64 T = 0x12345678a1b2c3d4;
 	printf("%I64x --> %I64x\n", T, Swap(T));
 
 	Uint16 T2 = 0x1234;
 	printf("%x -> %x\n", T2, Swap(T2));
+	
+	printf("Int32:\n");
 
-	printf("Press RETURN key ");
+	Test32->SetInt(-1);
+	X = Test32->GetString();
+	printf("i*i = \"%s\"\n", X.c_str());
+
+	Test32->SetInt(0x12345678);
+	X = Test32->GetString();
+	printf("0x12345678 = \"%s\"\n", X.c_str());
+
+	Test32->SetInt(0x34567890);
+	X = Test32->GetString();
+	printf("0x34567890 = \"%s\"\n", X.c_str());
+
+	Test32->SetInt(0x87654321);
+	X = Test32->GetString();
+	printf("0x87654321 = \"%s\"\n", X.c_str());
+
+	Int32 I32i = Test32->GetInt();
+	printf("0x87654321 = 0x%x = %d\n", I32i, I32i);
+
+	Uint32 U32i = Test32->GetUint();
+	printf("0x87654321 (unsigned) = 0x%x = %u\n", U32i, U32i);
+
+	Test32 = new MDValue("Uint32");
+
+	printf("Uint32:\n");
+
+	Test32->SetInt(-1);
+	X = Test32->GetString();
+	printf("i*i = \"%s\"\n", X.c_str());
+
+	Test32->SetInt(0x12345678);
+	X = Test32->GetString();
+	printf("0x12345678 = \"%s\"\n", X.c_str());
+
+	Test32->SetInt(0x34567890);
+	X = Test32->GetString();
+	printf("0x34567890 = \"%s\"\n", X.c_str());
+
+	Test32->SetInt(0x87654321);
+	X = Test32->GetString();
+	printf("0x87654321 = \"%s\"\n", X.c_str());
+
+	I32i = Test32->GetInt();
+	printf("0x87654321 = 0x%x = %d\n", I32i, I32i);
+
+	U32i = Test32->GetUint();
+	printf("0x87654321 (unsigned) = 0x%x = %u\n", U32i, U32i);
+
+	printf("\nPress RETURN key ");
 	getchar();
-
+ 
 	return 0;
 }
 

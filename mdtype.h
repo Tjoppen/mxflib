@@ -106,8 +106,8 @@ namespace mxflib
 		/*! This constructor is private so the ONLY way to create
 		 *	new MDOTypes from outside this class is via AddBasic() etc.
 		*/
-		MDType(std::string TypeName, MDTypeClass TypeClass)
-			: Name(TypeName) , Class(TypeClass) {};
+		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraits *TypeTraits)
+			: Name(TypeName) , Class(TypeClass) , Traits(TypeTraits) {};
 
 		//! Add a sub to a compound type
 		void AddSub(std::string SubName, MDTypePtr SubType);
@@ -137,8 +137,8 @@ namespace mxflib
 		static MDTypePtr Find(const char *TypeName);
 	
 //! DRAGONS: Experimental
-MDTraits Traits;
-void SetTraits(MDTraits &Tr) { Traits = Tr; };
+MDTraits *Traits;
+void SetTraits(MDTraits *Tr) { Traits = Tr; };
 
 		/* Allow MDValue class to view internals of this class */
 		friend class MDValue;
@@ -181,29 +181,16 @@ namespace mxflib
 		//! Access function for child values of compound items
 		MDValue &Child(const char *ChildName);
 
-//--		virtual void Set(Int32 Val);		//!< Normal signed integer set function
-//--		virtual void Set(Int64 Val);		//!< 64-bit signed integer set function
-//--		virtual void Set(Uint32 Val);		//!< Normal unsigned integer set function
-//--		virtual void Set(Uint64 Val);		//!< 64-bit unsigned integer set function
-//--		virtual void Set(std::string Val);	//!< Set value from a string
-
-//--		virtual Int32 GetInt(void);
-//--		virtual Int64 GetInt64(void);
-//--		virtual Uint32 GetUint(void);
-//--		virtual Uint64 GetUint64(void);
-
-		void SetInt(Int32 Val) { Type->Traits.SetInt(this, Val); };
-		void SetInt64(Int64 Val) { Type->Traits.SetInt64(this, Val); };
-		void SetUint(Uint32 Val) { Type->Traits.SetUint(this, Val); };
-		void SetUint64(Uint64 Val) { Type->Traits.SetUint64(this, Val); };
-		void SetString(std::string Val)	{ Type->Traits.SetString(this, Val); };
-		Int32 GetInt(void) { return Type->Traits.GetInt(this); };
-		Int64 GetInt64(void) { return Type->Traits.GetInt64(this); };
-		Uint32 GetUint(void) { return Type->Traits.GetUint(this); };
-		Uint64 Gint64(void) { return Type->Traits.GetUint64(this); };
-		std::string GetString(void)	{ return Type->Traits.GetString(this); };
-
-//		static MDValuePtr Build(MDType *BaseType);
+		void SetInt(Int32 Val) { Type->Traits->SetInt(this, Val); };
+		void SetInt64(Int64 Val) { Type->Traits->SetInt64(this, Val); };
+		void SetUint(Uint32 Val) { Type->Traits->SetUint(this, Val); };
+		void SetUint64(Uint64 Val) { Type->Traits->SetUint64(this, Val); };
+		void SetString(std::string Val)	{ Type->Traits->SetString(this, Val); };
+		Int32 GetInt(void) { return Type->Traits->GetInt(this); };
+		Int64 GetInt64(void) { return Type->Traits->GetInt64(this); };
+		Uint32 GetUint(void) { return Type->Traits->GetUint(this); };
+		Uint64 Gint64(void) { return Type->Traits->GetUint64(this); };
+		std::string GetString(void)	{ return Type->Traits->GetString(this); };
 
 		int GetSize(void) { return Size; };
 		
@@ -215,39 +202,6 @@ namespace mxflib
 
 		// Get a pointer to the data buffer (const to prevent setting!!)
 		const Uint8* GetData(void) { return (const Uint8*) Data; };
-	};
-}
-
-/*
-AddBasic("Uint8", 1);
-AddInterpretation("ISO7", INTERP, "Uint8");
-AddArray("ISO7String", ARRAY, "ISO7");
-AddArray("LangCode", ARRAY, "ISO7", 4);
-AddCompound("DateTime", COMPOUND);
-DateTime.AddSub("Year", "Uint16");
-*/
-
-//void mxflib::MDValue::Set(std::string Val)
-//{
-//}
-
-namespace mxflib
-{
-	class MDValue_Int8 : public MDValue
-	{
-	public:
-//--		virtual void Set(Int32 Val) {printf("Int8!"); };
-//--		virtual void Set(Int64 Val) { Set( (Int32)(Val) ); };
-//--		virtual void Set(Uint32 Val) { Set( (Int32)(Val) ); };
-//--		virtual void Set(Uint64 Val) { Set( (Int32)(Val) ); };
-//--		virtual void Set(std::string Val);	//!< Set value from a string
-
-//--		virtual Int32 GetInt(void);
-//--		virtual Int64 GetInt64(void) { return (Int64)GetInt(); };
-//--		virtual Uint32 GetUint(void) { return (Uint32)GetInt(); };
-//--		virtual Uint64 GetUint64(void) { return (Uint64)GetInt(); };
-
-////		virtual std::string GetString(void);
 	};
 }
 
