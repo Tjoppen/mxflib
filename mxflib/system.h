@@ -2,7 +2,7 @@
  *	\brief	System specifics
  *
  *  Items that are <b>required</b> to be defined for each platform/compiler:
- *  - Definions for signed and unsigned 64 bit integers (Int64 and Uint64)
+ *  - Definions for signed and unsigned 64 bit integers (Int64 and UInt64)
  *<br>
  *<br>
  *	Items that may need to be defined for each platform/compiler:
@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.8 2004/12/18 20:35:15 matt-beard Exp $
+ *	\version $Id: system.h,v 1.9 2005/03/25 13:18:12 terabrit Exp $
  *
  */
 /*
@@ -57,9 +57,9 @@
 
 namespace mxflib
 {
-	typedef unsigned int Uint32;		//!< Unsigned 32-bit integer
-	typedef unsigned short int Uint16;	//!< Unsigned 16-bit integer
-	typedef unsigned char Uint8;		//!< Unsigned 8-bit integer
+	typedef unsigned int UInt32;		//!< Unsigned 32-bit integer
+	typedef unsigned short int UInt16;	//!< Unsigned 16-bit integer
+	typedef unsigned char UInt8;		//!< Unsigned 8-bit integer
 
 	typedef int Int32;					//!< Signed 32-bit integer
 	typedef short int Int16;			//!< Signed 16-bit integer
@@ -112,36 +112,36 @@ namespace mxflib
 namespace mxflib
 {
 	typedef __int64 Int64;				//!< Signed 64-bit integer
-	typedef unsigned __int64 Uint64;	//!< Unsigned 64-bit integer
+	typedef unsigned __int64 UInt64;	//!< Unsigned 64-bit integer
 
 	/******** ENDIAN SWAPPING ********/
-	inline Uint16 Swap(Uint16 Val) 
+	inline UInt16 Swap(UInt16 Val) 
 	{
 		return ((Val & 0xff00) >> 8) | ((Val & 0x00ff) << 8); 
 	};
 
-	inline Int16 Swap(Int16 Val) { return (Int16)Swap((Uint16)Val); };
+	inline Int16 Swap(Int16 Val) { return (Int16)Swap((UInt16)Val); };
 	
-	inline Uint32 Swap(Uint32 Val) 
+	inline UInt32 Swap(UInt32 Val) 
 	{ 
 		return ( ((Val & 0xff000000) >> 24)
 			   | ((Val & 0x00ff0000) >> 8)
 			   | ((Val & 0x0000ff00) << 8)
 	           | ((Val & 0x000000ff) << 24) ); 
 	};
-	inline Int32 Swap(Int32 Val) { return (Int32)Swap((Uint32)Val); };
+	inline Int32 Swap(Int32 Val) { return (Int32)Swap((UInt32)Val); };
 
-	inline Uint64 Swap(Uint64 Val) 
+	inline UInt64 Swap(UInt64 Val) 
 	{ 
-		Uint32 MSW = (Uint32)((Val & 0xffffffff00000000) >> 32);
-		Uint32 LSW = (Uint32)(Val & 0x00000000ffffffff);
+		UInt32 MSW = (UInt32)((Val & 0xffffffff00000000) >> 32);
+		UInt32 LSW = (UInt32)(Val & 0x00000000ffffffff);
 
 		MSW = Swap(MSW);
 		LSW = Swap(LSW);
 
-		return (((Uint64)LSW) << 32) | ((Uint64)MSW);
+		return (((UInt64)LSW) << 32) | ((UInt64)MSW);
 	};
-	inline Int64 Swap(Int64 Val) { return (Int64)Swap((Uint64)Val); };
+	inline Int64 Swap(Int64 Val) { return (Int64)Swap((UInt64)Val); };
 
 	
 	/******** Int64 Conversion ********/
@@ -154,7 +154,7 @@ namespace mxflib
 		return std::string(Buffer);
 	};
 
-	inline std::string Uint64toString(Uint64 Val)
+	inline std::string UInt64toString(UInt64 Val)
 	{ 
 		char Buffer[32];
 		_ui64toa(Val, Buffer, 10);
@@ -190,7 +190,7 @@ namespace mxflib
 namespace mxflib
 {
 	typedef long long Int64;			//!< Signed 64-bit integer
-	typedef unsigned long long Uint64;	//!< Unsigned 64-bit integer
+	typedef unsigned long long UInt64;	//!< Unsigned 64-bit integer
 }
 #endif // _MSC_VER
 
@@ -215,20 +215,20 @@ namespace mxflib
 	/******** 64-bit file-I/O ********/
 #ifndef MXFLIB_NO_FILE_IO
 	typedef int FileHandle;
-	inline int FileSeek(FileHandle file, Uint64 offset) { return _lseeki64(file, offset, SEEK_SET) == -1 ? -1 : 0; }
+	inline int FileSeek(FileHandle file, UInt64 offset) { return _lseeki64(file, offset, SEEK_SET) == -1 ? -1 : 0; }
 	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END) == -1 ? -1 : 0; }
 	
 	// DRAGONS: MSVC can't read or write more than 4Gb in one go currently
-	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return read(file, dest, (unsigned int)size); }
-	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return write(file, source, (unsigned int)size); }
+	inline UInt64 FileRead(FileHandle file, unsigned char *dest, UInt64 size) { return read(file, dest, (unsigned int)size); }
+	inline UInt64 FileWrite(FileHandle file, const unsigned char *source, UInt64 size) { return write(file, source, (unsigned int)size); }
 
-	inline int FileGetc(FileHandle file) { Uint8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
+	inline int FileGetc(FileHandle file) { UInt8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return open(filename, _O_BINARY | _O_RDWR ); }
 	inline FileHandle FileOpenRead(const char *filename) { return open(filename, _O_BINARY | _O_RDONLY ); }
 	inline FileHandle FileOpenNew(const char *filename) { return open(filename, _O_BINARY | _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE); }
 	inline bool FileValid(FileHandle file) { return (file >= 0); }
 	inline bool FileEof(FileHandle file) { return eof(file) ? true : false; }
-	inline Uint64 FileTell(FileHandle file) { return _telli64(file); }
+	inline UInt64 FileTell(FileHandle file) { return _telli64(file); }
 	inline void FileClose(FileHandle file) { close(file); }
 	inline bool FileExists(const char *filename) { struct stat buf; return stat(filename, &buf) == 0; }
 #endif //MXFLIB_NO_FILE_IO
@@ -246,7 +246,7 @@ namespace mxflib
 	}
 
 	/******** UUID Generation ********/
-	inline void MakeUUID(Uint8 *Buffer)
+	inline void MakeUUID(UInt8 *Buffer)
 	{
 		CoCreateGuid(reinterpret_cast<GUID*>(Buffer));
 	}
@@ -288,7 +288,7 @@ namespace mxflib
 namespace mxflib
 {
 	/******** ENDIAN SWAPPING ********/
-	inline Uint16 Swap(Uint16 Val) 
+	inline UInt16 Swap(UInt16 Val) 
 	{ 
 		if (!littleEndian)
 			return Val;
@@ -296,9 +296,9 @@ namespace mxflib
 			return ((Val & 0xff00) >> 8) | ((Val & 0x00ff) << 8); 
 	};
 
-	inline Int16 Swap(Int16 Val) { return (Int16)Swap((Uint16)Val); }
+	inline Int16 Swap(Int16 Val) { return (Int16)Swap((UInt16)Val); }
 	
-	inline Uint32 Swap(Uint32 Val) 
+	inline UInt32 Swap(UInt32 Val) 
 	{ 
 		if (!littleEndian)
 			return Val;
@@ -308,22 +308,22 @@ namespace mxflib
 			   | ((Val & 0x0000ff00) << 8)
 	           | ((Val & 0x000000ff) << 24) ); 
 	}
-	inline Int32 Swap(Int32 Val) { return (Int32)Swap((Uint32)Val); }
+	inline Int32 Swap(Int32 Val) { return (Int32)Swap((UInt32)Val); }
 
-	inline Uint64 Swap(Uint64 Val) 
+	inline UInt64 Swap(UInt64 Val) 
 	{
 		if (!littleEndian)
 			return Val;
 
-		Uint32 MSW = (Uint32)((Val & 0xffffffff00000000LL) >> 32);
-		Uint32 LSW = (Uint32)(Val & 0x00000000ffffffff);
+		UInt32 MSW = (UInt32)((Val & 0xffffffff00000000LL) >> 32);
+		UInt32 LSW = (UInt32)(Val & 0x00000000ffffffff);
 
 		MSW = Swap(MSW);
 		LSW = Swap(LSW);
 
-		return (((Uint64)LSW) << 32) | ((Uint64)MSW);
+		return (((UInt64)LSW) << 32) | ((UInt64)MSW);
 	}
-	inline Int64 Swap(Int64 Val) { return (Int64)Swap((Uint64)Val); }
+	inline Int64 Swap(Int64 Val) { return (Int64)Swap((UInt64)Val); }
 
 	
 	/******** Int64 Conversion ********/
@@ -337,7 +337,7 @@ namespace mxflib
 		return std::string(Buffer);
 	}
 
-	inline std::string Uint64toString(Uint64 Val)
+	inline std::string UInt64toString(UInt64 Val)
 	{ 
 		char Buffer[32];
 		snprintf(Buffer, sizeof(Buffer) - 1, "%llu", Val);
@@ -372,17 +372,17 @@ namespace mxflib
 	/******** 64-bit file-I/O ********/
 #ifndef MXFLIB_NO_FILE_IO
 	typedef FILE *FileHandle;
-	inline int FileSeek(FileHandle file, Uint64 offset) { return fseeko(file, offset, SEEK_SET); }
+	inline int FileSeek(FileHandle file, UInt64 offset) { return fseeko(file, offset, SEEK_SET); }
 	inline int FileSeekEnd(FileHandle file) { return fseeko(file, 0, SEEK_END); }
-	inline Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size) { return fread(dest, 1, size, file); }
-	inline Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size) { return fwrite(source, 1, size, file); }
-	inline int FileGetc(FileHandle file) { Uint8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
+	inline UInt64 FileRead(FileHandle file, unsigned char *dest, UInt64 size) { return fread(dest, 1, size, file); }
+	inline UInt64 FileWrite(FileHandle file, const unsigned char *source, UInt64 size) { return fwrite(source, 1, size, file); }
+	inline int FileGetc(FileHandle file) { UInt8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return fopen(filename, "r+b" ); }
 	inline FileHandle FileOpenRead(const char *filename) { return fopen(filename, "rb" ); }
 	inline FileHandle FileOpenNew(const char *filename) { return fopen(filename, "w+b"); }
 	inline bool FileValid(FileHandle file) { return (file != NULL); }
 	inline bool FileEof(FileHandle file) { return feof(file); }
-	inline Uint64 FileTell(FileHandle file) { return ftello(file); }
+	inline UInt64 FileTell(FileHandle file) { return ftello(file); }
 	inline void FileClose(FileHandle file) { fclose(file); }
 	inline bool FileExists(const char *filename) { struct stat buf; return stat(filename, &buf) == 0; }
 #endif //MXFLIB_NO_FILE_IO
@@ -403,14 +403,14 @@ namespace mxflib
 
 	/******** UUID Generation ********/
 #ifdef HAVE_UUID_GENERATE
-	inline void MakeUUID(Uint8 *Buffer)
+	inline void MakeUUID(UInt8 *Buffer)
 	{
 		uuid_t u;
 		uuid_generate(u);
 		memcpy(Buffer, &u, sizeof(u));
 	}
 #else // HAVE_UUID_GENERATE
-	inline void MakeUUID(Uint8 *Buffer)
+	inline void MakeUUID(UInt8 *Buffer)
 	{
 		static bool Inited = false;
 		if(!Inited)
@@ -430,7 +430,7 @@ namespace mxflib
 		int i;
 		for(i=0; i<16; i++)
 		{
-			Buffer[i] = (Uint8)rand();
+			Buffer[i] = (UInt8)rand();
 		}
 
 		// Set reserved bits (variant "10" = ISO/IEC 11578)
@@ -471,28 +471,38 @@ namespace mxflib
 /************************************************/
 /************************************************/
 
+// Support old capitalization of unsigned integers
+namespace mxflib
+{
+	typedef UInt8 Uint8;
+	typedef UInt16 Uint16;
+	typedef UInt32 Uint32;
+	typedef UInt64 Uint64;
+	inline std::string Uint64toString(Uint64 Val) { return UInt64toString(Val); }
+}
+
 
 /*****************************************************/
 /*     Declarations for client supplied file-I/O     */
 /*****************************************************/
-// If File-I/O is supplied by the caller FileHandle will be defined as a Uint32
+// If File-I/O is supplied by the caller FileHandle will be defined as a UInt32
 // The caller may need to do something fancy to cope with this
 //
 #ifdef MXFLIB_NO_FILE_IO
 namespace mxflib
 { 
-	typedef Uint32 FileHandle;
-	int FileSeek(FileHandle file, Uint64 offset);
+	typedef UInt32 FileHandle;
+	int FileSeek(FileHandle file, UInt64 offset);
 	int FileSeekEnd(FileHandle file);
-	Uint64 FileRead(FileHandle file, unsigned char *dest, Uint64 size);
-	Uint64 FileWrite(FileHandle file, const unsigned char *source, Uint64 size);
+	UInt64 FileRead(FileHandle file, unsigned char *dest, UInt64 size);
+	UInt64 FileWrite(FileHandle file, const unsigned char *source, UInt64 size);
 	int FileGetc(FileHandle file);
 	FileHandle FileOpen(const char *filename);
 	FileHandle FileOpenRead(const char *filename);
 	FileHandle FileOpenNew(const char *filename);
 	bool FileValid(FileHandle file);
 	bool FileEof(FileHandle file);
-	Uint64 FileTell(FileHandle file);
+	UInt64 FileTell(FileHandle file);
 	void FileClose(FileHandle file);
 	bool FileExists(const char *filename);
 }

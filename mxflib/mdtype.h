@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.3 2004/12/18 20:42:19 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.4 2005/03/25 13:18:12 terabrit Exp $
  *
  */
 /*
@@ -70,6 +70,7 @@ namespace mxflib
 		ARRAYBATCH						//!< A batch with count and size
 	};
 }
+
 
 namespace mxflib
 {
@@ -175,7 +176,7 @@ namespace mxflib
 	class MDType : public RefCount<MDType> , public MDTypeMap
 	{
 	private:
-		std::string Name;				//!< Name of this MDType
+		std::string TypeName;			//!< Name of this MDType
 		MDTypeClass Class;				//!< Class of this MDType
 		MDArrayClass ArrayClass;		//!< Sub-class of array
 		MDTraits *Traits;				//!< Traits for this MDType
@@ -197,7 +198,7 @@ namespace mxflib
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
 		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraits *TypeTraits)
-			: Name(TypeName) , Class(TypeClass) , ArrayClass(ARRAYARRAY) , Traits(TypeTraits) , Endian(false) {};
+			: TypeName(TypeName) , Class(TypeClass) , ArrayClass(ARRAYARRAY) , Traits(TypeTraits) , Endian(false) {};
  
 		//! Prevent auto construction by NOT having an implementation to this constructor
 		MDType();
@@ -243,6 +244,9 @@ namespace mxflib
 		//! ArrayClass access function (get)
 		MDArrayClass GetArrayClass(void) { return ArrayClass; };
 
+		//! Get the name of this type
+		std::string &Name(void) { return TypeName; }
+
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
 	private:
@@ -269,6 +273,9 @@ namespace mxflib
 		//! Set the traits for this type
 		void SetTraits(MDTraits *Tr) { Traits = Tr; };
 
+		//! Access the traits for this type
+		const MDTraits* GetTraits(void) const { return Traits; };
+
 		/* Allow MDValue class to view internals of this class */
 		friend class MDValue;
 	};
@@ -277,32 +284,7 @@ namespace mxflib
 
 namespace mxflib
 {
-	// Forward declare so the class can include pointers to itself
-	class MDValue;
-	class MDValuePtr;
-
-	//! A smart pointer to an MDValue object (with operator[] overloads)
-	class MDValuePtr : public SmartPtr<MDValue>
-	{
-	public:
-		MDValuePtr() : SmartPtr<MDValue>() {};
-//		MDValuePtr(MDValue * ptr) : SmartPtr<MDValue>(ptr) {};
-		MDValuePtr(IRefCount<MDValue> * ptr) : SmartPtr<MDValue>(ptr) {};
-
-		//! Child access operator that overcomes dereferencing problems with SmartPtrs
-		MDValuePtr operator[](int Index);
-
-		//! Child access operator that overcomes dereferencing problems with SmartPtrs
-		MDValuePtr operator[](const std::string ChildName);
-	};
-
-	//! A list of smart pointers to MDValue objects
-	typedef std::list<MDValuePtr> MDValueList;
-
-	//! A list of smart pointers to MDType objects with names
-//	typedef std::pair<MDValuePtr, std::string> MDNamedValue;
-//	typedef std::list<MDNamedValue> MDNamedValueList;
-
+	//! A map of smart pointers to MDValue objects indexed by MapIndex
 	typedef std::map<MapIndex, MDValuePtr> MDValueMap;
 }
 
@@ -342,26 +324,34 @@ namespace mxflib
 
 		void SetInt(Int32 Val) { Type->Traits->SetInt(this, Val); };
 		void SetInt64(Int64 Val) { Type->Traits->SetInt64(this, Val); };
-		void SetUint(Uint32 Val) { Type->Traits->SetUint(this, Val); };
-		void SetUint64(Uint64 Val) { Type->Traits->SetUint64(this, Val); };
+		void SetUInt(Uint32 Val) { Type->Traits->SetUInt(this, Val); };
+		void SetUInt64(Uint64 Val) { Type->Traits->SetUInt64(this, Val); };
+		void SetUint(Uint32 Val) { Type->Traits->SetUInt(this, Val); };
+		void SetUint64(Uint64 Val) { Type->Traits->SetUInt64(this, Val); };
 		void SetString(std::string Val)	{ Type->Traits->SetString(this, Val); };
 		Int32 GetInt(void) { return Type->Traits->GetInt(this); };
 		Int64 GetInt64(void) { return Type->Traits->GetInt64(this); };
-		Uint32 GetUint(void) { return Type->Traits->GetUint(this); };
-		Uint64 GetUint64(void) { return Type->Traits->GetUint64(this); };
+		Uint32 GetUInt(void) { return Type->Traits->GetUInt(this); };
+		Uint64 GetUInt64(void) { return Type->Traits->GetUInt64(this); };
+		Uint32 GetUint(void) { return Type->Traits->GetUInt(this); };
+		Uint64 GetUint64(void) { return Type->Traits->GetUInt64(this); };
 		std::string GetString(void)	{ return Type->Traits->GetString(this); };
 
 		// Child value access
 		// DRAGONS: May need to add code to check inside "optimised" compounds
 		Int32 GetInt(const char *ChildName, Int32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt(); else return Default; };
 		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt64(); else return Default; };
-		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint(); else return Default; };
-		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUint64(); else return Default; };
+		Uint32 GetUInt(const char *ChildName, Uint32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt(); else return Default; };
+		Uint64 GetUInt64(const char *ChildName, Uint64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt64(); else return Default; };
+		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt(); else return Default; };
+		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt64(); else return Default; };
 		std::string GetString(const char *ChildName, std::string Default = "") { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetString(); else return Default; };
 		void SetInt(const char *ChildName, Int32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt(Val); };
 		void SetInt64(const char *ChildName, Int64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt64(Val); };
-		void SetUint(const char *ChildName, Uint32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint(Val); };
-		void SetUint64(const char *ChildName, Uint64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUint64(Val); };
+		void SetUInt(const char *ChildName, Uint32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt(Val); };
+		void SetUInt64(const char *ChildName, Uint64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
+		void SetUint(const char *ChildName, Uint32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt(Val); };
+		void SetUint64(const char *ChildName, Uint64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
 		void SetString(const char *ChildName, std::string Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetString(Val); };
 		
 		void ReadValue(const char *ChildName, const DataChunk &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
@@ -391,7 +381,7 @@ namespace mxflib
 		};
 
 		// Report the name of this item (the name of its type)
-		std::string Name(void) { ASSERT(Type); return Type->Name; };
+		std::string &Name(void) { ASSERT(Type); return Type->TypeName; };
 
 		// Type access function
 		MDTypePtr GetType(void) { return Type; };

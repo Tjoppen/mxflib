@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.5 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.6 2005/03/25 13:18:12 terabrit Exp $
  *
  */
 /*
@@ -440,4 +440,223 @@ bool mxflib::IsPartitionKey(const Uint8 *Key)
 
 	return false;
 }
+
+
+//! Does a given std::string contain a "wide" string in UTF8?
+/*! \note This currently only checks if any bytes contain >127 so it is only safe to test strings that are either 7-bit ASCII or UTF-8 */
+bool mxflib::IsWideString(std::string &String)
+{
+	int Len = String.size();
+	char *Buffer = new char[Len];
+	memcpy(Buffer, String.c_str(), Len);
+
+	// Look for any bytes > 127
+	int i;
+	char *p = Buffer;
+	for(i=0; i<Len; i++) 
+	{
+		if((*p++) & 0x80)
+		{
+			delete[] Buffer;
+			return true;
+		}
+	}
+	delete[] Buffer;
+	return false;
+}
+
+
+//! Read hex values separated by any of 'Sep'
+/*! /ret number of values read */
+int mxflib::ReadHexString(const char **Source, int Max, Uint8 *Dest, const char *Sep)
+{
+	/* Note - Pointer to pointer used for Source
+	**		  This allows the caller's pointer to be updated to
+	**		  point to the first character after the hex string
+	**
+	**		  **Source = character value in input data
+	**		  *Source  = pointer to source data
+	*/
+
+	int Count = 0;
+	Uint8 current = 0;
+	int Started = 0;
+
+	/* Skip leading whitespace (Abort if end of string) */
+	while((**Source==' ') || (**Source=='\t'))
+	{
+		if((**Source)=='\0') return 0;
+		(*Source)++;
+	}
+
+	while(**Source != 0)
+	{
+		char c = **Source;
+
+		if((c>='0') && (c<='9'))
+		{
+			/* Update current value with next hex digit */
+			current *= 16;
+			current += (c - '0');
+			Started = 1;
+		}
+		else if((c>='a') && (c<='f'))
+		{
+			/* Update current value with next hex digit */
+			current *= 16;
+			current += (c - 'a') + 10;
+			Started = 1;
+		}
+		else if((c>='A') && (c<='F'))
+		{
+			/* Update current value with next hex digit */
+			current *= 16;
+			current += (c - 'A') + 10;
+			Started = 1;
+		}
+		else
+		{
+			int separator = 0;
+			const char *p = Sep;
+			
+			if(p == NULL)
+			{
+				if((c==' ') || (c=='\t')) separator = 1;
+			}
+			else
+			{
+				while(*p)
+				{
+					if(*(p++)) 
+					{
+						separator = 1;
+						break;
+					}
+				}
+			}
+
+			/* Valid separator found? */
+			if(separator)
+			{
+				/* Update the output data if not full */
+				if(Started && (Count <= Max))
+				{
+					*Dest++ = current;
+					Count++;
+				}
+
+				/* Reset current value */
+				current = 0;
+				Started = 0;
+			}
+			else
+			{
+				/* Run out of valid characters - exit loop */
+				break;
+			}
+		}
+
+		/* Move to next character */
+		(*Source)++;
+	}
+	
+	/* Update the output data with last value      */
+	/* If we are working on one and there is space */
+	if(Started)
+	{
+		if(Count <= Max)
+		{
+			*Dest++ = current;
+			Count++;
+		}
+	}
+
+	return Count;
+}
+
+
+/*
+//! Safe printf
+
+inline std::string SafePrintf(const char *Fmt, ...)
+{
+	va_list args;
+	va_start(args, Fmt);
+	std::string Ret = SafePrintfInternal(Fmt, args);
+	va_end(args);
+}
+*/
+//! Safe printf
+/*! \note This implementation assumes that adding single characters to a std::string is efficient
+*/
+/*
+std::string mxflib::SafePrintf(const char *Fmt, va_list args)
+{
+	std::string Ret;
+
+	while(*Fmt)
+	{
+		if(ParsingPhase == ParsingFlag)
+		{
+			switch(*Fmt)
+			{
+			case '-':
+				Flag |= FlagMinus;
+				break;
+			case '+':
+				Flag |= FlagPlus;
+				break;
+			case '0':
+				Flag |= FlagZero;
+				break;
+			case ' ':
+				Flag |= FlagBlank;
+				break;
+			case '#':
+				Flag |= FlagHash;
+				break;
+			case '.':
+				ParsingPhase = ParsingPrecision;
+				break;
+
+			default:
+				if((*Fmt < '0') || (*Fmt > '9'))
+				{
+					ParsingPhase = ParsingType;
+					continue;
+				}
+
+				// Not a valid argument so we flip back to non-parsing
+				ParsingPhase = ParsingIdle;
+				continue;
+			}
+		}
+		else
+		{
+			// Parsing starts on '%' but not "%%"
+			if((*Fmt == '%') && (Fmt[1] != '%'))
+			{
+				ParsingItem = ParsingFlag;
+
+				Flags = 0;
+				Width = 0;
+				Precision = 0;
+				
+				Fmt++;
+				continue;
+			}
+
+			// Add any non-field characters to the output string
+			Ret += *Fmt;
+
+			// If we are processing "%%" skip an extra byte
+			if(*Fmt == '%') Fmt++;
+		}
+
+		Fmt++;
+	}
+
+	return Ret;
+}
+*/
 
