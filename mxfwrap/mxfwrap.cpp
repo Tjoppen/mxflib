@@ -877,7 +877,7 @@ int Process(	int OutFileNum,
 	//          otherwise covered under the MXF Generic Container node" to all MXF files!!
 
 	// REMOVED: // Assume we are doing GC
-	// REMOVED: ULPtr GCUL = new UL( mxflib::MDGC_Data );
+	// REMOVED: ULPtr GCUL = new UL( mxflib::GCMulti_Data );
 	// REMOVED: MData->AddEssenceType( GCUL );
 
 	// DMStiny
@@ -1106,11 +1106,12 @@ int Process(	int OutFileNum,
 					MuxDescriptor->AddChild("SampleRate")->SetInt("Numerator",(*WrapCfgList_it)->EssenceDescriptor["SampleRate"]->GetInt("Numerator"));
 					MuxDescriptor->AddChild("SampleRate")->SetInt("Denominator",(*WrapCfgList_it)->EssenceDescriptor["SampleRate"]->GetInt("Denominator"));
 
-					MuxDescriptor->AddChild("EssenceContainer",false)->SetValue(DataChunk(16,mxflib::MDGC_Data));
+					MuxDescriptor->AddChild("EssenceContainer",false)->SetValue(DataChunk(16,mxflib::GCMulti_Data));
 
 					MuxDescriptor->AddChild("SubDescriptorUIDs");
 					FilePackage->AddChild("Descriptor")->MakeLink(MuxDescriptor);
 			}
+
 			// Write a SubDescriptor
 			(*WrapCfgList_it)->EssenceDescriptor->SetUint("LinkedTrackID", FPTrack[iTrack]->GetUint("TrackID"));
 			

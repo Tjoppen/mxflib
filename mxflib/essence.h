@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: essence.h,v 1.2 2004/04/26 20:01:51 matt-beard Exp $
  *
  */
 /*
@@ -77,7 +77,7 @@ namespace mxflib
 namespace mxflib
 {
 	//! Default "Multiple Essence Types in the Generic Container" Label
-	const Uint8 MDGC_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x03, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x7F, 0x01, 0x00 };
+	const Uint8 GCMulti_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x03, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x7F, 0x01, 0x00 };
 }
 
 
