@@ -30,17 +30,17 @@
 //! Namespace for all MXFLib items
 namespace mxflib {}
 
-#include "system.h"
+#include "mxfsystem.h"
 
 #include "debug.h"
 
 #include "forward.h"
 
-#include "endian.h"
+#include "mxfendian.h"
 
 #include "smartptr.h"
 
-#include "types.h"
+#include "mxftypes.h"
 
 #include "helper.h"
 
@@ -68,4 +68,4 @@ namespace mxflib {}
 #include "esp_wavepcm.h"
 #include "esp_dvdif.h"
 
-#endif MXFLIB__MXFLIB_H
+#endif // MXFLIB__MXFLIB_H
