@@ -1,7 +1,7 @@
 /*! \file	mdtraits.h
  *	\brief	Definition of traits for MDType definitions
  *
- *	\version $Id: mdtraits.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdtraits.h,v 1.1.2.1 2004/06/14 18:07:37 matt-beard Exp $
  *
  */
 /*
@@ -39,6 +39,26 @@ namespace mxflib
 
 	//! A list of smart pointers to MDTraits objects
 	typedef std::list<MDTraitsPtr> MDTraitsList;
+}
+
+
+namespace mxflib
+{
+	//! Soft limit for strings returned by MDTraits
+	/*! \note This is a soft limit in that it is not enforced strictly.
+	 *        It is possible for string values to be returned that are longer than this value, but where
+	 *		  the string is built by several passes around a loop that loop should exit once this value
+	 *		  has been reached
+	 *
+     * TODO: Apply this limit to everywhere it is required!!
+	 */
+	extern Uint32 MDTraits_StringLimit;
+
+	//! Set the string size soft limit
+	inline void SetStringLimit(Uint32 StringLimit) { MDTraits_StringLimit = StringLimit; }
+
+	//! Get the current string size soft limit
+	inline Uint32 GetStringLimit(void) { return MDTraits_StringLimit; }
 }
 
 

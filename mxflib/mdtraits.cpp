@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdtraits.cpp,v 1.1.2.1 2004/06/14 18:07:37 matt-beard Exp $
  *
  */
 /*
@@ -34,6 +34,17 @@ using namespace mxflib;
 
 // Standard library includes
 #include <stdexcept>
+
+//! Soft limit for strings returned by MDTraits - Defaults to 10k
+/*! \note This is a soft limit in that it is not enforced strictly.
+ *        It is possible for string values to be returned that are longer than this value, but where
+ *	      the string is built by several passes around a loop that loop should exit once this value
+ *	      has been reached. The MDTrait may return a short text string to indicate that the limit
+ *        would be exceeded by a full version (e.g. "Data exceeds <limit> bytes") or it may add
+ *        an indication that the limit has been reached (e.g. "01 23 45 67 ..." for a very short limit).
+ *        It is also permissable to simply stop at the limit (e.g. "A very long stri")
+ */
+Uint32 mxflib::MDTraits_StringLimit = 10240;
 
 
 // Default trait implementations
@@ -945,6 +956,14 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 {
 	std::string Ret;
 
+	if( Object->size() > GetStringLimit() )
+	{
+		char Buffer[32];
+		sprintf( Buffer, "RAW[0x%08x]", Object->size() );
+		Ret = Buffer;
+		return Ret;
+	}
+
 	MDValue::iterator it;
 
 	Ret = "";
@@ -965,7 +984,7 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 		if(Size == 1) sprintf(Buffer, "%02x", (*it).second->GetUint());
 		else if(Size == 2) sprintf(Buffer, "%04x", (*it).second->GetUint());
 		else if(Size == 4) sprintf(Buffer, "%08x", (*it).second->GetUint());
-		else if(Size == 8) ASSERT(0);		// DRAGONS: We need a 64-bit hex print function!
+		else if(Size == 8) strcpy( Buffer, Int64toHexString((*it).second->GetUint64(), 8).c_str() );
 		else
 		{
 			// Non-standard size!
