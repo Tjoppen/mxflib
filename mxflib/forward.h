@@ -1,7 +1,7 @@
 /*! \file	forward.h
  *	\brief	Various forward declarations
  *
- *	\version $Id: forward.h,v 1.1.2.1 2004/05/26 18:09:14 matt-beard Exp $
+ *	\version $Id: forward.h,v 1.1.2.2 2004/06/26 17:45:49 matt-beard Exp $
  *
  */
 /*
@@ -39,10 +39,6 @@
 
 namespace mxflib 
 {
-	class DataChunk;
-	typedef SmartPtr<DataChunk> DataChunkPtr;				//!< A smart pointer to a DataChunk object
-	typedef std::list<DataChunkPtr> DataChunkList;			//!< A list of smart pointers to DataChunk objects
-
 	class MXFFile;
 	typedef SmartPtr<MXFFile> MXFFilePtr;					//!< A smart pointer to an MXFFile object
 
