@@ -31,7 +31,7 @@
 #define MXFLIB__DEBUG_H
 
 //! Define this value here, or on the compiler command line to enable debug() function
-//#define MXFLIB_DEBUG
+#define MXFLIB_DEBUG
 
 namespace mxflib
 {
