@@ -54,8 +54,8 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 		if((Buffer[8] != 'A') || (Buffer[9] != 'V') || (Buffer[10] != 'I') || (Buffer[11] != ' ')) return Ret;
 
 		// So its an AVI file.. but what type?
-		const int ID_LIST = 0x4B495354;		//! "LIST"
-		const int ID_hdrl = 0x6864726b;		//! "hdrl"
+		const unsigned int ID_LIST = 0x4B495354;		//! "LIST"
+		const unsigned int ID_hdrl = 0x6864726b;		//! "hdrl"
 		
 		FileSeek(InFile, 12);
 		U32Pair Header = ReadRIFFHeader(InFile);
@@ -76,8 +76,8 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 		// Find the "strl" entry
 		while(ListSize > 0)
 		{
-			const int ID_strl = 0x7374726b;		//! "strl"
-			const int ID_strh = 0x73747268;		//! "strh"
+			const unsigned int ID_strl = 0x7374726b;		//! "strl"
+			const unsigned int ID_strh = 0x73747268;		//! "strh"
 
 			U32Pair Header = ReadRIFFHeader(InFile);
 			ListSize -= 8;
@@ -166,7 +166,8 @@ printf("NOTE: We have a valid DV-DIF file!\n");
 
 	// Check the size (assume the entire file is DIF data)
 	DIFStart = 0;
-	DIFEnd = FileSeekEnd(InFile);
+	FileSeekEnd(InFile);
+	DIFEnd = FileTell(InFile);
 
 	// Build a descriptor with a zero ID (we only support single stream files)
 	EssenceStreamDescriptor Descriptor;
@@ -254,7 +255,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	ClipWrap->Handler = this;							// Set us as the handler
 	ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video data";
 
-	BaseUL[16] = 0x02;									// Clip wrapping
+	BaseUL[15] = 0x02;									// Clip wrapping
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	ClipWrap->GCEssenceType = 0x18;						// GC Compound wrapping type
 	ClipWrap->GCElementType = 0x02;						// Clip wrapped picture elemenet
@@ -268,7 +269,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	FrameWrap->Handler = this;							// Set us as the handler
 	FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video data";
 
-	BaseUL[16] = 0x01;									// Frame wrapping
+	BaseUL[15] = 0x01;									// Frame wrapping
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	FrameWrap->GCEssenceType = 0x18;					// GC Compound wrapping type
 	FrameWrap->GCElementType = 0x01;					// Frame wrapped picture elemenet
@@ -334,7 +335,7 @@ bool DV_DIF_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
 	double Ratio = FloatNative / FloatUse;
 	if(Ratio == floor(Ratio))
 	{
-		EditRatio = unsigned int(Ratio);
+		EditRatio = (unsigned int)(Ratio);
 		return true;
 	}
 
@@ -356,7 +357,7 @@ DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uin
 
 	// Read the data
 	return FileReadChunk(InFile, Bytes);
-};
+}
 
 
 //! Write a number of wrapping items from the specified stream to an MXF file
@@ -369,7 +370,7 @@ DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uin
  */
 Uint64 DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/, IndexTablePtr Index /*=NULL*/)
 {
-	const int BUFFERSIZE = 32768;
+	const unsigned int BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
@@ -378,7 +379,7 @@ Uint64 DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFileP
 
 	while(Bytes)
 	{
-		int ChunkSize;
+		Uint64 ChunkSize;
 		
 		// Number of bytes to transfer in this chunk
 		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
@@ -509,7 +510,7 @@ Uint64 DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, U
 	// Simple version - we are working in our native edit rate
 	if((SelectedEditRate.Denominator == NativeEditRate.Denominator) && (SelectedEditRate.Numerator = NativeEditRate.Numerator))
 	{
-printf("Reading %d bytes at %d:0x%08x\n",(150 * 80 * Count), PictureNumber, (150 * 80 * PictureNumber));
+printf("Reading %llu bytes at %llu:0x%08llx\n",(150 * 80 * Count), PictureNumber, (150 * 80 * PictureNumber));
 
 		// Seek to the data position
 		FileSeek(InFile, DIFStart + (150 * 80 * PictureNumber));
@@ -521,7 +522,7 @@ printf("Reading %d bytes at %d:0x%08x\n",(150 * 80 * Count), PictureNumber, (150
 
 	error("Non-native edit rate not yet supported\n");
 	return 0;
-};
+}
 
 
 //! Get a byte from the current stream
