@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.11 2004/10/10 18:30:27 terabrit Exp $
+ *	\version $Id: essence.h,v 1.2.2.12 2004/10/19 16:59:29 matt-beard Exp $
  *
  */
 /*
@@ -227,10 +227,10 @@ namespace mxflib
 		void AddSystemData(GCStreamID ID, DataChunkPtr Chunk) { AddSystemData(ID, Chunk->Size, Chunk->Data); }
 
 		//! Add encrypted system item data to the current CP
-		void AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data, UUIDPtr ContextID, Uint64 PlaintextOffset = 0);
+		void AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data, UUIDPtr ContextID, Length PlaintextOffset = 0);
 		
 		//! Add encrypted system item data to the current CP
-		void AddSystemData(GCStreamID ID, DataChunkPtr Chunk, UUIDPtr ContextID, Uint64 PlaintextOffset = 0) { AddSystemData(ID, Chunk->Size, Chunk->Data, ContextID, PlaintextOffset); }
+		void AddSystemData(GCStreamID ID, DataChunkPtr Chunk, UUIDPtr ContextID, Length PlaintextOffset = 0) { AddSystemData(ID, Chunk->Size, Chunk->Data, ContextID, PlaintextOffset); }
 
 		//! Add essence data to the current CP
 		void AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data);
@@ -242,13 +242,13 @@ namespace mxflib
 		void AddEssenceData(GCStreamID ID, EssenceSource* Source);
 
 		//! Add encrypted essence data to the current CP
-		void AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data, UUIDPtr ContextID, Uint64 PlaintextOffset = 0);
+		void AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data, UUIDPtr ContextID, Length PlaintextOffset = 0);
 		
 		//! Add encrypted essence data to the current CP
-		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk, UUIDPtr ContextID, Uint64 PlaintextOffset = 0)  { AddEssenceData(ID, Chunk->Size, Chunk->Data, ContextID, PlaintextOffset); }
+		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk, UUIDPtr ContextID, Length PlaintextOffset = 0)  { AddEssenceData(ID, Chunk->Size, Chunk->Data, ContextID, PlaintextOffset); }
 
 		//! Add encrypted essence data to the current CP
-		void AddEssenceData(GCStreamID ID, EssenceSource* Source, UUIDPtr ContextID, Uint64 PlaintextOffset = 0);
+		void AddEssenceData(GCStreamID ID, EssenceSource* Source, UUIDPtr ContextID, Length PlaintextOffset = 0);
 
 		//! Add an essence item to the current CP with the essence to be read from a KLVObject
 		void AddEssenceData(GCStreamID ID, KLVObjectPtr Source);
