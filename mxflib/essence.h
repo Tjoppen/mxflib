@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.9 2004/09/06 00:08:13 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.10 2004/09/06 01:02:36 matt-beard Exp $
  *
  */
 /*
@@ -50,7 +50,7 @@ namespace mxflib
 {
 	//! Abstract super-class for objects that supply large quantities of essence data
 	/*! This is used when clip-wrapping to prevent large quantities of data being loaded into memory 
-	/*! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
+	 *! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
 	 */
 	class EssenceSource : RefCount<EssenceSource>
 	{
@@ -875,7 +875,7 @@ namespace mxflib
 
 		//! Force a KLVObject to be handled
 		/*! \note This is not the normal way that the GCReader is used, but allows the encryption handler
-		/*        to push the decrypted data back to the GCReader to pass to the appropriate handler
+		 *        to push the decrypted data back to the GCReader to pass to the appropriate handler
 		 *  \return true if all OK, false on error 
 		 */
 		bool HandleData(KLVObjectPtr Object);
@@ -1325,7 +1325,7 @@ namespace mxflib
 		 *  Any associated metadata will be written for the header and if the handler (called just before the write) requests it.
 		 *  \note The original object given will be modified - not a copy of it
 		 */
-		bool SetPartition(PartitionPtr &ThePartition) { BasePartition = ThePartition; }
+		void SetPartition(PartitionPtr &ThePartition) { BasePartition = ThePartition; }
 
 		//! Get a pointer to the current template partition pack
 		PartitionPtr GetPartition(void) { return BasePartition; }
