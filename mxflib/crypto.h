@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.1.2.9 2004/10/19 16:40:18 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.1.2.10 2004/11/07 19:54:41 matt-beard Exp $
  *
  */
 /*
@@ -479,9 +479,23 @@ namespace mxflib
 		Length WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Length Size);
 	};
 
-	// Smart pointer to a KLVEObject (callot point to KLVObjects)
-	typedef SmartPtr<KLVEObject> KLVEObjectPtr;
+	//! Smart pointer to a KLVEObject (cannot point to KLVObjects)
+	/*! This is required to be a class rather than a typedef to allow casting of the RefCount pointers.
+	 *	KLVEObject is derived from KLVObject which holds the reference counter, so pointer calls requiring a pointer
+	 *  to the reference count object need to be <i>adjusted</i>
+	 */
+	class KLVEObjectPtr : public SmartPtr<KLVEObject>
+	{
+	public:
+		//! Construct a NULL KLVEObjectPtr
+		KLVEObjectPtr() : SmartPtr<KLVEObject>() {}
 
+		//! Construct a KLVEObjectPtr initialized to point to an existing object
+		KLVEObjectPtr(IRefCount<KLVObject> * ptr) : SmartPtr<KLVEObject>((IRefCount<KLVEObject>*)ptr) {};
+
+		//! Assign pointer or NULL
+		KLVEObjectPtr & operator = (IRefCount<KLVObject> * ptr) {__Assign((IRefCount<KLVEObject>*)ptr); return *this;}
+	};
 }
 
 
