@@ -4,4 +4,4 @@ bin_PROGRAMS = mxfdump
 
 mxfdump_SOURCES = mxfdump.cpp
 
-LDADD = -L../mxflib -lmxf $(UUIDLIB)
+LDADD = ../mxflib/libmxf.a $(UUIDLIB)
