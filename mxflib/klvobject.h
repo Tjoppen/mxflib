@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.1.2.7 2004/07/05 14:48:48 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.1.2.8 2004/08/18 18:25:17 matt-beard Exp $
  *
  */
 /*
@@ -142,15 +142,43 @@ namespace mxflib
 	class KLVObject : public RefCount<KLVObject>
 	{
 	protected:
-		Int32 KLSize;						//!< Size of this object's KL if read from file or memory buffer
-		Int32 DestKLSize;					//!< Size of this object's KL as written to the destination file (or -1 if not yet written)
-		MXFFilePtr SourceFile;				//!< Pointer to source file if read from a file
-		Position SourceOffset;				//!< The position of the first byte of the <b>key</b> as an offset into the source file (-1 if not available)
-		MXFFilePtr DestFile;				//!< Pointer to destination file if to be written to a file
-		Position DestOffset;				//!< The position of the first byte of the <b>key</b> as an offset into the destination file (-1 if not available)
+		class KLVInfo
+		{
+		private:
+			KLVInfo(KLVInfo &);				//!< Prevent copy-construction
+
+		public:
+			MXFFilePtr File;				//!< Source or destination file
+			Position Offset;				//!< Offset of the first byte of the <b>key</b> as an offset into the file (-1 if not available)
+			Length OuterLength;				//!< The length of the entire readable value space - in basic KLV types this is always ValueLength, derived types may add some hidden overhead
+			Int32 KLSize;					//!< Size of this object's KL in the source or destination file (-1 if not known)
+			bool Valid;						//!< Set to true once the data is "set"
+
+			KLVInfo()
+			{
+				Valid = false;
+				Offset = -1;
+				OuterLength = 0;
+				KLSize = -1;
+			}
+			
+			KLVInfo &operator=(const KLVInfo &RHS)
+			{
+				Valid = RHS.Valid;
+				File = RHS.File;
+				Offset = RHS.Offset;
+				OuterLength = RHS.OuterLength;
+				KLSize = RHS.KLSize;
+
+				return *this;
+			}
+		};
+
+		KLVInfo Source;						//!< Info on the source file
+		KLVInfo Dest;						//!< Info on the destination file
+
 		ULPtr TheUL;						//!< The UL for this object (if known)
 		Length ValueLength;					//!< Length of the value field
-		Length OuterLength;					//!< The length of the entire readable value space - in basic KLV types this is always ValueLength, derived types may add some hidden overhead
 
 		DataChunk Data;						//!< The raw data for this item (if available)
 		Position DataBase;					//!< The offset of the first byte in the DataChunk from the start of the KLV value field
@@ -174,15 +202,15 @@ namespace mxflib
 		 */
 		virtual void SetSource(MXFFilePtr File, Position Location = -1)
 		{
-			SourceFile = File;
-			if(Location < 0) SourceOffset = File->Tell();
-			else SourceOffset = Location;
+			Source.Valid = true;
+			Source.File = File;
+			if(Location < 0) Source.Offset = File->Tell();
+			else Source.Offset = Location;
 
 			// If we don't have a destination file assume it is the same as the source file
-			if(!DestFile)
+			if(!Dest.Valid)
 			{
-				DestFile = File;
-				DestOffset = SourceOffset;
+				Dest = Source;
 			}
 		}
 
@@ -192,10 +220,11 @@ namespace mxflib
 		 */
 		virtual void SetDestination(MXFFilePtr File, Position Location = -1)
 		{
-			DestFile = File;
+			Dest.Valid = true;
+			Dest.File = File;
 
-			if(Location < 0) DestOffset = File->Tell();
-			else DestOffset = Location;
+			if(Location < 0) Dest.Offset = File->Tell();
+			else Dest.Offset = Location;
 		}
 
 		//! Get the object's UL
@@ -205,7 +234,7 @@ namespace mxflib
 		virtual void SetUL(ULPtr NewUL) { TheUL = NewUL; }
 
 		//! Get the location within the ultimate parent
-		virtual Position GetLocation(void) { return SourceOffset; }
+		virtual Position GetLocation(void) { return Source.Offset; }
 
 		//! Get text that describes where this item came from
 		virtual std::string GetSource(void);
@@ -213,15 +242,17 @@ namespace mxflib
 		//! Get text that describes exactly where this item came from
 		std::string GetSourceLocation(void) 
 		{
-			if(!SourceFile) return std::string("KLVObject created in memory");
+			if(!Source.File) return std::string("KLVObject created in memory");
 			return std::string("0x") + Int64toHexString(GetLocation(),8) + std::string(" in ") + GetSource();
 		}
 
 		//! Get the size of the key and length (not of the value)
-		virtual Int32 GetKLSize(void) { return KLSize; }
+		virtual Int32 GetKLSize(void) { return Source.KLSize >= 0 ? Source.KLSize : Dest.KLSize; }
 
 		//! Set the size of the key and length (not of the value)
-		virtual void SetKLSize(Int32 NewKLSize) { KLSize = NewKLSize; }
+		/*! This will be used when writing to the destination (if possible) - you cannot change the "source" KLSize 
+		 */
+		virtual void SetKLSize(Int32 NewKLSize) { Dest.KLSize = NewKLSize; }
 
 		//! Get a GCElementKind structure
 		virtual GCElementKind GetGCElementKind(void) { return mxflib::GetGCElementKind(TheUL); }
@@ -340,7 +371,7 @@ namespace mxflib
 		 *  \note As there may be a need for the implementation to know where within the value field
 		 *        this data lives, there is no WriteData(Buffer, Size) function.
 		 */
-		virtual Length WriteDataTo(Uint8 *Buffer, Position Offset, Length Size) { return Base_WriteDataTo(Buffer, Offset, Size); }
+		virtual Length WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size) { return Base_WriteDataTo(Buffer, Offset, Size); }
 
 		//! Base verion: Write data from a given buffer to a given location in the destination file
 		/*! \param Buffer Pointer to data to be written
@@ -352,7 +383,7 @@ namespace mxflib
 		 *           It is therefore vital that the function does not call any "virtual" KLVObject
 		 *           functions, directly or indirectly.
 		 */
-		Length Base_WriteDataTo(Uint8 *Buffer, Position Offset, Length Size);
+		Length Base_WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size);
 
 
 		//! Set a handler to supply data when a read is performed
@@ -369,7 +400,7 @@ namespace mxflib
 		virtual Length GetLength(void) { return ValueLength; }
 
 		//! Set the length of the value field
-		virtual void SetLength(Length NewLength) { ValueLength = OuterLength = NewLength; }
+		virtual void SetLength(Length NewLength) { ValueLength = Dest.OuterLength = Source.OuterLength = NewLength; }
 
 		//! Get a reference to the data chunk
 		virtual DataChunk& GetData(void) { return Data; }
