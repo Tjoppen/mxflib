@@ -18,16 +18,6 @@ if test "$CXX" = "g++"; then
 	esac
 fi
 
-
-# Checks for libraries.
-# FIXME: Replace `main' with a function in `-lmxf':
-AC_CHECK_LIB([mxf], [LoadTypes])
-UUIDLIB=""
-AC_CHECK_HEADER([uuid/uuid.h],
-			[AC_CHECK_LIB(uuid, uuid_generate, 
-				[AC_DEFINE([HAVE_UUID_GENERATE], 1, [ Have uuid_generate])
-				have_libuuid=yes UUIDLIB="-luuid" ], [have_libuuid=no])])
-
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([fcntl.h stdlib.h string.h sys/time.h sys/timeb.h])
@@ -46,6 +36,15 @@ AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([floor gettimeofday memmove memset strcasecmp strerror strtoul])
 
+# Checks for libraries needed by MXFlib.
+UUIDLIB=""
+AC_CHECK_HEADER([uuid/uuid.h],
+		[AC_CHECK_LIB(uuid, uuid_generate, 
+				[AC_DEFINE([HAVE_UUID_GENERATE], 1, [ Have uuid_generate])
+				have_libuuid=yes UUIDLIB="-luuid" ], [have_libuuid=no])])
+# Under _WIN32 AC_CHECK_LIB is not reliable (you get false negatives)
+AC_CHECK_HEADER([windows.h], [UUIDLIB="-lole32"])
+
 # Check for doxygen (needed for building docs)
 AC_CHECK_PROG(HAVE_DOXYGEN, doxygen, true, false)
 if test $HAVE_DOXYGEN = "false"; then
@@ -54,7 +53,7 @@ fi
 AM_CONDITIONAL(HAVE_DOXYGEN, $HAVE_DOXYGEN)
 
 DEFAULT_INCLUDES=""
-CXXFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DDATADIR=\\\"\$(datadir)/mxflib\\\" -g -Wall"
+CXXFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DMXFDATADIR=\\\"\$(datadir)/mxflib\\\" -g -Wall"
 AC_SUBST(UUIDLIB)
 AC_SUBST(DEFAULT_INCLUDES)
 AC_SUBST(CXXFLAGS)
