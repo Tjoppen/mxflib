@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: index.cpp,v 1.1.2.1 2004/06/14 17:53:03 matt-beard Exp $
  *
  */
 /*
@@ -1029,7 +1029,7 @@ IndexManager::IndexManager(int PosTableIndex, Uint32 ElementSize)
 
 
 //! Add a sub-stream
-/*! \ret Sub-stream ID or 0 if error */
+/*! \return Sub-stream ID or 0 if error */
 int IndexManager::AddSubStream(int PosTableIndex, Uint32 ElementSize)
 {
 	// If we have finalised the format we can't add a new stream
