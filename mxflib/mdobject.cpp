@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdobject.cpp,v 1.2 2004/04/26 18:28:29 asuraparaju Exp $
  *
  */
 /*
@@ -33,10 +33,10 @@
  */
 
 #include <mxflib/mxflib.h>
+#include <mxflib/helper.h>
 #include <mxflib/sopsax.h>
 
 #include <stdarg.h>
-#define PATH_MAX            512
 
 using namespace mxflib;
 
@@ -1686,32 +1686,17 @@ void MDOType::LoadDict(const char *DictFile)
 		(fatalErrorSAXFunc) SAX_fatalError,			/* fatalError */
 	};
 
-	// look for the file in well-known places
-	char path[PATH_MAX];
-	FILE* dict;
-	strcpy( path, DictFile );
-	if( NULL!=(dict=fopen( path, "rb" ))) fclose( dict ); // found as given
-	else
+	char *xmlFilePath = lookupDataFilePath(DictFile);
+	
+	// Parse the file
+	bool result = sopSAXParseFile(&SAXHandler, &State, xmlFilePath);
+	if (xmlFilePath)
+		delete [] xmlFilePath;
+	if (! result)
 	{
-		strcpy( path, "/usr/share/mxflib/" );
-		strcat( path, DictFile );
-		if( NULL!=(dict=fopen( path, "rb" ))) fclose( dict );	// found in /usr/share/mxflib
-																// Win32, will be on same drive as local
-		else
-		{
-			char* p=getenv("MXFLIB_DICT_PATH" );
-			if( NULL==p ) p="/";
-			strcpy( path, p );
-			char term = path[strlen(path)-1];
-			if( '/'!=term && '\\'!=term && ':'!=term ) strcat( path, "/" );
-			strcat( path, DictFile );
-			if( NULL!=(dict=fopen( path, "rb" ))) fclose( dict );	// found in environment path
-
-			else { error( "Dictionary file ", DictFile, " not found" ); }
-		}
+		error("sopSAXParseFile failed for %s\n", DictFile);
+		exit(1);
 	}
-
-	sopSAXParseFile(&SAXHandler, &State, path);
 
 	// If "Unknown" is not yet defined - define it
 	MDOTypePtr Type = MDOType::Find("Unknown");
