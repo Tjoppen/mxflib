@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.1.2.6 2004/11/09 15:15:41 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.1.2.7 2004/11/11 09:14:09 matt-beard Exp $
  *
  */
 /*
@@ -114,7 +114,7 @@ namespace mxflib
 		TrackParent(IRefCount<Track> * ptr) : ParentPtr<Track>(ptr) {}
 
 		//! Set value from a TrackPtr
-		TrackParent & operator=(const TrackPtr &sp) { __Assign((IRefCount<Track> *)sp.GetPtr()); return *this;}
+		TrackParent & operator=(const TrackPtr &sp) { __Assign(sp.GetRef()); return *this;}
 
 		//! Set value from a Track*
 		TrackParent & operator=(IRefCount<Track> *ptr) { __Assign(ptr); return *this;}
@@ -316,9 +316,10 @@ namespace mxflib
 	//! Holds data relating to a track
 	class Track : public ObjectInterface, public RefCount<Track>
 	{
-	protected:
+	public:
 		ComponentList Components;				//!< Each component on this track
 
+	protected:
 		PackageParent Parent;					//!< Package containing this track
 
 		//! Protected constructor used to create from an existing MDObject
@@ -374,8 +375,10 @@ namespace mxflib
 	/*! FIXME: There is currently no way to remove a track from a package */
 	class Package : public ObjectInterface, public RefCount<Package>
 	{
-	protected:
+	public:
 		TrackList Tracks;						//!< Each track in this package
+
+	protected:
 		Uint32 LastTrackID;						//!< Last auto-allocated track ID
 
 		//! Protected constructor used to create from an existing MDObject
@@ -477,8 +480,10 @@ namespace mxflib
 	//! Holds data relating to a single partition
 	class Metadata : public ObjectInterface, public RefCount<Metadata>
 	{
-	protected:
+	public:
 		PackageList Packages;						//!< Each package in this metadata
+
+	protected:
 		std::string ModificationTime;				//!< Creation or modification time for this metadata, used for package times
 
 		//! Protected constructor used to create from an existing MDObject
