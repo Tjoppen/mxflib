@@ -2,6 +2,8 @@
  *	\brief	Defines known types
  */
 /*
+ *	$Id: deftypes.cpp,v 1.7 2003/11/25 18:24:41 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -28,11 +30,11 @@
 
 extern "C"
 {
-#include "Klv.h"
-#include "sopSAX.h"
+#include <Klv.h>
+#include <sopSAX.h>		// for sopSAXParseFile(), DefTypes_SAXHandler
 }
 
-#include "stdarg.h"
+#include <stdarg.h>		// for va_start, va_end
 
 
 using namespace mxflib;
@@ -47,7 +49,7 @@ extern "C" void DefTypes_fatalError(void *user_data, const char *msg, ...);
 /*
 ** Our SAX handler
 */
-sopSAXHandler DefTypes_SAXHandler = {
+static sopSAXHandler DefTypes_SAXHandler = {
     (startElementSAXFunc) DefTypes_startElement,		/* startElement */
     (endElementSAXFunc) DefTypes_endElement,			/* endElement */
     (warningSAXFunc) DefTypes_warning,					/* warning */
@@ -80,10 +82,10 @@ typedef struct
 typedef std::map<std::string,MDTraitsPtr> TraitsMapType;
 
 //! Map of type names to thair handling traits
-TraitsMapType TraitsMap;
+static TraitsMapType TraitsMap;
 
 //! Build the map of all known traits
-void DefineTraits(void)
+static void DefineTraits(void)
 {
 	// Not a real type, but the default for basic types
 	TraitsMap.insert(TraitsMapType::value_type("Default-Basic", new MDTraits_Raw));
