@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.1.2.6 2004/10/16 19:55:44 terabrit Exp $
+ *	\version $Id: mxffile.cpp,v 1.1.2.7 2004/10/19 17:59:53 matt-beard Exp $
  *
  */
 /*
@@ -159,14 +159,14 @@ bool mxflib::MXFFile::ReadRunIn()
 	Seek(0);
 	DataChunkPtr Search = Read(0x10000 + 11);
 
-	Uint64 Scan = Search->Size - 11;
+	Uint32 Scan = Search->Size - 11;
 	Uint8 *ScanPtr = Search->Data;
 	while(Scan)
 	{
 		// Run-in ends when a vaid MXF key is found
 		if(memcmp(BaseKey,ScanPtr,11) == 0) 
 		{
-			RunIn.Set((Uint32)RunInSize, Search->Data);
+			RunIn.Set(RunInSize, Search->Data);
 			Seek(0);
 			return true;
 		}
