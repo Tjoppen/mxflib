@@ -2,6 +2,8 @@
  *	\brief	Basic MXF essence wrapping utility
  */
 /*
+ *	$Id: mxfwrap.cpp,v 1.5 2003/11/26 17:44:58 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -36,14 +38,14 @@ using namespace std;
 int Verbose = 0;
 
 //! Debug flag for MXFLib
-bool DebugMode = false;
+static bool DebugMode = false;
 
 
 // Product GUID and version text for this release
-Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x52 };
-std::string ProductVersion = " Unreleased 0.2";
+static Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x52 };
+static std::string ProductVersion = "Unreleased 0.2";
 
-bool ParseCommandLine(int &argc, char **argv);
+static bool ParseCommandLine(int &argc, char **argv);
 
 
 struct BodyWrapping
@@ -59,40 +61,40 @@ struct BodyWrapping
 	Uint32 BodyRate;				//!< The rate of body partition insertion
 };
 typedef std::list<BodyWrapping> BodyWrappingList;
-Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr ThisPartition, Int64 Duration = 0);
+static Int64 WriteBody(MXFFilePtr Out, BodyWrappingList WrappingList, PartitionPtr ThisPartition, Int64 Duration = 0);
 
 
 // Options
-Uint32 KAGSize = 1;						//!< The KAG Size for this file
-char InFilenameSet[512];				//!< The set of input filenames
-int InFileGangSize;						//!< The number of ganged files to process at a time
-int InFileGangCount;					//!< The number of sets of ganged files to process
-char InFilename[16][128];				//!< The list of input filenames
-char OutFilenameSet[512];				//!< The set of output filenames
-char OutFilename[16][128];				//!< The output filename
-int OutFileCount;						//!< The number of files to output
+static Uint32 KAGSize = 1;						//!< The KAG Size for this file
+static char InFilenameSet[512];				//!< The set of input filenames
+static int InFileGangSize;						//!< The number of ganged files to process at a time
+static int InFileGangCount;					//!< The number of sets of ganged files to process
+static char InFilename[16][128];				//!< The list of input filenames
+static char OutFilenameSet[512];				//!< The set of output filenames
+static char OutFilename[16][128];				//!< The output filename
+static int OutFileCount;						//!< The number of files to output
 
-bool OPAtom = false;					//!< Is OP-Atom mode being forced?
-bool StreamMode = false;				//!< Wrap in stream-mode
-bool EditAlign = false;					//!< Start new body partitions only at the start of a GOP
-bool UseIndex = false;					//!< Write index tables
-bool SparseIndex = false;				//!< Write sparse index tables (one entry per partition)
+static bool OPAtom = false;					//!< Is OP-Atom mode being forced?
+static bool StreamMode = false;				//!< Wrap in stream-mode
+static bool EditAlign = false;					//!< Start new body partitions only at the start of a GOP
+static bool UseIndex = false;					//!< Write index tables
+static bool SparseIndex = false;				//!< Write sparse index tables (one entry per partition)
 
 // DRAGONS: Temporary option!
-bool FrameGroup = false;				//!< Group all as a frame-wrapped group (in one essence container)
+static bool FrameGroup = false;				//!< Group all as a frame-wrapped group (in one essence container)
 
-Rational ForceEditRate;					//!< Edit rate to try and force
+static Rational ForceEditRate;					//!< Edit rate to try and force
 
 //! The mode of body partition insertion
 //enum { Body_None, Body_Duration, Body_Size } 
-BodyWrapping::PartitionMode BodyMode = BodyWrapping::Body_None;
-Uint32 BodyRate = 0;					//!< The rate of body partition insertion
+static BodyWrapping::PartitionMode BodyMode = BodyWrapping::Body_None;
+static Uint32 BodyRate = 0;					//!< The rate of body partition insertion
 
-Uint32 HeaderPadding = 0;				//!< The (minimum) number of bytes of padding to leave in the header
+static Uint32 HeaderPadding = 0;				//!< The (minimum) number of bytes of padding to leave in the header
 
 
 // Derived options
-ULPtr OPUL;								//!< The UL of the OP for this file
+static ULPtr OPUL;								//!< The UL of the OP for this file
 
 
 
@@ -100,24 +102,24 @@ ULPtr OPUL;								//!< The UL of the OP for this file
 // ==========================
 
 // OP-Atom - #### DRAGONS: Qualifiers need work later!
-Uint8 OPAtom_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
-ULPtr OPAtomUL = new UL(OPAtom_Data);
+static Uint8 OPAtom_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
+static ULPtr OPAtomUL = new UL(OPAtom_Data);
 
 // OP1a - #### DRAGONS: Qualifiers may need work!
-Uint8 OP1a_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x01, 0x01, 0x00 };
-ULPtr OP1aUL = new UL(OP1a_Data);
+static Uint8 OP1a_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x01, 0x01, 0x00 };
+static ULPtr OP1aUL = new UL(OP1a_Data);
 
 // OP1b - #### DRAGONS: Qualifiers need work!
-Uint8 OP1b_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x02, 0x05, 0x00 };
-ULPtr OP1bUL = new UL(OP1b_Data);
+static Uint8 OP1b_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x02, 0x05, 0x00 };
+static ULPtr OP1bUL = new UL(OP1b_Data);
 
 // OP2a - #### DRAGONS: Qualifiers need work!
-Uint8 OP2a_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x02, 0x01, 0x01, 0x00 };
-ULPtr OP2aUL = new UL(OP2a_Data);
+static Uint8 OP2a_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x02, 0x01, 0x01, 0x00 };
+static ULPtr OP2aUL = new UL(OP2a_Data);
 
 // OP2b - #### DRAGONS: Qualifiers need work!
-Uint8 OP2b_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x02, 0x02, 0x05, 0x00 };
-ULPtr OP2bUL = new UL(OP2b_Data);
+static Uint8 OP2b_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x02, 0x02, 0x05, 0x00 };
+static ULPtr OP2bUL = new UL(OP2b_Data);
 
 
 
