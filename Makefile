@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.4 2003/12/03 16:13:20 stuart_hc Exp $
+# $Id: Makefile,v 1.5 2004/01/06 14:39:12 terabrit Exp $
 #
 # Default values assume you have g++, klvlib installed in /usr/local/* and
 # a uuid library called libuuid.a (E.g. GNU/Linux with e2fsprogs)
@@ -7,17 +7,19 @@
 #	make KLVINC=../klvlib KLVLIB=../klvlib
 #
 CXX = g++
-KLVINC = /usr/local/include
-KLVLIB = /usr/local/lib
+KLVINC = ../klvlib
+KLVLIB = ../klvlib
 CXXFLAGS = -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -I.. -I$(KLVINC) -g -Wall
 UUIDLIB = -luuid
 INSTALL_PREFIX = /usr/local
 
-all: mxfwrap/mxfwrap test/mxftest
+all: mxfwrap/mxfwrap mxfsplit/mxfsplit test/mxftest
 
 libmxf.a: deftypes.o esp_dvdif.o esp_mpeg2ves.o esp_wavepcm.o essence.o helper.o index.o klvobject.o mdobject.o mdtraits.o mdtype.o metadata.o mxffile.o partition.o primer.o rip.o
 	rm -f libmxf.a
-	ar rv libmxf.a deftypes.o esp_dvdif.o esp_mpeg2ves.o esp_wavepcm.o essence.o helper.o index.o klvobject.o mdobject.o mdtraits.o mdtype.o metadata.o mxffile.o partition.o primer.o rip.o
+	ar -rvs libmxf.a deftypes.o esp_dvdif.o esp_mpeg2ves.o \
+ esp_wavepcm.o essence.o helper.o index.o klvobject.o mdobject.o mdtraits.o mdtype.o \
+ metadata.o mxffile.o partition.o primer.o rip.o
 
 deftypes.o: deftypes.cpp mxflib.h system.h debug.h forward.h \
   smartptr.h endian.h types.h helper.h datachunk.h mdtraits.h \
@@ -143,6 +145,9 @@ rip.o: rip.cpp mxflib.h system.h debug.h forward.h smartptr.h \
 mxfwrap/mxfwrap: libmxf.a mxfwrap/mxfwrap.cpp
 	$(CXX) $(CXXFLAGS) mxfwrap/mxfwrap.cpp -o mxfwrap/mxfwrap -L. -lmxf -L$(KLVLIB) -lklv $(UUIDLIB)
 
+mxfsplit/mxfsplit: libmxf.a waveheader.h mxfsplit/mxfsplit.cpp
+	$(CXX) $(CXXFLAGS) mxfsplit/mxfsplit.cpp -o mxfsplit/mxfsplit -L. -lmxf -L$(KLVLIB) -lklv $(UUIDLIB)
+
 test/mxftest: libmxf.a test/test.cpp
 	$(CXX) $(CXXFLAGS) test/test.cpp -o test/mxftest -L. -lmxf -L$(KLVLIB) -lklv $(UUIDLIB)
 
@@ -152,10 +157,11 @@ install: libmxf.a mxfwrap/mxfwrap test/mxftest
 	mkdir -p $(INSTALL_PREFIX)/include/mxflib
 	for header in mxflib.h datachunk.h debug.h deftypes.h esp_dvdif.h esp_mpeg2ves.h esp_wavepcm.h essence.h forward.h helper.h index.h klvobject.h mdobject.h mdtraits.h mdtype.h metadata.h endian.h mxffile.h system.h types.h primer.h rip.h smartptr.h ; do install -c -m 0644 $$header $(INSTALL_PREFIX)/include/mxflib/$$header ; done
 	install -c mxfwrap/mxfwrap $(INSTALL_PREFIX)/bin/mxfwrap
+	install -c mxfsplit/mxfsplit $(INSTALL_PREFIX)/bin/mxfsplit
 	install -c test/mxftest $(INSTALL_PREFIX)/bin/mxftest
 
 clean:
-	rm -f *.o *.a mxfwrap/mxfwrap test/mxftest core
+	rm -f *.o *.a mxfwrap/mxfwrap mxfsplit/mxfsplit test/mxftest core
 
 docs:
 	doxygen doxyfile.cfg
