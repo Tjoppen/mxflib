@@ -4,7 +4,7 @@ rsrcdir = $(datadir)/mxflib
 pkgincludedir = $(includedir)/mxflib
 
 lib_LIBRARIES = libmxf.a
-libmxf_a_SOURCES = deftypes.cpp esp_dvdif.cpp esp_mpeg2ves.cpp esp_wavepcm.cpp essence.cpp helper.cpp index.cpp klvobject.cpp mdobject.cpp mdtraits.cpp mdtype.cpp metadata.cpp mxffile.cpp partition.cpp primer.cpp rip.cpp sopsax.cpp
+libmxf_a_SOURCES = deftypes.cpp esp_dvdif.cpp esp_mpeg2ves.cpp esp_wavepcm.cpp essence.cpp helper.cpp index.cpp klvobject.cpp mdobject.cpp mdtraits.cpp mdtype.cpp metadata.cpp mxffile.cpp partition.cpp primer.cpp rip.cpp sopsax.cpp datachunk.cpp
 
 INCLUDES = -I$(top_builddir)
 pkginclude_HEADERS = \
