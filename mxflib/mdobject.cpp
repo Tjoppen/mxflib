@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.2.2.2 2004/05/28 14:36:32 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.2.2.3 2004/06/14 17:56:03 matt-beard Exp $
  *
  */
 /*
@@ -809,67 +809,139 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 		{
 			debug("Reading pack at 0x%s\n", Int64toHexString(GetLocation(), 8).c_str());
 
-			Uint32 Bytes = 0;
-			MDObjectNamedList::iterator it = begin();
-			if(Size) for(;;)
+			if( Type->GetLenFormat() == DICT_LEN_NONE )
 			{
-				// If we are already at the end of the list, we have too many bytes!
-				if(it == end()) 
+				// Fixed pack - items know their own length
+				Uint32 Bytes = 0;
+				MDObjectNamedList::iterator it = begin();
+				if(Size) for(;;)
 				{
-					warning("Extra bytes found parsing buffer in MDObject::ReadValue()\n");
-					break;
+					// If we are already at the end of the list, we have too many bytes!
+					if(it == end()) 
+					{
+						warning("Extra bytes found parsing buffer in MDObject::ReadValue()\n");
+						break;
+					}
+
+					(*it).second->Parent = this;
+					(*it).second->ParentOffset = Bytes;
+					(*it).second->KLSize = 0;
+
+					// DRAGONS: Array length calculation fudge!
+					// If an array exists in a pack there is no easy way to determine the size 
+					// of the array unless it is the last item in the pack.  Unfortunately there
+					// are some cases where MXF packs have arrays that are not the last entry
+					// This section deals with each in turn (Nasty!!)
+
+					Uint32 ValueSize = Size;
+					if((*it).second->Type->GetContainerType() == ARRAY)
+					{
+						std::string FullName = (*it).second->FullName();
+						if(FullName == "IndexTableSegment/IndexEntryArray/SliceOffsetArray")
+						{
+							// DRAGONS: Does this ever get called these days?
+							// Number of entries in SliceOffsetArray is in IndexTableSegment/SliceCount
+							// Each entry is 4 bytes long
+							ValueSize = Parent->GetInt("SliceCount") * 4;
+						}
+						else if(FullName == "RandomIndexMetadata/PartitionArray")
+						{
+							// RandomIndexMetadata/PartitionArray is followed by a Uint32
+							if(ValueSize >4) ValueSize = ValueSize - 4; else ValueSize = 0;
+						}
+					}
+
+					Uint32 ThisBytes = (*it).second->ReadValue(Buffer, ValueSize);
+
+//					debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
+//						  (*it).first.c_str(), (*it).second->GetString().c_str());
+
+					Bytes += ThisBytes;
+
+					it++;
+					
+					if(ThisBytes >= Size) break;
+
+					Buffer += ThisBytes;
+					Size -= ThisBytes;
 				}
 
-				(*it).second->Parent = this;
-				(*it).second->ParentOffset = Bytes;
-				(*it).second->KLSize = 0;
-
-				// DRAGONS: Array length calculation fudge!
-				// If an array exists in a pack there is no easy way to determine the size 
-				// of the array unless it is the last item in the pack.  Unfortunately there
-				// are some cases where MXF packs have arrays that are not the last entry
-				// This section deals with each in turn (Nasty!!)
-
-				Uint32 ValueSize = Size;
-				if((*it).second->Type->GetContainerType() == ARRAY)
+				if(it != end())
 				{
-					std::string FullName = (*it).second->FullName();
-					if(FullName == "IndexTableSegment/IndexEntryArray/SliceOffsetArray")
-					{
-						// DRAGONS: Does this ever get called these days?
-						// Number of entries in SliceOffsetArray is in IndexTableSegment/SliceCount
-						// Each entry is 4 bytes long
-						ValueSize = Parent->GetInt("SliceCount") * 4;
-					}
-					else if(FullName == "RandomIndexMetadata/PartitionArray")
-					{
-						// RandomIndexMetadata/PartitionArray is followed by a Uint32
-						if(ValueSize >4) ValueSize = ValueSize - 4; else ValueSize = 0;
-					}
+					warning("Not enough bytes in buffer for %s at 0x%s in %s\n", 
+							FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
 				}
 
-				Uint32 ThisBytes = (*it).second->ReadValue(Buffer, ValueSize);
-
-				debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
-					  (*it).first.c_str(), (*it).second->GetString().c_str());
-
-				Bytes += ThisBytes;
-
-				it++;
-				
-				if(ThisBytes >= Size) break;
-
-				Buffer += ThisBytes;
-				Size -= ThisBytes;
+				return Bytes;
 			}
-
-			if(it != end())
+			else
 			{
-				warning("Not enough bytes in buffer for %s at 0x%s in %s\n", 
-					    FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
-			}
+				// Variable pack - each item has a length
+				Uint32 Bytes = 0;
+				MDObjectNamedList::iterator it = begin();
+				if(Size) for(;;)
+				{
+					// If we are already at the end of the list, we have too many bytes!
+					if(it == end()) 
+					{
+						warning("Extra bytes found parsing buffer in MDObject::ReadValue()\n");
+						break;
+					}
 
-			return Bytes;
+					(*it).second->Parent = this;
+					(*it).second->ParentOffset = Bytes;
+					(*it).second->KLSize = 0;
+
+					// Read Length
+					Uint32 Length;
+					Uint32 ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
+
+					// Advance counters and pointers past Length
+					Size -= ThisBytes;
+					Buffer += ThisBytes;
+					Bytes += ThisBytes;
+
+					if(Length)
+					{
+						if(Size < Length)
+						{
+							error("Not enough bytes for value for %s at 0x%s in %s\n", 
+								  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
+
+							// Read what we can!
+							Length = Size;
+						}
+
+						ThisBytes = (*it).second->ReadValue(Buffer, Length);
+
+//						debug("  at 0x%s Variable Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
+//							  (*it).first.c_str(), (*it).second->GetString().c_str());
+
+						Bytes += ThisBytes;
+					}
+					else
+					{
+						// Length == 0, so skip this item
+						//(*it).second->ReadValue(Buffer, 0);
+						(*it).second->ClearModified();
+					}
+
+					it++;
+					
+					if(ThisBytes >= Size) break;
+
+					Buffer += ThisBytes;
+					Size -= ThisBytes;
+				}
+
+				if(it != end())
+				{
+					warning("Not enough bytes in buffer for %s at 0x%s in %s\n", 
+							FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
+				}
+
+				return Bytes;
+			}
 		}
 
 	case SET:
@@ -1086,10 +1158,67 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 	default:
 	// Unsupported key types!
 	case DICT_LEN_NONE:
-	case DICT_LEN_BER:		// DRAGONS: Should probably make this work at some point!
-		ASSERT(0);
+		ASSERT(0);							// Cause debug sessions to show this error
 		Length = 0;
 		return 0;
+
+	case DICT_LEN_BER:
+		{
+			if( Size <1 ) break;
+			Uint8 LenLen = GetU8(Buffer);
+
+			if( LenLen < 0x80 )
+			{
+				// Short form
+				Length = LenLen;
+				return 1;
+			}
+			else
+			{
+				// Long form
+				LenLen &= 0x7f;
+
+				Uint32 RetLen = LenLen + 1;
+				if( RetLen > Size) break;
+
+				// DRAGONS: ReadLength should return Uint64, BER length up to 7
+				if(LenLen > 8)
+				{
+					error("Excessive BER length field in MDObject::ReadLength()\n");
+					Length = 0;
+					return 0;
+				}
+
+				if(LenLen > 4)
+				{
+					// It is valid to have BER length > 4 bytes long however we don't
+					// support metadata values > 4Gb in size so we ensure they are
+					// not that big by reading the length and validating
+
+					Uint64 Length64 = 0;
+					const Uint8* LenBuff = (Buffer+1);
+					while(LenLen--) Length64 = (Length64<<8) + *LenBuff++;
+
+					if((Length64 >> 32) != 0)
+					{
+						error("Excessive BER length field in MDObject::ReadLength()\n");
+						Length = 0;
+						return 0;
+					}
+					
+					Length = Length64;
+				}
+				else
+				{
+					// Handle sane sized BER lengths
+					Length = 0;
+					const Uint8* LenBuff = (Buffer+1);
+					while(LenLen--) Length = (Length<<8) + *LenBuff++;
+				}
+
+				return RetLen;
+			}
+		}
 
 	case DICT_LEN_1_BYTE:		
 		{ 
@@ -1694,13 +1823,12 @@ void MDOType::LoadDict(const char *DictFile)
 		(fatalErrorSAXFunc) SAX_fatalError,			/* fatalError */
 	};
 
-	char *xmlFilePath = lookupDataFilePath(DictFile);
+	std::string XMLFilePath = LookupDictionaryPath(DictFile);
 	
 	// Parse the file
-	bool result = sopSAXParseFile(&SAXHandler, &State, xmlFilePath);
-	if (xmlFilePath)
-		delete [] xmlFilePath;
-	if (! result)
+	bool result = false;
+	
+	if(XMLFilePath.size()) result = sopSAXParseFile(&SAXHandler, &State, XMLFilePath.c_str());
 	{
 		error("sopSAXParseFile failed for %s\n", DictFile);
 		return;
