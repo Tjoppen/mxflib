@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.3 2004/11/15 17:28:42 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.4 2004/12/18 20:20:10 matt-beard Exp $
  *
  */
 /*
@@ -132,6 +132,9 @@ KLVEObject::KLVEObject(KLVObject &Object)
 //! Initialise the KLVEObject specifics after basic construction (and KLVObject::Init())
 void KLVEObject::Init(void)
 {
+	SequenceNumber = 0;
+	HasSequenceNumber = false;
+
 	DataLoaded = false;
 	DataOffset = 0;
 	PlaintextOffset = 0;
@@ -235,7 +238,7 @@ bool KLVEObject::LoadData(void)
 	}
 
 	// Build the ContextID
-	ContextID = new UL(p);
+	ContextID = new UUID(p);
 
 	// Update pointer and count
 	p += 16;
@@ -254,7 +257,6 @@ bool KLVEObject::LoadData(void)
 		error("Invalid AS-DCP data (%s) in %s\n", "PlaintextOffset not 8 bytes", GetSourceLocation().c_str());
 		return false;
 	}
-
 	// Read the PlaintextOffset
 	// DRAGONS: The format used in the file is Uint64, but as KLVObject used "Length" (Int64) for its lengths
 	//          we impose a limit of 2^63 bytes on Plaintext offset and keep everything signed internally
@@ -422,7 +424,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	// Load the header if required (and if we can!)
 	if(!DataLoaded) if(!LoadData()) return 0;
 
-	// Don't bother reading zero bytes or of the end of the value
+	// Don't bother reading zero bytes or off the end of the value
 	if((Size == 0) || (Offset >= ValueLength))
 	{
 		Data.Resize(0);
@@ -437,6 +439,9 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 			error("Unable to read Initialization Vector and Check Value in KLVEObject::ReadDataFrom()\n");
 			return 0;
 		}
+
+		// Update the current hash if we are calculating one
+		if(ReadHasher) ReadHasher->HashData(Data);
 
 		// Initialize the decryption engine with the specified Initialization Vector
 		Decrypt->SetIV(16, Data.Data, true);
@@ -463,16 +468,34 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 			return 0;
 		}
 
-		return ReadCryptoDataFrom(Offset, Size);
+		Length Ret = ReadCryptoDataFrom(Offset, Size);
+
+		// Read the AS-DCP footer if we have read the last of the data
+		if(CurrentReadOffset >= ValueLength) if(!ReadFooter()) { Ret = 0; Data.Resize(0); }
+
+		return Ret;
 	}
 
 	// If all the bytes requested are plaintext use the base read
 	if( (Size > 0) && ((Offset + Size) < PlaintextOffset) )
 	{
+		// Check if an attempt is being made to random access the plaintext while hashing - and barf if this is so
+		if(ReadHasher && (Offset != CurrentReadOffset))
+		{
+			error("Attempt to perform random-access reading of an encrypted KLV value field\n");
+			return 0;
+		}
+
 		Length Ret = Base_ReadDataFrom(DataOffset + Offset, Size);
 
 		// Update the read pointer (it is possible to random access within the plaintext area)
 		CurrentReadOffset = Offset + Ret;
+
+		// Update the current hash if we are calculating one
+		if(ReadHasher) ReadHasher->HashData(Data);
+
+		// Read the AS-DCP footer if we have read the last of the data
+		if(CurrentReadOffset >= ValueLength) if(!ReadFooter()) { Ret = 0; Data.Resize(0); }
 
 		return Ret;
 	}
@@ -493,9 +516,16 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	// Try and read them all
 	Length PlainBytes = Base_ReadDataFrom(DataOffset + Offset, PlainSize);
 
+	// Update the current hash if we are calculating one
+	if(ReadHasher) ReadHasher->HashData(Data);
+
 	// If we couldn't read them all then the data ends before any encrypted bytes so we can exit now
 	if(PlainBytes < PlainSize)
 	{
+		// DRAGONS: We don't read the footer if we ran out of data early... should we issue an error or a warning?
+		//# Read the AS-DCP footer if we have read the last of the data
+		//# if(CurrentReadOffset >= ValueLength) ReadFooter();
+
 		return PlainBytes;
 	}
 
@@ -520,6 +550,9 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 
 	// Set the "next" position to just after the end of what we read
 	CurrentReadOffset = Offset + Data.Size;
+
+	// Read the AS-DCP footer if we have read the last of the data
+	if(CurrentReadOffset >= ValueLength) if(!ReadFooter()) Data.Resize(0);
 
 	// Return the total number of bytes
 	return Data.Size;
@@ -627,6 +660,9 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 	// Read the encrypted data
 	Length NewSize = Base_ReadDataFrom(DataOffset + Offset, Size);
 
+	// Update the current hash if we are calculating one
+	if(ReadHasher) ReadHasher->HashData(Data);
+
 	// Resize if less bytes than requested were actualy read
 	if(NewSize != Size)
 	{
@@ -680,7 +716,7 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 /*! \param Buffer Pointer to data to be written
  *  \param Offset The offset within the KLV value field of the first byte to write
  *  \param Size The number of bytes to write
- *  \return The number of bytes written
+ *  \return The number of bytes written (not including AS-DCP header and footer)
  *  \note As there may be a need for the implementation to know where within the value field
  *        this data lives, there is no WriteData(Buffer, Size) function.
  */
@@ -745,6 +781,8 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 
 		Base_WriteDataTo(IV, DataOffset - EncryptionOverhead, 16);
 
+		// Update the current hash if we are calculating one
+		if(WriteHasher) WriteHasher->HashData(16, IV);
 
 		// ** Write the check value
 
@@ -756,6 +794,9 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 		if(CheckData && (CheckData->Size == 16))
 		{
 			Base_WriteDataTo(CheckData->Data, DataOffset - EncryptionOverhead + 16, 16);
+
+			// Update the current hash if we are calculating one
+			if(WriteHasher) WriteHasher->HashData(CheckData);
 		}
 		else
 		{
@@ -773,7 +814,12 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 			return 0;
 		}
 
-		return WriteCryptoDataTo(Buffer, Offset, Size);
+		Length Ret = WriteCryptoDataTo(Buffer, Offset, Size);
+
+		// Read the AS-DCP footer if we have read the last of the data
+		if(CurrentWriteOffset >= ValueLength) WriteFooter();
+
+		return Ret;
 	}
 
 
@@ -782,6 +828,9 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 	{
 		Length Ret = Base_WriteDataTo(Buffer, DataOffset + Offset, Size);
 		
+		// Update the current hash if we are calculating one
+		if(WriteHasher) WriteHasher->HashData(Size, Buffer);
+
 		// Update the write pointer (note that random access is possible within the plaintext area)
 		CurrentWriteOffset = Offset + Ret;
 
@@ -796,6 +845,9 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 				WriteCryptoDataTo(Buffer, CurrentWriteOffset, 0);
 			}
 		}
+
+		// Read the AS-DCP footer if we have read the last of the data
+		if(CurrentWriteOffset >= ValueLength) WriteFooter();
 
 		return Ret;
 	}
@@ -822,6 +874,9 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 		return PlainBytes;
 	}
 
+	// Update the current hash if we are calculating one
+	if(WriteHasher) WriteHasher->HashData(Size, Buffer);
+
 	// Update the write pointer after the plaintext write
 	CurrentWriteOffset = Offset + PlainBytes;
 
@@ -830,6 +885,9 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 
 	// Write the encrypted bytes
 	Length EncBytes = WriteCryptoDataTo(&Buffer[PlainBytes], PlaintextOffset, Size - PlainSize);
+
+	// Read the AS-DCP footer if we have read the last of the data
+	if(CurrentWriteOffset >= ValueLength) WriteFooter();
 
 	// Return the number of bytes written
 	return PlainBytes + EncBytes;
@@ -915,6 +973,9 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 
 			// Write the encrypted data
 			Base_WriteDataTo(NewData->Data, DataOffset + Offset, StartSize);
+
+			// Update the current hash if we are calculating one
+			if(WriteHasher) WriteHasher->HashData(StartSize, NewData->Data);
 		}
 
 		// Buffer for last data to be encrypted
@@ -940,10 +1001,11 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 		// Write the encrypted data
 		Base_WriteDataTo(NewData->Data, DataOffset + Offset + StartSize, EncryptionGranularity);
 
+		// Update the current hash if we are calculating one
+		if(WriteHasher) WriteHasher->HashData(EncryptionGranularity, NewData->Data);
+
 		// There are no more bytes to encrypt
 		AwaitingEncryption = 0;
-
-		// FIXME: - we need some way to add end and an AS-DCP footer if required
 
 		// Lie and say we wrote the requested number of bytes (tells the caller all was fine)
 		return Size;
@@ -969,6 +1031,9 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 
 	// Write the encrypted data
 	Size = Base_WriteDataTo(NewData->Data, DataOffset + Offset, BytesToEncrypt);
+
+	// Update the current hash if we are calculating one
+	if(WriteHasher) WriteHasher->HashData(Size, NewData->Data);
 
 	// Chain the IV for next time...
 	EncryptionIV = Encrypt->GetIV();
@@ -1112,8 +1177,11 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 
 	/** Write Out the Header **/
 
+	// Work out the length of the footer
+	CalcFooterLength();
+
 	// Set the length to be the size of the header plus the size of the encrypted data
-	Dest.OuterLength = DataOffset + EncryptedLength;
+	Dest.OuterLength = DataOffset + EncryptedLength + FooterLength;
 
 	// Start off with the actual KL - using the OuterLength to include the header
 	Uint32 KLBytes = Base_WriteKL(LenSize, Dest.OuterLength);
@@ -1128,3 +1196,220 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	return KLBytes + DataOffset;
 }
 
+
+//! Read the AS-DCP footer (if any)
+/*! /ret false on error, else true
+ */
+bool KLVEObject::ReadFooter(void)
+{
+	// Clear the optional values
+	TrackFileID = NULL;
+	SequenceNumber = 0;
+	HasSequenceNumber = false;
+	MIC = NULL;
+
+	DataChunkPtr Buffer = new DataChunk;
+
+	// Read all data following the encrypted data
+	Length Bytes = Base_ReadDataFrom(*Buffer, DataOffset + EncryptedLength);
+
+	// Leave now if no footer
+	if(Bytes == 0) 
+	{
+		// If we are hashing we should record the MIC here
+		if(ReadHasher) MIC = ReadHasher->GetHash();
+		
+		return true;
+	}
+
+	// Index the start of the data
+	Uint8 *p = Buffer->Data;
+
+	// ** Load the (optional) TrackFileID **
+
+	// Read the BER length and move the pointer
+	Uint8 *Prev_p = p;
+	Length ItemLength = ReadBER(&p, (int)Bytes);
+	Bytes -= (p - Prev_p);
+
+	if(ItemLength > 0)
+	{
+		if((ItemLength != 16) || (Bytes < 16))
+		{
+			error("Invalid AS-DCP data (%s) in %s\n", "TrackFileID not 16 bytes", GetSourceLocation().c_str());
+			return false;
+		}
+
+		// Build the ContextID
+		TrackFileID = new UUID(p);
+
+		// Update pointer and count
+		p += 16;
+		Bytes -= 16;
+	}
+
+
+	// ** Load the (optional) SequenceNumber **
+
+	// Read the BER length and move the pointer
+	Prev_p = p;
+	ItemLength = ReadBER(&p, (int)Bytes);
+	Bytes -= (p - Prev_p);
+
+	if(ItemLength > 0)
+	{
+		if((ItemLength != 8) || (Bytes < 8))
+		{
+			error("Invalid AS-DCP data (%s) in %s\n", "SequenceNumber not 8 bytes", GetSourceLocation().c_str());
+			return false;
+		}
+
+		// Read the sequence number
+		SequenceNumber = GetU64(p);
+		HasSequenceNumber = true;
+
+		// Update pointer and count
+		p += 8;
+		Bytes -= 8;
+	}
+
+
+	// ** Load the (optional) MIC **
+
+	// Read the BER length and move the pointer
+	Prev_p = p;
+	ItemLength = ReadBER(&p, (int)Bytes);
+	Bytes -= (p - Prev_p);
+
+	// Finish the hash if we are hashing
+	// General concensus seems to be that the BER length of the hash is included IN the hash!
+	if(ReadHasher)
+	{
+		// Include the section of the footer preceeding the MIC in the hash
+		ReadHasher->HashData((int)(p - Buffer->Data), Buffer->Data);
+	}
+
+	if(ItemLength > 0)
+	{
+		if((ItemLength != 20) || (Bytes < 20))
+		{
+			error("Invalid AS-DCP data (%s) in %s\n", "MIC not 20 bytes", GetSourceLocation().c_str());
+			return false;
+		}
+
+		// Read the sequence number
+		MIC = new DataChunk(20, p);
+
+		// If we are hashing as we read check that the MIC matches
+		if(ReadHasher)
+		{
+			DataChunkPtr CalcMIC = ReadHasher->GetHash();
+
+			if(*MIC != *CalcMIC)
+			{
+				error("Message Integrity Code check failed\n");
+				return false;
+			}
+		}
+	}
+	else
+	{
+		// No MIC in file to check so just record what we calculated
+		if(ReadHasher) MIC = ReadHasher->GetHash();
+	}
+
+	return true;
+}
+
+
+//! Calculate the size of the AS-DCP footer for this KLVEObject
+/*! The size it returned and also written to property FooterLength */
+Uint32 KLVEObject::CalcFooterLength(void)
+{
+	// Start with a zero-byte footer
+	FooterLength = 0;
+
+	if((!TrackFileID) && (!HasSequenceNumber) && (!WriteHasher)) return FooterLength;
+
+	// 4-byte BER plus an optional 16-byte TrackFileID
+	if(!TrackFileID) FooterLength += 4; else FooterLength += 20;
+
+	// 4-byte BER plus an optional 8-byte HasSequenceNumber
+	if(!HasSequenceNumber) FooterLength += 4; else FooterLength += 12;
+
+	// DRAGONS: We don't bother to write a "missing" MIC as this is the last item so can just be omitted
+	if(WriteHasher) FooterLength += 24;
+
+	return FooterLength;
+}
+
+//! Write the AS-DCP footer (if fequired)
+/*! /ret false on error, else true
+ *
+ *  DRAGONS: Ensure that the data written matches the size given by CalcFooterLength()
+ */
+bool KLVEObject::WriteFooter(void)
+{
+	// Don't write anything if we don't need to
+	if((!TrackFileID) && (!HasSequenceNumber) && (!WriteHasher)) return true;
+
+	// Make a reasonable sized buffer
+	DataChunkPtr Buffer = new DataChunk(64);
+
+	// Make a pointer to walk through the write buffer
+	unsigned char *p = Buffer->Data;
+
+	if(!TrackFileID)
+	{
+		// Write a "missing" TrackFile ID
+		p += MakeBER(p, 4, 0);
+	}
+	else
+	{
+		// Write the TrackFile ID
+		p += MakeBER(p, 4, 16);
+		memcpy(p, TrackFileID->GetValue(), 16);
+		p += 16;
+	}
+
+	if(!HasSequenceNumber)
+	{
+		// Write a "missing" sequence number
+		p += MakeBER(p, 4, 0);
+	}
+	else
+	{
+		// Write the sequence number
+		p += MakeBER(p, 4, 8);
+		PutU64(SequenceNumber, p);
+		p += 8;
+	}
+
+	// DRAGONS: We don't bother to write a "missing" MIC as this is the last item so can just be omitted
+	if(WriteHasher)
+	{
+		// Write the BER length for the hash - general concensus seems to be that this is included IN the hash!
+		p += MakeBER(p, 4, 20);
+
+		// Finish calculating the MIC
+		WriteHasher->HashData((int)(p - Buffer->Data), Buffer->Data);
+
+		// Get the hash
+		DataChunkPtr Hash = WriteHasher->GetHash();
+
+		// Write the hash
+		if(Hash->Size == 20) memcpy(p, Hash->Data, 20);
+		else error("Hash for this KLVEObject is not 20 bytes\n");
+		p += 20;
+	}
+
+	// Resize the buffer to exactly the amount of data we built
+	ASSERT((p - Buffer->Data) == FooterLength);
+	Buffer->Resize((int)(p - Buffer->Data));
+
+	// Write the footer
+	Dest.File->Write(Buffer);
+
+	// Return "All OK"
+	return true;
+}

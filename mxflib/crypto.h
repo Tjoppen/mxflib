@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.3 2004/11/15 17:28:19 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.4 2004/12/18 20:20:11 matt-beard Exp $
  *
  */
 /*
@@ -50,6 +50,16 @@ namespace mxflib
 	public:
 		Encrypt_Base() {};
 		virtual ~Encrypt_Base() {};
+
+		//! Set an encryption key
+		/*! \return True if key is accepted
+		 */
+		bool SetKey(DataChunk &Key) { return SetKey(Key.Size, Key.Data); }
+
+		//! Set an encryption key
+		/*! \return True if key is accepted
+		 */
+		bool SetKey(DataChunkPtr &Key) { return SetKey(Key->Size, Key->Data); }
 
 		//! Set an encryption key
 		/*! \return True if key is accepted
@@ -146,6 +156,16 @@ namespace mxflib
 		//! Set a decryption key
 		/*! \return True if key is accepted
 		 */
+		bool SetKey(DataChunk &Key) { return SetKey(Key.Size, Key.Data); }
+
+		//! Set a decryption key
+		/*! \return True if key is accepted
+		 */
+		bool SetKey(DataChunkPtr &Key) { return SetKey(Key->Size, Key->Data); }
+
+		//! Set a decryption key
+		/*! \return True if key is accepted
+		 */
 		virtual bool SetKey(Uint32 KeySize, const Uint8 *Key) = 0;
 
 		//! Set a decryption Initialization Vector
@@ -222,8 +242,58 @@ namespace mxflib
 		DataChunkPtr Decrypt(DataChunkPtr &Data) { return Decrypt(Data->Size, Data->Data); };
 	};
 
-	// Smart pointer to a dencryption wrapper object
+	// Smart pointer to a decryption wrapper object
 	typedef SmartPtr<Decrypt_Base> DecryptPtr;
+
+
+	//! Base hash function wrapper class
+	/*! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
+	 *  TODO: This will allow KLVEObjects to automatically hash thier contents - NOT YET IMPLEMENTED
+	 */
+	class Hash_Base : public RefCount<Hash_Base>
+	{
+	public:
+		//! Initialize this hash
+		Hash_Base() {};
+
+		// Virtual base destructor to allow polymorphic destruction
+		virtual ~Hash_Base() {};
+
+		//! Set a hashing key (if required)
+		/*! \return True if key is accepted
+		 */
+		bool SetKey(DataChunk &Key) { return SetKey(Key.Size, Key.Data); }
+
+		//! Set a hashing key (if required)
+		/*! \return True if key is accepted
+		 */
+		bool SetKey(DataChunkPtr &Key) { return SetKey(Key->Size, Key->Data); }
+
+		//! Set a hashing key (if required)
+		/*! \return True if key is accepted
+		 */
+		virtual bool SetKey(Uint32 Size, const Uint8 *Key) 
+		{ 
+			UNUSED_PARAMETER(Key); 
+			UNUSED_PARAMETER(Size); 
+			return true;
+		};
+
+		//! Add the given data to the current hash being calculated
+		void HashData(DataChunk &Data) { HashData(Data.Size, Data.Data); }
+
+		//! Add the given data to the current hash being calculated
+		void HashData(DataChunkPtr &Data) { HashData(Data->Size, Data->Data); }
+
+		//! Add the given data to the current hash being calculated
+		virtual void HashData(Uint32 Size, const Uint8 *Data) = 0;
+
+		//! Get the finished hash value
+		virtual DataChunkPtr GetHash(void) = 0;
+	};
+
+	// Smart pointer to a hash function wrapper object
+	typedef SmartPtr<Hash_Base> HashPtr;
 
 
 	//! KLVEObject class
@@ -241,9 +311,11 @@ namespace mxflib
 
 		EncryptPtr	Encrypt;						//!< Pointer to the encryption wrapper
 		DecryptPtr	Decrypt;						//!< Pointer to the decryption wrapper
+		HashPtr WriteHasher;						//!< Pointer to a hasher being used for hashing data being written
+		HashPtr ReadHasher;							//!< Pointer to a hasher being used for hashing data being read
 
 		bool DataLoaded;							//!< True once the AS-DCP header data has been read
-		ULPtr ContextID;							//!< The context ID used to link to encryption metadata
+		UUIDPtr ContextID;							//!< The context ID used to link to encryption metadata
 		Length PlaintextOffset;						//!< Number of unencrypted bytes at start of source data
 													/*!< DRAGONS: ValueLength is a standard MXF length (signed 64-bit),
 													 *   however the AS-DCP spec uses an unsigned 64-bit for PlaintextOffset.
@@ -254,6 +326,11 @@ namespace mxflib
 		int SourceLengthFormat;						//!< Number of bytes used to encode SourceLength in the KLVE (allows us to faithfully recreate if required)
 		Uint8 IV[16];								//!< The Initialization Vector for this KLVE
 		Uint8 Check[16];							//!< The check value for this KLVE
+		UUIDPtr TrackFileID;						//!< The optional TrackFile ID or NULL
+		Uint64 SequenceNumber;						//!< The optional Sequence Number of this KLVE within the TrackFile
+		bool HasSequenceNumber;						//!< True if SequenceNumber has been set or read
+		DataChunkPtr MIC;							//!< The optional MIC (if loaded or computed when reading or computed when writing) else NULL
+
 		Int32 DataOffset;							//!< Offset of the start of the excrypted value from the start of the KLV value
 
 		DataChunkPtr EncryptionIV;					//!< Encryption IV if one has been specified
@@ -269,6 +346,8 @@ namespace mxflib
 		Uint8 AwaitingEncryptionBuffer[EncryptionGranularity];
 													//!< Left over bytes from encrypting the last chunk - these will be written first at the next write call
 
+		Uint32 FooterLength;						//!< The size of the AS-DCP footer to be written for this KLVEObject
+
 	public:
 		//** KLVEObject Specifics **//
 
@@ -277,6 +356,17 @@ namespace mxflib
 
 		//! Set the decryption wrapper
 		void SetDecrypt(DecryptPtr NewWrapper) { Decrypt = NewWrapper; };
+
+		//! Set a hasher to use when writing
+		/*! The hasher must be initialized and ready to start hashing
+		 */
+		void SetWriteHasher(HashPtr &Hasher) { WriteHasher = Hasher; };
+
+		//! Set a hasher to use when reading
+		/*! The hasher must be initialized and ready to start hashing
+		 */
+		void SetReadHasher(HashPtr &Hasher) { ReadHasher = Hasher; };
+
 
 		//! Set an encryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -421,16 +511,6 @@ namespace mxflib
 		{ 
 			return ValueLength;
 		}
-/*			// If we are not decrypting then return entire value size
-			if(!Decrypt) return ValueLength;
-
-			// Try and load the header
-			if(!DataLoaded) if(!LoadData()) return 0;
-
-			// Return the plaintext size
-			return SourceLength; 
-		}
-*/
 
 		//! Set the length of the value field
 		virtual void SetLength(Length NewLength) 
@@ -442,6 +522,11 @@ namespace mxflib
 			EncryptedLength *= EncryptionGranularity;
 		}
 
+		//! Set the context ID
+		void SetContextID(UUIDPtr &Context) { ContextID = Context; }
+
+		//! Get the context ID
+		UUIDPtr &GetContextID(void) { return ContextID; }
 
 	protected:
 		//! Load the AS-DCP set data
@@ -449,6 +534,20 @@ namespace mxflib
 		 * \return true if all loaded OK, false on error
 		 */
 		bool LoadData(void);
+
+		//! Read the AS-DCP footer (if any)
+		/*! /ret false on error, else true
+		 */
+		bool ReadFooter(void);
+
+		//! Calculate the size of the AS-DCP footer for this KLVEObject
+		/*! The size it returned and also written to property FooterLength */
+		Uint32 CalcFooterLength(void);
+
+		//! Write the AS-DCP footer (if fequired)
+		/*! /ret false on error, else true
+		 */
+		bool WriteFooter(void);
 
 		//! Read data from a specified position in the encrypted portion of the KLV value field into the DataChunk
 		/*! \param Offset Offset from the start of the KLV value from which to start reading
