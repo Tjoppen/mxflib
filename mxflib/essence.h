@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.2.2.4 2004/05/19 11:10:31 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.2.2.5 2004/05/26 18:07:32 matt-beard Exp $
  *
  */
 /*
@@ -243,16 +243,22 @@ namespace mxflib
 		//! Add encrypted essence data to the current CP
 		void AddEssenceData(GCStreamID ID, EssenceSource* Source, UUIDPtr ContextID, Uint64 PlaintextOffset = 0);
 
-		//#### Register an Encryption thingy...
+		//! Add an essence item to the current CP with the essence to be read from a KLVObject
+		void AddEssenceData(GCStreamID ID, KLVObjectPtr Source);
+
+
+			//#### Register an Encryption thingy...
 
 
 
 		//! Structure for items to be written
 		struct WriteBlock
 		{
-			Uint64 Size;				//! Number of bytes of data to write
-			Uint8 *Buffer;				//! Pointer to bytes to write
-			EssenceSource *Source;		//! Pointer to an EssenceSource object or NULL
+			Uint64 Size;				//!< Number of bytes of data to write
+			Uint8 *Buffer;				//!< Pointer to bytes to write
+			EssenceSource *Source;		//!< Pointer to an EssenceSource object or NULL
+			KLVObjectPtr KLVSource;		//!< Pointer to a KLVObject as source - or NULL
+			bool WriteEncrypted;		//!< True if the data is to be written as encrypted data (via a KLVEObject)
 		};
 
 		//! Type for holding the write queue in write order
@@ -995,6 +1001,33 @@ namespace mxflib
 	};
 }
 
+
+//*********************************************
+//**                                         **
+//**        General essence functions        **
+//**                                         **
+//*********************************************
+
+namespace mxflib
+{
+	//! Structure to hold information about each stream in a GC
+	struct GCElementKind
+	{
+		bool	IsValid;					//!< true if this is a GC Element
+		Uint8	Item;						//!< Item type - byte 13
+		Uint8	Count;						//!< Element count - byte 14
+		Uint8	ElementType;				//!< Element type - byte 15
+		Uint8	Number;						//!< Element number - byte 16
+	};
+
+	//! Get a GCElementKind structure from a key
+	GCElementKind GetGCElementKind(ULPtr TheUL);
+
+	//! Get the track number of this essence key (if it is a GC Key)
+	/*! \return 0 if not a valid GC Key
+	 */
+	Uint32 GetGCTrackNumber(ULPtr TheUL);
+}
 
 
 #endif // MXFLIB__ESSENCE_H

@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.1.2.3 2004/05/19 11:18:39 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.1.2.4 2004/05/26 18:07:32 matt-beard Exp $
  *
  */
 /*
@@ -237,6 +237,7 @@ void GCWriter::AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	WB.Size = Size + ValStart;
 	WB.Buffer = Buffer;
 	WB.Source = NULL;
+	WB.KLVSource = NULL;
 
 	WriteQueue.insert(WriteQueueMap::value_type(Stream->WriteOrder, WB));
 }
@@ -304,6 +305,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	WB.Size = Size + ValStart;
 	WB.Buffer = Buffer;
 	WB.Source = NULL;
+	WB.KLVSource = NULL;
 
 	WriteQueue.insert(WriteQueueMap::value_type(Stream->WriteOrder, WB));
 }
@@ -363,6 +365,68 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source)
 	WB.Size = 16;
 	WB.Buffer = Buffer;
 	WB.Source = Source;
+	WB.KLVSource = NULL;
+
+	WriteQueue.insert(WriteQueueMap::value_type(Stream->WriteOrder, WB));
+}
+
+
+
+//! Add an essence item to the current CP with the essence to be read from a KLVObject
+void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source)
+{
+	//! Template for all GC essence item keys
+	/*! DRAGONS: Version number is hard coded as 1 */
+	static const Uint8 GCSystemKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
+
+	// Index the data block for this stream
+	if((ID < 0) || (ID >= StreamCount))
+	{
+		error("Unknown stream ID in GCWriter::AddEssenceData()\n");
+		return;
+	}
+	GCStreamData *Stream = &StreamTable[ID];
+
+	// Set up a new buffer big enough for the key alone - the BER length and data will be added later
+	Uint8 *Buffer = new Uint8[16];
+
+	// Copy in the key template
+	memcpy(Buffer, GCSystemKey, 12);
+
+	// Set up the rest of the key
+	Buffer[7] = Stream->RegVer;
+	Buffer[12] = Stream->Type;
+
+	// If we have't yet fixed the count then update it and fix it
+	if(!Stream->CountFixed)
+	{
+		// Count the number of elements of this type
+		int Count = 1;		// Start by counting us
+		int i;
+		for(i=0; i<ID; i++)
+		{
+			// DRAGONS: Should we allow duplicates for same essence types of different element types?
+			if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
+			{
+				Count++;
+			}
+		}
+
+		Stream->SchemeOrCount = Count+StreamBase;
+		Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
+		Stream->CountFixed = true;
+	}
+
+	Buffer[13] = Stream->SchemeOrCount;
+	Buffer[14] = Stream->Element;
+	Buffer[15] = Stream->SubOrNumber;
+
+	// Add this item to the write queue (the writer will free the memory and the EssenceSource)
+	WriteBlock WB;
+	WB.Size = 16;
+	WB.Buffer = Buffer;
+	WB.Source = NULL;
+	WB.KLVSource = Source;
 
 	WriteQueue.insert(WriteQueueMap::value_type(Stream->WriteOrder, WB));
 }
@@ -479,32 +543,37 @@ void GCWriter::Flush(void)
 			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
 		}
 
-/*		// Build index table if requested
-		// DRAGONS: Currently only a single stream can be indexed
-		if(UseIndex)
-		{
-			if((ThisType != 0x04) && (ThisType != 0x14))
-			{
-				// If this is our first index entry we must configure the table
-				if(Index->BaseDeltaCount == 0)
-				{
-					Uint32 ZeroDelta = 0;
-					Index->DefineDeltaArray(1, &ZeroDelta);
-				}
-
-				// DRAGONS: Not correct yet!
-//				Index->AddIndexEntry(EditUnit,0,0,0x80,StreamOffset);
-			}
-		}
-*/
-
 		// Write the pre-formatted data and free its buffer
 		StreamOffset += LinkedFile->Write((*it).second.Buffer, (*it).second.Size);
 		delete[] (*it).second.Buffer;
 
-		// Handle any non-buffered essence data
-		if((*it).second.Source)
+		// Handle any KLVObject-buffered essence data
+		if((*it).second.KLVSource)
 		{
+			Uint64 Size = (*it).second.KLVSource->GetLength();
+
+			// Write out the length
+			DataChunkPtr BER = MakeBER(Size);
+			StreamOffset += LinkedFile->Write(*BER);
+
+			// Write out all the data
+			Position Offset = 0;
+			for(;;)
+			{
+				const int ReadChunkSize = 128 * 1024;
+				Length Bytes = (*it).second.KLVSource->ReadData(Offset, ReadChunkSize);
+				Offset += Bytes;
+
+				// Exit when no more data left
+				if(!Bytes) break;
+
+				StreamOffset += LinkedFile->Write((*it).second.KLVSource->GetData());
+			}
+		}
+		// Handle any non-buffered essence data
+		else if((*it).second.Source)
+		{
+
 			Uint64 Size = (*it).second.Source->GetEssenceDataSize();
 
 			// Write out the length
@@ -1064,3 +1133,53 @@ bool BodyReader::Resync()
  *  \return False if seeking could not be initialized (perhaps because the file is not seekable)
  */
 // bool BodyReader::InitSeek(void);
+
+
+
+//! Get a GCElementKind structure
+GCElementKind mxflib::GetGCElementKind(ULPtr TheUL)
+{
+	GCElementKind ret;
+
+	//! Base of all standard GC keys
+	/*! DRAGONS: version number is hard-coded as 1 */
+	const Uint8 DegenerateGCLabel[12] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
+	
+	// Note that we first test the 11th byte as this where "Application = MXF Generic Container Keys"
+	// is set and so is the same for all GC keys and different in the majority of non-CG keys
+	if( ( TheUL->GetValue()[10] == DegenerateGCLabel[10] ) && (memcmp(TheUL->GetValue(), DegenerateGCLabel, 12) == 0) )
+	{
+		ret.IsValid =			true;
+		ret.Item =				(TheUL->GetValue())[12];
+		ret.Count =				(TheUL->GetValue())[13];
+		ret.ElementType = (TheUL->GetValue())[14];
+		ret.Number =			(TheUL->GetValue())[15];
+	}
+	else
+		ret.IsValid =			false;
+
+	return ret;
+}
+
+
+
+//! Get the track number of this essence key (if it is a GC Key)
+/*! \return 0 if not a valid GC Key
+ */
+Uint32 mxflib::GetGCTrackNumber(ULPtr TheUL)
+{
+	//! Base of all standard GC keys
+	/*! DRAGONS: version number is hard-coded as 1 */
+	const Uint8 DegenerateGCLabel[12] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
+	
+	// Note that we first test the 11th byte as this where "Application = MXF Generic Container Keys"
+	// is set and so is the same for all GC keys and different in the majority of non-CG keys
+	if( ( TheUL->GetValue()[10] == DegenerateGCLabel[10] ) && (memcmp(TheUL->GetValue(), DegenerateGCLabel, 12) == 0) )
+	{
+		return (Uint32(TheUL->GetValue()[12]) << 24) || (Uint32(TheUL->GetValue()[13]) << 16) 
+			|| (Uint32(TheUL->GetValue()[14]) << 8) || Uint32(TheUL->GetValue()[15]);
+	}
+	else
+		return 0;
+}
+
