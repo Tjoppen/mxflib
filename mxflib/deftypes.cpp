@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Defines known types
  *
- *	\version $Id: deftypes.cpp,v 1.2.2.1 2004/05/28 14:00:22 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.2.2.2 2004/06/14 17:07:51 matt-beard Exp $
  *
  */
 /*
@@ -135,13 +135,13 @@ int mxflib::LoadTypes(char *TypesFile)
 	State.CurrentCompound = NULL;
 	State.CompoundName[0] = '\0';
 
-	char *xmlFilePath = lookupDataFilePath(TypesFile);
+	std::string XMLFilePath = LookupDictionaryPath(TypesFile);
 
 	// Parse the file
-	bool result = sopSAXParseFile(&DefTypes_SAXHandler, &State, xmlFilePath);
-	if (xmlFilePath)
-		delete [] xmlFilePath;
-	if (! result)
+	bool result = false;
+	
+	if(XMLFilePath.size()) result = sopSAXParseFile(&DefTypes_SAXHandler, &State, XMLFilePath.c_str());
+	if (!result)
 	{
 		error("sopSAXParseFile failed for %s\n", TypesFile);
 		return -1;
