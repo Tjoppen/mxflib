@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.6 2004/12/18 20:28:52 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.7 2005/02/05 13:32:41 matt-beard Exp $
  *
  */
 /*
@@ -291,7 +291,7 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 	{
 		Primer::iterator it = BasePrimer->find(BaseTag);
 
-	// Didn't find it!!
+		// Didn't find it!!
 		if(it == BasePrimer->end())
 		{
 			error("Metadata object with Tag \"%s\" doesn't exist in specified Primer\n", Tag2String(BaseTag).c_str());
@@ -1746,7 +1746,7 @@ bool MDObject::MakeLink(MDObjectPtr TargetSet)
 	if((RType != DICT_REF_STRONG) && (RType != DICT_REF_WEAK))
 	{
 		error("Attempting to reference %s from %s (which is not a reference source)\n",
-			   FullName().c_str(), TargetSet->FullName().c_str());
+			   TargetSet->FullName().c_str(), FullName().c_str() );
 	}
 
 	// Make the link
@@ -2410,7 +2410,7 @@ void MDOType::Derive(MDOTypePtr BaseEntry)
 		if(!Current)
 		{
 			error("Cannot locate child %s while deriving %s from %s\n", 
-				  (*it).c_str(), BaseEntry->DictName.c_str(), DictName.c_str());
+				  (*it).c_str(), DictName.c_str(), BaseEntry->DictName.c_str() );
 			it++;
 			continue;
 		}
