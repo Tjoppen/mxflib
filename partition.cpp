@@ -33,7 +33,7 @@ using namespace mxflib;
 
 
 //! Add a metadata object to the header metadata belonging to a partition
-void mxflib::Partition::AddMetadata(MDObjectPtr Object)
+void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 {
 	// Start out without a target
 	bool has_target = false;
@@ -42,27 +42,27 @@ void mxflib::Partition::AddMetadata(MDObjectPtr Object)
 	bool linked = false;
 
 	// Add us to the list of all items
-	AllMetadata.push_back(Object);
+	AllMetadata.push_back(NewObject);
 
 	// Add this object to the ref target list if it is one
 	// Note: although nothing currently does it it is theoretically possible to
 	//       have more than one target entry in a set
-	MDObjectNamedList::iterator it = Object->begin();
-	while(it != Object->end())
+	MDObjectNamedList::iterator it = NewObject->begin();
+	while(it != NewObject->end())
 	{
 		if((*it).second->GetRefType() == DICT_REF_TARGET)
 		{
 			if((*it).second->Value->size() != 16)
 			{
 				error("Metadata Object \"%s/%s\" should be a reference target (a UUID), but has size %d\n",
-					  Object->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
+					  NewObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
 			}
 			else
 			{
 				has_target = true;
 
 				UUIDPtr ID = new UUID((*it).second->Value->PutData().Data);
-				RefTargets.insert(std::map<UUID, MDObjectPtr>::value_type(*ID, Object));
+				RefTargets.insert(std::map<UUID, MDObjectPtr>::value_type(*ID, NewObject));
 			
 				// Try and satisfy all refs to this set
 				for(;;)
@@ -79,7 +79,7 @@ void mxflib::Partition::AddMetadata(MDObjectPtr Object)
 					}
 
 					// Make the link
-					(*mit).second->SetLink(Object);
+					(*mit).second->SetLink(NewObject);
 
 					// If we are the tagert of a strong ref we won't get added to the top level
 					if((*mit).second->GetRefType() == DICT_REF_STRONG) linked = true;
@@ -95,18 +95,18 @@ void mxflib::Partition::AddMetadata(MDObjectPtr Object)
 	}
 
 	// If we are not yet (strong) reffed then we are top level
-	if(!linked) TopLevelMetadata.push_back(Object);
+	if(!linked) TopLevelMetadata.push_back(NewObject);
 
 	// Satisfy, or record as un-matched, all outgoing references
-	ProcessChildRefs(Object);
+	ProcessChildRefs(NewObject);
 }
 
 
 //! Satisfy, or record as un-matched, all outgoing references
-void mxflib::Partition::ProcessChildRefs(MDObjectPtr Object)
+void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 {
-	MDObjectNamedList::iterator it = Object->begin();
-	while(it != Object->end())
+	MDObjectNamedList::iterator it = ThisObject->begin();
+	while(it != ThisObject->end())
 	{
 		DictRefType Ref = (*it).second->GetRefType();
 		if((Ref == DICT_REF_STRONG) || (Ref == DICT_REF_WEAK))
@@ -114,7 +114,7 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr Object)
 			if((*it).second->Value->size() != 16)
 			{
 				error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
-					  Object->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->size());
+					  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->size());
 			}
 			else
 			{
@@ -154,6 +154,8 @@ Uint64 mxflib::Partition::ReadMetadata(void)
 	Uint64 MetadataSize = GetInt64("HeaderByteCount");
 	if(MetadataSize == 0) return 0;
 
+	MXFFilePtr ParentFile = Object->GetParentFile();
+
 	if(!ParentFile)
 	{
 		error("Call to Partition::ReadMetadata() on a partition that is not read from a file\n");
@@ -162,7 +164,7 @@ Uint64 mxflib::Partition::ReadMetadata(void)
 
 	// Find the start of the metadata 
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the pack
-	ParentFile->Seek(ParentOffset + 16);
+	ParentFile->Seek(Object->GetLocation() + 16);
 	Uint64 Len = ParentFile->ReadBER();
 	ParentFile->Seek(ParentFile->Tell() + Len);
 
@@ -351,6 +353,8 @@ MDObjectListPtr mxflib::Partition::ReadIndex(void)
 	Uint64 IndexSize = GetInt64("IndexByteCount");
 	if(IndexSize == 0) return new MDObjectList;
 
+	MXFFilePtr ParentFile = Object->GetParentFile();
+
 	if(!ParentFile)
 	{
 		error("Call to Partition::ReadIndex() on a partition that is not read from a file\n");
@@ -361,7 +365,7 @@ MDObjectListPtr mxflib::Partition::ReadIndex(void)
 
 	// Find the start of the index table
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the metadata
-	ParentFile->Seek(ParentOffset + 16);
+	ParentFile->Seek(Object->GetLocation() + 16);
 	Uint64 Len = ParentFile->ReadBER();
 	Uint64 Location = ParentFile->Tell() + Len;
 

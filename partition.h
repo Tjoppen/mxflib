@@ -59,15 +59,16 @@ namespace mxflib
 namespace mxflib
 {
 	//! Holds data relating to a single partition
-	class Partition : public MDObject
+	class Partition : public RefCount<Partition>
 	{
 	public:
+		MDObjectPtr Object;				//!< The MDObject for this partition pack
 
-		PrimerPtr PartitionPrimer;	//!< The Primer for this partition
-									/*!< Or NULL if no primer pack active (only valid
-									 *   if there is no header metadata in this partition
-									 *   OR it has not yet been written)
-									 */
+		PrimerPtr PartitionPrimer;		//!< The Primer for this partition
+										/*!< Or NULL if no primer pack active (only valid
+										 *   if there is no header metadata in this partition
+										 *   OR it has not yet been written)
+										 */
 
 		MDObjectList AllMetadata;		//!< List of all header metadata sets in the partition
 		MDObjectList TopLevelMetadata;	//!< List of all metadata items int the partition not linked from another
@@ -77,11 +78,11 @@ namespace mxflib
 		std::multimap<UUID, MDObjectPtr> UnmatchedRefs;		//!< Map of UUID of all strong or weak refs not yet linked
 
 	public:
-		Partition(const char *BaseType) : MDObject(BaseType) {};
-		Partition(MDOTypePtr BaseType) : MDObject(BaseType) {};
-		Partition(ULPtr BaseUL) : MDObject(BaseUL) {};
+		Partition(const char *BaseType) { Object = new MDObject(BaseType); };
+		Partition(MDOTypePtr BaseType) { Object = new MDObject(BaseType); };
+		Partition(ULPtr BaseUL) { Object = new MDObject(BaseUL); };
 
-		void AddMetadata(MDObjectPtr Object);
+		void AddMetadata(MDObjectPtr NewObject);
 
 		//! Clear all header metadata for this partition (including the primer)
 		void ClearMetadata(void)
@@ -114,15 +115,61 @@ namespace mxflib
 		std::multimap<UUID, MDObjectPtr>& GetUnmatchedRefs(void) { return UnmatchedRefs;	};
 
 	private:
-		void ProcessChildRefs(MDObjectPtr Object);
+		void ProcessChildRefs(MDObjectPtr ThisObject);
+
+	public:
+		// ** MDObject Interface **
+		std::string Name(void) { return Object->Name(); };
+		std::string FullName(void) { return Object->FullName(); };
+
+		void SetInt(const char *ChildName, Int32 Val) { Object->SetInt(ChildName, Val); };
+		void SetInt64(const char *ChildName, Int64 Val) { Object->SetInt64(ChildName, Val); };
+		void SetUint(const char *ChildName, Uint32 Val) { Object->SetUint(ChildName, Val); };
+		void SetUint64(const char *ChildName, Uint64 Val) { Object->SetUint64(ChildName, Val); };
+		void SetString(const char *ChildName, std::string Val) { Object->SetString(ChildName, Val); };
+		Int32 GetInt(const char *ChildName, Int32 Default = 0) { return Object->GetInt(ChildName, Default); };
+		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { return Object->GetInt64(ChildName, Default); };
+		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { return Object->GetUint(ChildName, Default); };
+		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { return Object->GetUint64(ChildName, Default); };
+		std::string GetString(const char *ChildName, std::string Default = "") { return Object->GetString(ChildName, Default); };
+		void SetInt(MDOTypePtr ChildType, Int32 Val) { Object->SetInt(ChildType, Val); };
+		void SetInt64(MDOTypePtr ChildType, Int64 Val) { Object->SetInt64(ChildType, Val); };
+		void SetUint(MDOTypePtr ChildType, Uint32 Val) { Object->SetUint(ChildType, Val); };
+		void SetUint64(MDOTypePtr ChildType, Uint64 Val) { Object->SetUint64(ChildType, Val); };
+		void SetString(MDOTypePtr ChildType, std::string Val) { Object->SetString(ChildType, Val); };
+		Int32 GetInt(MDOTypePtr ChildType, Int32 Default = 0) { return Object->GetInt(ChildType, Default); };
+		Int64 GetInt64(MDOTypePtr ChildType, Int64 Default = 0) { return Object->GetInt64(ChildType, Default); };
+		Uint32 GetUint(MDOTypePtr ChildType, Uint32 Default = 0) { return Object->GetUint(ChildType, Default); };
+		Uint64 GetUint64(MDOTypePtr ChildType, Uint64 Default = 0) { return Object->GetUint64(ChildType, Default); };
+		std::string GetString(MDOTypePtr ChildType, std::string Default = "") { return Object->GetString(ChildType, Default); };
+
+		//! Read the object's value from a memory buffer
+		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer = NULL) { return Object->ReadValue(Buffer, Size, UsePrimer); };
+		
+		MDOTypePtr GetType(void) const { return Object->GetType(); };
+		MDObjectPtr GetLink(void) const { return Object->GetLink(); };
+		void SetLink(MDObjectPtr NewLink) { Object->SetLink(NewLink); };
+		DictRefType GetRefType(void) const { return Object->GetRefType(); };
+
+		//! Set the parent details when an object has been read from a file
+		void SetParent(MXFFilePtr File, Uint64 Location, Uint32 NewKLSize) { Object->SetParent(File, Location, NewKLSize); };
+
+		//! Set the parent details when an object has been read from memory
+		void SetParent(MDObjectPtr ParentObject, Uint64 Location, Uint32 NewKLSize) { Object->SetParent(ParentObject, Location, NewKLSize); };
+
+		bool IsModified(void) { return Object->IsModified(); }
+
+		Uint64 GetLocation(void) { return Object->GetLocation(); }
+		std::string GetSource(void) { return Object->GetSource(); }
+		std::string GetSourceLocation(void) { return Object->GetSourceLocation(); }
 	};
 }
 
 // These simple inlines need to be defined after Partition
 namespace mxflib
 {
-inline MDObjectPtr PartitionPtr::operator[](const char *ChildName) { return GetPtr()->operator[](ChildName); };
-inline MDObjectPtr PartitionPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->operator[](ChildType); };
+inline MDObjectPtr PartitionPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; };
+inline MDObjectPtr PartitionPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; };
 }
 
 #endif MXFLIB__PARTITION_H
