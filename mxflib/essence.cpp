@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.3 2004/11/13 10:26:23 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.4 2005/02/05 13:27:02 matt-beard Exp $
  *
  */
 /*
@@ -1002,7 +1002,7 @@ bool GCReader::HandleData(KLVObjectPtr Object)
 		// but is false for standard GC sets and packs. Once this matches we can do a full memcmp.
 		if(Object->GetUL()->GetValue()[5] == 4)
 		{
-			const Uint8 EncryptedKey[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x04, 0x01, 0x07, 0x0f, 0x01, 0x03, 0x7f, 0x01, 0x00, 0x00, 0x00 };
+			const Uint8 EncryptedKey[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x04, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x7e, 0x01, 0x00 };
 			if( memcmp(Object->GetUL()->GetValue(), EncryptedKey, 16) == 0 )
 			{
 				return EncryptionHandler->HandleData(this, Object);
@@ -1264,7 +1264,7 @@ bool BodyReader::ReSync()
 
 		// Validate the start of the key (to see if it is a standard MXF key)
 		const Uint8 *Key = ThisUL->GetValue();
-		if((Key[0] == 0x06) && (Key[1] == 0x0e) && (Key[2] == 0x2b) && (Key[3] == 34))
+		if((Key[0] == 0x06) && (Key[1] == 0x0e) && (Key[2] == 0x2b) && (Key[3] == 0x34))
 		{
 			// It seems to be a key - is it a partition pack key? If so we are bac in sync
 			if(IsPartitionKey(Key))
@@ -1279,7 +1279,7 @@ bool BodyReader::ReSync()
 			Length Len = File->ReadBER();
 			if(Len < 0) return false;
 
-			CurrentPos += Len + 16;
+			CurrentPos = File->Tell() + Len;
 
 			continue;
 		}
@@ -1292,8 +1292,9 @@ bool BodyReader::ReSync()
 		for(;;)
 		{
 			// Scan 64k at a time
-			const Uint64 BufferLen = 1024 * 65536;
+			const Uint64 BufferLen = 65536;
 			DataChunkPtr Buffer = File->Read(BufferLen);
+			
 			if(Buffer->Size < 16) return false;
 
 			Int32 i;									// Loop variable
@@ -1306,8 +1307,8 @@ bool BodyReader::ReSync()
 				{
 					if(IsPartitionKey(p))
 					{
-						File->Seek(CurrentPos);
 						CurrentPos += i;				// Move pointer to new partition pack
+						File->Seek(CurrentPos);
 						NewPos = true;					// Force read to be reinitialized
 						AtPartition= true;
 		
