@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.7 2005/02/05 13:32:41 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.8 2005/03/25 13:18:51 terabrit Exp $
  *
  */
 /*
@@ -33,8 +33,6 @@
  */
 
 #include <mxflib/mxflib.h>
-#include <mxflib/helper.h>
-#include <mxflib/sopsax.h>
 
 #include <stdarg.h>
 
@@ -252,15 +250,19 @@ MDObject::MDObject(ULPtr BaseUL)
 		ASSERT(Type);
 
 		// Shall we try and parse this?
-		// DRAGONS: Somewhat clunky version for 2-byte tag, 2-byte len
-#define ParseDark true
+		bool ParseDark = false;
+
+#ifdef PARSEDARK
+		ParseDark = true;
+#endif
+
 		if(ParseDark)
 		{
 			const Uint8 Set2x2[6] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53 };
 			if(memcmp(Set2x2, BaseUL->GetValue(), 6) == 0)
 			{
-				Type = MDOType::Find("DefaultObject");
-				ASSERT(Type);
+				MDOTypePtr DefaultType = MDOType::Find("DefaultObject");
+				if(DefaultType) Type = DefaultType;
 			}
 		}
 	}
@@ -1831,7 +1833,7 @@ typedef enum
 } DictStateState;
 
 
-//! SAX parsing state structure for XML dictionary parser
+//! XML parsing state structure for XML dictionary parser
 typedef struct
 {
 	DictStateState	State;					//! State-machine current state
@@ -1848,12 +1850,12 @@ void MDOType::LoadDict(const char *DictFile)
 	State.State = DICT_STATE_START;
 
 	// Parse the file
-	sopSAXHandler SAXHandler = {
-		(startElementSAXFunc) SAX_startElement,		/* startElement */
-		(endElementSAXFunc) SAX_endElement,			/* endElement */
-		(warningSAXFunc) SAX_warning,				/* warning */
-		(errorSAXFunc) SAX_error,					/* error */
-		(fatalErrorSAXFunc) SAX_fatalError,			/* fatalError */
+	XMLParserHandler XMLHandler = {
+		(startElementXMLFunc) XML_startElement,		/* startElement */
+		(endElementXMLFunc) XML_endElement,			/* endElement */
+		(warningXMLFunc) XML_warning,				/* warning */
+		(errorXMLFunc) XML_error,					/* error */
+		(fatalErrorXMLFunc) XML_fatalError,			/* fatalError */
 	};
 
 	std::string XMLFilePath = LookupDictionaryPath(DictFile);
@@ -1861,10 +1863,9 @@ void MDOType::LoadDict(const char *DictFile)
 	// Parse the file
 	bool result = false;
 	
-	if(XMLFilePath.size()) result = sopSAXParseFile(&SAXHandler, &State, XMLFilePath.c_str());
+	if(XMLFilePath.size()) result = XMLParserParseFile(&XMLHandler, &State, XMLFilePath.c_str());
 	if(!result)
 	{
-		error("sopSAXParseFile failed for %s\n", DictFile);
 		return;
 	}
 
@@ -1918,7 +1919,7 @@ void MDOType::LoadDict(const char *DictFile)
 
 
 //! XML Dictionary parsing - Deal with start tag of an element
-void MDOType::SAX_startElement(void *user_data, const char *name, const char **attrs)
+void MDOType::XML_startElement(void *user_data, const char *name, const char **attrs)
 {
 	DictState *State = (DictState*)user_data;
 	int this_attr = 0;
@@ -1939,7 +1940,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 		case DICT_STATE_START:
 			if(strcmp(name, "MXFDictionary") != 0)
 			{
-				SAX_error(State, "Expected outer tag <MXFDictionary> got <%s/>", name);
+				XML_error(State, "Expected outer tag <MXFDictionary> got <%s/>", name);
 				State->State = DICT_STATE_ERROR;
 			}
 			else
@@ -1978,7 +1979,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 
 						if(!BaseType)
 						{
-							SAX_error(State, "Cannot find base type '%s' for <%s/>", val, name);
+							XML_error(State, "Cannot find base type '%s' for <%s/>", val, name);
 						}
 						else
 						{
@@ -2079,7 +2080,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 						else if(strcasecmp(val,"toxic") == 0) Use = DICT_USE_TOXIC;
 						else
 						{
-							SAX_warning(State, "Unknown use value use=\"%s\" in <%s/>", val, name);
+							XML_warning(State, "Unknown use value use=\"%s\" in <%s/>", val, name);
 							Use = DICT_USE_OPTIONAL;
 						}
 
@@ -2094,7 +2095,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 						else if(strcasecmp(val,"weak") == 0) RefType = DICT_REF_WEAK;
 						else
 						{
-							SAX_warning(State, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+							XML_warning(State, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
 							RefType = DICT_REF_NONE;
 						}
 
@@ -2175,7 +2176,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 							else if(strcasecmp(val,"subArray") == 0) DType = DICT_TYPE_ARRAY;
 							else
 							{
-								SAX_warning(State, "Unknown type \"%s\" in <%s/>", val, name);
+								XML_warning(State, "Unknown type \"%s\" in <%s/>", val, name);
 							}
 
 							// Set the container type
@@ -2259,11 +2260,11 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 					}
 					else
 					{
-						SAX_warning(State, "Unexpected attribute '%s' in <%s/>", attr, name);
+						XML_warning(State, "Unexpected attribute '%s' in <%s/>", attr, name);
 					}
 				}
 			}
-			
+
 			/* If only a 'key' is given index it with global key as well */
 			if(!HasGlobalKey)
 			{
@@ -2274,7 +2275,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 			if(Dict->GlobalKey.Size != 16)
 			{
 				// Zero byte keys are fine for abstract base classes
-				if(Dict->GlobalKey.Size != 0) SAX_error(State, "Global key is not 16 bytes long for <%s/>", name);
+				if(Dict->GlobalKey.Size != 0) XML_error(State, "Global key is not 16 bytes long for <%s/>", name);
 			}
 			else
 			{
@@ -2297,7 +2298,7 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 				}
 				else
 				{
-					SAX_warning(State, "Default value for <%s/> ignored as it is an unknown type", name);
+					XML_warning(State, "Default value for <%s/> ignored as it is an unknown type", name);
 				}
 			}
 
@@ -2316,14 +2317,14 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 				}
 				else
 				{
-					SAX_warning(State, "Distinguished value for <%s/> ignored as it is an unknown type", name);
+					XML_warning(State, "Distinguished value for <%s/> ignored as it is an unknown type", name);
 				}
 			}
 			break;
 		}
 
 		case DICT_STATE_END:
-			SAX_error(State, "Unexpected outer tag after <MXFDictionary/> completed -> <%s/>", name);
+			XML_error(State, "Unexpected outer tag after <MXFDictionary/> completed -> <%s/>", name);
 			State->State = DICT_STATE_ERROR;
 			break;
 
@@ -2335,9 +2336,9 @@ void MDOType::SAX_startElement(void *user_data, const char *name, const char **a
 
 
 /*
-** SAX_endElement() - Deal with end tag of an element
+** XML_endElement() - Deal with end tag of an element
 */
-void MDOType::SAX_endElement(void *user_data, const char *name)
+void MDOType::XML_endElement(void *user_data, const char *name)
 {
 	DictState *State = (DictState *)user_data;
 
@@ -2459,119 +2460,11 @@ bool MDObject::IsA(MDOTypePtr BaseType)
 }
 		
 
-//! Read hex values separated by any of 'Sep'
-/*! /ret number of values read */
-int MDOType::ReadHexString(const char **Source, int Max, Uint8 *Dest, char *Sep)
-{
-	/* Note - Pointer to pointer used for Source
-	**		  This allows the caller's pointer to be updated to
-	**		  point to the first character after the hex string
-	**
-	**		  **Source = character value in input data
-	**		  *Source  = pointer to source data
-	*/
-
-	int Count = 0;
-	Uint8 current = 0;
-	int Started = 0;
-
-	/* Skip leading whitespace (Abort if end of string) */
-	while((**Source==' ') || (**Source=='\t'))
-	{
-		if((**Source)=='\0') return 0;
-		(*Source)++;
-	}
-
-	while(**Source != 0)
-	{
-		char c = **Source;
-
-		if((c>='0') && (c<='9'))
-		{
-			/* Update current value with next hex digit */
-			current *= 16;
-			current += (c - '0');
-			Started = 1;
-		}
-		else if((c>='a') && (c<='f'))
-		{
-			/* Update current value with next hex digit */
-			current *= 16;
-			current += (c - 'a') + 10;
-			Started = 1;
-		}
-		else if((c>='A') && (c<='F'))
-		{
-			/* Update current value with next hex digit */
-			current *= 16;
-			current += (c - 'A') + 10;
-			Started = 1;
-		}
-		else
-		{
-			int separator = 0;
-			char *p = Sep;
-			
-			if(p == NULL)
-			{
-				if((c==' ') || (c=='\t')) separator = 1;
-			}
-			else
-			{
-				while(*p)
-				{
-					if(*(p++)) 
-					{
-						separator = 1;
-						break;
-					}
-				}
-			}
-
-			/* Valid separator found? */
-			if(separator)
-			{
-				/* Update the output data if not full */
-				if(Started && (Count <= Max))
-				{
-					*Dest++ = current;
-					Count++;
-				}
-
-				/* Reset current value */
-				current = 0;
-				Started = 0;
-			}
-			else
-			{
-				/* Run out of valid characters - exit loop */
-				break;
-			}
-		}
-
-		/* Move to next character */
-		(*Source)++;
-	}
-	
-	/* Update the output data with last value      */
-	/* If we are working on one and there is space */
-	if(Started)
-	{
-		if(Count <= Max)
-		{
-			*Dest++ = current;
-			Count++;
-		}
-	}
-
-	return Count;
-}
-
 
 /*
-** SAX_warning() - Handle warnings during SAX parsing
+** XML_warning() - Handle warnings during XML parsing
 */
-void MDOType::SAX_warning(void *user_data, const char *msg, ...)
+void MDOType::XML_warning(void *user_data, const char *msg, ...)
 {
     va_list args;
 
@@ -2592,9 +2485,9 @@ void MDOType::SAX_warning(void *user_data, const char *msg, ...)
 }
 
 /*
-** SAX_error() - Handle errors during SAX parsing
+** XML_error() - Handle errors during XML parsing
 */
-void MDOType::SAX_error(void *user_data, const char *msg, ...)
+void MDOType::XML_error(void *user_data, const char *msg, ...)
 {
     va_list args;
 
@@ -2609,9 +2502,9 @@ void MDOType::SAX_error(void *user_data, const char *msg, ...)
 }
 
 /*
-** SAX_fatalError() - Handle fatal erros during SAX parsing
+** XML_fatalError() - Handle fatal erros during XML parsing
 */
-void MDOType::SAX_fatalError(void *user_data, const char *msg, ...)
+void MDOType::XML_fatalError(void *user_data, const char *msg, ...)
 {
     va_list args;
 

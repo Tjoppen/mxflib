@@ -1,11 +1,11 @@
 /*! \file	deftypes.cpp
- *	\brief	Defines known types
+ *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.4 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.5 2005/03/25 13:18:51 terabrit Exp $
  *
  */
 /*
- *	Copyright (c) 2003, Matt Beard
+ *	Copyright (c) 2005, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -28,59 +28,21 @@
  */
 
 #include <mxflib/mxflib.h>
-#include <mxflib/helper.h>
-#include <mxflib/sopsax.h>
 
 #include <stdarg.h>
 
 
 using namespace mxflib;
 
-/* SAX functions */
-void DefTypes_startElement(void *user_data, const char *name, const char **attrs);
-void DefTypes_endElement(void *user_data, const char *name);
-void DefTypes_warning(void *user_data, const char *msg, ...);
-void DefTypes_error(void *user_data, const char *msg, ...);
-void DefTypes_fatalError(void *user_data, const char *msg, ...);
-
-
-/*
-** Our SAX handler
-*/
-static sopSAXHandler DefTypes_SAXHandler = {
-    (startElementSAXFunc) DefTypes_startElement,		/* startElement */
-    (endElementSAXFunc) DefTypes_endElement,			/* endElement */
-    (warningSAXFunc) DefTypes_warning,					/* warning */
-    (errorSAXFunc) DefTypes_error,						/* error */
-    (fatalErrorSAXFunc) DefTypes_fatalError,			/* fatalError */
-};
-
-typedef enum
-{
-	DEFTYPES_STATE_START = 0,
-	DEFTYPES_STATE_STARTED,					/*!< Inside the 'MXFTypes' tag */
-	DEFTYPES_STATE_BASIC,					/*!< Processing 'Basic' section */
-	DEFTYPES_STATE_INTERPRETATION,			/*!< Processing 'Interpretation' section */
-	DEFTYPES_STATE_MULTIPLE,				/*!< Processing 'Multiple' section */
-	DEFTYPES_STATE_COMPOUND,				/*!< Processing 'Compound' section */
-	DEFTYPES_STATE_COMPOUNDITEMS,			/*!< Addind items to a 'Compound' */
-	DEFTYPES_STATE_END,						/*!< Finished the dictionary */
-	DEFTYPES_STATE_ERROR					/*!< Skip all else - error condition */
-} DefTypesStateState;
-
-typedef struct
-{
-	DefTypesStateState	State;				/*!< State machine current state */
-	MDTypePtr			CurrentCompound;	/*!< The current compound being build (or NULL) */
-	char				CompoundName[65];	/*!< Name of the current compound (or "") */
-} DefTypesState;
-
-
 //! Type to map type names to their handling traits
 typedef std::map<std::string,MDTraitsPtr> TraitsMapType;
 
 //! Map of type names to thair handling traits
 static TraitsMapType TraitsMap;
+
+//! Lookup a Trait by name
+const MDTraits*  mxflib::LookupTraits(const char* TraitsName) { return TraitsMap[TraitsName]; }
+
 
 //! Build the map of all known traits
 static void DefineTraits(void)
@@ -98,19 +60,25 @@ static void DefineTraits(void)
 
 	TraitsMap.insert(TraitsMapType::value_type("Int8", new MDTraits_Int8));
 	TraitsMap.insert(TraitsMapType::value_type("Uint8", new MDTraits_Uint8));
+	TraitsMap.insert(TraitsMapType::value_type("UInt8", new MDTraits_Uint8));
+	TraitsMap.insert(TraitsMapType::value_type("Internal-UInt8", new MDTraits_Uint8));
 	TraitsMap.insert(TraitsMapType::value_type("Int16", new MDTraits_Int16));
 	TraitsMap.insert(TraitsMapType::value_type("Uint16", new MDTraits_Uint16));
+	TraitsMap.insert(TraitsMapType::value_type("UInt16", new MDTraits_Uint16));
 	TraitsMap.insert(TraitsMapType::value_type("Int32", new MDTraits_Int32));
 	TraitsMap.insert(TraitsMapType::value_type("Uint32", new MDTraits_Uint32));
+	TraitsMap.insert(TraitsMapType::value_type("UInt32", new MDTraits_Uint32));
 	TraitsMap.insert(TraitsMapType::value_type("Int64", new MDTraits_Int64));
 	TraitsMap.insert(TraitsMapType::value_type("Uint64", new MDTraits_Uint64));
+	TraitsMap.insert(TraitsMapType::value_type("UInt64", new MDTraits_Uint64));
 
 	TraitsMap.insert(TraitsMapType::value_type("ISO7", new MDTraits_ISO7));
 	TraitsMap.insert(TraitsMapType::value_type("UTF16", new MDTraits_UTF16));
 
 	TraitsMap.insert(TraitsMapType::value_type("ISO7String", new MDTraits_BasicStringArray));
-	TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_BasicStringArray));
+	TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_UTF16String));
 	TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
+	TraitsMap.insert(TraitsMapType::value_type("UInt8Array", new MDTraits_RawArray));
 
 	TraitsMap.insert(TraitsMapType::value_type("UUID", new MDTraits_UUID));
 	TraitsMap.insert(TraitsMapType::value_type("Label", new MDTraits_Label));
@@ -123,131 +91,392 @@ static void DefineTraits(void)
 	TraitsMap.insert(TraitsMapType::value_type("Timestamp", new MDTraits_TimeStamp));
 }
 
+//! XML parsing functions for defining types
+void DefTypes_startElement(void *user_data, const char *name, const char **attrs);
+void DefTypes_endElement(void *user_data, const char *name);
+
+/* XML Error handling functions - with file scope */
+namespace
+{
+	//! XML callback - Handle warnings during XML parsing
+	void XML_warning(void *user_data, const char *msg, ...)
+	{
+		char Buffer[10240];			// DRAGONS: Could burst!!
+		va_list args;
+
+		va_start(args, msg);
+		vsprintf(Buffer, msg, args);
+		warning("XML WARNING: %s\n",Buffer);
+		va_end(args);
+	}
+
+	//! XML callback - Handle errors during XML parsing
+	void XML_error(void *user_data, const char *msg, ...)
+	{
+		char Buffer[10240];			// DRAGONS: Could burst!!
+		va_list args;
+
+		va_start(args, msg);
+		vsprintf(Buffer, msg, args);
+		error("XML ERROR: %s\n",Buffer);
+		va_end(args);
+	}
+
+	//! XML callback - Handle fatal errors during XML parsing
+	void XML_fatalError(void *user_data, const char *msg, ...)
+	{
+		char Buffer[10240];			// DRAGONS: Could burst!!
+		va_list args;
+
+		va_start(args, msg);
+		vsprintf(Buffer, msg, args);
+		error("XML FATAL ERROR: %s\n",Buffer);
+		va_end(args);
+	}
+}
+
+namespace
+{
+	//! Our XML handler
+	static XMLParserHandler DefTypes_XMLHandler = {
+		(startElementXMLFunc) DefTypes_startElement,		/* startElement */
+		(endElementXMLFunc) DefTypes_endElement,			/* endElement */
+		(warningXMLFunc) XML_warning,						/* warning */
+		(errorXMLFunc) XML_error,							/* error */
+		(fatalErrorXMLFunc) XML_fatalError,					/* fatalError */
+	};
+
+	//! State-machine state for XML parsing
+	enum CurrentState
+	{
+		StateIdle = 0,						//!< Processing not yet started
+		StateTypes,							//!< Processing types - not yet processing a types section
+		StateTypesBasic,					//!< Processing basic types section
+		StateTypesInterpretation,			//!< Processing interpretation types section
+		StateTypesMultiple,					//!< Processing multiple types section
+		StateTypesCompound,					//!< Processing compound types section
+		StateTypesCompoundItem,				//!< Processing sub-items within a compound
+		StateDone							//!< Finished processing
+	};
+
+	//! State structure for XML parsing
+	struct ParserState
+	{
+		CurrentState State;					//!< Current state of the parser state-machine
+		TypeRecordList Types;				//!< The types being built
+		TypeRecordPtr Compound;				//!< The current compound being built (or NULL)
+	};
+}
+
 
 //! Load types from the specified XML definitions
 /*! \return 0 if all OK
- *! \return -1 on error
+ *  \return -1 on error
  */
 int mxflib::LoadTypes(char *TypesFile)
 {
-	// State data block passed through SAX parser
-	DefTypesState State;
-
 	// Define the known traits
 	// Test before calling as two partial definition files could be loaded!
 	if(TraitsMap.empty()) DefineTraits();
 
-	State.State = DEFTYPES_STATE_START;
-	State.CurrentCompound = NULL;
-	State.CompoundName[0] = '\0';
+	// State data block passed through XML parser
+	ParserState State;
+
+	// Initialize the state
+	State.State = StateIdle;
 
 	std::string XMLFilePath = LookupDictionaryPath(TypesFile);
 
 	// Parse the file
 	bool result = false;
 	
-	if(XMLFilePath.size()) result = sopSAXParseFile(&DefTypes_SAXHandler, &State, XMLFilePath.c_str());
+	if(XMLFilePath.size()) result = XMLParserParseFile(&DefTypes_XMLHandler, &State, XMLFilePath.c_str());
 	if (!result)
 	{
-		error("sopSAXParseFile failed for %s\n", TypesFile);
 		return -1;
 	}
 
-
-	// Finally ensure we have a valid "Unknown" type
-	if(!MDType::Find("Unknown"))
-	{
-		MDTypePtr Array = MDType::Find("Uint8Array");
-
-		// Don't know Uint8Array - can't be a valid types file!
-		if(!Array) 
-		{
-			error("Types definition file %s does not contain a definition for Uint8Array - is it a valid file?\n", TypesFile);
-			return -1;
-		}
-
-		MDType::AddInterpretation("Unknown", MDType::Find("Uint8Array"));
-	}
+	// Load the types that were found
+	LoadTypes(State.Types);
 
 	return 0;
 }
 
 
-//! SAX callback - Deal with start tag of an element
-void DefTypes_startElement(void *user_data, const char *name, const char **attrs)
+//! Load types from the specified in-memory definitions
+/*! \note The last entry in the array must be a terminating entry with Class == TypeNULL
+ *  \return 0 if all OK
+ *  \return -1 on error
+ */
+int mxflib::LoadTypes(const ConstTypeRecord *TypesData)
 {
-	DefTypesState *State = (DefTypesState*)user_data;
-	int this_attr = 0;
+	// Pointer to walk through the array
+	const ConstTypeRecord *CurrentType = TypesData;
 
-/* DEBUG */
+	// Run-time list of types
+	TypeRecordList Types;
+
+	while(CurrentType->Class != TypeNULL)
 	{
-		debug("Element : %s\n", name);
+		TypeRecordPtr ThisType = new TypeRecord;
 
-		if(attrs != NULL)
+		// Copy over the attributes
+		ThisType->Class = CurrentType->Class;
+		ThisType->Type = CurrentType->Type;
+		ThisType->Detail = CurrentType->Detail;
+		ThisType->Base = CurrentType->Base;
+		ThisType->Size = CurrentType->Size;
+		ThisType->Endian = CurrentType->Endian;
+		ThisType->IsBatch = CurrentType->IsBatch;
+
+		// Add all children to compounds
+		if(CurrentType->Class == TypeCompound)
 		{
-			while(attrs[this_attr])
+			CurrentType++;
+			while(CurrentType->Class == TypeSub)
 			{
-				debug("  Attribute : %s = \"%s\"\n", attrs[this_attr], attrs[this_attr+1]);
-				this_attr += 2;
+				TypeRecordPtr SubType = new TypeRecord;
+
+				// Copy over the attributes
+				SubType->Class = CurrentType->Class;
+				SubType->Type = CurrentType->Type;
+				SubType->Detail = CurrentType->Detail;
+				SubType->Base = CurrentType->Base;
+				SubType->Size = CurrentType->Size;
+				SubType->Endian = CurrentType->Endian;
+				SubType->IsBatch = CurrentType->IsBatch;
+
+				// Add this child to the current compound
+				ThisType->Children.push_back(SubType);
+
+				CurrentType++;
 			}
 		}
+		else
+		{
+			CurrentType++;
+		}
+
+		Types.push_back(ThisType);
 	}
-/* /DEBUG */
+
+	// Load the types from the new in-memory list
+	return LoadTypes(Types);
+}
+
+
+// Basic "internally required" types (enough to hold an "unknown")
+namespace mxflib
+{
+	MXFLIB_TYPE_START(BasicInternalTypes)
+		MXFLIB_TYPE_BASIC("Internal-UInt8", "Internally used 8 bit unsigned integer", 1, false)
+		MXFLIB_TYPE_MULTIPLE("Unknown", "Array of bytes", "Internal-UInt8", false, 0)
+	MXFLIB_TYPE_END
+}
+
+
+//! Load types from the specified in-memory definitions
+/*! \return 0 if all OK
+ *  \return -1 on error
+ */
+int mxflib::LoadTypes(TypeRecordList &TypesData)
+{
+	// Define the basic "internally required" types (enough to hold an "unknown")
+	static bool BasicDefined = false;
+	if(!BasicDefined)
+	{
+		BasicDefined = true;
+		LoadTypes(BasicInternalTypes);
+	}
+
+	// Define the known traits if required
+	if(TraitsMap.empty()) DefineTraits();
+
+	//! List to hold any entries that are not resolved during this pass (we will recurse to resolve them at the end of the pass)
+	TypeRecordList Unresolved;
+
+	// Iterate through the list
+	TypeRecordList::iterator it = TypesData.begin();
+	while(it != TypesData.end())
+	{
+		switch((*it)->Class)
+		{
+			// Basic type definition
+			case TypeBasic:
+			{
+				MDTypePtr Ptr = MDType::AddBasic((*it)->Type, (*it)->Size);
+				if((*it)->Endian) Ptr->SetEndian(true);
+
+				MDTraitsPtr Traits = TraitsMap[(*it)->Type];
+				if(!Traits) Traits = TraitsMap["Default-Basic"];
+
+				if(Traits) Ptr->SetTraits(Traits);
+
+				break;
+			}
+
+			// Interpretation type
+			case TypeInterpretation:
+			{
+				MDTypePtr BaseType = MDType::Find((*it)->Base);
+				if(!BaseType)
+				{
+					debug("Interpretation \"%s\" is based on (as yet) undefined base \"%s\"\n", (*it)->Type.c_str(), (*it)->Base.c_str());
+
+					// Add to the "do later" pile
+					Unresolved.push_back(*it);
+				}
+				else
+				{
+					MDTypePtr Ptr = MDType::AddInterpretation((*it)->Type, BaseType, (*it)->Size);
+
+					MDTraitsPtr Traits = TraitsMap[(*it)->Type];
+
+					// If we don't have specific traits for this type
+					// it will inherit the base type's traits
+					if(Traits) Ptr->SetTraits(Traits);
+				}
+
+				break;
+			}
+
+			// Multiple type
+			case TypeMultiple:
+			{
+				MDTypePtr BaseType = MDType::Find((*it)->Base);
+				if(!BaseType)
+				{
+					debug("Multiple \"%s\" is based on (as yet) undefined base \"%s\"\n", (*it)->Type.c_str(), (*it)->Base.c_str());
+
+					// Add to the "do later" pile
+					Unresolved.push_back(*it);
+				}
+				else
+				{
+					MDTypePtr Ptr = MDType::AddArray((*it)->Type, BaseType, (*it)->Size);
+					if((*it)->IsBatch) Ptr->SetArrayClass(ARRAYBATCH);
+
+					MDTraitsPtr Traits = TraitsMap[(*it)->Type];
+					if(!Traits) Traits = TraitsMap["Default-Array"];
+					if(Traits) Ptr->SetTraits(Traits);
+				}
+
+				break;
+			}
+
+			// Compound type
+			case TypeCompound:
+			{
+				// First check that we currently have all types required
+				TypeRecordList::iterator subit = (*it)->Children.begin();
+				while(subit != (*it)->Children.end())
+				{
+					MDTypePtr SubType = MDType::Find((*subit)->Base);
+					if(!SubType)
+					{
+						debug("Compound item \"%s\" in \"%s\" is based on (as yet) undefined base \"%s\"\n", (*subit)->Type.c_str(), (*it)->Type.c_str(), (*subit)->Base.c_str());
+
+						// Add to the "do later" pile
+						Unresolved.push_back(*it);
+
+						break;
+					}
+					subit++;
+				}
+				
+				// If we quit the loop due to an unresolved item skip this type
+				if(subit != (*it)->Children.end()) break;
+
+				MDTypePtr Ptr = MDType::AddCompound((*it)->Type);
+
+				MDTraitsPtr Traits = TraitsMap[(*it)->Type];
+				if(!Traits) Traits = TraitsMap["Default-Compound"];
+
+				if(Traits) Ptr->SetTraits(Traits);
+
+				/* Process sub-items */
+
+				subit = (*it)->Children.begin();
+				while(subit != (*it)->Children.end())
+				{
+					MDTypePtr SubType = MDType::Find((*subit)->Base);
+					ASSERT(SubType);
+
+					// Add this child item
+					Ptr->insert(MDType::value_type((*subit)->Type, SubType));
+
+					// Add the child to the order list
+					Ptr->ChildOrder.push_back((*subit)->Type);
+				
+					subit++;
+				}
+
+				break;
+			}
+		}
+	
+		it++;
+	}
+
+
+	// Resolve any remaining entries
+	int UnresolvedCount = Unresolved.size();
+	if(UnresolvedCount)
+	{
+		// Unless we were stuck this time (cannot resolve any more)
+		if(UnresolvedCount == TypesData.size())
+		{
+			error("Undefined base class or circular reference in types definitions\n");
+			return -1;
+		}
+
+		// Recurse...
+		LoadTypes(Unresolved);
+	}
+
+	// All done OK
+	return 0;
+}
+
+
+
+//! XML callback - Deal with start tag of an element
+void DefTypes_startElement(void *user_data, const char *name, const char **attrs)
+{
+	ParserState *State = (ParserState*)user_data;
 
 	switch(State->State)
 	{
-		/* Skip if all has gone 'belly-up' */
-		case DEFTYPES_STATE_ERROR:
-		default:
-			return;
-
-		case DEFTYPES_STATE_START:
+		case StateIdle:
 		{
-			if(strcmp(name,"MXFTypes") != 0)
+			if(strcmp(name, "MXFTypes") != 0)
 			{
-				error("Types definitions file does not start with tag <MXFTypes>\n");
-				State->State = DEFTYPES_STATE_ERROR;
+				XML_fatalError(user_data, "Outer tag <MXFTypes> expected - <%s> found\n", name);
 				return;
 			}
 
-			State->State = DEFTYPES_STATE_STARTED;
+			State->State = StateTypes;
+
 			break;
 		}
 
-		case DEFTYPES_STATE_STARTED:
+		case StateTypes:
 		{
 			if(strcmp(name, "Basic") == 0)
-			{
-				State->State = DEFTYPES_STATE_BASIC;
-			}
+				State->State = StateTypesBasic;
 			else if(strcmp(name, "Interpretation") == 0)
-			{
-				State->State = DEFTYPES_STATE_INTERPRETATION;
-			}
+				State->State = StateTypesInterpretation;
 			else if(strcmp(name, "Multiple") == 0)
-			{
-				State->State = DEFTYPES_STATE_MULTIPLE;
-			}
+				State->State = StateTypesMultiple;
 			else if(strcmp(name, "Compound") == 0)
-			{
-				State->State = DEFTYPES_STATE_COMPOUND;
-			}
+				State->State = StateTypesCompound;
 			else
-			{
-				error("Unexpected types definitions section tag <%s>\n", name);
-				State->State = DEFTYPES_STATE_ERROR;
-			}
+				XML_error(user_data, "Tag <%s> found when types class expected\n", name);
+
 			break;
 		}
 
-		case DEFTYPES_STATE_END:
-		{
-			error("Unexpected types definition tag <%s> after final end tag\n", name);
-			State->State = DEFTYPES_STATE_ERROR;
-			break;
-		}
-
-		case DEFTYPES_STATE_BASIC:
+		case StateTypesBasic:
 		{
 			const char *Detail = "";
 			int Size = 1;
@@ -256,7 +485,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 			/* Process attributes */
 			if(attrs != NULL)
 			{
-				this_attr = 0;
+				int this_attr = 0;
 				while(attrs[this_attr])
 				{
 					char const *attr = attrs[this_attr++];
@@ -280,23 +509,29 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 					}
 					else
 					{
-						error("Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
+						XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
 					}
 				}
 			}
 
-			MDTypePtr Ptr = MDType::AddBasic(name, Size);
-			if(Endian) Ptr->SetEndian(true);
+			// Build a new type record
+			TypeRecordPtr ThisType = new TypeRecord;
 
-			MDTraitsPtr Traits = TraitsMap[name];
-			if(!Traits) Traits = TraitsMap["Default-Basic"];
+			ThisType->Class = TypeBasic;
+			ThisType->Type = name;
+			ThisType->Detail = Detail;
+			ThisType->Base = "";
+			ThisType->Size = Size;
+			ThisType->Endian = Endian;
+			ThisType->IsBatch = false;
 
-			if(Traits) Ptr->SetTraits(Traits);
+			// Add this type record
+			State->Types.push_back(ThisType);
 
 			break;
 		}
 
-		case DEFTYPES_STATE_INTERPRETATION:
+		case StateTypesInterpretation:
 		{
 			const char *Detail = "";
 			const char *Base = "";
@@ -305,7 +540,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 			/* Process attributes */
 			if(attrs != NULL)
 			{
-				this_attr = 0;
+				int this_attr = 0;
 				while(attrs[this_attr])
 				{
 					char const *attr = attrs[this_attr++];
@@ -329,41 +564,39 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 					}
 					else
 					{
-						error("Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
+						XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
 					}
 				}
 			}
 
-			MDTypePtr BaseType = MDType::Find(Base);
-			if(!BaseType)
-			{
-				error("Type \"%s\" specifies unknown base type \"%s\"\n", name, Base);
-			}
-			else
-			{
-				MDTypePtr Ptr = MDType::AddInterpretation(name, BaseType, Size);
+			// Build a new type record
+			TypeRecordPtr ThisType = new TypeRecord;
 
-				MDTraitsPtr Traits = TraitsMap[name];
+			ThisType->Class = TypeInterpretation;
+			ThisType->Type = name;
+			ThisType->Detail = Detail;
+			ThisType->Base = Base;
+			ThisType->Size = Size;
+			ThisType->Endian = false;
+			ThisType->IsBatch = false;
 
-				// If we don't have specific traits for this type
-				// it will inherit the base type's traits
-				if(Traits) Ptr->SetTraits(Traits);
-			}
+			// Add this type record
+			State->Types.push_back(ThisType);
 
 			break;
 		}
 
-		case DEFTYPES_STATE_MULTIPLE:
+		case StateTypesMultiple:
 		{
 			const char *Detail = "";
 			const char *Base = "";
-			MDArrayClass Class = ARRAYARRAY;
+			bool IsBatch = false;
 			int Size = 0;
-			
+
 			/* Process attributes */
 			if(attrs != NULL)
 			{
-				this_attr = 0;
+				int this_attr = 0;
 				while(attrs[this_attr])
 				{
 					char const *attr = attrs[this_attr++];
@@ -383,7 +616,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 					}
 					else if(strcmp(attr, "type") == 0)
 					{
-						if(strcasecmp(val, "Batch") == 0) Class = ARRAYBATCH;
+						if(strcasecmp(val, "Batch") == 0) IsBatch = true;
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
@@ -391,37 +624,36 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 					}
 					else
 					{
-						error("Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
+						XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
 					}
 				}
 			}
 
-			MDTypePtr BaseType = MDType::Find(Base);
-			if(!BaseType)
-			{
-				error("Type \"%s\" specifies unknown base type \"%s\"\n", name, Base);
-			}
-			else
-			{
-				MDTypePtr Ptr = MDType::AddArray(name, BaseType, Size);
-				if(Class == ARRAYBATCH) Ptr->SetArrayClass(ARRAYBATCH);
+			// Build a new type record
+			TypeRecordPtr ThisType = new TypeRecord;
 
-				MDTraitsPtr Traits = TraitsMap[name];
-				if(!Traits) Traits = TraitsMap["Default-Array"];
-				if(Traits) Ptr->SetTraits(Traits);
-			}
+			ThisType->Class = TypeMultiple;
+			ThisType->Type = name;
+			ThisType->Detail = Detail;
+			ThisType->Base = Base;
+			ThisType->Size = Size;
+			ThisType->Endian = false;
+			ThisType->IsBatch = IsBatch;
+
+			// Add this type record
+			State->Types.push_back(ThisType);
 
 			break;
 		}
 
-		case DEFTYPES_STATE_COMPOUND:
+		case StateTypesCompound:
 		{
 			const char *Detail = "";
-			
+
 			/* Process attributes */
 			if(attrs != NULL)
 			{
-				this_attr = 0;
+				int this_attr = 0;
 				while(attrs[this_attr])
 				{
 					char const *attr = attrs[this_attr++];
@@ -437,27 +669,32 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 					}
 					else
 					{
-						error("Unexpected attribute \"%s\" in compound type \"%s\"\n", attr, name);
+						XML_error(user_data, "Unexpected attribute \"%s\" in compound type \"%s\"\n", attr, name);
 					}
 				}
 			}
 
-			MDTypePtr Ptr = MDType::AddCompound(name);
+			// Build a new type record
+			TypeRecordPtr ThisType = new TypeRecord;
 
-			MDTraitsPtr Traits = TraitsMap[name];
-			if(!Traits) Traits = TraitsMap["Default-Compound"];
+			ThisType->Class = TypeCompound;
+			ThisType->Type = name;
+			ThisType->Detail = Detail;
+			ThisType->Base = "";
+			ThisType->Size = 0;
+			ThisType->Endian = false;
+			ThisType->IsBatch = false;
 
-			if(Traits) Ptr->SetTraits(Traits);
+			// Add this type record
+			State->Types.push_back(ThisType);
 
-			State->State = DEFTYPES_STATE_COMPOUNDITEMS;
-
-			State->CurrentCompound = Ptr;
-			strncpy(State->CompoundName,name,64);
+			State->State = StateTypesCompoundItem;
+			State->Compound = ThisType;
 
 			break;
 		}
 
-		case DEFTYPES_STATE_COMPOUNDITEMS:
+		case StateTypesCompoundItem:
 		{
 			const char *Detail = "";
 			const char *Type = "";
@@ -466,7 +703,7 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 			/* Process attributes */
 			if(attrs != NULL)
 			{
-				this_attr = 0;
+				int this_attr = 0;
 				while(attrs[this_attr])
 				{
 					char const *attr = attrs[this_attr++];
@@ -495,101 +732,453 @@ void DefTypes_startElement(void *user_data, const char *name, const char **attrs
 				}
 			}
 
-			MDTypePtr SubType = MDType::Find(Type);
-			if(!SubType)
-			{
-				error("Compound Item \"%s\" specifies unknown type \"%s\"\n", name, Type);
-			}
-			else
-			{
-				// Add reference to sub-item type
-				State->CurrentCompound->insert(MDType::value_type(std::string(name),SubType));
-				State->CurrentCompound->ChildOrder.push_back(std::string(name));
-			}
+			// Build a new type record
+			TypeRecordPtr ThisType = new TypeRecord;
+
+			ThisType->Class = TypeSub;
+			ThisType->Type = name;
+			ThisType->Detail = Detail;
+			ThisType->Base = Type;
+			ThisType->Size = Size;
+			ThisType->Endian = false;
+			ThisType->IsBatch = false;
+
+			// Add as a child of the current compound
+			State->Compound->Children.push_back(ThisType);
 
 			break;
 		}
-	}
 
-}
-
-
-//! SAX callback - Deal with end tag of an element
-extern void DefTypes_endElement(void *user_data, const char *name)
-{
-	DefTypesState *State = (DefTypesState*)user_data;
-
-	/* Skip if all has gone 'belly-up' */
-	if(State->State == DEFTYPES_STATE_ERROR) return;
-
-	if(State->State == DEFTYPES_STATE_STARTED)
-	{
-		State->State = DEFTYPES_STATE_END;
-		return;
-	}
-
-	if(State->State == DEFTYPES_STATE_BASIC)
-	{
-		if(strcmp(name,"Basic") == 0) State->State = DEFTYPES_STATE_STARTED;
-	}
-	else if(State->State == DEFTYPES_STATE_INTERPRETATION)
-	{
-		if(strcmp(name,"Interpretation") == 0) State->State = DEFTYPES_STATE_STARTED;
-	}
-	else if(State->State == DEFTYPES_STATE_MULTIPLE)
-	{
-		if(strcmp(name,"Multiple") == 0) State->State = DEFTYPES_STATE_STARTED;
-	}
-	else if(State->State == DEFTYPES_STATE_COMPOUND)
-	{
-		if(strcmp(name,"Compound") == 0) State->State = DEFTYPES_STATE_STARTED;
-	}
-	else if(State->State == DEFTYPES_STATE_COMPOUNDITEMS)
-	{
-		if(State->CompoundName && strcmp(name,State->CompoundName) == 0)
+		default:		// Should not be possible
+		case StateDone:
 		{
-			State->State = DEFTYPES_STATE_COMPOUND;
-			State->CurrentCompound = NULL;
-			State->CompoundName[0] = '\0';
+			XML_error(user_data, "Tag <%s> found beyond end of dictionary data\n", name);
+			return;
 		}
 	}
 }
 
 
-//! SAX callback - Handle warnings during SAX parsing
-extern void DefTypes_warning(void *user_data, const char *msg, ...)
+//! XML callback - Deal with end tag of an element
+void DefTypes_endElement(void *user_data, const char *name)
 {
-    char Buffer[10240];			// DRAGONS: Could burst!!
-	va_list args;
+	ParserState *State = (ParserState*)user_data;
 
-    va_start(args, msg);
-	vsprintf(Buffer, msg, args);
-	warning("XML WARNING: %s\n",Buffer);
-    va_end(args);
+	switch(State->State)
+	{
+		default:
+		case StateIdle:
+		{
+			XML_error(user_data, "Closing tag </%s> found when not unexpected\n", name);
+			return;
+		}
+
+		case StateTypes:
+		{
+			State->State = StateDone;
+			break;
+		}
+
+		case StateTypesBasic: 
+		{
+			if(strcmp(name,"Basic") == 0) State->State = StateTypes;
+			break;
+		}
+		case StateTypesInterpretation: 
+		{
+			if(strcmp(name,"Interpretation") == 0) State->State = StateTypes;
+			break;
+		}
+		case StateTypesMultiple: 
+		{
+			if(strcmp(name,"Multiple") == 0) State->State = StateTypes;
+			break;
+		}
+		case StateTypesCompound: 
+		{
+			if(strcmp(name,"Compound") == 0) State->State = StateTypes;
+			break;
+		}
+		
+		case StateTypesCompoundItem:
+		{
+			if(strcmp(name,State->Compound->Type.c_str()) == 0)
+			{
+				State->State = StateTypesCompound;
+				State->Compound = NULL;
+			}
+			break;
+		}
+	}
 }
 
-//! SAX callback - Handle errors during SAX parsing
-extern void DefTypes_error(void *user_data, const char *msg, ...)
-{
-    char Buffer[10240];			// DRAGONS: Could burst!!
-	va_list args;
 
-    va_start(args, msg);
-	vsprintf(Buffer, msg, args);
-	error("XML ERROR: %s\n",Buffer);
-    va_end(args);
+//! Load classes from the specified in-memory definitions
+/*! \return 0 if all OK
+ *  \return -1 on error
+ */
+int mxflib::LoadClasses(ClassRecordList &ClassesData)
+{
+	//! List to hold any entries that are not resolved during this pass (we will recurse to resolve them at the end of the pass)
+	ClassRecordList Unresolved;
+
+	// Iterate through the list
+	ClassRecordList::iterator it = ClassesData.begin();
+	while(it != ClassesData.end())
+	{
+		MDOTypePtr ThisType = MDOType::DefineClass(*it);
+
+		// If anything went wrong with this definition stack it for later
+		if(!ThisType) Unresolved.push_back(*it);
+
+		it++;
+	}
+
+	// Resolve any remaining entries
+	int UnresolvedCount = Unresolved.size();
+	if(UnresolvedCount)
+	{
+		// Unless we were stuck this time (cannot resolve any more)
+		if(UnresolvedCount == ClassesData.size())
+		{
+			error("Undefined base class or circular reference in class definitions\n");
+			return -1;
+		}
+
+		// Recurse...
+		LoadClasses(Unresolved);
+	}
+
+	return 0;
 }
 
-//! SAX callback - Handle fatal errors during SAX parsing
-extern void DefTypes_fatalError(void *user_data, const char *msg, ...)
-{
-    char Buffer[10240];			// DRAGONS: Could burst!!
-	va_list args;
 
-    va_start(args, msg);
-	vsprintf(Buffer, msg, args);
-	error("XML FATAL ERROR: %s\n",Buffer);
-    va_end(args);
+namespace
+{
+	typedef ConstClassRecord const *ConstClassRecordPTR;
+
+	//! File local function to build class list from the specified in-memory definitions
+	/*! This function is called by LoadClasses() and is recursive
+	 *  DRAGONS: ClassData is changed by LoadClassesSub - at return it points to the next peer entry
+	 *  \note There must be enough terminating entries (with Class == TypeNULL) to end any children
+	 *  \return The root class, or NULL on error
+	 */
+	ClassRecordPtr LoadClassesSub(ConstClassRecordPTR &ClassData)
+	{
+		ClassRecordPtr ThisClass = new ClassRecord;
+
+		// Copy over the attributes
+		ThisClass->Class = ClassData->Class;
+		ThisClass->MinSize = ClassData->MinSize;
+		ThisClass->MaxSize = ClassData->MaxSize;
+		ThisClass->Name = ClassData->Name;
+		ThisClass->Detail = ClassData->Detail;
+		ThisClass->Usage = ClassData->Usage;
+		ThisClass->Base = ClassData->Base;
+		ThisClass->Tag = ClassData->Tag;
+		
+		Uint8 ULBuffer[16];
+		int Count = mxflib::ReadHexString(ClassData->UL, 16, ULBuffer, " \t.");
+
+		if(Count == 16) 
+		{
+			ThisClass->UL = new UL(ULBuffer);
+			// printf("Class %s : UL = %02x %02x %02x ...\n", ThisClass->Name.c_str(), ULBuffer[0], ULBuffer[1], ULBuffer[2]);
+		}
+		// else printf("Class %s : * NO-UL * Count = %d\n", ThisClass->Name.c_str(), Count);
+
+		if(ClassData->Default)
+		{
+			ThisClass->Default = ClassData->Default;
+			ThisClass->HasDefault = true;
+		}
+		else
+			ThisClass->HasDefault = false;
+
+		if(ClassData->DValue)
+		{
+			ThisClass->DValue = ClassData->DValue;
+			ThisClass->HasDValue = true;
+		}
+		else
+			ThisClass->HasDValue = false;
+
+		ThisClass->RefType = ClassData->RefType;
+		ThisClass->RefTarget = ClassData->RefTarget;
+
+		// Add any children
+		if((ClassData->Class == ClassSet) || (ClassData->Class == ClassPack) 
+			|| (ClassData->Class == ClassVector) || (ClassData->Class == ClassArray) )
+		{
+			// Move to the first child
+			ClassData++;
+			while(ClassData->Class != ClassNULL)
+			{
+				// DRAGONS: ClassData is changed by LoadClassesSub
+				ClassRecordPtr Child = LoadClassesSub(ClassData);
+				
+				// Propergate error flag by returning the NULL
+				if(!Child) return Child;
+
+				ThisClass->Children.push_back(Child);
+			}
+		}
+
+		// Move to the next peer
+		ClassData++;
+
+		return ThisClass;
+	}
 }
 
+
+//! Load classeses from the specified in-memory definitions
+/*! \note There must be enough terminating entries (with Class == TypeNULL) to end the list
+ *  \return 0 if all OK
+ *  \return -1 on error
+ */
+int mxflib::LoadClasses(const ConstClassRecord *ClassData)
+{
+	// Pointer to walk through the array
+	const ConstClassRecord *CurrentClass = ClassData;
+
+	// Run-time list of classes
+	ClassRecordList Classes;
+
+	// Add top-level classes (lower levels will be added for each top-level class)
+	while(ClassData->Class != ClassNULL)
+	{
+		// DRAGONS: ClassData is changed by LoadClassesSub
+		ClassRecordPtr ThisClass = LoadClassesSub(ClassData);
+		
+		// Propergate error flag
+		if(!ThisClass) return -1;
+
+		Classes.push_back(ThisClass);
+	}
+
+	// Load the classes from the new in-memory list
+	return LoadClasses(Classes);
+}
+
+
+//! Define a class from an in-memory dictionary definition
+MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, MDOTypePtr Parent /*=NULL*/)
+{
+	//! Lookup-table to convert key size to key format enum
+	static const DictKeyFormat KeyConvert[] =
+	{
+		DICT_KEY_NONE,
+		DICT_KEY_1_BYTE,
+		DICT_KEY_2_BYTE,
+		DICT_KEY_AUTO,
+		DICT_KEY_4_BYTE
+	};
+
+	//! Lookup-table to convert lenght size to len format enum
+	static const DictLenFormat LenConvert[] =
+	{
+		DICT_LEN_NONE,
+		DICT_LEN_1_BYTE,
+		DICT_LEN_2_BYTE,
+		DICT_LEN_BER,
+		DICT_LEN_4_BYTE
+	};
+
+//	// Are we redefining an existing class (perhaps because the first attempt was postponed)?
+//	bool RedefineClass = true;
+
+	// Work out the root name of this class (showing the list of parents)
+	std::string RootName ;
+	if(Parent) RootName = Parent->FullName() + "/";
+
+	// Locate this type if it already exists
+	MDOTypePtr Ret = MDOType::Find(RootName + ThisClass->Name);
+
+	// This class does not already exist so add it
+	if(!Ret)
+	{
+//		RedefineClass = false;					// We are adding a new class rather than redefining one
+
+		if(ThisClass->Class == ClassItem)
+		{
+			// Find the type of this item
+			MDTypePtr Type = MDType::Find(ThisClass->Base);
+			if(!Type)
+			{
+				XML_error(NULL, "Item %s is of type %s which is not known\n", ThisClass->Name.c_str(), ThisClass->Base.c_str());
+				return Ret;
+			}
+
+			Ret = new MDOType(NONE, RootName, ThisClass->Name, ThisClass->Detail, Type, DICT_KEY_NONE, DICT_LEN_NONE, ThisClass->MinSize, ThisClass->MaxSize, ThisClass->Usage);
+		}
+		// Are we redefining a base class?
+		else if(ThisClass->Base.size())
+		{
+			MDOTypePtr BaseType = MDOType::Find(ThisClass->Base);
+
+			// If the base type not found quit this attempt (deliberately returning the NULL)
+			if(!BaseType) return BaseType;
+
+			debug("Deriving %s from %s\n", ThisClass->Name.c_str(), BaseType->Name().c_str());
+
+			// Derive the type
+			Ret = new MDOType;
+			if(Ret)
+			{
+				Ret->RootName = RootName;
+				Ret->DictName = ThisClass->Name;
+
+				Ret->Derive(BaseType);
+			
+				Ret->Detail = ThisClass->Detail;
+				Ret->Use = ThisClass->Usage;
+
+				// Set the name lookup - UL lookup set when key set
+				NameLookup[RootName + ThisClass->Name] = Ret;
+			}
+		}
+		else if(ThisClass->Class == ClassArray)
+			Ret = new MDOType(ARRAY, RootName, ThisClass->Name, ThisClass->Detail, NULL, DICT_KEY_NONE, DICT_LEN_NONE, 0, 0, ThisClass->Usage);
+		else if(ThisClass->Class == ClassVector)
+			Ret = new MDOType(BATCH, RootName, ThisClass->Name, ThisClass->Detail, NULL, DICT_KEY_NONE, DICT_LEN_NONE, 0, 0, ThisClass->Usage);
+		else if(ThisClass->Class == ClassPack)
+		{
+			if(ThisClass->MaxSize > 4)
+			{
+				error("Item %s has an invalid length size of %u\n", ThisClass->Name.c_str(), ThisClass->MaxSize);
+				return Ret;
+			}
+			DictLenFormat LenFormat = LenConvert[ThisClass->MaxSize];
+
+			Ret = new MDOType(PACK, RootName, ThisClass->Name, ThisClass->Detail, NULL, DICT_KEY_NONE, LenFormat, 0, 0, ThisClass->Usage);
+		}
+		else if(ThisClass->Class == ClassSet)
+		{
+			if(ThisClass->MinSize > 4)
+			{
+				error("Item %s has an invalid tag size of %u\n", ThisClass->Name.c_str(), ThisClass->MinSize);
+				return Ret;
+			}
+			DictKeyFormat KeyFormat = KeyConvert[ThisClass->MinSize];
+
+			if(ThisClass->MaxSize > 4)
+			{
+				error("Item %s has an invalid length size of %u\n", ThisClass->Name.c_str(), ThisClass->MaxSize);
+				return Ret;
+			}
+			DictLenFormat LenFormat = LenConvert[ThisClass->MaxSize];
+
+			Ret = new MDOType(SET, RootName, ThisClass->Name, ThisClass->Detail, NULL, KeyFormat, LenFormat, 0, 0, ThisClass->Usage);
+		}
+		else 
+			ASSERT(0);							 // Not a valid class type
+
+		// Quit now if the create failed
+		if(!Ret) return Ret;
+	}
+
+	// Add us to the class lists
+	if(Parent)
+	{
+		// Set our parent
+		Ret->Parent = Parent;
+
+		// Add us as a child of our parent
+		Parent->insert(Ret);
+
+		// Move reference details from parent (used for vectors)
+		if(Parent->RefType != DICT_REF_NONE)
+		{
+			Ret->RefType = Parent->RefType;
+			Parent->RefType = DICT_REF_NONE;
+		}
+
+		// If we are not top level then record out "family tree"
+		Ret->RootName = Parent->FullName() + "/";
+	}
+	else
+	{
+		// If it is a top level type then add it to TopTypes as well
+		TopTypes.push_back(Ret);
+	}
+
+	// Add to the list of all types
+	AllTypes.push_back(Ret);
+
+	// Sort referencing (overrides anything inherited)
+	if(ThisClass->RefType != ClassRefNone)
+	{
+		Ret->RefType = ThisClass->RefType;
+		Ret->RefTargetName = ThisClass->RefTarget;
+	}
+	
+//	// Set the name lookup - UL lookup set when key set
+//	NameLookup[RootName + Ret->DictName] = Ret;
+
+	// Set the local tag (if one exists)
+	if(ThisClass->Tag)
+	{
+		Ret->Key.Resize(2);
+		PutU16(ThisClass->Tag, Ret->Key.Data);
+	}
+
+	// Set the global key (if one exists)
+	if(ThisClass->UL)
+	{
+		Ret->GlobalKey.Set(16, ThisClass->UL->GetValue());
+
+		// If we don't have a "key" set this global key as the key
+		if(Ret->Key.Size == 0) Ret->Key.Set(16, ThisClass->UL->GetValue());
+
+		Ret->TypeUL = ThisClass->UL;
+		ULLookup[UL(Ret->TypeUL)] = Ret;
+		// printf("CLASS %s UL set\n", Ret->DictName.c_str());
+	}
+	// else printf("CLASS %s has no UL\n", Ret->DictName.c_str());
+
+	// Set the default value (if one exists)
+	if(ThisClass->HasDefault)
+	{
+		if(Ret->ValueType)
+		{
+			MDValuePtr Val = new MDValue(Ret->ValueType);
+			if(Val)
+			{
+				Val->SetString(ThisClass->Default);
+				DataChunkPtr Temp = Val->PutData();
+				Ret->Default.Set(Temp);
+			}
+		}
+	}
+
+	// Set the distinguished value (if one exists)
+	if(ThisClass->HasDValue)
+	{
+		if(Ret->ValueType)
+		{
+			MDValuePtr Val = new MDValue(Ret->ValueType);
+			if(Val)
+			{
+				Val->SetString(ThisClass->DValue);
+				DataChunkPtr Temp = Val->PutData();
+				Ret->DValue.Set(Temp);
+			}
+		}
+	}
+
+	// Build all children
+	ClassRecordList::iterator it = ThisClass->Children.begin();
+	while(it != ThisClass->Children.end())
+	{
+		MDOTypePtr Child = DefineClass(*it, Ret);
+
+		// If the child was not added quit this attempt (deliberately returning the NULL)
+		if(!Child) return Child;
+
+		it++;
+	}
+
+	return Ret;
+}
 

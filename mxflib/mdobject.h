@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.3 2004/12/18 20:28:52 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.4 2005/03/25 13:18:51 terabrit Exp $
  *
  */
 /*
@@ -74,21 +74,32 @@ namespace mxflib
 {
 #define MXFLIB_MAXDICTDEPTH 32
 
-	/*
-	** Enumeration type for dictionary entry 'Use' field
-	*/
-	typedef enum
-	{
-		DICT_USE_NONE = 0,
-		DICT_USE_REQUIRED,
-		DICT_USE_ENCODER_REQUIRED,
-		DICT_USE_DECODER_REQUIRED,
-		DICT_USE_OPTIONAL,
-		DICT_USE_DARK,
-		DICT_USE_TOXIC,
-		DICT_USE_BEST_EFFORT
-	} DictUse;
+	//! Define version with old name for backwards compatibility
+	typedef ClassUsage DictUse;
 
+	//! Make old enum values work for backwards compatibility
+	const ClassUsage DICT_USE_NONE = ClassUsageNULL;
+	
+	//! Make old enum values work for backwards compatibility
+	const ClassUsage DICT_USE_REQUIRED = ClassUsageRequired;
+	
+	//! Make old enum values work for backwards compatibility
+	const ClassUsage DICT_USE_ENCODER_REQUIRED = ClassUsageEncoderRequired;
+	
+	//! Make old enum values work for backwards compatibility
+	const ClassUsage DICT_USE_DECODER_REQUIRED = ClassUsageDecoderRequired;
+	
+	//! Make old enum values work for backwards compatibility
+	const ClassUsage DICT_USE_OPTIONAL = ClassUsageOptional;
+	
+	//! Make old enum values work for backwards compatibility
+	const ClassUsage DICT_USE_DARK = ClassUsageDark;
+	
+	//! Make old enum values work for backwards compatibility
+	const ClassUsage DICT_USE_TOXIC = ClassUsageToxic;
+
+	//! Make old enum values work for backwards compatibility
+	const ClassUsage DICT_USE_BEST_EFFORT = ClassUsageBestEffort;
 
 	/*
 	** Enumeration type for key formats
@@ -116,16 +127,20 @@ namespace mxflib
 	} DictLenFormat;
 
 
-	/*
-	** Enumeration type for reference type
-	*/
-	typedef enum
-	{
-		DICT_REF_NONE = 0,
-		DICT_REF_STRONG,
-		DICT_REF_WEAK,
-		DICT_REF_TARGET
-	} DictRefType;
+	//! Define version with old name for backwards compatibility
+	typedef ClassRef DictRefType;
+
+	//! Make old enum values work for backwards compatibility
+	const ClassRef DICT_REF_NONE = ClassRefNone;
+
+	//! Make old enum values work for backwards compatibility
+	const ClassRef DICT_REF_STRONG = ClassRefStrong;
+
+	//! Make old enum values work for backwards compatibility
+	const ClassRef DICT_REF_WEAK = ClassRefWeak;
+
+	//! Make old enum values work for backwards compatibility
+	const ClassRef DICT_REF_TARGET = ClassRefTarget;
 
 
 /* Notes about the structure of dictionaries...
@@ -181,7 +196,7 @@ namespace mxflib
 		DataChunk		GlobalKey;		//!< Global key field (may be a copy of Key)
 		std::string		DictName;		//!< Short (XML tag) name
 		std::string		Detail;			//!< Full descriptive name
-		std::string		TypeName;		//!< Data type name from dictionary (or built from UL found in file)
+		std::string		TypeName;		//!< Data type name from dictionary (or built from UL found in file?)
 		DictKeyFormat	KeyFormat;		//!< Format of key of sub-items
 		DictLenFormat	LenFormat;		//!< Format of length of sub-items
 		unsigned int	minLength;		//!< Minimum length of value field
@@ -193,7 +208,34 @@ namespace mxflib
 		MDOTypeParent	RefTarget;		//!< Type (or base type) of item this ref source must target
 		std::string		RefTargetName;	//!< Name of the type (or base type) of item this ref source must target
 
+		//! Protected constructor so we can control creation of types
+		MDOType();
+
 	public:
+		//! Public constructor - build a full type
+		MDOType(MDContainerType ContainerType, std::string RootName, std::string Name, std::string Detail, MDTypePtr Type, 
+				DictKeyFormat KeyFormat, DictLenFormat LenFormat, unsigned int minLength, unsigned int maxLength, DictUse Use)
+			: ContainerType(ContainerType), RootName(RootName), DictName(Name), Detail(Detail), ValueType(Type),
+			  KeyFormat(KeyFormat), LenFormat(LenFormat), minLength(minLength), maxLength(maxLength), Use(Use)
+		{
+			// MaxLength = 0 is used for maxlength = unbounded
+			if(maxLength == 0) maxLength = (unsigned int)-1;
+
+			if(Type) TypeName = Type->Name();
+			else TypeName = Name;
+
+			// Set the name lookup - UL lookup set when key set
+			NameLookup[RootName + Name] = this;
+		};
+
+		//! Set the referencing details for this type
+		void SetRef(DictRefType Type, MDOTypePtr Target, std::string TargetName)
+		{
+			RefType = Type;
+			RefTarget = Target;
+			RefTargetName = TargetName;
+		}
+
 		//! Derive this new entry from a base entry
 		void Derive(MDOTypePtr BaseEntry);
 
@@ -266,10 +308,6 @@ namespace mxflib
 		//! Read-only access to the global key
 		const DataChunk &GetGlobalKey(void) { return GlobalKey; }
 
-	protected:
-		// Protected constructor so we can control creation of types
-		MDOType();
-
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
 	protected:
@@ -298,14 +336,14 @@ protected:
 		static MDOTypePtr Find(const UL& BaseUL);
 		static MDOTypePtr Find(Tag BaseTag, PrimerPtr BasePrimer);
 
-	protected:
-		static int ReadHexString(const char **Source, int Max, Uint8 *Dest, char *Sep);
+		static MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, MDOTypePtr Parent = NULL);
 
-		static void SAX_startElement(void *user_data, const char *name, const char **attrs);
-		static void SAX_endElement(void *user_data, const char *name);
-		static void SAX_warning(void *user_data, const char *msg, ...);
-		static void SAX_error(void *user_data, const char *msg, ...);
-		static void SAX_fatalError(void *user_data, const char *msg, ...);
+	protected:
+		static void XML_startElement(void *user_data, const char *name, const char **attrs);
+		static void XML_endElement(void *user_data, const char *name);
+		static void XML_warning(void *user_data, const char *msg, ...);
+		static void XML_error(void *user_data, const char *msg, ...);
+		static void XML_fatalError(void *user_data, const char *msg, ...);
 	};
 }
 
