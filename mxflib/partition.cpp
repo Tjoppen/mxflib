@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.1.2.6 2004/10/10 18:36:14 terabrit Exp $
+ *	\version $Id: partition.cpp,v 1.1.2.7 2004/10/19 18:03:23 matt-beard Exp $
  *
  */
 /*
@@ -260,11 +260,6 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 			NewLocation += File->Tell();
 			Bytes = NewLocation - Location;
 			Location = NewLocation;
-		}
-		else if(FirstType && FirstType->Name() != "Primer")
-		{
-			error("First KLV following a partition pack (and any trailing filler) must be a Primer, however %s found at 0x%s in %s\n", 
-				  FirstType->Name().c_str(), Int64toHexString(Location,8).c_str(), File->Name.c_str());
 		}
 	}
 
