@@ -150,5 +150,4 @@ namespace mxflib
 	inline Int64 ReadI64(FileHandle Handle) { return (Int64)ReadU64(Handle); }
 }
 
-#endif MXFLIB__HELPER_H
-
+#endif // MXFLIB__HELPER_H

@@ -45,4 +45,4 @@ namespace mxflib
 	void error(const char *Fmt, ...);						//!< Display an error message
 }
 
-#endif MXFLIB__DEBUG_H
+#endif // MXFLIB__DEBUG_H

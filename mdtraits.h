@@ -235,5 +235,4 @@ namespace mxflib
 	};
 }
 
-#endif MXFLIB__MDTRAITS_H
-
+#endif // MXFLIB__MDTRAITS_H

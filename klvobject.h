@@ -42,7 +42,7 @@ namespace mxflib
 		KEY_1_BYTE = 1,
 		KEY_2_BYTE = 2,
 		KEY_4_BYTE = 4,
-		KEY_AUTO = 3,
+		KEY_AUTO = 3
 	};
 
 	enum LenFormat
@@ -51,7 +51,7 @@ namespace mxflib
 		LEN_1_BYTE = 1,
 		LEN_2_BYTE = 2,
 		LEN_4_BYTE = 4,
-		LEN_BER = 3,
+		LEN_BER = 3
 	};
 }
 
@@ -126,5 +126,4 @@ namespace mxflib
 	};
 }
 
-#endif MXFLIB__KLVOBJECT_H
-
+#endif // MXFLIB__KLVOBJECT_H

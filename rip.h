@@ -93,5 +93,4 @@ namespace mxflib
 }
 
 
-#endif MXFLIB__RIP_H
-
+#endif // MXFLIB__RIP_H

@@ -39,5 +39,4 @@ namespace mxflib
 	//! Load types from the specified XML definitions
 	int LoadTypes(char *TypesFile);
 }
-#endif MXFLIB__DEFTYPES_H
-
+#endif // MXFLIB__DEFTYPES_H
