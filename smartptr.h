@@ -137,6 +137,8 @@ namespace mxflib
 
 			PTRDEBUG( debug("0x%08x Build new (zero) count\n", (int)this); )
 		}
+
+		virtual ~RefCount(){};
 	};
 }
 
@@ -347,4 +349,4 @@ namespace mxflib
 	};
 }
 
-#endif MXFLIB__SMARTPTR_H
+#endif // MXFLIB__SMARTPTR_H
