@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.1.2.1 2004/05/18 18:33:58 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.1.2.2 2004/06/14 18:00:07 matt-beard Exp $
  *
  */
 /*
@@ -61,6 +61,8 @@ bool mxflib::MXFFile::Open(std::string FileName, bool ReadOnly /* = false */ )
 
 	if(!FileValid(Handle)) return false;
 
+printf("%s open on %d\n", FileName.c_str(), Handle);
+
 	isOpen = true;
 
 	return ReadRunIn();
@@ -81,6 +83,8 @@ bool mxflib::MXFFile::OpenNew(std::string FileName)
 	Handle = FileOpenNew(FileName.c_str());
 
 	if(!FileValid(Handle)) return false;
+
+printf("%s open on %d\n", FileName.c_str(), Handle);
 
 	isOpen = true;
 
