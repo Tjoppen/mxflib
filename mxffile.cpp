@@ -746,44 +746,72 @@ ULPtr mxflib::MXFFile::ReadKey(void)
 void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer /*=NULL*/) 
 { 
 	DataChunk Buffer;
-	ThisPartition->SetInt64("ThisPartition", Tell());
+	Int64 CurrentPosition = Tell();
+	ThisPartition->SetInt64("ThisPartition", CurrentPosition);
 
 	// Adjust properties for a footer
 	if(ThisPartition->Name().find("Footer") != std::string::npos)
 	{
-		ThisPartition->SetInt64("FooterPartition", Tell());
+		ThisPartition->SetInt64("FooterPartition", CurrentPosition);
 		ThisPartition->SetUint("BodySID", 0);
 	}
 
+	// Find the current partition at this location, or the nearest after it
+	RIP::iterator it = FileRIP.lower_bound(CurrentPosition);
+
+	// Now get the previous partition in the RIP
+	if(!FileRIP.empty()) it--;
+
+	// Set the position of the previous partition
+	// DRAGONS: Is there some way to know that we don't know the previous position?
+	if(it == FileRIP.end()) ThisPartition->SetInt64("PreviousPartition", 0);
+	else ThisPartition->SetInt64("PreviousPartition", (*it).first);
+
 	// Add this partition to the RIP, but don't store the partition as we don't
 	// own it and therefore cannot prevent changes after writing
-	FileRIP.AddPartition(NULL, Tell(), ThisPartition->GetUint("BodySID"));
+	FileRIP.AddPartition(NULL, CurrentPosition, ThisPartition->GetUint("BodySID"));
 
 	ThisPartition->WriteObject(Buffer, UsePrimer);
 	FileWrite(Handle, Buffer.Data, Buffer.Size);
 };
 
 
-//! Write a filler to align to a specified KAG
-/*! \return The position after aligning */
-Uint64 MXFFile::Align(Uint32 KAGSize)
+//! Calculate the size of a filler to align to a specified KAG
+Uint32 MXFFile::FillerSize(Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize /*=0*/)
 {
 	if(KAGSize == 0) KAGSize = 1;
 
-	Uint64 Pos = Tell();
-
 	// Work out how far into a KAG we are
-	Uint32 Offset = Pos % KAGSize;
+	Uint32 Offset = FillPos % KAGSize;
 
-	// Don't insert anything if we are already aligned
-	if(Offset == 0) return Pos;
+	// Don't insert anything if we are already aligned and not padding
+	if((Offset == 0) && (MinSize == 0)) return 0;
 
 	// Work out the required filler size
 	Uint32 Fill = KAGSize - Offset;
 
+	// Fix to minimum size;
+	while(Fill < MinSize) Fill += KAGSize;
+
 	// Adjust so that the filler can fit
 	// Note that for very small KAGs the filler may be several KAGs long
 	while(Fill < 17) Fill += KAGSize;
+
+	return Fill;
+}
+
+
+//! Write a filler to align to a specified KAG
+/*! \return The position after aligning */
+Uint64 MXFFile::Align(Uint32 KAGSize, Uint32 MinSize /*=0*/)
+{
+	if(KAGSize == 0) KAGSize = 1;
+
+	// Work out how big a filler we need
+	Uint32 Fill = FillerSize(Tell(), KAGSize, MinSize);
+
+	// Nothing to do!
+	if(Fill == 0) return Tell();
 
 	// The filler type - don't perform the lookup each time!
 	static MDOTypePtr FillType = MDOType::Find("KLVFill");
@@ -794,7 +822,7 @@ Uint64 MXFFile::Align(Uint32 KAGSize)
 
 	// Calculate filler length for shortform BER length
 	Fill -= 17;
-	if(Fill <= 127)
+	if(Fill <= 3)
 	{
 		WriteU8(Fill);
 	}
@@ -815,22 +843,37 @@ Uint64 MXFFile::Align(Uint32 KAGSize)
 	}
 
 	// Write the filler value
-	// DRAGONS: Not efficient
+	// DRAGONS: Only moderately efficient
+	if(Fill > 128)
+	{
+		Uint8 Buffer[128];
+		memset(Buffer, 0, 128);
+		while(Fill > 128)
+		{
+			Write(Buffer, 128); 
+			Fill -= 128;
+		}
+	}
 	while(Fill--) WriteU8(0);
 
 	return Tell();
 }
 
 
-//! Write a partition pack and associated metadata (and index table segments?)
-/*! \note Partition properties are updated from the linked metadata */
-void MXFFile::WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer /*=NULL*/) 
+//! Write or re-write a partition pack and associated metadata (and index table segments?)
+/*! \note Partition properties are updated from the linked metadata
+ *	\return true if (re-)write was successful, else false
+ */
+bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer, Uint32 Padding)
 {
 	PrimerPtr ThisPrimer;
 	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = new Primer;
 
 	DataChunk PrimerBuffer;
 	DataChunk MetaBuffer;
+
+	// Is this a footer?
+	bool IsFooter = (ThisPartition->Name().find("Footer") != std::string::npos);
 
 	// Write all objects
 	MDObjectList::iterator it = ThisPartition->TopLevelMetadata.begin();
@@ -870,25 +913,63 @@ void MXFFile::WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, P
 
 		it++;
 	}
-	
+
+	// Get the KAG size
+	Uint32 KAGSize = ThisPartition->GetUint("KAGSize");
+
+	// Align if required (not if re-writing)
+	if((!ReWrite) && (KAGSize > 1)) Align(KAGSize);
+
 	if(IncludeMetadata)
 	{
 		// Build the primer
 		ThisPrimer->WritePrimer(PrimerBuffer);
 
 		// Set size of header metadata (including the primer)
-		ThisPartition->SetInt("HeaderByteCount", PrimerBuffer.Size + MetaBuffer.Size);
+		Uint64 HeaderByteCount = PrimerBuffer.Size + MetaBuffer.Size;
+
+		if(ReWrite)
+		{
+			Uint64 Pos = Tell();
+			PartitionPtr OldPartition = ReadPartition();
+
+			if(!OldPartition)
+			{
+				error("Failed to read old partition pack in MXFFile::ReWritePartition()\n"); 
+				return false;
+			}
+
+			// Move back to re-write partition pack
+			Seek(Pos);
+
+			Uint64 OldHeaderByteCount = OldPartition->GetUint64("HeaderByteCount");
+
+			Padding = OldHeaderByteCount - HeaderByteCount;
+
+			// Minimum possible filler size is 17 bytes
+			if((HeaderByteCount > OldHeaderByteCount) || (Padding < 17))
+			{
+				error("Not enough space to re-write updated header at position 0x%s in %s\n", Int64toHexString(Tell(), 8).c_str(), Name.c_str());
+				return false;
+			}
+
+			HeaderByteCount += Padding;
+		}
+		else
+		{
+			// If padding will be added calculate how much and add it to the header byte count
+			if((!IsFooter) || (Padding > 0))
+			{
+				HeaderByteCount += FillerSize(HeaderByteCount, KAGSize, Padding);
+			}
+		}
+
+		ThisPartition->SetUint64("HeaderByteCount", HeaderByteCount);
 	}
 	else
 	{
-		ThisPartition->SetInt("HeaderByteCount", 0);
+		ThisPartition->SetUint64("HeaderByteCount", 0);
 	}
-
-	// Get the KAG size
-	Uint32 KAGSize = ThisPartition->GetUint("KAGSize");
-
-	// Align if required
-	if(KAGSize > 1) Align(KAGSize);
 
 	// Write the pack
 	WritePartitionPack(ThisPartition);
@@ -905,9 +986,13 @@ void MXFFile::WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, P
 		Write(MetaBuffer);
 	}
 
-	// If not a footer align to the KAG
-	if(ThisPartition->Name().find("Footer") == std::string::npos)
+	// If not a footer align to the KAG (add padding if requested even if it is a footer)
+	if( (!IsFooter) || (Padding > 0) )
 	{
-		if(KAGSize > 1) Align(KAGSize);
+		if((KAGSize > 1) || (Padding > 0)) Align(KAGSize, Padding);
 	}
+
+	return true;
 };
+
+

@@ -262,7 +262,9 @@
 		<DisplayF2Offset detail="Topness Adjustment for Displayed Picture" type="Int32" minLength="4" maxLength="4" key="32 17" globalKey="06 0e 2b 34 01 01 01 05  04 01 03 02 07 00 00 00" use="optional" default="0"/>
 		<AspectRatio detail="Specifies the horizontal to vertical aspect ratio of the whole image as it is to be presented to avoid geometric distortion (and hence including any black edges)" type="Rational" minLength="8" maxLength="8" key="32 0E" globalKey="06 0e 2b 34 01 01 01 01  04 01 01 01 01 00 00 00" use="best effort" dvalue="0/0"/>
 		<ActiveFormatDescriptor detail="Specifies the intended framing of the content within the displayed image" type="Uint8" minLength="1" maxLength="1" key="32 18" globalKey="06 0e 2b 34 01 01 01 05  04 01 03 02 09 00 00 00" use="optional"/>
-		<VideoLineMap detail="First active line in each field" key="32 0d" globalKey="06 0e 2b 34 01 01 01 02  04 01 03 02 05 00 00 00" type="Int32Array" use="best effort" dvalue="0,0"/>
+		<VideoLineMap detail="First active line in each field" key="32 0d" globalKey="06 0e 2b 34 01 01 01 02  04 01 03 02 05 00 00 00" type="subVector" use="best effort">
+			<VideoLineMapEntry detail="First active line in field" type="Int32" use="best effort" dvalue="0"/>
+		</VideoLineMap>
 		<AlphaTransparency detail="Is Alpha Inverted" type="Uint8" minLength="1" maxLength="1" key="32 0F" globalKey="06 0e 2b 34 01 01 01 02  05 20 01 02 00 00 00 00" use="optional"/>
 		<Gamma detail="Registered UL of known Gamma" type="Label" minLength="16" maxLength="16" key="32 10" globalKey="06 0e 2b 34 01 01 01 01  04 01 02 01 01 01 02 00" use="optional"/>
 		<ImageAlignmentFactor detail="Byte Boundary alignment required for Low Level Essence Storage" type="Uint32" minLength="4" maxLength="4" key="32 11" globalKey="06 0e 2b 34 01 01 01 02  04 18 01 01 00 00 00 00" use="optional"/>

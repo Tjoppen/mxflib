@@ -445,13 +445,13 @@ namespace mxflib
 		 */
 		void SetModified(bool State) { Modified = State; }
 
+	public:
 		//! Set the GenerationUID of an object iff it has been modified
 		/*! \return true if the GenerationUID has been set, otherwise false
 		 *  \note If the object does not have a GenerationUID property false is returned!
 		 */
 		bool SetGenerationUID(UUIDPtr UID);
 
-	public:
 		//! Has this object (including any child objects) been modified?
 		bool IsModified(void);
 

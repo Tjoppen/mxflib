@@ -42,9 +42,9 @@ namespace mxflib
 	** PutIxx() - Signed versions of PutUxx()
 	*/
 	inline void PutI8(Int8 x, unsigned char *dest) { PutU8((Uint8)x,dest); }
-	inline void PutI16(Int8 x, unsigned char *dest) { PutU16((Uint16)x,dest); }
-	inline void PutI32(Int8 x, unsigned char *dest) { PutU32((Uint32)x,dest); }
-	inline void PutI64(Int8 x, unsigned char *dest) { PutU64((Uint64)x,dest); }
+	inline void PutI16(Int16 x, unsigned char *dest) { PutU16((Uint16)x,dest); }
+	inline void PutI32(Int32 x, unsigned char *dest) { PutU32((Uint32)x,dest); }
+	inline void PutI64(Int64 x, unsigned char *dest) { PutU64((Uint64)x,dest); }
 
 	/*
 	** GetUxx() - Get unsigned xx-bit integer

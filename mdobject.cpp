@@ -195,7 +195,7 @@ PrimerPtr MDOType::DictManager::MakePrimer(void)
 
 
 //! Convert KLVLib "DictType" enum to text string of type name
-/*! \return Pointer to a string constant
+/*! \return Pointer to a string constant.
  *  \return "" if the DictType is not known or is a container (e.g. a pack)
  */
 char *DictType2Text(DictType Type)
@@ -1027,6 +1027,9 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 			Bytes = 8;
 			if(Count) Size = ItemSize; else Size = 0;
+
+			// Don't try and read an empty batch
+			if(Count == 0) return Bytes;
 		}
 		// Fall through and process as an array
 
@@ -1332,6 +1335,7 @@ bool MDObject::SetGenerationUID(UUIDPtr NewGen)
 	MDObjectPtr GenUID = Child("GenerationUID");
 	if(!GenUID) GenUID = AddChild("GenerationUID");
 
+//printf("Setting GenerationUID id %s to %s\n", FullName().c_str(), NewGen->GetString().c_str());
 	ASSERT(GenUID);
 
 	// Set the actual UID

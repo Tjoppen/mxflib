@@ -1,13 +1,18 @@
 
-Release Notes for mxflib version 0.2.3-Alpha
+Release Notes for mxflib version 0.3-Alpha
 ============================================
 
-The first version with file writing!
+The first version with file writing!  
+
+No index table writing yet and essence writing is up to the application.
+
+A Sample application "mpegwrap" is included.
 
 
 Changes since version 0.2.2-Alpha
 ============================================
 
+* Fixed "silly" bug in PutIxx() which only wrote 1 byte!
 * Fixed a problem where sparse index table lookups didn't work
 * Added Higher level objects (Package, Track etc.)
 * Added ObjectInterface to allow pseudo derived types

@@ -52,6 +52,10 @@ void Metadata::Init(void)
 {
 	Object = new MDObject("Preface");
 	
+	// Even though it isn't used the preface needs an InstanceUID
+	// as it is defivef from GenerationInterchangeObject
+	Object->AddChild("InstanceUID")->ReadValue(DataChunk(new UUID));
+
 	Object->AddChild("LastModifiedDate")->SetString(ModificationTime);
 	Object->AddChild("Version")->SetInt(258);
 
@@ -206,6 +210,9 @@ bool Metadata::UpdateGenerations(MDObjectPtr Ident, std::string UpdateTime /*=""
 	}
 	else
 	{
+		// Update the GenerationUID in the preface
+		Object->SetGenerationUID(ThisGeneration);
+
 		MDObjectNamedList::iterator it = Object->begin();
 		while(it != Object->end())
 		{
@@ -256,11 +263,6 @@ bool Metadata::UpdateGenerations(MDObjectPtr Ident, std::string UpdateTime /*=""
 	// It's just too confusing to record Identification as being modified!
 	NewIdent->ClearModified();
 
-	// Update the GenerationUID in the preface
-	MDObjectPtr Ptr = Object->Child("GenerationUID");
-	if(!Ptr) AddChild("GenerationUID");
-	if(Ptr) Ptr->SetValue(DataChunk(16, ThisGeneration->GetValue()));
-
 	// Clear the modified flag for the preface
 	Object->ClearModified();
 
@@ -278,9 +280,10 @@ bool Metadata::UpdateGenerations_Internal(MDObjectPtr Obj, UUIDPtr ThisGeneratio
 	
 	if(Mod)
 	{
-		MDObjectPtr Ptr = Obj->Child("GenerationUID");
-		if(!Ptr) Ptr = Obj->AddChild("GenerationUID");
-		if(Ptr) Ptr->SetValue(DataChunk(16, ThisGeneration->GetValue()));
+		Obj->SetGenerationUID(ThisGeneration);
+//		MDObjectPtr Ptr = Obj->Child("GenerationUID");
+//		if(!Ptr) Ptr = Obj->AddChild("GenerationUID");
+//		if(Ptr) Ptr->SetValue(DataChunk(16, ThisGeneration->GetValue()));
 	}
 
 	MDObjectNamedList::iterator it = Obj->begin();
@@ -355,6 +358,9 @@ SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
 	Ret->AddChild("SourcePackageID");
 	Ret->AddChild("SourceTrackID");
 
+	// Initially assume the SourceClip starts at the start of the referenced essence
+	Ret->AddChild("StartPosition", 0);
+
 	// Add this SourceClip to the sequence for this track
 	MDObjectPtr Sequence = Child("Sequence")->GetLink();
 	Sequence["StructuralComponents"]->AddChild("StructuralComponent", false)->MakeLink(Ret->Object);
@@ -379,7 +385,7 @@ SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
 }
 
 //! Add a Timecode Component to a track
-/*! \param FPR The rounded integer timebase of the track in frames per second
+/*! \param FPS The rounded integer timebase of the track in frames per second
  *	\param DropFrame = true if dropframe is to be use with this timecode
  *	\param Start The starting timecode converted to an integer frame count since 00:00:00:00
  *	\param Duration The duration of this SourceClip, -1 or omitted for unknown

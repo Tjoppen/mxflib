@@ -68,8 +68,8 @@ namespace mxflib
 	//! A smart pointer to a PartitionInfo object
 	typedef SmartPtr<PartitionInfo> PartitionInfoPtr;
 
-	//! A list of smart pointers to PartitionInfo objects
-	typedef std::list<PartitionInfoPtr> PartitionInfoList;
+	//! A map of file location against smart pointers to PartitionInfo objects
+	typedef std::map<Int64, PartitionInfoPtr> PartitionInfoMap;
 }
 
 
@@ -79,7 +79,7 @@ namespace mxflib
 	/*! Holds Random Index Pack data, either loaded from a real
 	 *	Random Index Pack in the file or built by discovering partitions.
 	 */
-	class RIP : public PartitionInfoList
+	class RIP : public PartitionInfoMap
 	{
 	public:
 		// DRAGONS: This should probably mutate into a "MatchedPysical" property

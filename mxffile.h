@@ -115,14 +115,31 @@ namespace mxflib
 		void WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL);
 
 		//! Write a partition pack and associated metadata (and index table segments?)
-		void WritePartition(PartitionPtr ThisPartition) { WritePartition(ThisPartition, true, NULL); };
+		void WritePartition(PartitionPtr ThisPartition, Uint32 Padding = 0) { WritePartition(ThisPartition, true, NULL, Padding); };
 
 		//! Write a partition pack and associated metadata (and index table segments?)
-		void WritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer) { WritePartition(ThisPartition, true, UsePrimer); };
+		void WritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer, Uint32 Padding = 0) { WritePartition(ThisPartition, true, UsePrimer, Padding); };
 
 		//! Write a partition pack and (optionally) associated metadata (and index table segments?)
-		void WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer = NULL);
+		void WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0)
+		{
+			WritePartitionInternal(false, ThisPartition, IncludeMetadata, UsePrimer, Padding);
+		}
 
+		//! Re-write a partition pack and associated metadata (and index table segments?)
+		/*! \note Partition properties are updated from the linked metadata
+		 *	\return true if re-write was successful, else false
+		 */
+		bool MXFFile::ReWritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL) 
+		{
+			return WritePartitionInternal(true, ThisPartition, true, UsePrimer, 0);
+		}
+
+	private:
+		//! Write or re-write a partition pack and associated metadata (and index table segments?)
+		bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer, Uint32 Padding);
+
+	public:
 		//! Write the RIP
 		void WriteRIP(void)
 		{
@@ -139,8 +156,8 @@ namespace mxflib
 					RIP::iterator it = FileRIP.begin();
 					while(it != FileRIP.end())
 					{
-						PA->AddChild("BodySID", false)->SetUint((*it)->BodySID);
-						PA->AddChild("ByteOffset", false)->SetUint((*it)->ByteOffset);
+						PA->AddChild("BodySID", false)->SetUint((*it).second->BodySID);
+						PA->AddChild("ByteOffset", false)->SetUint((*it).second->ByteOffset);
 						it++;
 					}
 				}
@@ -154,8 +171,11 @@ namespace mxflib
 			}
 		}
 
+		//! Calculate the size of a filler to align to a specified KAG
+		Uint32 MXFFile::FillerSize(Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize = 0);
+
 		//! Write a filler to align to a specified KAG
-		Uint64 Align(Uint32 KAGSize);
+		Uint64 Align(Uint32 KAGSize, Uint32 MinSize = 0);
 
 		ULPtr ReadKey(void);
 		Uint64 ReadBER(void);
