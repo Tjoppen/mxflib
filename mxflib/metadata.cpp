@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.1.2.4 2004/10/19 17:57:36 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.1.2.5 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -59,7 +59,8 @@ void Metadata::Init(void)
 
 	// Even though it isn't used the preface needs an InstanceUID
 	// as it is defived from GenerationInterchangeObject
-	Object->AddChild("InstanceUID")->ReadValue(DataChunk(new UUID));
+	UUIDPtr ThisInstance = new UUID;
+	Object->AddChild("InstanceUID")->ReadValue(DataChunk(16, ThisInstance->GetValue()));
 
 	Object->AddChild("LastModifiedDate")->SetString(ModificationTime);
 	Object->AddChild("Version")->SetInt(258);
@@ -106,6 +107,9 @@ PackagePtr mxflib::Metadata::AddPackage(std::string PackageType, std::string Pac
 	if(Ptr) Ptr->AddChild("Package", false)->MakeLink(Ret->Object);
 
 	if(BodySID) AddEssenceContainerData(PackageUMID, BodySID);
+
+	// Add this package to our "owned" packages
+	Packages.push_back(Ret);
 
 	return Ret;
 }
@@ -258,7 +262,8 @@ bool Metadata::UpdateGenerations(MDObjectPtr Ident, std::string UpdateTime /*=""
 	bool Mod = false;
 
 	// GenerationUID for this update
-	UUIDPtr ThisGeneration = new UUID;
+	UUIDPtr ThisGeneration;
+	ThisGeneration = new UUID;
 
 	MDObjectPtr Identifications = Object["Identifications"];
 	if(Identifications->empty())
@@ -426,6 +431,10 @@ SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
 	// Copy the data definition from the sequence
 	Ret->AddChild("DataDefinition")->ReadValue(Sequence["DataDefinition"]->PutData().Data, 16);
 
+	// Add this sequence to the list of "owned" components
+	Components.push_back(SmartPtr_Cast(Ret, Component));
+//	Components.push_back(Ret);
+
 	// Record the track as the parent of the new SourceClip
 	Ret->Parent = this;
 
@@ -491,8 +500,9 @@ TimecodeComponentPtr Track::AddTimecodeComponent(Uint16 FPS, bool DropFrame, Int
 }
 
 //! Add a DMSegment to a track
-/*! \param EventStart The start position of this Segemnt, -1 or omitted for static or timeline */
-/*! \param Duration The duration of this SourceClip, -1 or omitted for static */
+/*! \param EventStart The start position of this Segemnt, -1 or omitted for static or timeline
+ *  \param Duration The duration of this SourceClip, -1 or omitted for static 
+ */
 DMSegmentPtr Track::AddDMSegment(Int64 EventStart /*=-1*/,Int64 Duration /*=-1*/)
 {
 	DMSegmentPtr Ret = new DMSegment("DMSegment");
@@ -610,6 +620,9 @@ TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate,
 	// Add this track to the package
 	Child("Tracks")->AddChild("Track", false)->MakeLink(Ret->Object);
 
+	// Add this track to our "owned" tracks
+	Tracks.push_back(Ret);
+
 	// Record this package as the parent of the new track
 	Ret->Parent = this;
 
@@ -686,6 +699,9 @@ TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate,
 	// Add this track to the package
 	Child("Slots")->AddChild("Track", false)->MakeLink(Ret->Object);
 
+	// Add this track to our "owned" tracks
+	Tracks.push_back(Ret);
+
 	// Record this package as the parent of the new track
 	Ret->Parent = this;
 
@@ -725,6 +741,9 @@ TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string TrackN
 
 	// Add this track to the package
 	Child("Tracks")->AddChild("Track", false)->MakeLink(Ret->Object);
+
+	// Add this track to our "owned" tracks
+	Tracks.push_back(Ret);
 
 	// Record this package as the parent of the new track
 	Ret->Parent = this;

@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.1.2.4 2004/10/19 17:54:25 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.1.2.5 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -755,7 +755,7 @@ Uint32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Ui
 {
 	// Start with no children in the object
 	Object->clear();
-	
+
 	// If Count is 0 then the number of items is unknown
 	bool UnknownCount;
 	if(Count == 0)
@@ -766,6 +766,40 @@ Uint32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Ui
 	else 
 	{
 		UnknownCount = false;
+	}
+
+	// If this object is a batch we need to read its header
+	if(Object->GetType()->GetArrayClass() == ARRAYBATCH)
+	{
+		if(Size < 8)
+		{
+			error("Tried to read a batch of type %s but less than 8 bytes available\n", Object->Name().c_str());
+			return 0;
+		}
+
+		Uint32 ItemCount = GetU32(Buffer);
+		Uint32 ItemSize = GetU32(&Buffer[4]);
+
+		Buffer += 8;
+		Size -= 8;
+
+		if(Count > (int)ItemCount)
+		{
+			error("Tried to read more items from batch of type %s than available - requested = %u, available = %u\n", Object->Name().c_str(), Count, ItemCount);
+		}
+		else
+		{
+			// Only update the count if it was unknown (this allows a valid request to read less than available)
+			if(Count == 0) Count = ItemCount;
+
+			// Now the count IS known
+			UnknownCount = false;
+		}
+
+		if((ItemCount * ItemSize) < Size)
+		{
+			error("Invalid batch of type %s - count = %u, item size = %u so 0x%08x bytes required but only 0x%08x available\n", Object->Name().c_str(), ItemCount, ItemSize, (ItemCount * ItemSize), Size);
+		}
 	}
 
 	// Figure out the maximum number of items to read

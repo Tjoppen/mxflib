@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.4.2.6 2004/10/19 18:04:00 matt-beard Exp $
+ *	\version $Id: system.h,v 1.4.2.7 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -46,7 +46,7 @@
 
 // Required headers for non-system specific bits
 #include <time.h>
-#include <stdlib.h>						//!< Required for integer conversions
+#include <stdlib.h>						// Required for integer conversions
 
 /************************************************/
 /*           (Hopefully) Common types           */

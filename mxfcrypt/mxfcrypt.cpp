@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.1.2.4 2004/08/18 18:43:02 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.1.2.5 2004/11/05 16:50:12 matt-beard Exp $
  *
  */
 /*
@@ -139,28 +139,6 @@ DataChunkPtr BasicEncrypt::Encrypt(Uint32 Size, const Uint8 *Data)
 
 	AES_cbc_encrypt(Data, Ret->Data, Size, &CurrentKey, CurrentIV, AES_ENCRYPT);
 
-/*static int calls = 1;
-printf("Calls = %d\n", calls);
-if((calls == 750) || (calls == 751))
-{
-//  calls--;
-  printf("Encrypt:\n");
-  Uint32 count = Size;
-  const Uint8 *p = Data;
-  Uint8 *p2 = Ret->Data;
-  int i;
-  while(count)
-  {
-	  printf("  %08x:", Size - count);
-	  for(i=0; i<16; i++) printf(" %02x", *p++);
-	  printf(" ->");
-	  for(i=0; i<16; i++) printf(" %02x", *p2++);
-	  printf("\n");
-	  count -= 16;
-  }
-}
-calls++;
-*/
 	return Ret;
 }
 
@@ -198,9 +176,6 @@ bool Encrypt_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 	// Set an encryption wrapper
 	BasicEncrypt *Enc = new BasicEncrypt;
 	KLVE->SetEncrypt(Enc);
-//@'@PlaintextOffset = rand() % (10 * 10240);
-//@'@if((rand() % 8) == 0) PlaintextOffset = 0;
-//@'@printf("PlaintextOffset = %d\n", PlaintextOffset);
 	KLVE->SetPlaintextOffset(PlaintextOffset);
 
 	// ##@@##@@
@@ -338,28 +313,6 @@ DataChunkPtr BasicDecrypt::Decrypt(Uint32 Size, const Uint8 *Data)
 
 	AES_cbc_encrypt(Data, Ret->Data, Size, &CurrentKey, CurrentIV, AES_DECRYPT);
 
-/*static int calls = 1;
-printf("Calls = %d\n", calls);
-if(calls == 661)
-{
-//  calls--;
-  printf("Decrypt:\n");
-  Uint32 count = Size;
-  const Uint8 *p = Data;
-  Uint8 *p2 = Ret->Data;
-  int i;
-  while(count)
-  {
-	  printf("  %08x:", Size - count);
-	  for(i=0; i<16; i++) printf(" %02x", *p++);
-	  printf(" ->");
-	  for(i=0; i<16; i++) printf(" %02x", *p2++);
-	  printf("\n");
-	  count -= 16;
-  }
-}
-calls++;
-*/
 	return Ret;
 }
 
@@ -652,9 +605,6 @@ int main(int argc, char *argv[])
 
 	InFile->Close();
 
-//printf("Outfile at 0x%08x\n", (int)OutFile->Tell());
-//char *x = "<<END OF FILE>>";
-//OutFile->Write((Uint8*)x, 16);
 	OutFile->Close();
 	
 	return 0;

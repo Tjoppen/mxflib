@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.1.2.10 2004/10/16 20:51:06 terabrit Exp $
+ *	\version $Id: klvobject.cpp,v 1.1.2.11 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -69,7 +69,6 @@ std::string KLVObject::GetSource(void)
  */
 Int32 KLVObject::Base_ReadKL(void)
 {
-//@'@printf("@0x%08x:Base_ReadKL()\n", (int)Source.Offset);
 	if(!Source.File)
 	{
 		error("KLVObject::Base_ReadKL() called with no SourceFile defined\n");
@@ -108,7 +107,6 @@ Int32 KLVObject::Base_ReadKL(void)
  */
 Length KLVObject::Base_ReadDataFrom(Position Offset, Length Size /*=-1*/)
 {
-//@'@printf("@0x%08x:Base_ReadDataFrom(%d, %d)\n", (int)(Source.Offset + Source.KLSize + Offset), (int)Offset, (int)Size);
 	// Delagate to ReadHandler if defined
 	if(ReadHandler) return ReadHandler->ReadData(this, Offset, Size);
 
@@ -166,8 +164,6 @@ Length KLVObject::Base_ReadDataFrom(Position Offset, Length Size /*=-1*/)
  */
 Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/, Length NewLength /*=-1*/)
 {
-//@'@printf("Base_WriteKL(%d, %d[%d])\n", LenSize, (int)NewLength, (int)Dest.OuterLength);
-
 	if(!Dest.File)
 	{
 		error("Call to KLVObject::Base_WriteKL() with destination file not set\n");
@@ -218,8 +214,6 @@ Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/, Length NewLength /*=-1*/)
  */
 Length KLVObject::Base_WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size)
 {
-//@'@printf("Base_WriteDataTo(0x%08x, %d, %d)\n", (int)Buffer, (int)Offset, (int)Size);
-
 	// Don't write zero bytes
 	if(Size == 0) return 0;
 
@@ -244,11 +238,7 @@ Length KLVObject::Base_WriteDataTo(const Uint8 *Buffer, Position Offset, Length 
 	// Seek to the start of the requested data
 	Dest.File->Seek(Dest.Offset + Dest.KLSize + Offset);
 
-//@'@printf("@0x%06x:Base_WriteDataTo(Buffer, 0x%06x, 0x%06x)", (int)Dest.File->Tell(), (int)Offset, (int)Size);
 	// Write from the specified buffer
 	return (Length)Dest.File->Write(Buffer, (Uint32)Size);
-//@'@Length Ret = Dest.File->Write(Buffer, Size);
-//@'@printf("->0x%06x\n", (int)Dest.File->Tell());
-//@'@return Ret;
 }
 

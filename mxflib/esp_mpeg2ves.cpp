@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.1.2.3 2004/10/20 15:19:05 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.1.2.4 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -161,9 +161,9 @@ WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandl
 
 
 //! Set a wrapping option for future Read and Write calls
-void MPEG2_VES_EssenceSubParser::Use(Uint32 Stream, WrappingOptionPtr UseWrapping)
+void MPEG2_VES_EssenceSubParser::Use(Uint32 Stream, WrappingOptionPtr &UseWrapping)
 {
-	SelectedWrapping = UseWrapping->ThisWrapType;
+	SelectedWrapping = UseWrapping;
 	SelectedEditRate = NativeEditRate;
 	EditRatio = 1;
 	PictureNumber = 0;
@@ -177,13 +177,13 @@ void MPEG2_VES_EssenceSubParser::Use(Uint32 Stream, WrappingOptionPtr UseWrappin
 
 //! Set a non-native edit rate
 /*! \return true if this rate is acceptable */
-bool MPEG2_VES_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
+bool MPEG2_VES_EssenceSubParser::SetEditRate(Rational EditRate)
 {
 	if(    (EditRate.Numerator == NativeEditRate.Numerator) 
 		&& (EditRate.Denominator == NativeEditRate.Denominator) )return true;
 
 	// We can clip-wrap at any rate!
-	if(SelectedWrapping == WrappingOption::Clip)
+	if(SelectedWrapping->ThisWrapType == WrappingOption::Clip)
 	{
 		SelectedEditRate = EditRate;
 		return true;
@@ -221,7 +221,7 @@ bool MPEG2_VES_EssenceSubParser::SetEditRate(Uint32 Stream, Rational EditRate)
 //! Get the current position in SetEditRate() sized edit units
 /*! \return 0 if position not known
  */
-Int64 MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
+Position MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
 {
 	if((SelectedEditRate.Numerator == NativeEditRate.Numerator) && (SelectedEditRate.Denominator == NativeEditRate.Denominator))
 	{
@@ -230,13 +230,10 @@ Int64 MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
 
 	if((SelectedEditRate.Denominator == 0) || (NativeEditRate.Denominator || 0)) return 0;
 
-	// Correct the position
-	Int64 iPictureNumber = PictureNumber;		// A wonderful Microsoft omission means we can only convert Int64 -> double, not Uint64
-
-	double Pos = (double)(iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator);
+	double Pos = (double)(PictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator);
 	Pos /= (SelectedEditRate.Denominator * NativeEditRate.Numerator);
-	
-	return (Int64)floor(Pos + 0.5);
+
+	return (Position)floor(Pos + 0.5);
 }
 
 
@@ -271,7 +268,7 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, 
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Uint64 MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*//*, IndexTablePtr Index *//*=NULL*/)
+Length MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*//*, IndexTablePtr Index *//*=NULL*/)
 {
 	const Uint64 BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
@@ -505,15 +502,18 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
  *
  *	\note PictureNumber is incremented for each picture found
  */
-Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count /*, IndexTablePtr Index *//*=NULL*/)
-{ 
+Length MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count)
+{
+	// Don't bother if there is no more data
+	if(EndOfStream) return 0;
+
 	Uint64 CurrentStart = CurrentPos;
 
 	// Apply any edit rate factor for integer multiples of native edit rate 
 	Count *= EditRatio;
 
 	// Return anything we can find if clip wrapping
-	if((Count == 0) && (SelectedWrapping == WrappingOption::Clip)) Count = UINT64_C(0xffffffffffffffff);
+	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip)) Count = UINT64_C(0xffffffffffffffff);
 
 	while(Count)
 	{
@@ -529,10 +529,11 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 		for(;;)
 		{
 			int ThisByte = BuffGetU8(InFile);
+
 			if(ThisByte == -1)
 			{
-				// Force this to be the last item
-				Count = 1;
+				Count = 1;					// Force this to be the last item (cause the outer loop to end)
+				EndOfStream = true;			// Flag that there is no more data - so we will not scan any more
 				break;
 			}
 
@@ -549,9 +550,15 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 					int PictureData = (BuffGetU8(InFile) << 8) | BuffGetU8(InFile);
 					CurrentPos += 2;
 
-					// If an index manager exists we do all calculations to keep anchor frame etc. in step
+					// If we don't have an index manager there is no need to calcluate index details, but we still check for edit points
+					if(!Manager)
+					{
+						// Do we have a sequence header?
+						if((SeqHead) && (ClosedGOP)) EditPoint = true;
+					}
+					// ...but if an index manager exists we do all calculations to keep anchor frame etc. in step
 					// even if we aren't going to add an entry this time
-					if(Manager)
+					else
 					{
 						int TemporalReference = PictureData >> 6;
 						int PictureType = (PictureData >> 3) & 0x07;
@@ -600,7 +607,6 @@ Uint64 MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
                       (int)(PictureNumber - (GOPOffset - TemporalReference)),
                       (int)(GOPOffset - TemporalReference)
 										 );
-
 					}
 
 					GOPOffset++;

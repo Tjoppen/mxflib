@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.1.2.2 2004/10/16 20:51:06 terabrit Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.1.2.3 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -99,7 +99,7 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	ClipWrap->GCElementType = 0x02;						// Wave clip wrapped elemenet
 	ClipWrap->ThisWrapType = WrappingOption::Clip;		// Clip wrapping
 	ClipWrap->CanSlave = true;							// Can use non-native edit rate
-	ClipWrap->CanIndex = true;							// We CANNOT index this essence
+	ClipWrap->CanIndex = false;							// We CANNOT currently index this essence
 	ClipWrap->CBRIndex = true;							// This essence uses CBR indexing
 	ClipWrap->BERSize = 0;								// No BER size forcing
 
@@ -115,7 +115,7 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	FrameWrap->GCElementType = 0x01;					// Wave frame wrapped elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = true;							// Can use non-native edit rate
-	FrameWrap->CanIndex = true;						// We CANNOT index this essence
+	FrameWrap->CanIndex = false;						// We CANNOT currently index this essence
 	FrameWrap->CBRIndex = true;							// This essence uses CBR indexing
 	FrameWrap->BERSize = 0;								// No BER size forcing
 
@@ -145,7 +145,7 @@ DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, Uint32 S
 	FileSeek(InFile, CurrentPos);
 	
 	// Find out how many bytes to read
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count);
+	Length Bytes = ReadInternal(InFile, Stream, Count);
 
 	// Make a datachunk with enough space
 	DataChunkPtr Ret = new DataChunk;
@@ -169,7 +169,7 @@ DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, Uint32 S
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Uint64 mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/ /*, IndexTablePtr Index*/ /*=NULL*/)
+Length mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/ /*, IndexTablePtr Index*/ /*=NULL*/)
 {
 	const unsigned int BUFFERSIZE = 32768;
 	Uint8 *Buffer = new Uint8[BUFFERSIZE];
@@ -179,8 +179,8 @@ Uint64 mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream
 	FileSeek(InFile, CurrentPos);
 	
 	// Find out how many bytes to transfer
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count);
-	Uint64 Ret = Bytes;
+	Length Bytes = ReadInternal(InFile, Stream, Count);
+	Length Ret = Bytes;
 
 	while(Bytes)
 	{
@@ -199,6 +199,44 @@ Uint64 mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream
 	CurrentPos = FileTell(InFile);
 
 	return Ret; 
+}
+
+
+//! Get the preferred edit rate (if one is known)
+/*! \return The prefered edit rate or 0/0 if note known
+ */
+Rational mxflib::WAVE_PCM_EssenceSubParser::GetPreferredEditRate(void)
+{
+	/* Pick a sensible edit rate */
+	/*****************************/
+	
+	/* Try 24ms first */
+
+	// Calculate the number of samples in a 24ms frame
+	double Samples = ((double)SampleRate * 24.0) / 1000.0;
+
+	// If this is an integer value then all is well
+	if(Samples == floor(Samples))
+	{
+		// Return 24ms edit rate
+		return Rational(1000,24);
+	}
+
+	/* Try 100ms next */
+	// DRAGONS: Is there any point in doing this?
+
+	// Calculate the number of samples in a 100ms frame
+	Samples = ((double)SampleRate * 100.0) / 1000.0;
+
+	// If this is an integer value then all is well
+	if(Samples == floor(Samples))
+	{
+		// Return 100ms edit rate
+		return Rational(1000,100);
+	}
+
+	// 1Hz will always work for Wave audio
+	return Rational(1,1);
 }
 
 
@@ -264,7 +302,7 @@ bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 //! Get the current position in SetEditRate() sized edit units
 /*! \return 0 if position not known
  */
-Int64 WAVE_PCM_EssenceSubParser::GetCurrentPosition(void)
+Position WAVE_PCM_EssenceSubParser::GetCurrentPosition(void)
 {
 	if(SampleSize == 0) return 0;
 
@@ -283,12 +321,12 @@ Int64 WAVE_PCM_EssenceSubParser::GetCurrentPosition(void)
 	}
 
 	// Now work out how many complete sequences we are from the start of the essence
-	Int64 CompleteSeq = (CurrentPos-DataStart) / SampleSize * SeqSize;
+	Position CompleteSeq = (CurrentPos-DataStart) / SampleSize * SeqSize;
 
 	// And The fractional part...
-	Int64 FracSeq = (CurrentPos-DataStart) - (CompleteSeq * SeqSize);
+	Position FracSeq = (CurrentPos-DataStart) - (CompleteSeq * SeqSize);
 
-	Int64 Ret = CompleteSeq * SeqSize;
+	Position Ret = CompleteSeq * SeqSize;
 
 	// Count back through the sequence to see how many edit units the fractional part is
 	i = SequencePos;
@@ -405,14 +443,17 @@ MDObjectPtr mxflib::WAVE_PCM_EssenceSubParser::BuildWaveAudioDescriptor(FileHand
 /*! \note The file position pointer is left at the start of the chunk at the end of 
  *		  this function
  */
-Uint64 mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count) 
+Length mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count) 
 { 
-	Uint64 Ret;
+	Length Ret;
 	Uint32 SamplesPerEditUnit;
 	
+	// If we haven't determined the sample sequence we do it now
+	if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
+
 	// Work out the maximum possible bytes to return
 	if(CurrentPos == 0) CurrentPos = DataStart;		// Correct the start if we need to
-	Uint64 Max = (CurrentPos - DataStart);			// Where we are in the data
+	Length Max = (CurrentPos - DataStart);			// Where we are in the data
 	if(Max >= DataSize) return 0;
 	Max = DataSize - Max;							// How many bytes are left
 
@@ -438,7 +479,7 @@ Uint64 mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32
 
 	
 	// Return anything we can find if in "unspecified" clip wrapping
-	if((Count == 0) && (SelectedWrapping == WrappingOption::Clip)) Ret = Max;
+	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip)) Ret = Max;
 	else Ret = Count * SamplesPerEditUnit * SampleSize;
 
 	// Return no more than the maximum bytes available

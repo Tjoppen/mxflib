@@ -1,7 +1,7 @@
 /*! \file	forward.h
  *	\brief	Various forward declarations
  *
- *	\version $Id: forward.h,v 1.1.2.2 2004/06/26 17:45:49 matt-beard Exp $
+ *	\version $Id: forward.h,v 1.1.2.3 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -41,6 +41,7 @@ namespace mxflib
 {
 	class MXFFile;
 	typedef SmartPtr<MXFFile> MXFFilePtr;					//!< A smart pointer to an MXFFile object
+	typedef ParentPtr<MXFFile> MXFFileParent;				//!< A parent pointer to an MXFFile object
 
 	// Forward declare so the class can include pointers to itself
 	class KLVObject;

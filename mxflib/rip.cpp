@@ -4,7 +4,7 @@
  *			The RIP class holds Random Index Pack data, either loaded from a real
  *			Random Index Pack in the file or built by discovering partitions.
  *
- *	\version $Id: rip.cpp,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: rip.cpp,v 1.1.2.1 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -43,8 +43,6 @@ mxflib::RIP::RIP()
 
 
 //! Random Index Pack destructor
-/*! <this space for rent>
-*/
 mxflib::RIP::~RIP()
 {
 	debug("~RIP()\n");

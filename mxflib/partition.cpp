@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.1.2.7 2004/10/19 18:03:23 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.1.2.8 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -482,6 +482,88 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, Uint64 Size)
 
 	return Ret;
 }
+
+
+//! Read raw index table data from this partition's source file
+DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
+{
+	DataChunkPtr Ret;
+
+	Uint64 IndexSize = GetInt64("IndexByteCount");
+	if(IndexSize == 0) return Ret;
+
+	MXFFilePtr ParentFile = Object->GetParentFile();
+
+	if(!ParentFile)
+	{
+		error("Call to Partition::ReadIndexChunk() on a partition that is not read from a file\n");
+		return Ret;
+	}
+
+	Uint64 MetadataSize = GetInt64("HeaderByteCount");
+
+	// Find the start of the index table
+	// DRAGONS: not the most efficient way - we could store a pointer to the end of the metadata
+	ParentFile->Seek(Object->GetLocation() + 16);
+	Length Len = ParentFile->ReadBER();
+	Position Location = ParentFile->Tell() + Len;
+
+	ParentFile->Seek(Location);
+	ULPtr FirstUL = ParentFile->ReadKey();
+	if(!FirstUL)
+	{
+		error("Error reading first KLV after %s at 0x%s in %s\n", FullName().c_str(), 
+			  Int64toHexString(GetLocation(),8).c_str(), GetSource().c_str());
+		return Ret;
+	}
+
+	MDOTypePtr FirstType = MDOType::Find(FirstUL);
+	if(FirstType->Name() == "KLVFill")
+	{
+		// Skip over the filler
+		Len = ParentFile->ReadBER();
+		Location = ParentFile->Tell() + Len;
+	}
+
+	// Move to the start of the index table segments
+	ParentFile->Seek(Location + MetadataSize);
+
+	// Read the specified number of bytes
+	Ret = ParentFile->Read(IndexSize);
+
+	/* Remove any trailing filler */
+
+	// Scan backwards from the end of the index data
+	if(Ret->Size >= 16)
+	{
+		Uint32 Count = Ret->Size - 16;
+		Uint8 *p = &Ret->Data[Count - 16];
+
+		// Find the KLVFill key for comparison
+		// TODO: This should use the UL headerfile when available
+		MDOTypePtr FillType = MDOType::Find("KLVFill");
+		ASSERT(FillType);
+		Uint8 FillKey[16];
+		memcpy(FillKey, FillType->GetGlobalKey().Data, 16);
+
+		// Do the scan (slightly optimized)
+		while(Count--)
+		{
+			if(*p == 0x06)
+			{
+				if(memcmp(p, FillKey, 16) == 0)
+				{
+					Ret->Resize((Uint32)(p - Ret->Data));
+					break;
+				}
+			}
+			p++;
+		}
+	}
+
+	return Ret;
+}
+
 
 
 //! Locate start of Essence Container

@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.1.2.7 2004/10/19 16:38:52 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.1.2.8 2004/11/05 16:50:12 matt-beard Exp $
  *
  */
 /*
@@ -362,8 +362,6 @@ bool KLVEObject::LoadData(void)
 	EncryptedLength *= EncryptionGranularity;
 	EncryptedLength += PlaintextOffset;
 
-//@'@printf("}} ValueLength %d\n}} PlaintextOffset %d\n", (int)ValueLength, (int)PlaintextOffset);
-//@'@printf("@@ Size of Encrypted Source Value is %s - should be %s\n", Int64toString(ESVLength).c_str(), Int64toString((EncryptedLength + EncryptionOverhead)).c_str());
 	if(ESVLength != (EncryptedLength + EncryptionOverhead))
 	{
 		error("Size of Encrypted Source Value is %s - should be %s in %s\n", Int64toString(ESVLength).c_str(), Int64toString((EncryptedLength + EncryptionOverhead)).c_str(), GetSourceLocation().c_str());
@@ -418,8 +416,6 @@ Uint32 KLVEObject::GetGCTrackNumber(void)
  */
 Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 {
-//@'@printf("KLVEObject::ReadDataFrom(0x%08x, %d)\n", (int)Offset, (int)Size);
-
 	// Don't decrypt if we have no decryption wrapper
 	if(!Decrypt) return Base_ReadDataFrom(Offset, Size);
 
@@ -436,18 +432,12 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	// Load the IV and check the Check value if this is the first read
 	if(	CurrentReadOffset == 0)
 	{
-//@'@printf("Loading IV:");
 		if( Base_ReadDataFrom(DataOffset - EncryptionOverhead, EncryptionOverhead) < EncryptionOverhead)
 		{
 			error("Unable to read Initialization Vector and Check Value in KLVEObject::ReadDataFrom()\n");
 			return 0;
 		}
 
-//@'@{
-//@'@	int i;
-//@'@	for(i=0; i<16; i++) printf(" %02x", Data.Data[i]);
-//@'@	printf("\n");
-//@'@}
 		// Initialize the decryption engine with the specified Initialization Vector
 		Decrypt->SetIV(16, Data.Data, true);
 
@@ -466,7 +456,6 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	// If all the requested bytes are encrypted read-and-decrypt
 	if(Offset >= PlaintextOffset) 
 	{
-//@'@printf("Data starts in encrypted area\n");
 		// Check if an attempt is being made to random access the encrypted data - and barf if this is so
 		if(Offset != CurrentReadOffset)
 		{
@@ -480,7 +469,6 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	// If all the bytes requested are plaintext use the base read
 	if( (Size > 0) && ((Offset + Size) < PlaintextOffset) )
 	{
-//@'@printf("Data is all plaintext\n");
 		Length Ret = Base_ReadDataFrom(DataOffset + Offset, Size);
 
 		// Update the read pointer (it is possible to random access within the plaintext area)
@@ -491,7 +479,6 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 
 	/* We will be mixing plaintext and encrypted */
 
-//@'@printf("Data starts in plaintext area\n");
 	// Check if an attempt is being made to random access the encrypted data - and barf if this is so
 	// DRAGONS: It is possible to re-load the initial IV to allow a "rewind" but this is not implemented
 	if(CurrentReadOffset > PlaintextOffset)
@@ -548,8 +535,6 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
  */
 Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 {
-//@'@printf("KLVEObject::ReadCryptoDataFrom(0x%08x, %d)\n", (int)Offset, (int)Size);
-
 	// Initially plan to read all the bytes available
 	Length BytesToRead = EncryptedLength - Offset;
 
@@ -561,16 +546,6 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 
 	// Work out the offset into the encrypted portion of the value
 	Position EncOffset = Offset - PlaintextOffset;
-
-//@'@printf(">> Requested bytes = %d\n", (int)Size);
-//@'@printf(">> Corrected bytes = %d\n", (int)BytesToRead);
-//@'@printf(">> EncOffset = %d\n", (int)EncOffset);
-//@'@printf(">> PreDecrypted = %d:", (int)PreDecrypted);
-//@'@{
-//@'@	int i;
-//@'@	for(i=0; i<PreDecrypted; i++) printf(" %02x", PreDecryptBuffer[i]);
-//@'@	printf("\n");
-//@'@}
 
 	// Check if all the requested bytes have already been decrypted
 	if(BytesToRead <= PreDecrypted)
@@ -588,8 +563,6 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 		// Shuffle any remaining bytes
 		memmove(PreDecryptBuffer, &PreDecryptBuffer[BytesToRead], (size_t)(EncryptionGranularity - BytesToRead));
 
-//@'@printf(">>>> All %d bytes read\n", BytesToRead);
-
 		// All done
 		return BytesToRead;
 	}
@@ -600,8 +573,6 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 
 	// ... then scale this back into bytes
 	BytesToDecrypt *= EncryptionGranularity;
-
-//@'@printf(">> BytesToDecrypt = %d\n", (int)BytesToDecrypt);
 
 	// Read the encrypted data
 	if(!ReadChunkedCryptoDataFrom(PreDecrypted + Offset, BytesToDecrypt))
@@ -630,12 +601,6 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 	if(Data.Size > Size)
 	{
 		PreDecrypted = (int)(Data.Size - Size);
-//@'@printf(">> Storing %d bytes for next time", (int)PreDecrypted);
-//@'@{
-//@'@	int i;
-//@'@	for(i=0; i<PreDecrypted; i++) printf(" %02x", Data.Data[Size + i]);
-//@'@	printf("\n");
-//@'@}
 		memcpy(PreDecryptBuffer, &Data.Data[Size], PreDecrypted);
 		Data.Resize((Uint32)Size);
 	}
@@ -662,15 +627,12 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
  */
 Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 {
-//@'@printf("KLVEObject::ReadChunkedCryptoDataFrom(0x%08x, %d)\n", (int)Offset, (int)Size);
-
 	// Read the encrypted data
 	Length NewSize = Base_ReadDataFrom(DataOffset + Offset, Size);
 
 	// Resize if less bytes than requested were actualy read
 	if(NewSize != Size)
 	{
-//@'@printf("Requested %d bytes, got %d\n", (int)Size, (int)NewSize);
 		Size = NewSize;
 		Data.Resize((Uint32)Size);
 		if(Size == 0) return 0;
@@ -700,7 +662,6 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 		return Size;
 	}
 
-//@'@printf("[] Need to decrypt %d bytes\n", (int)Data.Size);
 	// Decrypt by making a copy
 	DataChunkPtr NewData = Decrypt->Decrypt(Data);
 	if(!NewData)
@@ -712,7 +673,6 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 	}
 
 	// Take over the buffer from the decrypted data
-//@'@printf("[] Take buffer size = 0x%08x or 0x%08x\n", (int)Data.Size, *(int*)(Data.Data - 16));
 	Data.TakeBuffer(NewData);
 
 	return Size;
@@ -729,9 +689,6 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
  */
 Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size)
 {
-//@'@printf("WriteDataTo(Buffer, 0x%x, 0x%x) - ", (int)Offset, (int)Size);
-//@'@printf("OuterLength=0x%x, EncryptedLength=0x%x, DataOffset=0x%x, CurrentWriteOffset=0x%x\n", (int)Dest.OuterLength, (int)EncryptedLength, (int)DataOffset, (int)CurrentWriteOffset);
-
 	// Don't encrypt if we have no encryption wrapper
 	if(!Encrypt) return Base_WriteDataTo(Buffer, Offset, Size);
 
@@ -789,13 +746,6 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 			Encrypt->SetIV(16, IV, true);
 		}
 
-//@'@printf("Writing initial data -> IV =");
-//@'@{
-//@'@	int i;
-//@'@	for(i=0; i<16; i++) printf(" %02x", IV[i]);
-//@'@	printf(",");
-//@'@}
-
 		Base_WriteDataTo(IV, DataOffset - EncryptionOverhead, 16);
 
 
@@ -805,12 +755,6 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 		const Uint8 PlainCheck[16] = { 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B };
 		DataChunkPtr CheckData = Encrypt->Encrypt(16, PlainCheck);
 
-//@'@printf("Check =");
-//@'@{
-//@'@	int i;
-//@'@	for(i=0; i<16; i++) printf(" %02x", CheckData->Data[i]);
-//@'@	printf("\n");
-//@'@}
 		// Write the encrypted check value
 		if(CheckData && (CheckData->Size == 16))
 		{
@@ -825,7 +769,6 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 	// If all the requested bytes are to be encrypted encrypt-and-write
 	if(Offset >= PlaintextOffset) 
 	{
-//@'@printf("All data is to be encrypted\n");
 		// Check if an attempt is being made to random access the encrypted data - and barf if this is so
 		if(Offset != CurrentWriteOffset)
 		{
@@ -840,7 +783,6 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 	// If all the bytes requested are plaintext use the base write
 	if( (Size > 0) && ((Offset + Size) < PlaintextOffset) )
 	{
-//@'@printf("All data is plaintext\n");
 		Length Ret = Base_WriteDataTo(Buffer, DataOffset + Offset, Size);
 		
 		// Update the write pointer (note that random access is possible within the plaintext area)
@@ -861,7 +803,6 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 		return Ret;
 	}
 
-//@'@printf("Data is mixed plaintext and encrypted\n");
 	/* We will be mixing plaintext and encrypted */
 
 	// Check if an attempt is being made to random access the encrypted data - and barf if this is so
@@ -908,8 +849,6 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
  */
 Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Length Size)
 {
-//@'@printf("WriteCryptoDataTo(Buffer, 0x%x, 0x%x)\n", (int)Offset, (int)Size);
-
 	// Self-deleting store to allow us to extend working buffer if required
 	DataChunk TempData;
 
@@ -926,8 +865,6 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 	// Work out the offset into the encrypted portion of the value
 	Position EncOffset = Offset - PlaintextOffset;
 
-//@'@printf(">> EncOffset = %d, AwaitingEncryption = %d\n", (int)EncOffset, (int)AwaitingEncryption);
-
 	// Check if all the bytes will fit in the AwaitingEncryptionBuffer
 	if((!AddPadding) && (Size < (EncryptionGranularity - AwaitingEncryption)))
 	{
@@ -940,8 +877,6 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 
 	// Work out how many bytes we need to encrypt (estimate one - as many as offered)
 	Length BytesToEncrypt = Size;
-
-//@'@printf(">> BytesToEncrypt = %d\n", (int)BytesToEncrypt);
 
 	// If there are any bytes waiting they need to be added to this write
 	if(AwaitingEncryption)
@@ -963,9 +898,6 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 
 		// Record the revised size
 		BytesToEncrypt = AwaitingEncryption + Size;
-
-//@'@printf(">> BytesToEncrypt updated to = %d\n", (int)BytesToEncrypt);
-//@'@printf(">> Offset updated to = %d\n", (int)Offset);
 	}
 
 	// Pad the data if required (i.e. if this is the last chunk of data)
@@ -977,7 +909,6 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 			return 0;
 		}
 
-//@'@printf(">> Data requires padding\n");
 		// Start by encrypting all but the last 16 bytes (including padding)
 		Length StartSize = EncryptedLength - (EncryptionGranularity + Offset);
 
@@ -988,7 +919,6 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 			DataChunkPtr NewData = Encrypt->Encrypt((Uint32)StartSize, Buffer);
 			if(!NewData) return 0;
 
-//@'@printf(">> Writing first encrypted chunk (%d bytes)\n", (int)StartSize);
 			// Write the encrypted data
 			Base_WriteDataTo(NewData->Data, DataOffset + Offset, StartSize);
 		}
@@ -1013,7 +943,6 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 		DataChunkPtr NewData = Encrypt->Encrypt(EncryptionGranularity, TempBuffer);
 		if(!NewData) return 0;
 
-//@'@printf(">> Writing remaining padded encrypted data (%d bytes)\n", (int)EncryptionGranularity);
 		// Write the encrypted data
 		Base_WriteDataTo(NewData->Data, DataOffset + Offset + StartSize, EncryptionGranularity);
 
@@ -1041,16 +970,9 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 	// If there will be any "left-over" bytes they will be awaiting next time
 	if(AwaitingEncryption)
 	{
-//@'@printf(">> Storing %d bytes for next time\n", (int)AwaitingEncryption);
-//@'@{
-//@'@	int i;
-//@'@	for(i=0; i<AwaitingEncryption; i++) printf(" %02x", Buffer[BytesToEncrypt + i]);
-//@'@	printf("\n");
-//@'@}
 		memcpy(AwaitingEncryptionBuffer, &Buffer[BytesToEncrypt], AwaitingEncryption);
 	}
 
-//@'@printf(">> Writing the encrypted data\n");
 	// Write the encrypted data
 	Size = Base_WriteDataTo(NewData->Data, DataOffset + Offset, BytesToEncrypt);
 
@@ -1183,8 +1105,6 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	EncryptedLength = ((ValueLength-PlaintextOffset) + EncryptionGranularity) / EncryptionGranularity;
 	EncryptedLength *= EncryptionGranularity;
 	EncryptedLength += PlaintextOffset;
-//@'@printf("}} ValueLength %d\n}} PlaintextOffset %d\n", (int)ValueLength, (int)PlaintextOffset);
-//@'@printf("@@ Size of Encrypted Source Value is %s\n", Int64toString(EncryptedLength).c_str());
 
 	// ** Write the length of the encrypted source value
 	// ** Including IV and Check as well as any padding

@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.1.2.2 2004/10/10 18:38:58 terabrit Exp $
+ *	\version $Id: mdobject.h,v 1.1.2.3 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -54,6 +54,9 @@ namespace mxflib
 
 	//! A smart pointer to an MDOType object
 	typedef SmartPtr<MDOType> MDOTypePtr;
+
+	//! A parent pointer to an MDOType object
+	typedef ParentPtr<MDOType> MDOTypeParent;
 
 	//! A list of smart pointers to MDOType objects
 	typedef std::list<MDOTypePtr> MDOTypeList;
@@ -166,11 +169,11 @@ namespace mxflib
 		MDTypePtr ValueType;			//!< Value type if this is an actual data item, else NULL
 
 	public:
-		MDOTypePtr Base;				//!< Base class if this is a derived class, else NULL
+		MDOTypeParent Base;				//!< Base class if this is a derived class, else NULL
 
 	protected:
 		StringList ChildOrder;			//!< Child names in order for packs
-		MDOTypePtr Parent;				//!< Parent type if this is a child
+		MDOTypeParent Parent;			//!< Parent type if this is a child
 		ULPtr TypeUL;					//!< The UL for this type, or NULL
 
 		/* Dictionary data */
@@ -187,7 +190,7 @@ namespace mxflib
 		DataChunk		Default;		//!< Default value (if one exists)
 		DataChunk		DValue;			//!< Distinguished value (if one is defined)
 		DictRefType		RefType;		//!< Reference type if this is a reference
-		MDOTypePtr		RefTarget;		//!< Type (or base type) of item this ref source must target
+		MDOTypeParent	RefTarget;		//!< Type (or base type) of item this ref source must target
 		std::string		RefTargetName;	//!< Name of the type (or base type) of item this ref source must target
 
 	public:
@@ -312,13 +315,35 @@ namespace mxflib
 	// Forward declare so the class can include pointers to itself
 	class MDObject;
 	class MDObjectPtr;
+	class MDObjectParent;
 
 	//! A smart pointer to an MDObject object (with operator[] overloads)
 	class MDObjectPtr : public SmartPtr<MDObject>
 	{
 	public:
 		MDObjectPtr() : SmartPtr<MDObject>() {};
-		MDObjectPtr(MDObject * ptr) : SmartPtr<MDObject>(ptr) {};
+//		MDObjectPtr(MDObject * ptr) : SmartPtr<MDObject>(ptr) {};
+		MDObjectPtr(IRefCount<MDObject> * ptr) : SmartPtr<MDObject>(ptr) {};
+
+		//! Child access operators that overcome dereferencing problems with SmartPtrs
+		MDObjectPtr operator[](const char *ChildName);
+		MDObjectPtr operator[](MDOTypePtr ChildType);
+	};
+
+	//! A parent pointer to an MDObject object (with operator[] overloads)
+	class MDObjectParent : public ParentPtr<MDObject>
+	{
+	public:
+		MDObjectParent() : ParentPtr<MDObject>() {};
+		MDObjectParent(MDObject * ptr) : ParentPtr<MDObject>(ptr) {};
+
+		//! Set value from a smart pointer
+		/*! \note Not a perfect operator= as no return value is created (too inefficient) */
+		void operator=(const MDObjectPtr &sp) { SmartPtr<MDObject>::operator=(sp); }
+
+		//! Set value from a pointer
+		/*! \note Not a perfect operator= as no return value is created (too inefficient) */
+		void operator=(RefCount<MDObject> *Ptr) { SmartPtr<MDObject>::operator=(Ptr); }
 
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
@@ -348,8 +373,10 @@ namespace mxflib
 		bool IsConstructed;				//!< True if this object is constructed, false if read from a file or a parent object
 		Uint64 ParentOffset;			//!< Offset from start of parent object if read from file or object
 		Uint32 KLSize;					//!< Size of this objects KL if read from file or parent object
-		MDObjectPtr Parent;				//!< Pointer to parent if read from inside another object
-		MXFFilePtr ParentFile;			//!< Pointer to parent file if read from a file
+//		MDObjectPtr Parent;				//!< Pointer to parent if read from inside another object
+		MDObjectParent Parent;			//!< Pointer to parent if read from inside another object
+//		MXFFilePtr ParentFile;			//!< Pointer to parent file if read from a file
+		MXFFileParent ParentFile;		//!< Pointer to parent file if read from a file
 		ULPtr TheUL;					//!< The UL for this object (if known)
 		Tag TheTag;						//!< The local tag used for this object (if known)
 
@@ -487,7 +514,7 @@ namespace mxflib
 			if (Ptr) return Ptr->GetUint64(); else if(Value) return Value->GetUint64(ChildName, Default); else return Default; 
 		};
 
-		std::string GetString(const char *ChildName, std::string Default = 0)
+		std::string GetString(const char *ChildName, std::string Default = "")
 		{ 
 			MDObjectPtr Ptr = operator[](ChildName); 
 			if (Ptr) return Ptr->GetString(); else if(Value) return Value->GetString(ChildName, Default); else return Default; 
@@ -776,6 +803,8 @@ namespace mxflib
 {
 inline MDObjectPtr MDObjectPtr::operator[](const char *ChildName) { return GetPtr()->operator[](ChildName); }
 inline MDObjectPtr MDObjectPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->operator[](ChildType); }
+inline MDObjectPtr MDObjectParent::operator[](const char *ChildName) { return GetPtr()->operator[](ChildName); }
+inline MDObjectPtr MDObjectParent::operator[](MDOTypePtr ChildType) { return GetPtr()->operator[](ChildType); }
 }
 
 #endif // MXFLIB__MDOBJECT_H

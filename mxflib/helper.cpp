@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.2.2.12 2004/10/16 19:55:43 terabrit Exp $
+ *	\version $Id: helper.cpp,v 1.2.2.13 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -34,7 +34,7 @@ using namespace mxflib;
 
 //! Build a BER length
 /*! \param Data		A pointer to the buffer to receive the length
- *	\param MazSize	The maximum length that can be written to the buffer
+ *	\param MaxSize	The maximum length that can be written to the buffer
  *	\param Length	The length to be converted to BER
  *	\param Size		The total number of bytes to use for BER length (or 0 for auto)
  *	\return The number of bytes written

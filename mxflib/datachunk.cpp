@@ -1,7 +1,7 @@
 /*! \file	datachunk.cpp
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.cpp,v 1.1.2.2 2004/08/18 18:35:25 matt-beard Exp $
+ *	\version $Id: datachunk.cpp,v 1.1.2.3 2004/11/05 16:50:12 matt-beard Exp $
  *
  */
 /*
@@ -153,7 +153,7 @@ bool mxflib::DataChunk::TakeBuffer(DataChunk &OldOwner, bool MakeEmpty /*=false*
 
 	// Set the new details
 	Size = BuffSize;
-	AllocatedSize = AllocatedSize;
+	DataSize = AllocatedSize;
 	Data = Buffer;
 	ExternalBuffer = ExtBuff;
 
@@ -168,8 +168,6 @@ bool mxflib::DataChunk::TakeBuffer(DataChunk &OldOwner, bool MakeEmpty /*=false*
  */
 bool mxflib::DataChunk::TakeBuffer(DataChunkPtr &OldOwner, bool MakeEmpty /*=false*/ )
 {
-//@'@printf("~~Buffer 0x%08x -> Size = 0x%08x(0x%08x) or 0x%08x\n", (int)Data, (int)Size, (int)DataSize, *(int*)(Data - 16));
-	
 	Uint32 BuffSize = OldOwner->Size;
 	Uint32 AllocatedSize = OldOwner->DataSize;
 	bool ExtBuff = OldOwner->ExternalBuffer;
@@ -181,9 +179,7 @@ bool mxflib::DataChunk::TakeBuffer(DataChunkPtr &OldOwner, bool MakeEmpty /*=fal
 	if(!Buffer) return false;
 
 	// Release any old buffer
-//@'@printf("[]Release...");
 	if((!ExternalBuffer) && (Data)) delete[] Data;
-//@'@printf("\n");
 
 	// Set the new details
 	Size = BuffSize;
@@ -191,7 +187,6 @@ bool mxflib::DataChunk::TakeBuffer(DataChunkPtr &OldOwner, bool MakeEmpty /*=fal
 	Data = Buffer;
 	ExternalBuffer = ExtBuff;
 
-//@'@printf("~~>Buffer 0x%08x -> Size = 0x%08x or 0x%08x\n", (int)Data, (int)Size, *(int*)(Data - 16));
 	return true;
 }
 

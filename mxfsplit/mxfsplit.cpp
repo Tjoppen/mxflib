@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.7.2.6 2004/09/02 23:29:40 terabrit Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.7.2.7 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -63,7 +63,7 @@ static bool SplitParts = false;		// -p
 static bool FullIndex = false;		// -f dump full index
 static bool DumpExtraneous = false;		// -x dump extraneous body elements
 
-static unsigned long SplitWaveChannels = 2;	// -w=n
+static unsigned int SplitWaveChannels = 2;	// -w=n
 
 #ifdef DMStiny
 static char* DMStinyDict = NULL;						//!< Set to name of DMStiny xmldict
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
 				SplitWave = true;
 				if( argv[i][2]==':' || argv[i][2]=='=' )
 				{
-					SplitWaveChannels = strtoul( argv[i]+3, NULL, 0 );
+					SplitWaveChannels = (unsigned int)strtoul( argv[i]+3, NULL, 0 );
 				}
 			}
 			else if(Opt == 'x') DumpExtraneous = true;

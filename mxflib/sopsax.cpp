@@ -1,7 +1,7 @@
 /*! \file	sopSAX.cpp
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.cpp,v 1.2.2.1 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: sopsax.cpp,v 1.2.2.2 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -66,6 +66,7 @@ bool sopSAXParseFile(sopSAXHandlerPtr sax, void *UserData, const char *filename)
 	/* Validate the handler */
 	if(sax == NULL)
 	{
+		// Note that this is far from ideal - but we don't have a valid error handler now!
 		fprintf(stderr, "Cannot parse file with no handler\n");
 		return false;
 	}
@@ -303,16 +304,13 @@ int sopGetChar(FILE *xmlFile)
 	long pos;
 
 	/* Get the next character */
-///pos = ftell(xmlFile);
 	c = fgetc(xmlFile);
-///printf("\n%d='%c' ", pos, c);
 	/* return it if safe */
 	if(c != '<') return c;
 
 	pos = ftell(xmlFile);
 	/* Else sniff the next chars for '!--' */
 	c = fgetc(xmlFile);
-///printf(",'%c' ", c);
 	if(c != '!')
 	{
 		/* We're safe, move back and continue */
@@ -321,7 +319,6 @@ int sopGetChar(FILE *xmlFile)
 	}
 	
 	c2 = fgetc(xmlFile);
-///printf(",'%c' ", c2);
 	if(c2 != '-')
 	{
 		/* We're safe, move back and continue */
@@ -330,7 +327,6 @@ int sopGetChar(FILE *xmlFile)
 	}
 
 	c3 = fgetc(xmlFile);
-///printf(",'%c' ", c3);
 	if(c3 != '-')
 	{
 		/* We're safe, move back and continue */
@@ -341,14 +337,11 @@ int sopGetChar(FILE *xmlFile)
 	/* Scan for end of comment */
 	c3 = 0;
 	c2 = 0;
-///printf("**START COMMENT**");
 	while(!feof(xmlFile))
 	{
 		c = fgetc(xmlFile);
-///putchar(c);
 		if((c=='>') && (c2=='-') && (c3=='-'))
 		{
-///printf("**END COMMENT**");
 			return sopGetChar(xmlFile);
 		}
 

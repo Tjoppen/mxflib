@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.1.2.3 2004/05/28 14:30:40 matt-beard Exp $
+ *	\version $Id: partition.h,v 1.1.2.4 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -48,8 +48,21 @@ namespace mxflib
 	{
 	public:
 		PartitionPtr() : SmartPtr<Partition>() {};
-		PartitionPtr(Partition * ptr) : SmartPtr<Partition>(ptr) {};
+//		PartitionPtr(Partition * ptr) : SmartPtr<Partition>(ptr) {};
 //		PartitionPtr(MDObjectPtr ptr) : SmartPtr<Partition>((Partition *)ptr.GetPtr()) {};
+		PartitionPtr(IRefCount<Partition> * ptr) : SmartPtr<Partition>(ptr) {};
+
+		//! Child access operators that overcome dereferencing problems with SmartPtrs
+		MDObjectPtr operator[](const char *ChildName);
+		MDObjectPtr operator[](MDOTypePtr ChildType);
+	};
+
+	//! A parent pointer to an Partition object (with operator[] overload)
+	class PartitionParent : public ParentPtr<Partition>
+	{
+	public:
+		PartitionParent() : ParentPtr<Partition>() {};
+		PartitionParent(Partition * ptr) : ParentPtr<Partition>(ptr) {};
 		
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
@@ -116,6 +129,9 @@ namespace mxflib
 
 		//! Read any index table segments from a file
 		MDObjectListPtr ReadIndex(MXFFilePtr File, Uint64 Size);
+
+		//! Read raw index table data from this partition's source file
+		DataChunkPtr ReadIndexChunk(void);
 
 		//! Set the KAG for this partition
 		void SetKAG(Uint64 KAG)

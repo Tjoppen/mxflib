@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
 			if(ThisPartition)
 			{
 				// Don't dump the last partition unless it is a footer or we are dumping all
-				if(FullBody || (PartitionNumber != TestFile->FileRIP.size()) || (ThisPartition->Name().find("Footer") != std::string::npos))
+				if(FullBody || (PartitionNumber == 1) || (PartitionNumber != TestFile->FileRIP.size()) || (ThisPartition->Name().find("Footer") != std::string::npos))
 				{
 					DumpObject(ThisPartition->Object,"");
 

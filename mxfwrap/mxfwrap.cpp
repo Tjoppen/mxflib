@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.16.2.1 2004/07/17 00:23:16 terabrit Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.16.2.2 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -47,9 +47,9 @@ const char* BaseVersion = "based on mxflib 0.5";
 #include "DMStiny.h"
 #else
 // Product GUID and version text for this release
-Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x53 };
+Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xd3, 0x41, 0x86, 0xdc, 0xf0, 0x89, 0xda, 0x7f, 0xd0, 0x53 };
 string CompanyName = "freeMXF.org";
-string ProductName = "mxfwrap file wrapper";
+string ProductName = "mxfwrap file wrapper - revised";
 string ProductVersion = BaseVersion;
 #endif
 
@@ -148,8 +148,8 @@ void SetMultiTrack(ULPtr &theUL);
 namespace
 {
 	// Options
-	char* DMStinyDict = NULL;						//!< Set to name of DMStiny xmldict
-	char* DMStinyMaterial = NULL;				//!< Set to name of DMStiny Material instance data
+	char* DMStinyDict = NULL;				//!< Set to name of DMStiny xmldict
+	char* DMStinyMaterial = NULL;			//!< Set to name of DMStiny Material instance data
 
 	char InFilenameSet[512];				//!< The set of input filenames
 	char InFilename[16][128];				//!< The list of input filenames
@@ -178,9 +178,9 @@ namespace
 	// DRAGONS: Temporary option!
 	bool FrameGroup = false;				//!< Group all as a frame-wrapped group (in one essence container)
 
-	int IndexManCount;						//!< Number of index managers in use
-	IndexManagerPtr IndexMan[16];			//!< Index managers per indexed essence container
-	std::list<Position> SparseList[16];		//!< List of edit units to include in sparse index tables (per BodySID)
+//	int IndexManCount;						//!< Number of index managers in use
+//	IndexManagerPtr IndexMan[16];			//!< Index managers per indexed essence container
+//	std::list<Position> SparseList[16];		//!< List of edit units to include in sparse index tables (per BodySID)
 
 	Rational ForceEditRate;					//!< Edit rate to try and force
 
@@ -278,8 +278,6 @@ int main(int argc, char *argv[])
 		if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
 		else WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate);
 
-// Fixed now ? ## When PDList is deleted so is the essence parser...
-
 		if(!WCP)
 		{
 			error("Could not identify a wrapping mode for the essence in file \"%s\"\n", InFilename[i]);
@@ -332,11 +330,13 @@ int main(int argc, char *argv[])
 	{
 		if((FrameGroup) || (WrappingList.size() == 1))
 		{
+			// FIXME: This is wrong!!
 			SetUniTrack(OPUL);
 			SetStream(OPUL);
 		}
 		else
 		{
+			// FIXME: This is wrong!!
 			SetMultiTrack(OPUL);
 			if(StreamMode) SetStream(OPUL); else ClearStream(OPUL);
 		}
@@ -835,11 +835,6 @@ bool ParseCommandLine(int &argc, char **argv)
 }
 
 
-/// CUT HERE
-
-// non-exported forward declarations
-typedef std::list<BodyWrapping> BodyWrappingList;
-Int64 WriteBody(MXFFilePtr Out, BodyWrappingList BodyWrapList, PartitionPtr ThisPartition, Int64 Duration = 0);
 
 //! Short term hack to allow per-BodySID GCWriters
 /*! DRAGONS: This needs to be tidied a little when there is time! */
@@ -859,6 +854,46 @@ GCWriterPtr AddGCWriter(std::map<int, GCWriterPtr> &Map, MXFFilePtr &File, int B
 }
 
 
+//! Set the index options for a given body stream
+void SetStreamIndex(BodyStreamPtr &ThisStream, bool isCBR)
+{
+	// Set CBR indexing flags
+	if(isCBR)
+	{
+		// If this stream is not CBR indexable don't set any flags
+		if(ThisStream->GetSource()->GetBytesPerEditUnit() != 0) return;
+
+		if(IsolatedIndex)
+		{
+			if(UseIndex) ThisStream->SetIndexType(BodyStream::IndexType::StreamIndexCBRFooterIsolated);
+		}
+		else
+		{
+			if(UseIndex) ThisStream->SetIndexType(BodyStream::IndexType::StreamIndexCBRFooter);
+		}
+	}
+	// Set VBR indexing flags
+	else
+	{
+		// If this stream is not VBR indexable don't set any flags
+		if(!ThisStream->GetSource()->CanIndex()) return;
+
+		if(IsolatedIndex)
+		{
+			if(UseIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexFullFooterIsolated);
+			if(SparseIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexSparseFooterIsolated);
+			if(SprinkledIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexSprinkledIsolated);
+		}
+		else
+		{
+			if(UseIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexFullFooter);
+			if(SparseIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexSparseFooter);
+			if(SprinkledIndex) ThisStream->AddIndexType(BodyStream::IndexType::StreamIndexSprinkled);
+		}
+	}
+}
+
+
 int Process(	int OutFileNum,
 							MXFFilePtr Out,
 							EssenceParser::WrappingConfigList WrapCfgList,
@@ -871,7 +906,7 @@ int Process(	int OutFileNum,
 
 	int Ret = 0;
 
-	///@step Create a set of header metadata
+	/* Step: Create a set of header metadata */
 
 	MetadataPtr MData = new Metadata();
 	ASSERT(MData);
@@ -937,21 +972,32 @@ int Process(	int OutFileNum,
 
 
 	TrackPtr MPTimecodeTrack = MaterialPackage->AddTimecodeTrack(EditRate);
+//#return 0; //BUG
+
 	TimecodeComponentPtr MPTimecodeComponent = MPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, 0 );
 
-	// Writers for each BodySID
-	std::map<int, GCWriterPtr> WriterMap;
+	// Build the body writer
+	BodyWriterPtr Writer = new BodyWriter(Out);
+
+	// Set the writer's general parameters
+	Writer->SetKAG(KAGSize);
+	Writer->SetForceBER4(true);
+
+	// Index data can't share with metadata if very-isolated and essence can't share with metadata in OP-Atom
+	Writer->SetMetadataSharing(!VeryIsolatedIndex, !OPAtom);
+
 
 	// Build the File Packages and all essence tracks
 
 	// FP UMIDs are the same for all OutFiles, so they are supplied as a parameter
-	GCWriterPtr Writer[16];							//! Writers for each essence container
 	GCStreamID EssenceID[16];						//! Essence stream ID for each essence stream
 	TimecodeComponentPtr FPTimecodeComponent[16];	//! Timecode component for each file package
 	TrackPtr MPTrack[16];							//! Material Package track for each essence stream
 	TrackPtr FPTrack[16];							//! File Package track for each essence stream
 	SourceClipPtr MPClip[16];						//! Material Package SourceClip for each essence stream 
 	SourceClipPtr FPClip[16];						//! File Package SourceClip for each essence stream 
+
+	BodyStreamPtr Stream[16];						//! BodyStream for each stream being built (master stream if frame-grouping)
 
 	PackagePtr FilePackage;
 
@@ -970,44 +1016,80 @@ int Process(	int OutFileNum,
 		{
 			if(WriteFP) // (iTrack == OutFileNum)
 			{
-				// Set up a writer for body SID (iTrack + 1)
-				Writer[iTrack] = AddGCWriter(WriterMap, Out, iTrack + 1);
+				// Get the source for this essence
+				EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream, 0 );
 
-				// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
-				Writer[iTrack]->SetKAG(KAGSize, true);
+				// Build a stream object to write
+				Stream[iTrack] = new BodyStream(iTrack + 1, Source);
 
-				// Add an essence element
-				EssenceID[iTrack] = Writer[iTrack]->AddEssenceElement((*WrapCfgList_it)->WrapOpt->GCEssenceType, (*WrapCfgList_it)->WrapOpt->GCElementType);
+				// Force edit-unit align if requested
+				if(EditAlign) Stream[iTrack]->SetEditAlign(true);
 
+				// The source will be allocated a streamID when it is added to the BodyStream - we need that for track linking later
+				EssenceID[iTrack] = Source->GetStreamID();
+
+				// Set indexing options for this stream
+				if(UseIndex || SparseIndex || SprinkledIndex)
+				{
+					if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+					{
+						if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
+						else SetStreamIndex(Stream[iTrack], false);
+					}
+					else
+					{
+						warning("Indexing only currently supported for frame wrapping\n");
+					}
+				}
+
+				// Add this stream to the body writer
+				Writer->AddStream(Stream[iTrack]);
+
+				// Add the file package
 				FilePackage = MData->AddFilePackage(iTrack+1, std::string("File Package: ") + (*WrapCfgList_it)->WrapOpt->Description, FPUMID[iTrack]);
 
+				// Ensure it has a timecode track
 				FPTimecodeTrack = FilePackage->AddTimecodeTrack(EditRate);
 				FPTimecodeComponent[iTrack] = FPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, TCtoFrames( FrameRate, DropFrame, 1, 0, 0, 0 ) );
 			}
 		}
 		else if( FrameGroup ) // !OPAtom
 		{
-			Writer[iTrack] = AddGCWriter(WriterMap, Out, 1);
-			
-			/* How to we acheive this now?? -- I think that it will be automatic, needs checking!!
-			// if same EssenceType as previous track, construct GCWriter with non-zero StreamBase
-			if( iTrack != 0 && WrapCfgList_it != WrapCfgList.begin() 
-			&& (*WrapCfgList_it)->WrapOpt->GCEssenceType == PrevEssenceType )
+			// Get the source for this essence
+			EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream, 0 );
+
+			if(iTrack == 0)
 			{
-				Writer[iTrack] = new GCWriter(Out, 1, Writer[iTrack-1]->GetStreamCount());
+				// Build a stream object to write
+				Stream[0] = new BodyStream(iTrack + 1, Source);
+
+				// Force edit-unit align if requested
+				if(EditAlign) Stream[iTrack]->SetEditAlign(true);
 			}
 			else
 			{
-				// Set up a writer for body SID 1
-				Writer[iTrack] = new GCWriter(Out, 1);
+				// Add this sub-stream
+				Stream[0]->AddSubStream(Source);
+				Stream[iTrack] = Stream[0];
 			}
-			*/
 
-			// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
-			Writer[iTrack]->SetKAG(KAGSize, true);
+			// The source will be allocated a streamID when it is added to the BodyStream - we need that for track linking later
+			EssenceID[iTrack] = Source->GetStreamID();
 
-			// Add an essence element
-			EssenceID[iTrack] = Writer[iTrack]->AddEssenceElement((*WrapCfgList_it)->WrapOpt->GCEssenceType, (*WrapCfgList_it)->WrapOpt->GCElementType);
+			// Set indexing options for this stream
+			// FIXME: This needs to be done only once based on CBR or VBR nature of combined group!!
+			if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+			{
+				if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
+				else SetStreamIndex(Stream[iTrack], false);
+			}
+			else
+			{
+				warning("Indexing only currently supported for frame wrapping\n");
+			}
+
+			// Add this stream to the body writer (first pass only)
+			if(iTrack == 0) Writer->AddStream(Stream[0]);
 
 			PrevEssenceType = (*WrapCfgList_it)->WrapOpt->GCEssenceType;
 
@@ -1021,15 +1103,33 @@ int Process(	int OutFileNum,
 		}
 		else // !OPAtom, !FrameGroup
 		{
-			// Set up a writer for body SID (iTrack + 1)
-			Writer[iTrack] = AddGCWriter(WriterMap, Out, iTrack + 1);
+			// Get the source for this essence
+			EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream, 0 );
 
-			// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
-			Writer[iTrack]->SetKAG(KAGSize, true);
+			// Build a stream object to write
+			Stream[iTrack] = new BodyStream(iTrack + 1, Source);
 
-			// Add an essence element
-			EssenceID[iTrack] = Writer[iTrack]->AddEssenceElement((*WrapCfgList_it)->WrapOpt->GCEssenceType, (*WrapCfgList_it)->WrapOpt->GCElementType);
+			// Force edit-unit align if requested
+			if(EditAlign) Stream[iTrack]->SetEditAlign(true);
 
+			// The source will be allocated a streamID when it is added to the BodyStream - we need that for track linking later
+			EssenceID[iTrack] = Source->GetStreamID();
+
+			// Set indexing options for this stream
+			if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
+			{
+				if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
+				else SetStreamIndex(Stream[iTrack], false);
+			}
+			else
+			{
+				warning("Indexing only currently supported for frame wrapping\n");
+			}
+
+			// Add this stream to the body writer
+			Writer->AddStream(Stream[iTrack]);
+
+			// DRAGONS: Why if(true) ?
 			if( true )
 			{
 				FilePackage = MData->AddFilePackage(iTrack+1, std::string("File Package: ") + (*WrapCfgList_it)->WrapOpt->Description, FPUMID[iTrack]);
@@ -1062,13 +1162,13 @@ int Process(	int OutFileNum,
 			switch((*WrapCfgList_it)->WrapOpt->GCEssenceType)
 			{
 			case 0x05: case 0x15:
-				FPTrack[iTrack] = FilePackage->AddPictureTrack(Writer[iTrack]->GetTrackNumber(EssenceID[iTrack]), EditRate);
+				FPTrack[iTrack] = FilePackage->AddPictureTrack(Stream[iTrack]->GetTrackNumber(), EditRate);
 				break;
 			case 0x06: case 0x16:
-				FPTrack[iTrack] = FilePackage->AddSoundTrack(Writer[iTrack]->GetTrackNumber(EssenceID[iTrack]), EditRate);
+				FPTrack[iTrack] = FilePackage->AddSoundTrack(Stream[iTrack]->GetTrackNumber(), EditRate);
 				break;
 			case 0x07: case 0x17: default:
-				FPTrack[iTrack] = FilePackage->AddDataTrack(Writer[iTrack]->GetTrackNumber(EssenceID[iTrack]), EditRate);
+				FPTrack[iTrack] = FilePackage->AddDataTrack(Stream[iTrack]->GetTrackNumber(), EditRate);
 				break;
 			}
 		}
@@ -1152,7 +1252,7 @@ int Process(	int OutFileNum,
 
 
 	//
-	// ** Write out the header **
+	// ** Set up the base partition pack **
 	//
 
 	PartitionPtr ThisPartition = new Partition("OpenHeader");
@@ -1179,198 +1279,14 @@ int Process(	int OutFileNum,
 	// could have been read by another device. This flags that items have changed.
 	MData->UpdateGenerations(Ident);
 
-	// Write the header partition
-	Out->WritePartition(ThisPartition, HeaderPadding);
+	// Add the template partition to the body writer
+	Writer->SetPartition(ThisPartition);
+
 
 
 	//
 	// ** Set up indexing **
 	//
-
-	IndexManCount = 0;
-	if(UseIndex || SparseIndex || SprinkledIndex)
-	{
-		WrapCfgList_it = WrapCfgList.begin();
-		iTrack=0;
-		int ManagerID = 0;
-		while(WrapCfgList_it != WrapCfgList.end())
-		{
-			// Currently we can only index frame wrapped essence
-			if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
-			{
-				// Only index it if we can
-				if((*WrapCfgList_it)->WrapOpt->CanIndex)
-				{
-					if((!OPAtom) || (iTrack == OutFileNum))
-					{
-						// FrameGroup will use a single multi-stream index...
-						if(FrameGroup)
-						{
-							int StreamID = 0;
-							if(IndexManCount == 0)
-							{
-								IndexMan[0] = new IndexManager(0, (*WrapCfgList_it)->WrapOpt->BytesPerEditUnit );
-								IndexMan[0]->SetBodySID(1);
-								IndexMan[0]->SetIndexSID(129);
-								IndexMan[0]->SetEditRate((*WrapCfgList_it)->EditRate);
-							}
-							else StreamID = IndexMan[0]->AddSubStream(0, (*WrapCfgList_it)->WrapOpt->BytesPerEditUnit );
-if( DebugMode) printf("IndexMan[0] -> %d\n", StreamID);
-							(*WrapCfgList_it)->WrapOpt->Handler->SetIndexManager(IndexMan[0], StreamID);
-							IndexManCount = 1;
-						}
-						// ...otherwise one per stream
-						else
-						{
-							IndexMan[ManagerID] = new IndexManager(0, (*WrapCfgList_it)->WrapOpt->BytesPerEditUnit );
-							IndexMan[0]->SetBodySID(iTrack + 1);
-							IndexMan[0]->SetIndexSID(iTrack + 129);
-							IndexMan[0]->SetEditRate((*WrapCfgList_it)->EditRate);
-
-							(*WrapCfgList_it)->WrapOpt->Handler->SetIndexManager(IndexMan[ManagerID], 0);
-							IndexManCount++;
-						}
-						ManagerID++;
-					}
-				}
-			}
-
-			WrapCfgList_it++;
-			iTrack++;
-		}
-	}
-
-
-	//
-	// ** Process Essence **
-	//
-
-	// Clear all section durations
-	{
-		int i;
-		for(i=0; i<16; i++) Duration[i] = 0;
-	}
-
-	// Clear all sprinkled index starts
-	{
-		int i;
-		for(i=0; i<128; i++) LastEditUnit[i] =0;
-	}
-
-	BodyWrappingList BodyWrapList;
-
-	// Do all frame-wrappings first
-	WrapCfgList_it = WrapCfgList.begin();
-	iTrack = 0;
-	while(WrapCfgList_it != WrapCfgList.end())
-	{
-// DRAGONS: Why has this gone?
-//		// Calculate the section this essence is for
-//		int Section = 0;
-
-		if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
-		{
-			if((!OPAtom) || (iTrack == OutFileNum))
-			{
-				BodyWrapping BW;
-
-				BW.Writer = Writer[iTrack];
-				BW.EssenceID = EssenceID[iTrack];
-				BW.Config = (*WrapCfgList_it);
-				BW.InFile = InFile[iTrack];
-
-				if(FrameGroup) BW.BodySID = 1;
-				else BW.BodySID = iTrack+1;
-
-				BW.BodyMode = BodyMode;
-				BW.BodyRate = BodyRate;
-
-				BodyWrapList.push_back(BW);
-			}
-		}
-
-		WrapCfgList_it++;
-		iTrack++;
-	}
-
-	// Write all frame-wrapped items
-	if(!BodyWrapList.empty()) Duration[0] = WriteBody(Out, BodyWrapList, ThisPartition);
-
-
-	// Non-clip-wrapped items
-	BodyWrapList.clear();
-	WrapCfgList_it = WrapCfgList.begin();
-	iTrack=0;
-	while(WrapCfgList_it != WrapCfgList.end())
-	{
-		if(    ((*WrapCfgList_it)->WrapOpt->ThisWrapType != WrappingOption::Frame)
-			&& ((*WrapCfgList_it)->WrapOpt->ThisWrapType != WrappingOption::Clip))
-		{
-			if((!OPAtom) || (iTrack == OutFileNum))
-			{
-				BodyWrapping BW;
-
-				BW.Writer = Writer[iTrack];
-				BW.EssenceID = EssenceID[iTrack];
-				BW.Config = (*WrapCfgList_it);
-				BW.InFile = InFile[iTrack];
-				BW.BodySID = iTrack+1;
-
-				BodyWrapList.push_back(BW);
-			}
-		}
-
-		WrapCfgList_it++;
-		iTrack++;
-	}
-
-	// Write all non-frame- or clip-wrapped items
-	if(!BodyWrapList.empty()) 
-	{
-		if(Duration[0]) WriteBody(Out, BodyWrapList, ThisPartition, Duration[0]);
-		else Duration[0] = WriteBody(Out, BodyWrapList, ThisPartition);
-	}
-
-	// Clip wrappings
-	BodyWrapList.clear();
-	WrapCfgList_it = WrapCfgList.begin();
-	iTrack=0;
-	while(WrapCfgList_it != WrapCfgList.end())
-	{
-		if(((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Clip))
-		{
-			if((!OPAtom) || (iTrack == OutFileNum))
-			{
-				BodyWrapping BW;
-
-				BW.Writer = Writer[iTrack];
-				BW.EssenceID = EssenceID[iTrack];
-				BW.Config = (*WrapCfgList_it);
-				BW.InFile = InFile[iTrack];
-				BW.BodySID = iTrack+1;
-
-				BodyWrapList.push_back(BW);
-			}
-		}
-
-		WrapCfgList_it++;
-		iTrack++;
-	}
-
-	// Write all clip-wrapped items
-	if(!BodyWrapList.empty()) 
-	{
-		if(Duration[0]) WriteBody(Out, BodyWrapList, ThisPartition, Duration[0]);
-		else Duration[0] = WriteBody(Out, BodyWrapList, ThisPartition);
-	}
-
-
-	//
-	// Write out a set of index tables
-	//
-
-	DataChunkPtr IndexChunk = new DataChunk();
-	Uint32 IndexSID = 0;
 
 	if(UseIndex || SparseIndex || SprinkledIndex)
 	{
@@ -1381,160 +1297,91 @@ if( DebugMode) printf("IndexMan[0] -> %d\n", StreamID);
 		if(Ptr) Ptr = Ptr["EssenceContainerData"];
 		if(Ptr) ECDataSets = Ptr->ChildList("EssenceContainer");
 
-		int iManager;
-		for(iManager=0; iManager<IndexManCount; iManager++)
+		WrapCfgList_it = WrapCfgList.begin();
+		iTrack=0;
+		while(WrapCfgList_it != WrapCfgList.end())
 		{
-			// ** Handle leftover-sprinkles first **
-			// *************************************
-
-			if(SprinkledIndex)
+			// Currently we can only index frame wrapped essence
+			if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
 			{
-				// Make an index table containing all available entries
-				IndexTablePtr Index = IndexMan[iManager]->MakeIndex();
-
-				// Add any remaining entries
-				Position EditUnit = IndexMan[iManager]->GetLastNewEditUnit();
-				int Count = IndexMan[iManager]->AddEntriesToIndex(Index, LastEditUnit[Index->BodySID], EditUnit-1);
-
-				// Only write if there were any entries left
-				if(Count)
+				// Only index it if we can
+				if((*WrapCfgList_it)->WrapOpt->CanIndex)
 				{
-					// Flush any previous index table before starting a new one
-					if(IndexChunk->Size)
+					if((!OPAtom) || (iTrack == OutFileNum))
 					{
-						// Write the index in a partition of its own
+						Uint32 BodySID;				//! Body SID for this essence stream
+						Uint32 IndexSID;			//! Index SID for the index of this essence stream
 
-						ThisPartition->ChangeType("ClosedCompleteBodyPartition");
-						ThisPartition->SetUint("BodySID", 0);
-						ThisPartition->SetUint("BodyOffset", 0);
-						ThisPartition->SetUint("IndexSID",  IndexSID);
-
-						Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
-					}
-
-					// Write the index table
-					Index->WriteIndex(*IndexChunk);
-					
-					// Record the IndexSID for when the index is written
-					IndexSID = Index->IndexSID;
-				}
-			}
-
-			// ** Handle full index tables next **
-			// ***********************************
-			
-			if(UseIndex)
-			{
-				// Flush any previous index table before starting a new one
-				if(IndexChunk->Size)
-				{
-					// Write the index in a partition of its own
-
-					ThisPartition->ChangeType("ClosedCompleteBodyPartition");
-					ThisPartition->SetUint("BodySID", 0);
-					ThisPartition->SetUint("BodyOffset", 0);
-					ThisPartition->SetUint("IndexSID",  IndexSID);
-
-					Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
-				}
-
-				// Make an index table containing all available entries
-				IndexTablePtr Index = IndexMan[iManager]->MakeIndex();
-				IndexMan[iManager]->AddEntriesToIndex(Index);
-
-				// Write the index table
-				Index->WriteIndex(*IndexChunk);
-				
-				// Record the IndexSID for when the index is written
-				IndexSID = Index->IndexSID;
-			}
-
-
-			// ** Handle sparse index tables next **
-			// *************************************
-			
-			if(SparseIndex)
-			{
-				// Flush any previous index table before starting a new one
-				if(IndexChunk->Size)
-				{
-					// Write the index in a partition of its own
-
-					ThisPartition->ChangeType("ClosedCompleteBodyPartition");
-					ThisPartition->SetUint("BodySID", 0);
-					ThisPartition->SetUint("BodyOffset", 0);
-					ThisPartition->SetUint("IndexSID",  IndexSID);
-
-					Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
-				}
-
-				// Make an empty index table
-				IndexTablePtr Index = IndexMan[iManager]->MakeIndex();
-
-				// Force no re-ordering in the sparse index (to prevent unsatisfied links)
-				int i;
-				for(i=0; i<Index->BaseDeltaCount; i++)
-				{
-					if(Index->BaseDeltaArray[i].PosTableIndex < 0) Index->BaseDeltaArray[i].PosTableIndex = 0;
-				}
-
-				// Add each requested entry
-				Uint32 BodySID = IndexMan[iManager]->GetBodySID();
-				ASSERT(BodySID);
-				std::list<Position>::iterator it = SparseList[BodySID-1].begin();
-				while(it != SparseList[BodySID-1].end())
-				{
-					IndexMan[iManager]->AddEntriesToIndex(true, Index, (*it), (*it));
-					it++;
-				}
-
-				// Write the index table
-				Index->WriteIndex(*IndexChunk);
-				
-				// Record the IndexSID for when the index is written
-				IndexSID = Index->IndexSID;
-			}
-
-			// Update IndexSID in essence container data set
-			if(ECDataSets)
-			{
-				MDObjectList::iterator ECD_it = ECDataSets->begin();
-				while(ECD_it != ECDataSets->end())
-				{
-					if((*ECD_it)->GetLink())
-					{
-						if((*ECD_it)->GetLink()->GetUint("BodySID") == IndexMan[iManager]->GetBodySID())
+						// FrameGroup will use a single multi-stream index...
+						if(FrameGroup)
 						{
-							(*ECD_it)->GetLink()->SetUint("IndexSID", IndexMan[iManager]->GetIndexSID());
-							break;
+							BodySID = Stream[0]->GetBodySID();
+							IndexSID = 129;
+							Stream[0]->SetIndexSID(129);
+						}
+						// ...otherwise one per stream
+						else
+						{
+							BodySID = Stream[iTrack]->GetBodySID();
+							IndexSID = iTrack + 129;
+							Stream[iTrack]->SetIndexSID(IndexSID);
+						}
+
+						// Update IndexSID in essence container data set
+						if(ECDataSets)
+						{
+							MDObjectList::iterator ECD_it = ECDataSets->begin();
+							while(ECD_it != ECDataSets->end())
+							{
+								if((*ECD_it)->GetLink())
+								{
+									if((*ECD_it)->GetLink()->GetUint("BodySID") == BodySID)
+									{
+										(*ECD_it)->GetLink()->SetUint("IndexSID", IndexSID);
+										break;
+									}
+								}
+								ECD_it++;
+							}
 						}
 					}
-					ECD_it++;
 				}
 			}
+
+			WrapCfgList_it++;
+			iTrack++;
+		}
+
+	}
+
+
+	//
+	// ** Process Essence **
+	//
+
+
+	// Write the header (open and incomplete so far)
+	if(HeaderPadding) Writer->SetPartitionFiller(HeaderPadding);
+	Writer->WriteHeader(false, false);
+
+	// Write the body
+	if(BodyMode == BodyWrapping::Body_None)
+	{
+		Writer->WriteBody();
+	}
+	else
+	{
+		while(!Writer->BodyDone())
+		{
+			if(BodyMode == BodyWrapping::Body_Duration)
+				Writer->WritePartition(BodyRate, 0);
+			else
+				Writer->WritePartition(0, BodyRate);
 		}
 	}
 
 
-	//
-	// ** Write a footer (with updated durations) **
-	//
-
-	// Flush any previous index table before writing the footer for isolated index
-	if(VeryIsolatedIndex && (IndexChunk->Size))
-	{
-		// Write the index in a partition of its own
-
-		ThisPartition->ChangeType("ClosedCompleteBodyPartition");
-		ThisPartition->SetUint("BodySID", 0);
-		ThisPartition->SetUint("BodyOffset", 0);
-		ThisPartition->SetUint("IndexSID",  IndexSID);
-
-		Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
-
-		// Clear the index chunk
-		IndexChunk->Resize(0);
-	}
+	/** Write the footer **/
 
 	// If we are writing OP-Atom this is the first place we can claim it
 	if(OPAtom) 
@@ -1546,19 +1393,23 @@ if( DebugMode) printf("IndexMan[0] -> %d\n", StreamID);
 		MData->SetPrimaryPackage(FilePackage);
 	}
 
+	// Update the modification time
 	MData->SetTime();
-	MPTimecodeComponent->SetDuration(Duration[0]);
+
+	// Update all durations
+	Length EssenceDuration = (Length) Stream[0]->GetSource()->GetCurrentPosition();
+	MPTimecodeComponent->SetDuration(EssenceDuration);
 
 	iTrack = 0;						//  Essence container index
 	WrapCfgList_it = WrapCfgList.begin();
 	while(WrapCfgList_it != WrapCfgList.end())
 	{
-		MPClip[iTrack]->SetDuration(Duration[0]);
+		MPClip[iTrack]->SetDuration(EssenceDuration);
 		if((!OPAtom) || (iTrack == OutFileNum))
 		{
-			if((iTrack==0) || (!FrameGroup)) FPTimecodeComponent[iTrack]->SetDuration(Duration[0]);
-			FPClip[iTrack]->SetDuration(Duration[0]);
-			(*WrapCfgList_it)->EssenceDescriptor->SetInt64("ContainerDuration",Duration[0]);
+			if((iTrack==0) || (!FrameGroup)) FPTimecodeComponent[iTrack]->SetDuration(EssenceDuration);
+			FPClip[iTrack]->SetDuration(EssenceDuration);
+			(*WrapCfgList_it)->EssenceDescriptor->SetInt64("ContainerDuration",EssenceDuration);
 		}
 			
 		WrapCfgList_it++;
@@ -1568,33 +1419,14 @@ if( DebugMode) printf("IndexMan[0] -> %d\n", StreamID);
 	// Update the generation UIDs in the metadata to reflect the changes
 	MData->UpdateGenerations(Ident);
 
-	// Turn the header or body partition into a footer
-	ThisPartition->ChangeType("CompleteFooter");
-
-	if(IndexChunk->Size)
-	{
-		ThisPartition->SetUint("IndexSID",  IndexSID);
-	}
-
 	// Make sure any new sets are linked in
 	ThisPartition->UpdateMetadata(MData);
 
 	// Actually write the footer
 	// Note: No metadata in OP-Atom footer
-	if(IndexChunk->Size)
-	{
-		if(OPAtom) Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
-		else Out->WritePartitionWithIndex(ThisPartition, IndexChunk);
-	}
-	else
-	{
-		if(OPAtom) Out->WritePartition(ThisPartition, false);
-		else Out->WritePartition(ThisPartition);
-	}
+	if(OPAtom) Writer->WriteFooter(false);
+	else Writer->WriteFooter(true, true);
 
-	// Add a RIP (note that we have to manually KAG align as a footer can end off the KAG)
-	if(KAGSize > 1) Out->Align(KAGSize);
-	Out->WriteRIP();
 
 	//
 	// ** Update the header ** 
@@ -1605,14 +1437,26 @@ if( DebugMode) printf("IndexMan[0] -> %d\n", StreamID);
 
 	Uint64 FooterPos = ThisPartition->GetUint64("FooterPartition");
 	Out->Seek(0);
+
 	if(UpdateHeader)
 	{
+		// Read the old partition to allow us to keep the same KAG and SIDs
+		PartitionPtr OldHeader = Out->ReadPartition();
+
+		// Read any index table data
+		DataChunkPtr IndexData = OldHeader->ReadIndexChunk();
+
+		// Now update the partition we are about to write (the one with the metadata)
 		ThisPartition->ChangeType("ClosedCompleteHeader");
 		ThisPartition->SetUint64("FooterPartition", FooterPos);
-		ThisPartition->SetUint("IndexSID", 0);				// DRAGONS: If we ever write index in the header this will need to change
-		ThisPartition->SetUint64("IndexByteCount", 0);
-		ThisPartition->SetUint64("BodySID", 1);
-		Out->ReWritePartition(ThisPartition);
+		ThisPartition->SetUint("IndexSID", OldHeader->GetUint("IndexSID"));
+		ThisPartition->SetUint64("BodySID", OldHeader->GetUint("BodySID"));
+
+		Out->Seek(0);
+		if(IndexData)
+			Out->ReWritePartitionWithIndex(ThisPartition, IndexData);
+		else
+			Out->ReWritePartition(ThisPartition);
 	}
 	else
 	{
@@ -1624,261 +1468,4 @@ if( DebugMode) printf("IndexMan[0] -> %d\n", StreamID);
 
 	return Ret;
 }
-
-
-
-
-
-
-//! Write a set of essence containers
-/*! IMPLEMENTATION NOTES:
- *		Wrapping more than one stream in a single container is achieved by using the same BodySID
- *		(but they must be contiguous)
- *		The current BodySID is read from ThisPartition
- *		Header metadata is currently not repeated
- *
- */
-Int64 WriteBody(MXFFilePtr Out, BodyWrappingList BodyWrapList, PartitionPtr ThisPartition, Int64 Duration /*=0*/)
-{
-	Int64 Ret = 0;
-
-	ThisPartition->ChangeType("ClosedCompleteBodyPartition");
-	Uint32 CurrentBodySID = ThisPartition->GetUint("BodySID");
-
-	//! Partition size to allow maximum body partition size to be set
-	//  Start by calculating where the current partition starts
-	Uint64 PartitionSize = 0;
-	if(BodyMode == BodyWrapping::Body_Size) PartitionSize = Out->Tell() - ThisPartition->GetUint64("ThisPartition");
-
-	// Assume done until we find out there is some data to write (in case the list is empty)
-	bool Done = true;
-	int ThisEditUnit = 0;
-	for(;;)
-	{
-//@printf("\nOuter:");
-		int i = 0;						//  BodySID index
-		BodyWrappingList::iterator BodyWrapList_it = BodyWrapList.begin();
-		while(BodyWrapList_it != BodyWrapList.end())
-		{
-//@printf("Inner:");
-			Int64 Dur;
-			if((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Clip) Dur = Duration; else Dur = 1;
-
-			if((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Clip)
-			{
-				// Force a single pass...
-				Done = true;
-
-				EssenceSource *Source = (*BodyWrapList_it).Config->WrapOpt->Handler->GetEssenceSource((*BodyWrapList_it).InFile, (*BodyWrapList_it).Config->Stream, 0 /*, (*BodyWrapList_it).Writer->Index*/);
-
-				// Ensure this clip is indexed in sparse mode
-				if((i == 0) && UseIndex && SparseIndex)
-				{
-					// Force the first edit unit to be accepted, even if provisional, 
-					// and add it's edit unit to the sparse list for this BodySID
-					Position EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->AcceptProvisional();
-					if(EditUnit == -1) EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->GetLastNewEditUnit();
-					SparseList[(*BodyWrapList_it).BodySID-1].push_back(EditUnit);
-//printf("a: Add %d %d\n", (*BodyWrapList_it).BodySID-1, (int)EditUnit);
-				}
-
-				(*BodyWrapList_it).Writer->AddEssenceData((*BodyWrapList_it).EssenceID, Source);
-			}
-			else
-			{
-				DataChunkPtr Dat = (*BodyWrapList_it).Config->WrapOpt->Handler->Read((*BodyWrapList_it).InFile, (*BodyWrapList_it).Config->Stream, Dur/*, (*BodyWrapList_it).Writer->Index*/);
-
-				if(Dat->Size == 0)
-				{
-					Done = true;
-					break;
-				}
-				else Done = false;
-
-				if((i == 0) && SparseIndex && (ThisEditUnit == 0))
-				{
-					// Force the first edit unit to be accepted, even if provisional,
-					// and add it's edit unit to the sparse list for this BodySID
-					Position EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->AcceptProvisional();
-					if(EditUnit == -1) EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->GetLastNewEditUnit();
-					SparseList[(*BodyWrapList_it).BodySID-1].push_back(EditUnit);
-//printf("b: Add %d %d\n", (*BodyWrapList_it).BodySID-1, (int)EditUnit);
-				}
-
-				(*BodyWrapList_it).Writer->AddEssenceData((*BodyWrapList_it).EssenceID, Dat);
-			}
-
-			// Only allow starting a new partition by size or duration on first essence of a set
-			if(i == 0)
-			{
-				if((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame)
-				{
-					if((*BodyWrapList_it).BodyMode == BodyWrapping::Body_Size)
-					{
-						Int64 NewPartitionSize = PartitionSize + (*BodyWrapList_it).Writer->CalcWriteSize();
-//@	printf("%d,",PartitionSize);
-						if((!EditAlign) || ((*BodyWrapList_it).Config->WrapOpt->Handler->SetOption("EditPoint")))
-						{
-							if(NewPartitionSize > (*BodyWrapList_it).BodyRate)
-							{
-								// Force a new partition pack by clearing CurrentBodySID
-								CurrentBodySID = 0;
-								
-								if(SparseIndex && (ThisEditUnit != 0))
-								{
-									// Force the first edit unit of the new partition to be accepted, even if provisional,
-									// and add it's edit unit to the sparse list for this BodySID
-									Position EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->AcceptProvisional();
-									if(EditUnit == -1) EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->GetLastNewEditUnit();
-									SparseList[(*BodyWrapList_it).BodySID-1].push_back(EditUnit);
-//printf("c: Add %d %d\n", (*BodyWrapList_it).BodySID-1, (int)EditUnit);
-								}
-//@	printf("##\n");
-							}
-						}
-					}
-
-					if((*BodyWrapList_it).BodyMode == BodyWrapping::Body_Duration)
-					{
-						if(Dur) PartitionSize += Dur;
-						else PartitionSize++;			// DRAGONS: What should we do here?
-
-//@	printf("%d,",PartitionSize);
-						if((!EditAlign) || ((*BodyWrapList_it).Config->WrapOpt->Handler->SetOption("EditPoint")))
-						{
-							if(PartitionSize >= (*BodyWrapList_it).BodyRate)
-							{
-								// Force a new partition pack by clearing CurrentBodySID
-								CurrentBodySID = 0;
-
-								if(SparseIndex && (ThisEditUnit != 0))
-								{
-									// Force the first edit unit of the new partition to be accepted, even if provisional,
-									// and add it's edit unit to the sparse list for this BodySID
-									Position EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->AcceptProvisional();
-									if(EditUnit == -1) EditUnit = (*BodyWrapList_it).Config->WrapOpt->Handler->GetLastNewEditUnit();
-									SparseList[(*BodyWrapList_it).BodySID-1].push_back(EditUnit);
-//printf("d: Add %d %d\n", (*BodyWrapList_it).BodySID-1, (int)EditUnit);
-								}
-//@	printf("##\n");
-							}
-						}
-					}
-				}
-			}
-
-			// Start a new partition if required
-			if(CurrentBodySID != (*BodyWrapList_it).BodySID)
-			{
-				DataChunkPtr IndexChunk = new DataChunk();
-
-				// Perform any index table building work for a sprinkled index
-				if(SprinkledIndex)
-				{
-					IndexManagerPtr Manager = (*BodyWrapList_it).Config->WrapOpt->Handler->GetIndexManager();
-
-					if(Manager)
-					{
-						IndexTablePtr Index = Manager->MakeIndex();
-
-						if(Index)
-						{
-							Position EditUnit = Manager->GetLastNewEditUnit();
-
-							Manager->AddEntriesToIndex(Index, LastEditUnit[(*BodyWrapList_it).BodySID], EditUnit-1);
-
-							LastEditUnit[(*BodyWrapList_it).BodySID] = EditUnit;
-
-							Index->WriteIndex(*IndexChunk);
-
-							// Clear all the used entries if no longer required
-							// DRAGONS: Not implemented!
-
-							// Set the IndexSID from the index itself
-							ThisPartition->SetUint("IndexSID",  Index->IndexSID);
-						}
-					}
-				}
-
-//@printf("Body Part at 0x%08x\n", (int)Out->Tell());
-				CurrentBodySID = (*BodyWrapList_it).BodySID;
-				PartitionSize = 0;
-
-				Int64 Pos = Out->Tell();
-				if(IndexChunk->Size)
-				{
-					if(IsolatedIndex)
-					{
-						ThisPartition->ChangeType("ClosedCompleteBodyPartition");
-						ThisPartition->SetUint("BodySID", 0);
-						ThisPartition->SetUint("BodyOffset", 0);
-						Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
-
-						ThisPartition->SetUint("BodySID", CurrentBodySID);
-						ThisPartition->SetUint64("BodyOffset",(*BodyWrapList_it).Writer->GetStreamOffset());
-						ThisPartition->SetUint("IndexSID",  0);
-						Out->WritePartition(ThisPartition, false);
-					}
-					else
-					{
-						ThisPartition->SetUint("BodySID", CurrentBodySID);
-						ThisPartition->SetUint64("BodyOffset",(*BodyWrapList_it).Writer->GetStreamOffset());
-						Out->WritePartitionWithIndex(ThisPartition, IndexChunk, false);
-					}
-				}
-				else
-				{
-					ThisPartition->SetUint("BodySID", CurrentBodySID);
-					ThisPartition->SetUint64("BodyOffset",(*BodyWrapList_it).Writer->GetStreamOffset());
-					ThisPartition->SetUint("IndexSID",  0);
-					Out->WritePartition(ThisPartition, false);
-				}
-
-				// If partitioning by size take into account the partition pack size
-				if(BodyMode == BodyWrapping::Body_Size) PartitionSize = Out->Tell() - Pos;
-			}
-
-			// Fix index table stream offsets
-			if((UseIndex || SparseIndex || SprinkledIndex) && ((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Frame))
-			{
-//@printf("Fixing index: %d ", ThisEditUnit);
-				(*BodyWrapList_it).Config->WrapOpt->Handler->OfferStreamOffset(ThisEditUnit, (*BodyWrapList_it).Writer->GetStreamOffset());
-			}
-
-//@printf("Frame at 0x%08x - ", (int)Out->Tell());
-			Int64 Pos = Out->Tell();
-			(*BodyWrapList_it).Writer->StartNewCP();
-			if((*BodyWrapList_it).BodyMode == BodyWrapping::Body_Size) PartitionSize += (Out->Tell() - Pos);
-
-			// Determine the duration of this item if it was clip-wrapped and if we don't yet know the duration
-			if(Ret == 0)
-			{
-				if((*BodyWrapList_it).Config->WrapOpt->ThisWrapType == WrappingOption::Clip)
-				{
-					Ret = (*BodyWrapList_it).Config->WrapOpt->Handler->GetCurrentPosition();
-				}
-			}
-
-//@printf("0x%08x\n", (int)Out->Tell());
-			BodyWrapList_it++;
-			i++;
-		}
-
-		ThisEditUnit++;
-
-		if(Done) break;
-
-		Ret++;
-	}
-
-	// DRAGONS - The indexing needs work!!
-	//			 The entire index table is built before committing
-	//			 It doesn't index clip wrapped essence
-	return Ret;
-}
-
-
-
-
-
 

@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.1.2.3 2004/10/19 18:05:32 matt-beard Exp $
+ *	\version $Id: types.h,v 1.1.2.4 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -68,13 +68,13 @@ namespace mxflib
 
 namespace mxflib
 {
-	template <int SIZE> class Identifier : public RefCount<Identifier<SIZE> >
+	template <int SIZE> class Identifier /*: public RefCount<Identifier<SIZE> >*/
 	{
 	protected:
 		Uint8 Ident[SIZE];
 	public:
 		Identifier(const Uint8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
-		Identifier(const SmartPtr<Identifier> ID) { ASSERT(SIZE == ID->Size()); if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID->Ident, SIZE); };
+		Identifier(const SmartPtr<Identifier> ID) { ASSERT(SIZE == ID->Size()); if(!ID) memset(Ident,0,SIZE); else memcpy(Ident,ID->Ident, SIZE); };
 		void Set(const Uint8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
 		const Uint8 *GetValue(void) const { return Ident; };
 		int Size(void) const { return SIZE; };
@@ -136,7 +136,7 @@ namespace mxflib
 		UL(const Uint8 *ID) : Identifier16(ID) {};
 
 		//! Construct a UL as a copy of another UL
-		UL(const SmartPtr<UL> ID) { if(ID == NULL) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
+		UL(const SmartPtr<UL> ID) { if(!ID) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
 
 		//! Copy constructor
 		UL(const UL &RHS) { memcpy(Ident,RHS.Ident, 16); };
@@ -218,7 +218,7 @@ namespace mxflib
 namespace mxflib
 {
 	//! Universally Unique Identifier class with string formatting
-	class UUID : public RefCount<UUID>, public Identifier16
+	class UUID : public Identifier16, public RefCount<UUID>
 	{
 	public:
 		//! Construct a new UUID with a new unique value
@@ -230,7 +230,7 @@ namespace mxflib
 		UUID(const Uint8 *ID) : Identifier16(ID) {};
 
 		//! Construct a UUID as a copy of another UUID
-		UUID(const SmartPtr<UUID> ID) { if(ID == NULL) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
+		UUID(const SmartPtr<UUID> ID) { if(!ID) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
 
 		//! Copy constructor
 		UUID(const UUID &RHS) { memcpy(Ident,RHS.Ident, 16); };
@@ -274,7 +274,7 @@ namespace mxflib
 namespace mxflib
 {
 	typedef Identifier<32> Identifier32;
-	class UMID : public RefCount<UMID>,  public Identifier32
+	class UMID : public Identifier32, public RefCount<UMID>
 	{
 	public:
 		//! Construct a new UMID either from a sequence of bytes, or as a NULL UMID (32 zero bytes)
@@ -285,7 +285,7 @@ namespace mxflib
 		//! Construct a UMID from a sequence of bytes
 		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
 		 */
-		UMID(const SmartPtr<UMID> ID) { if(ID == NULL) memset(Ident,0,32); else memcpy(Ident,ID->Ident, 32); };
+		UMID(const SmartPtr<UMID> ID) { if(!ID) memset(Ident,0,32); else memcpy(Ident,ID->Ident, 32); };
 
 		//! Copy constructor
 		UMID(const UMID &RHS) { memcpy(Ident,RHS.Ident, 16); };
@@ -338,6 +338,12 @@ namespace mxflib
 	{
 		Int32 Numerator;				//!< Numerator of the fraction (top number)
 		Int32 Denominator;				//!< Denominator of the fraction (bottom number)
+	
+		//! Build an empty Rational
+		Rational() : Numerator(0), Denominator(0) {};
+
+		//! Initialise a Rational with a value
+		Rational(Int32 Num, Int32 Den) : Numerator(Num), Denominator(Den) {};
 	};
 }
 

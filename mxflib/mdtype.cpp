@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.1.2.2 2004/10/19 17:55:58 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.1.2.3 2004/11/05 16:50:13 matt-beard Exp $
  *
  */
 /*
@@ -230,6 +230,44 @@ MDTypePtr MDType::EffectiveBase(void) const
 	}
 
 	return Base;
+}
+
+
+//! Report the effective size of this type
+/*! /ret The size in bytes of a single instance of this type, or 0 if variable size
+ */
+Uint32 MDType::EffectiveSize(void) const
+{
+	// If we are an array calculate the total array size (will be zero if either is undefined)
+	if(Class == TYPEARRAY)
+	{
+		ASSERT(Base);
+		return Base->EffectiveSize() * Size;
+	}
+
+	// If we are a compound calculate the size of the compound
+	if(Class == COMPOUND)
+	{
+		Uint32 Ret = 0;
+
+		MDType::const_iterator it;
+		it = this->begin();
+
+		while(it != end())
+		{
+			Uint32 ItemSize = (*it).second->EffectiveSize();
+
+			// If any item is variable then we are variable
+			if(ItemSize == 0) return 0;
+
+			Ret += ItemSize;
+			it++;
+		}
+
+		return Ret;
+	}
+
+	return Size;
 }
 
 
@@ -510,6 +548,57 @@ Uint32 MDValue::ReadValue(const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
 	return Type->Traits->ReadValue(this, Buffer, Size, Count);
 }
 
+
+//! Build a data chunk with all this items data (including child data)
+const DataChunk MDValue::PutData(void) 
+{
+	DataChunk Ret;
+
+	MDTypePtr EffType = EffectiveType();
+	if(EffType->GetArrayClass() == ARRAYBATCH)
+	{
+		Uint8 Buffer[8];
+		PutU32(size(), Buffer);
+		PutU32(Type->EffectiveSize(), &Buffer[4]);
+
+		// Set the header
+		Ret.Set(8, Buffer);
+	}
+
+	// If the size is zero we don't have any sub items
+	// Otherwise we may not need to use them because the traits may build in our data
+	if(size() == 0 || (Type->HandlesSubdata())) 
+	{
+		// If we are part of a batch this appends the data, otherwise it simply sets it to be the same
+		Ret.Append(GetData());
+	}
+	else
+	{
+		// Compounds must be written in the correct order
+		if(Type->EffectiveClass() == COMPOUND)
+		{
+			StringList::iterator it = Type->ChildOrder.begin();
+			while(it != Type->ChildOrder.end())
+			{
+				DataChunk SubItem = Child(*it)->PutData();
+				Ret.Append(SubItem.Size, SubItem.Data);
+				it++;
+			}
+		}
+		else
+		{
+			MDValue::iterator it = begin();
+			while(it != end())
+			{
+				DataChunk SubItem = (*it).second->PutData();
+				Ret.Append(SubItem.Size, SubItem.Data);
+				it++;
+			}
+		}
+	}
+
+	return Ret;
+};
 
 //std::string MDValue::GetString(void) { return std::string("Base"); };
 //std::string MDValue_Int8::GetString(void) { return std::string("Int8"); };

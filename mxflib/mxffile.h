@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.1.2.7 2004/10/19 18:00:53 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.1.2.8 2004/11/05 16:50:14 matt-beard Exp $
  *
  */
 /*
@@ -212,7 +212,7 @@ namespace mxflib
 
 	protected:
 		//! Write or re-write a partition pack and associated metadata (and index table segments?)
-		bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding, Uint32 MinPartitionSize);
+		bool WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding, Uint32 MinPartitionSize);
 
 	public:
 		//! Write the RIP
