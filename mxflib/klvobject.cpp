@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.1.2.9 2004/08/28 19:05:21 terabrit Exp $
+ *	\version $Id: klvobject.cpp,v 1.1.2.10 2004/10/16 20:51:06 terabrit Exp $
  *
  */
 /*
@@ -87,7 +87,7 @@ Int32 KLVObject::Base_ReadKL(void)
 	ValueLength = Dest.OuterLength = Source.OuterLength = Source.File->ReadBER();
 
 	// Work out the size of the key and length
-	Source.KLSize = Source.File->Tell() - Source.Offset;
+	Source.KLSize = (Uint32)(Source.File->Tell() - Source.Offset);
 	
 	// Initially set the destination KLSize target to match the source
 	Dest.KLSize = Source.KLSize;
@@ -144,13 +144,13 @@ Length KLVObject::Base_ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	// Discarding old data first (by setting Size to 0) prevents old data being 
 	// copied needlessly if the buffer is reallocated to increase its size
 	Data.Size = 0;
-	Data.Resize(BytesToRead);
+	Data.Resize((Uint32)BytesToRead);
 
 	// Read into the buffer (only as big as the buffer is!)
 	Length Bytes = (Length)Source.File->Read(Data.Data, Data.Size);
 
 	// Resize the buffer if something odd happened (such as an early end-of-file)
-	if(Bytes != BytesToRead) Data.Resize(Bytes);
+	if(Bytes != BytesToRead) Data.Resize((Uint32)Bytes);
 
 	return Bytes;
 }
@@ -199,7 +199,7 @@ Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/, Length NewLength /*=-1*/)
 	Dest.File->WriteBER(NewLength, LenSize);
 
 	// Work out the new KLSize
-	Dest.KLSize = Dest.File->Tell() - Dest.Offset;
+	Dest.KLSize =(Uint32)( Dest.File->Tell() - Dest.Offset);
 
 	// Return the number of bytes we wrote
 	return Dest.KLSize;
@@ -246,7 +246,7 @@ Length KLVObject::Base_WriteDataTo(const Uint8 *Buffer, Position Offset, Length 
 
 //@'@printf("@0x%06x:Base_WriteDataTo(Buffer, 0x%06x, 0x%06x)", (int)Dest.File->Tell(), (int)Offset, (int)Size);
 	// Write from the specified buffer
-	return (Length)Dest.File->Write(Buffer, Size);
+	return (Length)Dest.File->Write(Buffer, (Uint32)Size);
 //@'@Length Ret = Dest.File->Write(Buffer, Size);
 //@'@printf("->0x%06x\n", (int)Dest.File->Tell());
 //@'@return Ret;

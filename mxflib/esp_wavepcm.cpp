@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.1.2.1 2004/05/16 10:47:03 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.1.2.2 2004/10/16 20:51:06 terabrit Exp $
  *
  */
 /*
@@ -44,7 +44,7 @@ EssenceStreamDescriptorList mxflib::WAVE_PCM_EssenceSubParser::IdentifyEssence(F
 
 	// Read the first 12 bytes of the file to allow us to identify it
 	FileSeek(InFile, 0);
-	BufferBytes = FileRead(InFile, Buffer, 12);
+	BufferBytes = (int)FileRead(InFile, Buffer, 12);
 
 	// If the file is smaller than 12 bytes give up now!
 	if(BufferBytes < 12) return Ret;
@@ -149,7 +149,7 @@ DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, Uint32 S
 
 	// Make a datachunk with enough space
 	DataChunkPtr Ret = new DataChunk;
-	Ret->Resize(Bytes);
+	Ret->Resize((Uint32)Bytes);
 
 	// Read the data
 	FileRead(InFile, Ret->Data, Bytes);
@@ -187,7 +187,7 @@ Uint64 mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream
 		int ChunkSize;
 		
 		// Number of bytes to transfer in this chunk
-		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
+		if(Bytes < BUFFERSIZE) ChunkSize =(int) Bytes; else ChunkSize = BUFFERSIZE;
 
 		FileRead(InFile, Buffer, ChunkSize);
 		OutFile->Write(Buffer, ChunkSize);

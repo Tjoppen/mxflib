@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.1.2.2 2004/07/17 00:24:24 terabrit Exp $
+ *	\version $Id: index.cpp,v 1.1.2.3 2004/10/16 20:51:06 terabrit Exp $
  *
  */
 /*
@@ -644,7 +644,7 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 		ThisSegment->SetInt64("IndexStartPosition", 0);
 		ThisSegment->SetInt64("IndexDuration", 0);
-		ThisSegment->SetUint("EditUnitByteCount", EditUnitByteCount);
+		ThisSegment->SetUint("EditUnitByteCount", (Uint32)EditUnitByteCount);
 		ThisSegment->SetUint("IndexSID", IndexSID);
 		ThisSegment->SetUint("BodySID", BodySID);
 
@@ -699,7 +699,7 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 			ThisSegment->SetInt64("IndexStartPosition", Segment->StartPosition);
 			ThisSegment->SetInt64("IndexDuration", Segment->EntryCount);
-			ThisSegment->SetUint("EditUnitByteCount", EditUnitByteCount);
+			ThisSegment->SetUint("EditUnitByteCount", (Uint32)EditUnitByteCount);
 			ThisSegment->SetUint("IndexSID", IndexSID);
 			ThisSegment->SetUint("BodySID", BodySID);
 
@@ -797,14 +797,14 @@ bool ReorderIndex::SetEntry(Position Pos, Uint8 Flags, Int8 AnchorOffset, Uint8 
 		Int64 Shift = (FirstPosition - Pos) * IndexEntrySize;
 
 		// Make enought room
-		IndexEntries.Resize(IndexEntries.Size + Shift);
+		IndexEntries.Resize((Uint32)(IndexEntries.Size + Shift));
 
 		// Shift the entries forwards
 		memmove(&IndexEntries.Data[Shift], IndexEntries.Data, EntryCount * IndexEntrySize);
 
 		// Adjust the counts
-		if(CompleteEntryCount) CompleteEntryCount += (FirstPosition - Pos);
-		EntryCount += (FirstPosition - Pos);
+		if(CompleteEntryCount) CompleteEntryCount += (int)(FirstPosition - Pos);
+		EntryCount += (int)(FirstPosition - Pos);
 		
 		// And the start position
 		FirstPosition = Pos;
@@ -893,14 +893,14 @@ bool ReorderIndex::SetTemporalOffset(Position Pos, Int8 TemporalOffset)
 		Int64 Shift = (FirstPosition - Pos) * IndexEntrySize;
 
 		// Make enought room
-		IndexEntries.Resize(IndexEntries.Size + Shift);
+		IndexEntries.Resize((Uint32)(IndexEntries.Size + Shift));
 
 		// Shift the entries forwards
 		memmove(&IndexEntries.Data[Shift], IndexEntries.Data, EntryCount * IndexEntrySize);
 
 		// Adjust the counts
-		if(CompleteEntryCount) CompleteEntryCount += (FirstPosition - Pos);
-		EntryCount += (FirstPosition - Pos);
+		if(CompleteEntryCount) CompleteEntryCount += (int)(FirstPosition - Pos);
+		EntryCount +=(int) (FirstPosition - Pos);
 		
 		// And the start position
 		FirstPosition = Pos;

@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.1.2.1 2004/10/16 20:51:06 terabrit Exp $
  *
  */
 /*
@@ -45,7 +45,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 
 	// Read the first 12 bytes of the file to allow us to identify it
 	FileSeek(InFile, 0);
-	BufferBytes = FileRead(InFile, Buffer, 12);
+	BufferBytes =(int) FileRead(InFile, Buffer, 12);
 
 	// If the file is smaller than 12 bytes give up now!
 	if(BufferBytes < 12) return Ret;
@@ -130,7 +130,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 
 	// Read the first 80*150 bytes of the file, this should be the first DIF sequence
 	FileSeek(InFile, 0);
-	BufferBytes = FileRead(InFile, Buffer, 80 * 150);
+	BufferBytes = (int)FileRead(InFile, Buffer, 80 * 150);
 
 	// If we couldn't read the sequence give up now!
 	if(BufferBytes < (80 * 150)) return Ret;
@@ -363,7 +363,7 @@ Int64 DV_DIF_EssenceSubParser::GetCurrentPosition(void)
 	// Correct the position
 	Int64 iPictureNumber = PictureNumber;		// A wonderful Microsoft omission means we can only convert Int64 -> double, not Uint64
 
-	double Pos = iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator;
+	double Pos = (double)(iPictureNumber * SelectedEditRate.Numerator * NativeEditRate.Denominator);
 	Pos /= (SelectedEditRate.Denominator * NativeEditRate.Numerator);
 	
 	return (Int64)floor(Pos + 0.5);
@@ -412,7 +412,7 @@ Uint64 DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFileP
 		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
 
 		FileRead(InFile, Buffer, ChunkSize);
-		OutFile->Write(Buffer, ChunkSize);
+		OutFile->Write(Buffer, (Uint32)ChunkSize);
 
 		Bytes -= ChunkSize;
 	}
@@ -558,7 +558,7 @@ int DV_DIF_EssenceSubParser::BuffGetU8(FileHandle InFile)
 {
 	if(!BuffCount)
 	{
-		BuffCount = FileRead(InFile, Buffer, MPEG2_VES_BUFFERSIZE);
+		BuffCount =(int) FileRead(InFile, Buffer, MPEG2_VES_BUFFERSIZE);
 		if(BuffCount == 0) return -1;
 
 		BuffPtr = Buffer;

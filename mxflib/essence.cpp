@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.1.2.10 2004/09/06 00:08:12 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.1.2.11 2004/10/16 20:51:06 terabrit Exp $
  *
  */
 /*
@@ -211,7 +211,7 @@ void GCWriter::AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	GCStreamData *Stream = &StreamTable[ID];
 
 	// Set up a new buffer big enough for the key, a huge BER length and the data
-	Uint8 *Buffer = new Uint8[16 + 9 + Size];
+	Uint8 *Buffer = new Uint8[(Uint32)(16 + 9 + Size)];
 
 	// Copy in the key template
 	memcpy(Buffer, GCSystemKey, 12);
@@ -230,7 +230,7 @@ void GCWriter::AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	int ValStart = 16 + BER->Size;
 
 	// Copy the value into the buffer
-	memcpy(&Buffer[ValStart], Data, Size);
+	memcpy(&Buffer[ValStart], Data, (size_t)Size);
 
 	// Add this item to the write queue (the writer will free the memory)
 	WriteBlock WB;
@@ -259,7 +259,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	GCStreamData *Stream = &StreamTable[ID];
 
 	// Set up a new buffer big enough for the key, a huge BER length and the data
-	Uint8 *Buffer = new Uint8[16 + 9 + Size];
+	Uint8 *Buffer = new Uint8[(Uint32)(16 + 9 + Size)];
 
 	// Copy in the key template
 	memcpy(Buffer, GCSystemKey, 12);
@@ -298,7 +298,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	int ValStart = 16 + BER->Size;
 
 	// Copy the value into the buffer
-	memcpy(&Buffer[ValStart], Data, Size);
+	memcpy(&Buffer[ValStart], Data, (size_t)Size);
 
 	// Add this item to the write queue (the writer will free the memory)
 	WriteBlock WB;
@@ -557,7 +557,7 @@ void GCWriter::Flush(void)
 		}
 
 		// Write the pre-formatted data and free its buffer
-		StreamOffset += LinkedFile->Write((*it).second.Buffer, (*it).second.Size);
+		StreamOffset += LinkedFile->Write((*it).second.Buffer, (Uint32)((*it).second.Size));
 		delete[] (*it).second.Buffer;
 
 		// Handle any KLVObject-buffered essence data
@@ -1040,7 +1040,7 @@ bool BodyReader::Eof(void)
 	}
 
 	// Did the seek place us earlier than we requested? (almost certainly because the file is shorter)
-	if(File->Tell() < CurrentPos) 
+	if(File->Tell() < (Uint32)CurrentPos) 
 	{
 		AtEOF = true;
 		return true;

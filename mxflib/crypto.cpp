@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.1.2.5 2004/08/18 18:29:16 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.1.2.6 2004/10/16 20:51:06 terabrit Exp $
  *
  */
 /*
@@ -225,7 +225,7 @@ bool KLVEObject::LoadData(void)
 
 	// Read the BER length and move the pointer
 	Uint8 *Prev_p = p;
-	Length ItemLength = ReadBER(&p, Bytes);
+	Length ItemLength = ReadBER(&p, (int)Bytes);
 	Bytes -= (p - Prev_p);
 
 	if((ItemLength != 16) || (Bytes < 16))
@@ -246,7 +246,7 @@ bool KLVEObject::LoadData(void)
 
 	// Read the BER length and move the pointer
 	Prev_p = p;
-	ItemLength = ReadBER(&p, Bytes);
+	ItemLength = ReadBER(&p, (int)Bytes);
 	Bytes -= (p - Prev_p);
 
 	if((ItemLength != 8) || (Bytes < 8))
@@ -267,7 +267,7 @@ bool KLVEObject::LoadData(void)
 
 	// Read the BER length and move the pointer
 	Prev_p = p;
-	ItemLength = ReadBER(&p, Bytes);
+	ItemLength = ReadBER(&p, (int)Bytes);
 	Bytes -= (p - Prev_p);
 
 	if((ItemLength != 16) || (Bytes < 16))
@@ -295,7 +295,7 @@ bool KLVEObject::LoadData(void)
 
 	// Read the BER length and move the pointer
 	Prev_p = p;
-	ItemLength = ReadBER(&p, Bytes);
+	ItemLength = ReadBER(&p,(int) Bytes);
 	Bytes -= (p - Prev_p);
 
 	if((ItemLength <= 0) || (ItemLength >= 9) || (Bytes < ItemLength))
@@ -310,7 +310,7 @@ bool KLVEObject::LoadData(void)
 	{
 		// Read the BER SourceLength
 		Prev_p = p;
-		ValueLength = ReadBER(&p, Bytes);
+		ValueLength = ReadBER(&p, (int)Bytes);
 		SourceLengthFormat = (p - Prev_p);
 		Bytes -= SourceLengthFormat;
 	}
@@ -323,7 +323,7 @@ bool KLVEObject::LoadData(void)
 		Bytes -= 8;
 	}
 
-	if(PlaintextOffset > ValueLength)
+	if((Int64)PlaintextOffset > ValueLength)
 	{
 		warning("Invalid AS-DCP data: PlaintextOffset(%s) > SourceLength(%s) in %s\n", Int64toString(PlaintextOffset).c_str(), Int64toString(ValueLength).c_str(), GetSourceLocation().c_str());
 		PlaintextOffset = ValueLength;
@@ -331,7 +331,7 @@ bool KLVEObject::LoadData(void)
 
 	// Read and the BER length of the Encrypted Source Value
 	Prev_p = p;
-	Length ESVLength = ReadBER(&p, Bytes);
+	Length ESVLength = ReadBER(&p, (int)Bytes);
 	Bytes -= (p - Prev_p);
 
 	// Check that we have enough left for the IV and Check Value
@@ -462,7 +462,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	}
 
 	// If all the requested bytes are encrypted read-and-decrypt
-	if(Offset >= PlaintextOffset) 
+	if(Offset >= (Int64)PlaintextOffset) 
 	{
 //@'@printf("Data starts in encrypted area\n");
 		// Check if an attempt is being made to random access the encrypted data - and barf if this is so
@@ -476,7 +476,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	}
 
 	// If all the bytes requested are plaintext use the base read
-	if( (Size > 0) && ((Offset + Size) < PlaintextOffset) )
+	if( (Size > 0) && ((Offset + Size) < (Int64)PlaintextOffset) )
 	{
 //@'@printf("Data is all plaintext\n");
 		Length Ret = Base_ReadDataFrom(DataOffset + Offset, Size);
@@ -492,7 +492,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 //@'@printf("Data starts in plaintext area\n");
 	// Check if an attempt is being made to random access the encrypted data - and barf if this is so
 	// DRAGONS: It is possible to re-load the initial IV to allow a "rewind" but this is not implemented
-	if(CurrentReadOffset > PlaintextOffset)
+	if(CurrentReadOffset > (Int64)PlaintextOffset)
 	{
 		error("Attempt to perform random-access reading of an encrypted KLV value field\n");
 		return 0;
@@ -574,17 +574,17 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 	if(BytesToRead <= PreDecrypted)
 	{
 		// Set the data	into the DataChunk
-		Data.Set(BytesToRead, PreDecryptBuffer);
+		Data.Set(BytesToRead, (Uint32)PreDecryptBuffer);
 
 		// Remove any padding if required
 		if(Offset + Data.Size > ValueLength)
 		{
 			BytesToRead = ValueLength - Offset;
-			Data.Resize(BytesToRead);
+			Data.Resize((Uint32)BytesToRead);
 		}
 
 		// Shuffle any remaining bytes
-		memmove(PreDecryptBuffer, &PreDecryptBuffer[BytesToRead], EncryptionGranularity - BytesToRead);
+		memmove(PreDecryptBuffer, &PreDecryptBuffer[BytesToRead], (size_t)(EncryptionGranularity - BytesToRead));
 
 //@'@printf(">>>> All %d bytes read\n", BytesToRead);
 
@@ -615,19 +615,19 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 		Uint8 *Buffer = Data.StealBuffer(true);
 
 		// Make a buffer large enough for the complete data
-		Data.ResizeBuffer(PreDecrypted + BytesToDecrypt);
+		Data.ResizeBuffer((Uint32)(PreDecrypted + BytesToDecrypt));
 
 		// Put the pre-decrypted bytes at the start
 		Data.Set(PreDecrypted, PreDecryptBuffer);
 
 		// Follow it with the newly decrypted data
-		Data.Set(BytesToDecrypt, Buffer, PreDecrypted);
+		Data.Set((Uint32)BytesToDecrypt, Buffer, PreDecrypted);
 	}
 
 	// If we have decrypted more than requested store them as pre-decrypted for next time
 	if(Data.Size > Size)
 	{
-		PreDecrypted = Data.Size - Size;
+		PreDecrypted = (int)(Data.Size - Size);
 //@'@printf(">> Storing %d bytes for next time", (int)PreDecrypted);
 //@'@{
 //@'@	int i;
@@ -635,7 +635,7 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 //@'@	printf("\n");
 //@'@}
 		memcpy(PreDecryptBuffer, &Data.Data[Size], PreDecrypted);
-		Data.Resize(Size);
+		Data.Resize((Uint32)Size);
 	}
 	else 
 		PreDecrypted = 0;
@@ -644,7 +644,7 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 	if(Offset + Data.Size > ValueLength)
 	{
 		Size = ValueLength - Offset;
-		Data.Resize(Size);
+		Data.Resize((Uint32)Size);
 	}
 
 	return Size;
@@ -670,7 +670,7 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 	{
 //@'@printf("Requested %d bytes, got %d\n", (int)Size, (int)NewSize);
 		Size = NewSize;
-		Data.Resize(Size);
+		Data.Resize((Uint32)Size);
 		if(Size == 0) return 0;
 
 		// We can cope with less bytes, as long as it is an integer number of blocks
@@ -685,7 +685,7 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 	}
 
 	// See if we can decrypt this in place...
-	if(Decrypt->CanDecryptInPlace(Size))
+	if(Decrypt->CanDecryptInPlace((Uint32)Size))
 	{
 		if(!Decrypt->DecryptInPlace(Data))
 		{
@@ -821,7 +821,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 	}
 
 	// If all the requested bytes are to be encrypted encrypt-and-write
-	if(Offset >= PlaintextOffset) 
+	if(Offset >= (Int64)PlaintextOffset) 
 	{
 //@'@printf("All data is to be encrypted\n");
 		// Check if an attempt is being made to random access the encrypted data - and barf if this is so
@@ -836,7 +836,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 
 
 	// If all the bytes requested are plaintext use the base write
-	if( (Size > 0) && ((Offset + Size) < PlaintextOffset) )
+	if( (Size > 0) && ((Offset + Size) < (Int64)PlaintextOffset) )
 	{
 //@'@printf("All data is plaintext\n");
 		Length Ret = Base_WriteDataTo(Buffer, DataOffset + Offset, Size);
@@ -864,7 +864,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 
 	// Check if an attempt is being made to random access the encrypted data - and barf if this is so
 	// DRAGONS: It is possible to re-set the initial IV to allow a "rewind" but this is not implemented
-	if(CurrentWriteOffset > PlaintextOffset)
+	if(CurrentWriteOffset >(Int64) PlaintextOffset)
 	{
 		error("Attempt to perform random-access writing of an encrypted KLV value field\n");
 		return 0;
@@ -930,7 +930,7 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 	if((!AddPadding) && (Size < (EncryptionGranularity - AwaitingEncryption)))
 	{
 		// Add to the end of the waiting buffer
-		memcpy(&AwaitingEncryptionBuffer[AwaitingEncryption], Data.Data, Size);
+		memcpy(&AwaitingEncryptionBuffer[AwaitingEncryption], Data.Data, (size_t)Size);
 
 		// All done
 		return Size;
@@ -945,13 +945,13 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 	if(AwaitingEncryption)
 	{
 		// Build the full data in the temporary buffer
-		TempData.ResizeBuffer(AwaitingEncryption + Size);
+		TempData.ResizeBuffer((Uint32)(AwaitingEncryption + Size));
 
 		// Start with "waiting" data
 		TempData.Set(AwaitingEncryption, AwaitingEncryptionBuffer);
 
 		// Copy in the new data
-		TempData.Append(Size, Buffer);
+		TempData.Append((Uint32)Size, Buffer);
 
 		// Replace the working buffer pointer with a pointer to the temporary buffer
 		Buffer = TempData.Data;
@@ -983,7 +983,7 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 		if(StartSize)
 		{
 			// Encrypt by making a copy
-			DataChunkPtr NewData = Encrypt->Encrypt(StartSize, Buffer);
+			DataChunkPtr NewData = Encrypt->Encrypt((Uint32)StartSize, Buffer);
 			if(!NewData) return 0;
 
 //@'@printf(">> Writing first encrypted chunk (%d bytes)\n", (int)StartSize);
@@ -999,7 +999,7 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 		const Uint8 *pSrc = &Buffer[StartSize];
 		Uint8 *pDst = TempBuffer;
 		int i;
-		int EncData = BytesToEncrypt - StartSize;
+		int EncData = (int)(BytesToEncrypt - StartSize);
 		int Pad = EncryptionGranularity - EncData;
 		for(i=0; i<16; i++)
 		{
@@ -1033,7 +1033,7 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 	AwaitingEncryption = (Uint32)(BytesRequiringEncryption - BytesToEncrypt);
 
 	// Encrypt by making a copy
-	DataChunkPtr NewData = Encrypt->Encrypt(BytesToEncrypt, Buffer);
+	DataChunkPtr NewData = Encrypt->Encrypt((Uint32)BytesToEncrypt, Buffer);
 	if(!NewData) return 0;
 
 	// If there will be any "left-over" bytes they will be awaiting next time
@@ -1139,7 +1139,7 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	// ** Write PlaintextOffset **
 
 	// First adjust if required
-	if(PlaintextOffset > ValueLength) PlaintextOffset = ValueLength;
+	if((Int64)PlaintextOffset > ValueLength) PlaintextOffset = ValueLength;
 
 	pBuffer += MakeBER(pBuffer, 4, 8, 4);
 	PutU64(PlaintextOffset, pBuffer); pBuffer += 8;
