@@ -3,6 +3,7 @@
  */
 /*
  *	Copyright (c) 2003, Matt Beard
+ *  Portions Copyright (c) 2003, Metaglue Corporation
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -140,23 +141,23 @@ int main(int argc, char *argv[])
 					Uint32 IndexSID = (*it)->GetUint("IndexSID");
 					Uint32 BodySID = (*it)->GetUint("BodySID");
 					
-					if(Duration == 0) printf("CBR Index Table Segment (covering whole Essense Container) :\n");
+					if(Duration == 0) printf("CBR Index Table Segment (covering whole Essence Container) :\n");
 					else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
 
 					printf("  Indexing BodySID 0x%04x from IndexSID 0x%04x\n", BodySID, IndexSID);
 
-					if(Duration < 1) Duration = 6;						// Could be CBR
-					if(!FullIndex && (Duration > 20)) Duration = 20;	// Don't go mad!
+					if(Duration < 1) Duration = 6;		// Could be CBR
+					if(!FullIndex && Duration > 35) Duration = 35;	// Don't go mad!
 
 					int i;
 					printf( "\n Bytestream Order:\n" );
 					for(i=0; i<Duration; i++)
 					{
-						Uint32 j;
+						int j;
 						for(j=0; j<Streams; j++)
 						{
 							IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
-							printf("  EditUnit %s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
+							printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
 							printf(", Flags=%02x", Pos->Flags);
 							if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
 						}
@@ -169,8 +170,10 @@ int main(int argc, char *argv[])
 						for(j=0; j<Streams; j++)
 						{
 							IndexPosPtr Pos = Table->Lookup(Start + i,j);
-							printf("  EditUnit %2d for stream %d is at 0x%s", (int)(Start + i), j, Int64toHexString(Pos->Location,8).c_str());
+							printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
 							printf(", Flags=%02x", Pos->Flags);
+							printf(", Keyframe is at 0x%s", Int64toHexString(Pos->KeyLocation,8).c_str() );
+
 							if(Pos->Exact) printf("  *Exact*\n");
 							else if(Pos->OtherPos) printf(" (Location of un-reordered position %s)\n", Int64toString(Pos->ThisPos).c_str());
 							else printf("\n");
