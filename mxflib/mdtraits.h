@@ -1,7 +1,7 @@
 /*! \file	mdtraits.h
  *	\brief	Definition of traits for MDType definitions
  *
- *	\version $Id: mdtraits.h,v 1.1.2.4 2004/10/20 15:10:19 matt-beard Exp $
+ *	\version $Id: mdtraits.h,v 1.1.2.5 2004/10/20 15:12:47 matt-beard Exp $
  *
  */
 /*
@@ -242,12 +242,12 @@ namespace mxflib
 	};
 
 	class MDTraits_Label : public MDTraits_Raw
+	{
 	public:
 		//! Does this trait take control of all sub-data and build values in the values own DataChunk?
 		/*! The entire Label is held locally */
 		virtual bool HandlesSubdata(void) const { return true; };
 
-	{
 	protected:
 		virtual std::string GetString(MDValuePtr Object);
 	};
