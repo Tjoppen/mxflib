@@ -35,7 +35,7 @@ using namespace mxflib;
 using namespace std;
 
 // base library version
-std::string ProductVersion = "Unreleased mxflib 0.3.3.1";
+std::string ProductVersion = "Unreleased mxflib 0.3.3.2";
 
 // DMStiny
 #ifdef DMStiny
@@ -44,7 +44,7 @@ std::string ProductVersion = "Unreleased mxflib 0.3.3.1";
 #include "DMStiny.h"
 #else
 // Product GUID and version text for this release
-Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x52 };
+Uint8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0xdd, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x53 };
 std::string CompanyName = "FreeMXF.org";
 std::string ProductName = "mxfwrap file wrapper";
 #endif
@@ -834,6 +834,23 @@ bool ParseCommandLine(int &argc, char **argv)
 typedef std::list<BodyWrapping> BodyWrappingList;
 Int64 WriteBody(MXFFilePtr Out, BodyWrappingList BodyWrapList, PartitionPtr ThisPartition, Int64 Duration = 0);
 
+//! Short term hack to allow per-BodySID GCWriters
+/*! DRAGONS: This needs to be tidied a little when there is time! */
+GCWriterPtr AddGCWriter(std::map<int, GCWriterPtr> &Map, MXFFilePtr &File, int BodySID)
+{
+	// First try and return an existing GCWriter
+	std::map<int, GCWriterPtr>::iterator it = Map.find(BodySID);
+	if(it != Map.end()) return (*it).second;
+
+	// Insert a new writer
+	Map.insert(std::map<int, GCWriterPtr>::value_type(BodySID, new GCWriter(File, BodySID)));
+
+	// Find and return the new entry (not hugely efficient!)
+	it = Map.find(BodySID);
+
+	return (*it).second;
+}
+
 
 int Process(	int OutFileNum,
 							MXFFilePtr Out,
@@ -906,6 +923,9 @@ int Process(	int OutFileNum,
 	TrackPtr MPTimecodeTrack = MaterialPackage->AddTimecodeTrack(EditRate);
 	TimecodeComponentPtr MPTimecodeComponent = MPTimecodeTrack->AddTimecodeComponent(FrameRate, DropFrame, 0 );
 
+	// Writers for each BodySID
+	std::map<int, GCWriterPtr> WriterMap;
+
 	// Build the File Packages and all essence tracks
 
 	// FP UMIDs are the same for all OutFiles, so they are supplied as a parameter
@@ -935,7 +955,8 @@ int Process(	int OutFileNum,
 			if(WriteFP) // (iTrack == OutFileNum)
 			{
 				// Set up a writer for body SID (iTrack + 1)
-				Writer[iTrack] = new GCWriter(Out, iTrack + 1);
+				Writer[iTrack] = AddGCWriter(WriterMap, Out, iTrack + 1);
+
 				// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
 				Writer[iTrack]->SetKAG(KAGSize, true);
 
@@ -950,6 +971,9 @@ int Process(	int OutFileNum,
 		}
 		else if( FrameGroup ) // !OPAtom
 		{
+			Writer[iTrack] = AddGCWriter(WriterMap, Out, 1);
+			
+			/* How to we acheive this now?? -- I think that it will be automatic, needs checking!!
 			// if same EssenceType as previous track, construct GCWriter with non-zero StreamBase
 			if( iTrack != 0 && WrapCfgList_it != WrapCfgList.begin() 
 			&& (*WrapCfgList_it)->WrapOpt->GCEssenceType == PrevEssenceType )
@@ -961,6 +985,7 @@ int Process(	int OutFileNum,
 				// Set up a writer for body SID 1
 				Writer[iTrack] = new GCWriter(Out, 1);
 			}
+			*/
 
 			// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
 			Writer[iTrack]->SetKAG(KAGSize, true);
@@ -981,7 +1006,8 @@ int Process(	int OutFileNum,
 		else // !OPAtom, !FrameGroup
 		{
 			// Set up a writer for body SID (iTrack + 1)
-			Writer[iTrack] = new GCWriter(Out, iTrack + 1);
+			Writer[iTrack] = AddGCWriter(WriterMap, Out, iTrack + 1);
+
 			// Set the KAG size and force 4-byte BER lengths (for maximum compatibility)
 			Writer[iTrack]->SetKAG(KAGSize, true);
 
