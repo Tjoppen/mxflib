@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: mdtraits.cpp,v 1.2 2004/05/20 23:56:24 terabrit Exp $
  *
  */
 /*
@@ -949,6 +949,15 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 
 	Ret = "";
 
+	if( Object->size() >128 )
+	{
+		char Buffer[32];
+		sprintf( Buffer, "array[0x%08x]", Object->size() );
+		Ret = Buffer;
+		return Ret;
+	}
+
+
 	it = Object->begin();
 	while(it != Object->end())
 	{
@@ -965,7 +974,7 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 		if(Size == 1) sprintf(Buffer, "%02x", (*it).second->GetUint());
 		else if(Size == 2) sprintf(Buffer, "%04x", (*it).second->GetUint());
 		else if(Size == 4) sprintf(Buffer, "%08x", (*it).second->GetUint());
-		else if(Size == 8) ASSERT(0);		// DRAGONS: We need a 64-bit hex print function!
+		else if(Size == 8) strcpy( Buffer, Int64toHexString((*it).second->GetUint(), 8).c_str() );
 		else
 		{
 			// Non-standard size!
