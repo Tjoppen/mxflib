@@ -10,6 +10,8 @@
  *			These classes are currently wrappers around KLVLib structures
  */
 /*
+ *	$Id: mdobject.cpp,v 1.14 2003/11/25 18:44:16 stuart_hc Exp $
+ *
  *	Copyright (c) 2003, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
@@ -36,8 +38,7 @@
 
 extern "C"
 {
-#include <Endian.h>
-#include <xmldict.h>
+#include <xmldict.h>		//!< For LoadXMLDictionary()
 }
 
 using namespace mxflib;
@@ -50,11 +51,11 @@ PrimerPtr MDOType::DictManager::StaticPrimer;
 
 // Map used to convert KLVLib "DictType" enum to text string of type name
 typedef std::map<DictType, char *> KLVLib_XLateType;
-KLVLib_XLateType KLVLib_XLate;
+static KLVLib_XLateType KLVLib_XLate;
 
 
 //! Initialise the table used to convert KLVLib "DictType" enum to text string of type name
-void InitDictType2Text(void)
+static void InitDictType2Text(void)
 {
 	if(KLVLib_XLate.empty())
 	{
@@ -92,7 +93,7 @@ void InitDictType2Text(void)
 /*! \return Pointer to a string constant.
  *  \return "" if the DictType is not known or is a container (e.g. a pack)
  */
-char *DictType2Text(DictType Type)
+static char *DictType2Text(DictType Type)
 {
 	KLVLib_XLateType::iterator it = KLVLib_XLate.find(Type);
 
