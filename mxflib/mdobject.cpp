@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.2.2.4 2004/06/22 12:47:01 bakerian Exp $
+ *	\version $Id: mdobject.cpp,v 1.2.2.5 2004/09/02 22:20:13 terabrit Exp $
  *
  */
 /*
@@ -924,6 +924,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 						// Length == 0, so skip this item
 						//(*it).second->ReadValue(Buffer, 0);
 						(*it).second->ClearModified();
+						ThisBytes = 0;
 					}
 
 					it++;
