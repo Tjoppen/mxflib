@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.1.2.8 2004/08/18 18:25:17 matt-beard Exp $
+ *	\version $Id: klvobject.cpp,v 1.1.2.9 2004/08/28 19:05:21 terabrit Exp $
  *
  */
 /*
@@ -127,8 +127,8 @@ Length KLVObject::Base_ReadDataFrom(Position Offset, Length Size /*=-1*/)
 	// Initially plan to read all the bytes available
 	Length BytesToRead = Source.OuterLength - Offset;
 
-	// Limit to specified size if >= 0 and if < available
-	if( (Size >= 0) && (Size < BytesToRead)) BytesToRead = Size;
+	// Limit to specified size if > 0 and if < available
+	if( (Size > 0) && (Size < BytesToRead)) BytesToRead = Size;
 
 	// Don't do anything if nothing to read
 	if(BytesToRead <= 0) 
