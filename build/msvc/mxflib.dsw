@@ -33,7 +33,7 @@ Package=<4>
     Project_Dep_Name mxfwrap
     End Project Dependency
     Begin Project Dependency
-    Project_Dep_Name test
+    Project_Dep_Name mxfdump
     End Project Dependency
     Begin Project Dependency
     Project_Dep_Name mxfsplit
@@ -84,7 +84,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "test"=.\test.dsp - Package Owner=<4>
+Project: "mxfdump"=.\mxfdump.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
