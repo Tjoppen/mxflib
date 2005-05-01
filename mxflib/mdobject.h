@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.6 2005/05/01 11:51:34 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.7 2005/05/01 15:06:14 matt-beard Exp $
  *
  */
 /*
@@ -329,12 +329,14 @@ protected:
 		static void LoadDict(const char *DictFile);
 
 		//! Build a primer
-		static PrimerPtr MakePrimer(void);
+		static PrimerPtr MakePrimer(bool SetStatic = false);
+		
+		//! Get the static primer (make one if required)
 		static PrimerPtr GetStaticPrimer(void) 
 		{ 
-			if( !StaticPrimer) return StaticPrimer = MakePrimer(); 
-			return StaticPrimer; 
-		};
+			if( !StaticPrimer) MakePrimer(true); 
+			return StaticPrimer;
+		}
 
 		static MDOTypePtr Find(std::string BaseType);
 		static MDOTypePtr Find(const UL& BaseUL);

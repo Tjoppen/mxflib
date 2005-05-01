@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.10 2005/05/01 11:12:57 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.11 2005/05/01 15:06:13 matt-beard Exp $
  *
  */
 /*
@@ -47,8 +47,9 @@ PrimerPtr MDOType::StaticPrimer;
 
 //! Build a Primer object for the current dictionary
 /*! This primer has the mappings of tag to UL from the dictionary
+ *  /param SetStatic - If true the StaticPrimer will be set to this new primer
  */
-PrimerPtr MDOType::MakePrimer(void)
+PrimerPtr MDOType::MakePrimer(bool SetStatic /*=false*/)
 {
 	PrimerPtr Ret = new Primer;
 
@@ -75,9 +76,8 @@ PrimerPtr MDOType::MakePrimer(void)
 		it++;
 	}
 
-	// Replace existing StaticPrimer
-//	if( StaticPrimer ) delete StaticPrimer;
-	StaticPrimer = Ret;
+	// Replace existing StaticPrimer if requested
+	if(SetStatic) StaticPrimer = Ret;
 
 	return Ret;
 }
@@ -1918,7 +1918,7 @@ void MDOType::LoadDict(const char *DictFile)
 	}
 
 	// Build a static primer (for use in index tables)
-	MakePrimer();
+	MakePrimer(true);
 }
 
 

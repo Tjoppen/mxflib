@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.6 2005/03/26 18:08:34 terabrit Exp $
+ *	\version $Id: deftypes.cpp,v 1.7 2005/05/01 15:06:13 matt-beard Exp $
  *
  */
 /*
@@ -865,7 +865,7 @@ int mxflib::LoadClasses(ClassRecordList &ClassesData)
 	}
 
 	// Build a static primer (for use in index tables)
-	MDOType::MakePrimer();
+	MDOType::MakePrimer(true);
 
 	return 0;
 }
