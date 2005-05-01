@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.9 2005/03/26 18:08:34 terabrit Exp $
+ *	\version $Id: mdobject.cpp,v 1.10 2005/05/01 11:12:57 matt-beard Exp $
  *
  */
 /*
@@ -76,7 +76,7 @@ PrimerPtr MDOType::MakePrimer(void)
 	}
 
 	// Replace existing StaticPrimer
-	if( StaticPrimer ) delete StaticPrimer;
+//	if( StaticPrimer ) delete StaticPrimer;
 	StaticPrimer = Ret;
 
 	return Ret;
