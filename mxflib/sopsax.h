@@ -1,7 +1,7 @@
 /*! \file	sopSAX.h
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.h,v 1.3 2005/03/25 13:15:50 terabrit Exp $
+ *	\version $Id: sopsax.h,v 1.4 2005/05/03 18:20:05 matt-beard Exp $
  *
  */
 /*
@@ -47,11 +47,11 @@ namespace mxflib
 	/* Handler structure */
 	struct sopSAXHandlerStruct
 	{
-	startElementSAXFunc startElement;		/* startElement */
-	endElementSAXFunc endElement;			/* endElement */
-    warningSAXFunc warning;					/* warning */
-    errorSAXFunc error;						/* error */
-    fatalErrorSAXFunc fatalError;			/* fatalError */
+		startElementSAXFunc startElement;		/* startElement */
+		endElementSAXFunc endElement;			/* endElement */
+		warningSAXFunc warning;					/* warning */
+		errorSAXFunc error;						/* error */
+		fatalErrorSAXFunc fatalError;			/* fatalError */
 	};
 
 
