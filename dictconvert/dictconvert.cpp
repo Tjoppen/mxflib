@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.1 2005/03/25 13:38:25 terabrit Exp $
+ *	\version $Id: dictconvert.cpp,v 1.2 2005/05/03 14:06:36 matt-beard Exp $
  *
  */
 /*
@@ -602,7 +602,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 			char TypeBuff[32];
 			strncpy(TypeBuff, Type.c_str(), 32);
-			TypeBuff[32] = '\0';
+			TypeBuff[31] = '\0';
 
 			if(   (strcasecmp(TypeBuff,"universalSet") == 0) 
 			   || (strcasecmp(TypeBuff,"variablePack") == 0)
