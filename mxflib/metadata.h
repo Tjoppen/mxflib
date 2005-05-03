@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.3 2004/12/18 20:41:28 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.4 2005/05/03 18:04:41 matt-beard Exp $
  *
  */
 /*
@@ -397,7 +397,7 @@ namespace mxflib
 		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, std::string TrackName = "", Uint32 TrackID = 0);
 
 		//! Add an event track to the package
-		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Int64 DefaultDuration, std::string TrackName = "", Uint32 TrackID = 0);
+		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName = "", Uint32 TrackID = 0);
 
 		//! Add a static track to the package
 		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string TrackName = "", Uint32 TrackID = 0);
@@ -435,8 +435,8 @@ namespace mxflib
 		}
 
 		//! Add an EVENT DM Track
-		TrackPtr AddDMTrack(Rational EditRate, Int64 DefaultDuration = DurationUnspecified, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, EditRate, DefaultDuration, TrackName, TrackID); }
-		TrackPtr AddDMTrack(Uint32 TrackNumber, Rational EditRate, Int64 DefaultDuration, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
+		TrackPtr AddDMTrack(Rational EditRate, Length DefaultDuration = DurationUnspecified, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, EditRate, DefaultDuration, TrackName, TrackID); }
+		TrackPtr AddDMTrack(Uint32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
 		{
 			static const Uint8 TCDM_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
 			static const ULPtr TCDM = new UL(TCDM_Data);
@@ -497,7 +497,7 @@ namespace mxflib
 		Metadata(std::string TimeStamp);
 		void Init(void);
 
-		// Update the package modification time
+		// Update the modification time for this file and any new packages
 		void SetTime(void) { ModificationTime = Now2String(); }
 		void SetTime(std::string TimeStamp) { ModificationTime = TimeStamp; }
 
@@ -543,6 +543,10 @@ namespace mxflib
 		// Add a top-level file package to the metadata
 		PackagePtr AddFilePackage(Uint32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); }
 		PackagePtr AddFilePackage(Uint32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("SourcePackage", PackageName, PackageUMID, BodySID); }
+
+		// Add a lower-level source package to the metadata
+		PackagePtr AddSourcePackage(Uint32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); }
+		PackagePtr AddSourcePackage(Uint32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("SourcePackage", PackageName, PackageUMID, BodySID); }
 
 		bool AddEssenceContainerData(UMIDPtr TheUMID, Uint32 BodySID, Uint32 IndexSID = 0);
 
