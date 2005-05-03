@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.3 2004/12/18 20:41:28 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.4 2005/05/03 17:53:49 matt-beard Exp $
  *
  */
 /*
@@ -651,7 +651,7 @@ void Package::UpdateDurations(void)
 
 //! Add an event track to the package
 /*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
-TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Int64 DefaultDuration, std::string TrackName /* = "" */ , Uint32 TrackID /* = 0 */)
+TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName /* = "" */ , Uint32 TrackID /* = 0 */)
 {
 	TrackPtr Ret = new Track("EventTrack");
 	if(!Ret) return Ret;
