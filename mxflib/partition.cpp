@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.4 2004/12/18 20:39:28 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.5 2005/05/03 18:10:21 matt-beard Exp $
  *
  */
 /*
@@ -296,7 +296,8 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 		}
 */
 		// Build an object (it may come back as an "unknown")
-		MDObjectPtr NewItem = new MDObject(new UL(BuffPtr));
+		ULPtr NewUL = new UL(BuffPtr);
+		MDObjectPtr NewItem = new MDObject(NewUL);
 		ASSERT(NewItem);
 
 		BuffPtr += 16;
