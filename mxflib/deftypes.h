@@ -1,6 +1,6 @@
 /*! \file	deftypes.h
  *	\brief	Definition of classes that load type and class dictionaries
- *	\version $Id: deftypes.h,v 1.2 2005/03/25 13:18:51 terabrit Exp $
+ *	\version $Id: deftypes.h,v 1.3 2005/05/03 17:20:41 matt-beard Exp $
  *
  */
 /*
@@ -77,6 +77,9 @@ namespace mxflib
 	//! List of smart pointers to TypeRecords
 	typedef std::list<TypeRecordPtr> TypeRecordList;
 
+	//! List of TypeRecordLists
+	typedef std::list<TypeRecordList> TypeRecordListList;
+
 	//! Single entry for a type to be defined - built at run-time and can be stacked if required to allow out-of-order definitions
 	class TypeRecord : public RefCount<TypeRecord>
 	{
@@ -101,16 +104,17 @@ namespace mxflib
 	/*! \note The last entry in the array must be a terminating entry with Class == TypeNULL
 	 *  \return 0 if all OK
 	 *  \return -1 on error
+	 *  \note If any part of the dictionary loading fails the loading will continue unless FastFail is set to true
 	 */
 	int LoadTypes(const ConstTypeRecord *TypesData);
 
 	//! Load types from the specified in-memory definitions
 	/*! \return 0 if all OK
 	 *  \return -1 on error
+	 *  \note If any part of the dictionary loading fails the loading will continue unless FastFail is set to true
 	 */
 	int LoadTypes(TypeRecordList &TypesData);
 
-	const MDTraits* LookupTraits(const char* TraitsName);
 
 	/* Define macros for static type definitions */
 
@@ -248,6 +252,9 @@ namespace mxflib
 
 	//! List of smart pointers to ClassRecords
 	typedef std::list<ClassRecordPtr> ClassRecordList;
+
+	//! List of ClassRecordLists
+	typedef std::list<ClassRecordList> ClassRecordListList;
 
 	//! Single entry for a class to be defined - built at run-time and can be stacked if required to allow out-of-order definitions
 	class ClassRecord : public RefCount<ClassRecord>
@@ -432,22 +439,37 @@ namespace mxflib
 		const void *Dict;					//!< Pointer to either a ConstTypeRecord array or a ConstClassRecord array holding the dictionary to load
 	};
 
-	// Forward declare DictionaryRecord to allow DictionaryRecordPtr to be defined early
-	class DictionaryRecord;
+	// Forward declare Dictionary to allow DictionaryPtr to be defined early
+	class Dictionary;
 
-	//! A smart pointer to a DictionaryRecord
-	typedef SmartPtr<DictionaryRecord> DictionaryRecordPtr;
+	//! A smart pointer to a Dictionary
+	typedef SmartPtr<Dictionary> DictionaryPtr;
 
-	//! List of smart pointers to DictionaryRecords
-	typedef std::list<DictionaryRecordPtr> DictionaryRecordList;
+	//! List of smart pointers to Dictionary objects
+	typedef std::list<DictionaryPtr> DictionaryList;
 
 	//! Run-time dictionary definition - built from other run-time record definitions
-	class DictionaryRecord : public RefCount<DictionaryRecord>
+	class Dictionary : public RefCount<Dictionary>
 	{
 	public:
-		TypeRecordList Types;				//!< All the types to define
-		ClassRecordList Classes;			//!< All the classes to define
+		TypeRecordListList Types;			//!< All the types to define
+		ClassRecordListList Classes;		//!< All the classes to define
 	};
+
+
+	//! Load dictionary from the specified in-memory definitions
+	/*! \return 0 if all OK
+	 *  \return -1 on error
+	 */
+	int LoadDictionary(DictionaryPtr &DictionaryData, bool FastFail = false);
+
+	//! Load dictionary from the specified in-memory definitions
+	/*! \note There must be a terminating entry (with Type == DictionaryNULL) to end the list
+	 *  \return 0 if all OK
+	 *  \return -1 on error
+	 */
+	int LoadDictionary(const ConstDictionaryRecord *DictionaryData, bool FastFail = false);
+
 
 //! MXFLIB_DICTIONARY_START - Use to start a type definition block
 #define MXFLIB_DICTIONARY_START(Name)		const ConstDictionaryRecord Name[] = {

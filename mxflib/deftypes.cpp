@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.7 2005/05/01 15:06:13 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.8 2005/05/03 17:20:39 matt-beard Exp $
  *
  */
 /*
@@ -34,62 +34,6 @@
 
 using namespace mxflib;
 
-//! Type to map type names to their handling traits
-typedef std::map<std::string,MDTraitsPtr> TraitsMapType;
-
-//! Map of type names to thair handling traits
-static TraitsMapType TraitsMap;
-
-//! Lookup a Trait by name
-const MDTraits*  mxflib::LookupTraits(const char* TraitsName) { return TraitsMap[TraitsName]; }
-
-
-//! Build the map of all known traits
-static void DefineTraits(void)
-{
-	// Not a real type, but the default for basic types
-	TraitsMap.insert(TraitsMapType::value_type("Default-Basic", new MDTraits_Raw));
-
-	// Not a real type, but the default for array types
-	TraitsMap.insert(TraitsMapType::value_type("Default-Array", new MDTraits_BasicArray));
-
-	// Not a real type, but the default for compound types
-	TraitsMap.insert(TraitsMapType::value_type("Default-Compound", new MDTraits_BasicCompound));
-
-	TraitsMap.insert(TraitsMapType::value_type("RAW", new MDTraits_Raw));
-
-	TraitsMap.insert(TraitsMapType::value_type("Int8", new MDTraits_Int8));
-	TraitsMap.insert(TraitsMapType::value_type("Uint8", new MDTraits_Uint8));
-	TraitsMap.insert(TraitsMapType::value_type("UInt8", new MDTraits_Uint8));
-	TraitsMap.insert(TraitsMapType::value_type("Internal-UInt8", new MDTraits_Uint8));
-	TraitsMap.insert(TraitsMapType::value_type("Int16", new MDTraits_Int16));
-	TraitsMap.insert(TraitsMapType::value_type("Uint16", new MDTraits_Uint16));
-	TraitsMap.insert(TraitsMapType::value_type("UInt16", new MDTraits_Uint16));
-	TraitsMap.insert(TraitsMapType::value_type("Int32", new MDTraits_Int32));
-	TraitsMap.insert(TraitsMapType::value_type("Uint32", new MDTraits_Uint32));
-	TraitsMap.insert(TraitsMapType::value_type("UInt32", new MDTraits_Uint32));
-	TraitsMap.insert(TraitsMapType::value_type("Int64", new MDTraits_Int64));
-	TraitsMap.insert(TraitsMapType::value_type("Uint64", new MDTraits_Uint64));
-	TraitsMap.insert(TraitsMapType::value_type("UInt64", new MDTraits_Uint64));
-
-	TraitsMap.insert(TraitsMapType::value_type("ISO7", new MDTraits_ISO7));
-	TraitsMap.insert(TraitsMapType::value_type("UTF16", new MDTraits_UTF16));
-
-	TraitsMap.insert(TraitsMapType::value_type("ISO7String", new MDTraits_BasicStringArray));
-	TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_UTF16String));
-	TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
-	TraitsMap.insert(TraitsMapType::value_type("UInt8Array", new MDTraits_RawArray));
-
-	TraitsMap.insert(TraitsMapType::value_type("UUID", new MDTraits_UUID));
-	TraitsMap.insert(TraitsMapType::value_type("Label", new MDTraits_Label));
-
-	TraitsMap.insert(TraitsMapType::value_type("UMID", new MDTraits_UMID));
-
-	TraitsMap.insert(TraitsMapType::value_type("LabelCollection", new MDTraits_RawArrayArray));
-
-	TraitsMap.insert(TraitsMapType::value_type("Rational", new MDTraits_Rational));
-	TraitsMap.insert(TraitsMapType::value_type("Timestamp", new MDTraits_TimeStamp));
-}
 
 //! XML parsing functions for defining types
 void DefTypes_startElement(void *user_data, const char *name, const char **attrs);
@@ -166,6 +110,59 @@ namespace
 		TypeRecordList Types;				//!< The types being built
 		TypeRecordPtr Compound;				//!< The current compound being built (or NULL)
 	};
+
+	//! Type to map type names to their handling traits
+	typedef std::map<std::string,MDTraitsPtr> TraitsMapType;
+
+	//! Map of type names to thair handling traits
+	static TraitsMapType TraitsMap;
+
+	//! Build the map of all known traits
+	static void DefineTraits(void)
+	{
+		// Not a real type, but the default for basic types
+		TraitsMap.insert(TraitsMapType::value_type("Default-Basic", new MDTraits_Raw));
+
+		// Not a real type, but the default for array types
+		TraitsMap.insert(TraitsMapType::value_type("Default-Array", new MDTraits_BasicArray));
+
+		// Not a real type, but the default for compound types
+		TraitsMap.insert(TraitsMapType::value_type("Default-Compound", new MDTraits_BasicCompound));
+
+		TraitsMap.insert(TraitsMapType::value_type("RAW", new MDTraits_Raw));
+
+		TraitsMap.insert(TraitsMapType::value_type("Int8", new MDTraits_Int8));
+		TraitsMap.insert(TraitsMapType::value_type("Uint8", new MDTraits_Uint8));
+		TraitsMap.insert(TraitsMapType::value_type("UInt8", new MDTraits_Uint8));
+		TraitsMap.insert(TraitsMapType::value_type("Internal-UInt8", new MDTraits_Uint8));
+		TraitsMap.insert(TraitsMapType::value_type("Int16", new MDTraits_Int16));
+		TraitsMap.insert(TraitsMapType::value_type("Uint16", new MDTraits_Uint16));
+		TraitsMap.insert(TraitsMapType::value_type("UInt16", new MDTraits_Uint16));
+		TraitsMap.insert(TraitsMapType::value_type("Int32", new MDTraits_Int32));
+		TraitsMap.insert(TraitsMapType::value_type("Uint32", new MDTraits_Uint32));
+		TraitsMap.insert(TraitsMapType::value_type("UInt32", new MDTraits_Uint32));
+		TraitsMap.insert(TraitsMapType::value_type("Int64", new MDTraits_Int64));
+		TraitsMap.insert(TraitsMapType::value_type("Uint64", new MDTraits_Uint64));
+		TraitsMap.insert(TraitsMapType::value_type("UInt64", new MDTraits_Uint64));
+
+		TraitsMap.insert(TraitsMapType::value_type("ISO7", new MDTraits_ISO7));
+		TraitsMap.insert(TraitsMapType::value_type("UTF16", new MDTraits_UTF16));
+
+		TraitsMap.insert(TraitsMapType::value_type("ISO7String", new MDTraits_BasicStringArray));
+		TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_UTF16String));
+		TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
+		TraitsMap.insert(TraitsMapType::value_type("UInt8Array", new MDTraits_RawArray));
+
+		TraitsMap.insert(TraitsMapType::value_type("UUID", new MDTraits_UUID));
+		TraitsMap.insert(TraitsMapType::value_type("Label", new MDTraits_Label));
+
+		TraitsMap.insert(TraitsMapType::value_type("UMID", new MDTraits_UMID));
+
+		TraitsMap.insert(TraitsMapType::value_type("LabelCollection", new MDTraits_RawArrayArray));
+
+		TraitsMap.insert(TraitsMapType::value_type("Rational", new MDTraits_Rational));
+		TraitsMap.insert(TraitsMapType::value_type("Timestamp", new MDTraits_TimeStamp));
+	}
 }
 
 
@@ -1199,4 +1196,66 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, MDOTypePtr Parent /*=
 
 	return Ret;
 }
+
+
+//! Load dictionary from the specified in-memory definitions
+/*! \return 0 if all OK
+ *  \return -1 on error
+ *  \note If any part of the dictionary loading fails the loading will continue unless FastFail is set to true
+ */
+int mxflib::LoadDictionary(DictionaryPtr &DictionaryData, bool FastFail /*=false*/)
+{
+	int Ret = 0;
+
+	// Load all the types first
+	TypeRecordListList::iterator Types_it = DictionaryData->Types.begin();
+	while(Types_it != DictionaryData->Types.end())
+	{
+		if(LoadTypes(*Types_it) != 0) Ret = -1;
+		if(FastFail && (Ret != 0)) return Ret;
+		Types_it++;
+	}
+
+	// Load all the classes
+	ClassRecordListList::iterator Classes_it = DictionaryData->Classes.begin();
+	while(Classes_it != DictionaryData->Classes.end())
+	{
+		if(LoadClasses(*Classes_it) != 0) Ret = -1;
+		if(FastFail && (Ret != 0)) return Ret;
+		Classes_it++;
+	}
+
+	return Ret;
+}
+
+
+//! Load dictionary from the specified in-memory definitions
+/*! \note There must be a terminating entry (with Type == DictionaryNULL) to end the list
+ *  \return 0 if all OK
+ *  \return -1 on error
+ *  \note If any part of the dictionary loading fails the loading will continue unless FastFail is set to true
+ */
+int mxflib::LoadDictionary(const ConstDictionaryRecord *DictionaryData, bool FastFail /*=false*/)
+{
+	int Ret = 0;
+
+	while(DictionaryData->Type != DictionaryNULL)
+	{
+		if(DictionaryData->Type == DictionaryTypes)
+		{
+			if(LoadTypes((const ConstTypeRecord *)DictionaryData->Dict) != 0) Ret = -1;
+			if(FastFail && (Ret != 0)) return Ret;
+		}
+		else
+		{
+			if(LoadClasses((const ConstClassRecord *)DictionaryData->Dict) != 0) Ret = -1;
+			if(FastFail && (Ret != 0)) return Ret;
+		}
+
+		DictionaryData++;
+	}
+
+	return Ret;
+}
+
 
