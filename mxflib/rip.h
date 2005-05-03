@@ -4,7 +4,7 @@
  *			The RIP class holds Random Index Pack data, either loaded from a real
  *			Random Index Pack in the file or built by discovering partitions.
  *
- *	\version $Id: rip.h,v 1.1 2004/04/26 18:27:48 asuraparaju Exp $
+ *	\version $Id: rip.h,v 1.2 2005/05/03 18:19:47 matt-beard Exp $
  *
  */
 /*
@@ -72,7 +72,7 @@ namespace mxflib
 	typedef SmartPtr<PartitionInfo> PartitionInfoPtr;
 
 	//! A map of file location against smart pointers to PartitionInfo objects
-	typedef std::map<Int64, PartitionInfoPtr> PartitionInfoMap;
+	typedef std::map<Position, PartitionInfoPtr> PartitionInfoMap;
 }
 
 
