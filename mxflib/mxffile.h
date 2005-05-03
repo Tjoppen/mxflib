@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.4 2004/12/18 20:40:36 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.5 2005/05/03 18:06:47 matt-beard Exp $
  *
  */
 /*
@@ -90,7 +90,7 @@ namespace mxflib
 		PartitionPtr ReadMasterPartition(Length MaxScan = 1024*1024);
 
 		//! Report the position of the file pointer
-		Uint64 Tell(void) 
+		Position Tell(void) 
 		{ 
 			if(!isOpen) return 0;
 			if(isMemoryFile) return BufferCurrentPos-RunInSize;
@@ -106,16 +106,16 @@ namespace mxflib
 		 *			so that they find the data originally at that part of the file even
 		 *			though they are now in a different position
 		 */
-		int Seek(Uint64 Position)
+		int Seek(Position Pos)
 		{ 
 			if(!isOpen) return 0;
 			if(isMemoryFile)
 			{
-				BufferCurrentPos = Position+RunInSize;
+				BufferCurrentPos = Pos+RunInSize;
 				return 0;
 			}
 
-			return mxflib::FileSeek(Handle, Position+RunInSize);
+			return mxflib::FileSeek(Handle, Pos+RunInSize);
 		}
 
 		int SeekEnd(void)
