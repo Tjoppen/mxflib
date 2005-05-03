@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.7 2005/05/01 15:06:14 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.8 2005/05/03 17:45:24 matt-beard Exp $
  *
  */
 /*
@@ -207,6 +207,9 @@ namespace mxflib
 		DictRefType		RefType;		//!< Reference type if this is a reference
 		MDOTypeParent	RefTarget;		//!< Type (or base type) of item this ref source must target
 		std::string		RefTargetName;	//!< Name of the type (or base type) of item this ref source must target
+										/*!< /note This must only be used during dictionary parsing or for error reporting,
+										 *         not for actual reference linking where RefTarget must be used
+										 */
 
 		//! Protected constructor so we can control creation of types
 		MDOType();
@@ -229,11 +232,31 @@ namespace mxflib
 		};
 
 		//! Set the referencing details for this type
-		void SetRef(DictRefType Type, MDOTypePtr Target, std::string TargetName)
+		void SetRef(DictRefType Type, ULPtr &Target, std::string TargetName = "")
+		{
+			ASSERT(Target);
+
+			RefType = Type;
+			RefTarget = Find(Target);
+
+			if(!RefTarget)
+			{
+				error("Unknown type UL:%s in MDOType::SetRef()\n", Target->GetString().c_str());
+				return;
+			}
+			
+			if(TargetName != "") RefTargetName = TargetName;
+			else RefTargetName = RefTarget->Name();
+		}
+
+		//! Set the referencing details for this type
+		void SetRef(DictRefType Type, MDOTypePtr Target, std::string TargetName = "")
 		{
 			RefType = Type;
 			RefTarget = Target;
-			RefTargetName = TargetName;
+			
+			if(TargetName != "") RefTargetName = TargetName;
+			else RefTargetName = Target->Name();
 		}
 
 		//! Derive this new entry from a base entry
@@ -249,6 +272,9 @@ namespace mxflib
 		MDOTypePtr GetRefTarget(void) const { return RefTarget; };
 
 		//! Accessor for Reference Target Name
+		/*!< /note This must only be used during dictionary parsing or for error reporting,
+		 *         not for actual reference linking where RefTarget must be used
+		 */
 		std::string GetRefTargetName(void) const { return RefTargetName; };
 
 		//! Get the type name
@@ -264,31 +290,31 @@ namespace mxflib
 		}
 
 		//! Read-only access to default value
-		const DataChunk &GetDefault(void) { return Default; }
+		const DataChunk &GetDefault(void) const { return Default; }
 
 		//! Read-only access to destinguished value
-		const DataChunk &GetDValue(void) { return DValue; }
+		const DataChunk &GetDValue(void) const { return DValue; }
 
 		//! Read-only access to the type UL
-		const ULPtr &GetTypeUL(void) { return TypeUL; }
+		const ULPtr &GetTypeUL(void) const { return TypeUL; }
 
 		//! Read-only access to the minLength value
-		unsigned int GetMinLength(void) { return minLength; }
+		unsigned int GetMinLength(void) const { return minLength; }
 
 		//! Read-only access to the maxnLength value
-		unsigned int GetMaxLength(void) { return maxLength; }
+		unsigned int GetMaxLength(void) const { return maxLength; }
 
 		//! Read-only access to ValueType
-		const MDTypePtr &GetValueType(void) { return ValueType; }
+		const MDTypePtr &GetValueType(void) const { return ValueType; }
 
 		//! Read-only access to ChildOrder
-		const StringList &GetChildOrder(void) { return ChildOrder; }
+		const StringList &GetChildOrder(void) const { return ChildOrder; }
 
 		//! Read-only access to KeyFormat
-		DictKeyFormat &GetKeyFormat(void) { return KeyFormat; }
+		const DictKeyFormat &GetKeyFormat(void) const { return KeyFormat; }
 
 		//! Read-only access to LenFormat
-		DictLenFormat &GetLenFormat(void) { return LenFormat; }
+		const DictLenFormat &GetLenFormat(void) const { return LenFormat; }
 
 		//! Insert a new child type
 		std::pair<iterator, bool> insert(MDOTypePtr NewType) 
@@ -300,7 +326,7 @@ namespace mxflib
 		}
 
 		//! Get the UL for this type
-		ULPtr GetUL(void) { return TypeUL; }
+		ULPtr &GetUL(void) { return TypeUL; }
 
 		//! Read-only access to the key
 		const DataChunk &GetKey(void) { return Key; }
@@ -492,48 +518,61 @@ namespace mxflib
 			return true;
 		}
 
+
 		/* Child value access */
 		// For set functions AddChild is used (without replace option)
 		// to ensure that the child exists and to set the modified flag
 		void SetInt(const char *ChildName, Int32 Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildName);
-			if (Ptr) Ptr->SetInt(Val); else if(Value) Value->SetInt(ChildName, Val);
+			if (Ptr) Ptr->SetInt(Val); 
+			else if(Value) { SetModified(true); Value->SetInt(ChildName, Val); }
 		};
 		void SetInt64(const char *ChildName, Int64 Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildName);
-			if (Ptr) Ptr->SetInt64(Val); else if(Value) Value->SetInt64(ChildName, Val);
+			if (Ptr) Ptr->SetInt64(Val);
+			else if(Value) { SetModified(true); Value->SetInt64(ChildName, Val); }
 		};
 		void SetUint(const char *ChildName, Uint32 Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildName);
-			if (Ptr) Ptr->SetUint(Val); else if(Value) Value->SetUint(ChildName, Val);
+			if (Ptr) Ptr->SetUint(Val);
+			else if(Value) { SetModified(true); Value->SetUint(ChildName, Val); }
 		};
 		void SetUint64(const char *ChildName, Uint64 Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildName);
-			if (Ptr) Ptr->SetUint64(Val); else if(Value) Value->SetUint64(ChildName, Val);
+			if (Ptr) Ptr->SetUint64(Val);
+			else if(Value) { SetModified(true); Value->SetUint64(ChildName, Val); }
 		};
 		void SetString(const char *ChildName, std::string Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildName);
-			if (Ptr) Ptr->SetString(Val); else if(Value) Value->SetString(ChildName, Val);
+			if (Ptr) Ptr->SetString(Val);
+			else if(Value) { SetModified(true); Value->SetString(ChildName, Val); }
 		};
 
-		bool SetDValue(const char *ChildName) { MDObjectPtr Ptr = AddChild(ChildName); if (Ptr) return Ptr->SetDValue(); else return false; };
+		bool SetDValue(const char *ChildName) 
+		{ 
+			MDObjectPtr Ptr = AddChild(ChildName); 
+			if (Ptr) return Ptr->SetDValue(); else return false; 
+		};
 		
 		void SetValue(const char *ChildName, const DataChunk &Source) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildName); 
-			if (Ptr) Ptr->ReadValue(Source); else if(Value) Value->ReadValue(ChildName, Source);
+			if (Ptr) Ptr->ReadValue(Source); 
+			else if(Value) { SetModified(true); Value->ReadValue(ChildName, Source); }
 		};
+
 		void SetValue(const char *ChildName, MDObjectPtr Source) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildName); 
-			if (Ptr) Ptr->ReadValue(Source->Value->PutData()); else if(Value) Value->ReadValue(ChildName, Source->Value->PutData());
+			if (Ptr) Ptr->ReadValue(Source->Value->PutData());
+			else if(Value) { SetModified(true); Value->ReadValue(ChildName, Source->Value->PutData()); }
 		};
-		
+
 		Int32 GetInt(const char *ChildName, Int32 Default = 0) 
 		{ 
 			MDObjectPtr Ptr = operator[](ChildName);
@@ -637,13 +676,14 @@ namespace mxflib
 		//! Report the full name of this item (the full name of its type)
 		std::string FullName(void) { ASSERT(Type); return Type->FullName(); };
 
+		//! Inset a new child object - overloads the existing MDObjectList version
 		void insert(MDObjectPtr NewObject)
 		{
 			push_back(MDObjectNamedList::value_type(NewObject->Name(), NewObject));
 		}
 
 		//! Type access function
-		MDOTypePtr GetType(void) const { return Type; };
+		const MDOTypePtr &GetType(void) const { return Type; };
 
 		//! Determine if this object is derived from a specified type (directly or indirectly)
 		bool IsA(std::string BaseType);
@@ -684,10 +724,10 @@ namespace mxflib
 		}
 
 		//! Access function for ParentFile
-		MXFFilePtr GetParentFile(void) { return ParentFile; };
+		MXFFilePtr &GetParentFile(void) { return ParentFile; };
 
 		//! Set the object's UL
-		void SetUL(ULPtr NewUL) { TheUL = NewUL; }
+		void SetUL(ULPtr &NewUL) { TheUL = NewUL; }
 
 		//! Set the object's tag
 		void SetTag(Tag NewTag) { TheTag = NewTag; }
