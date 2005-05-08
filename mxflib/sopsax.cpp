@@ -1,7 +1,7 @@
 /*! \file	sopSAX.cpp
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.cpp,v 1.5 2005/03/25 13:15:50 terabrit Exp $
+ *	\version $Id: sopsax.cpp,v 1.6 2005/05/08 15:50:02 matt-beard Exp $
  *
  */
 /*
@@ -467,8 +467,8 @@ void sopGetItem(FILE *xmlFile, char *Buffer, int Max)
 				// Should validate for ';' here!!
 
 				if(strcasecmp(Tag, "amp")==0)			c='&';
-				else if(strcasecmp(Tag, "apos")==0)	c='\'';
-				else if(strcasecmp(Tag, "quot")==0)	c='"';
+				else if(strcasecmp(Tag, "apos")==0)		c='\'';
+				else if(strcasecmp(Tag, "quot")==0)		c='"';
 				else if(strcasecmp(Tag, "lt")==0)		c='<';
 				else if(strcasecmp(Tag, "gt")==0)		c='>';
 				else
@@ -478,7 +478,11 @@ void sopGetItem(FILE *xmlFile, char *Buffer, int Max)
 				}
 			}
 
-			if(Max--) *Buffer++ = c;
+			if(Max)
+			{
+				Max--;
+				*Buffer++ = c;
+			}
 		}
 	}
 	else if(c != EOF)
@@ -486,7 +490,11 @@ void sopGetItem(FILE *xmlFile, char *Buffer, int Max)
 		/* Copy chunk up to next separator */
 		while((c!=' ') && (c!='\t') && (c!='=') && (c!='>') && (c!='\n') && (c!='\r') && (c!=';'))
 		{
-			if(Max--) *Buffer++ = c;
+			if(Max)
+			{
+				Max--;
+				*Buffer++ = c;
+			}
 			c = sopGetChar(xmlFile);
 			if(c==EOF) break;
 		}		
