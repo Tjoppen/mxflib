@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.8 2005/05/03 17:45:24 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.9 2005/05/08 15:51:29 matt-beard Exp $
  *
  */
 /*
@@ -346,7 +346,37 @@ namespace mxflib
 		//! Map for reverse lookups based on type name
 		static MDOTypeMap NameLookup;
 
-protected:
+	public:
+		//! Bit masks for items that are to be set for this definition in BuildTypeFromDict
+		/*! This allows some values to be inherited from the base class,
+		 *  but some to be overridden by this definition.
+		 *  \note The bits are actually passed in a UInt32.
+		 *  \note Not all items need a bit as they can be validated.
+		 */
+		enum DictionaryItems
+		{
+			DICT_ITEM_USE = 1,
+			DICT_ITEM_REFTYPE = 2,
+			DICT_ITEM_CONTAINERTYPE = 4,
+			DICT_ITEM_MINLENGTH = 8,
+			DICT_ITEM_MAXLENGTH = 16,
+			DICT_ITEM_KEYFORMAT = 32,
+			DICT_ITEM_LENFORMAT = 64,
+			DICT_ITEM_DVALUE = 128
+		};
+
+		/*! \return a smart pointer to the new type, or NULL if the call failed
+		 *  \note This function should only be called from a dictionary parser
+		 */
+		static MDOTypePtr MDOType::BuildTypeFromDict(std::string Name, std::string Base, MDOTypePtr Parent,
+													 DataChunkPtr Key, DataChunkPtr GlobalKey, std::string Detail,
+													 DictUse Use, DictRefType RefType, MDTypePtr ValueType, 
+													 std::string TypeName, MDContainerType ContainerType, 
+													 unsigned int minLength, unsigned int maxLength, DictKeyFormat KeyFormat, 
+													 DictLenFormat LenFormat, std::string RefTargetName,
+													 std::string Default, std::string DValue, UInt32 Items);
+
+	protected:
 		//! Basic primer for use when parsing non-primer partitions
 		static PrimerPtr StaticPrimer;
 

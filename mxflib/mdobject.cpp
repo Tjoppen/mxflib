@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.11 2005/05/01 15:06:13 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.12 2005/05/08 15:51:29 matt-beard Exp $
  *
  */
 /*
@@ -152,7 +152,7 @@ MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 	MDOTypePtr theType;
 
 	// Search the static primer by default
-	if(!BasePrimer) BasePrimer = StaticPrimer;
+	if(!BasePrimer) BasePrimer = GetStaticPrimer();
 
 	Primer::iterator it = BasePrimer->find(BaseTag);
 
@@ -1840,9 +1840,9 @@ typedef enum
 //! XML parsing state structure for XML dictionary parser
 typedef struct
 {
-	DictStateState	State;					//! State-machine current state
-	std::list<MDOTypePtr> Parents;			//! List of pointers to parents, empty if currently at the top level
-	std::list<std::string> ParentNames;		//! List of parent names, empty if currently at the top level
+	DictStateState	State;					//!< State-machine current state
+	std::list<MDOTypePtr> Parents;			//!< List of pointers to parents, empty if currently at the top level
+	std::list<std::string> ParentNames;		//!< List of parent names, empty if currently at the top level
 } DictState;
 
 
@@ -1870,6 +1870,7 @@ void MDOType::LoadDict(const char *DictFile)
 	if(XMLFilePath.size()) result = XMLParserParseFile(&XMLHandler, &State, XMLFilePath.c_str());
 	if(!result)
 	{
+		XML_fatalError(NULL, "Failed to load classes dictionary \"%s\"\n", XMLFilePath.size() ? XMLFilePath.c_str() : DictFile);
 		return;
 	}
 
@@ -2427,7 +2428,6 @@ void MDOType::Derive(MDOTypePtr BaseEntry)
 		it++;
 	}
 
-
 	// Copy the base type's ref target setting
 	RefTarget = Base->RefTarget;
 	RefTargetName = Base->RefTargetName;
@@ -2537,3 +2537,154 @@ std::map<UL, MDOTypePtr> MDOType::ULLookup;
 //! Map for reverse lookups based on type name
 std::map<std::string, MDOTypePtr> MDOType::NameLookup;
 
+
+
+
+
+
+
+//! Build an MDOType from dictionary data
+/*! \return a smart pointer to the new type, or NULL if the call failed
+ *  \note This function should only be called from a dictionary parser
+ */
+MDOTypePtr MDOType::BuildTypeFromDict(std::string Name, std::string Base, MDOTypePtr Parent,
+									  DataChunkPtr Key, DataChunkPtr GlobalKey, std::string Detail,
+									  DictUse Use, DictRefType RefType, MDTypePtr ValueType, 
+									  std::string TypeName, MDContainerType ContainerType, 
+									  unsigned int minLength, unsigned int maxLength, DictKeyFormat KeyFormat, 
+									  DictLenFormat LenFormat, std::string RefTargetName,
+									  std::string Default, std::string DValue, UInt32 Items)
+{
+	/* Grab a new dictionary entry */
+	MDOTypePtr Dict = new MDOType;
+	if(!Dict) return Dict;
+
+	// Record our name
+	Dict->DictName = Name;
+
+	/* Check for inheritance */
+	// We do this first as the entry needs to be BASED on the base entry
+	if(Base.size())
+	{
+		MDOTypePtr BaseType = Find(Base);
+
+		if(!BaseType)
+		{
+			error("Cannot find base type \"%s\" for type \"%s\"\n", Base.c_str(), Name.c_str());
+		}
+		else
+		{
+			debug("Deriving %s from %s\n", Name.c_str(), BaseType->Name().c_str());
+			Dict->Derive(BaseType);
+		}
+	}
+
+	// Record our parent
+	if(Parent)
+	{
+		Dict->Parent = Parent;
+
+		// Add us as a child of our parent
+		Parent->insert(Dict);
+
+		// Move reference details from parent (used for vectors)
+		if(Parent->RefType != DICT_REF_NONE)
+		{
+			Dict->RefType = Dict->Parent->RefType;
+			Parent->RefType = DICT_REF_NONE;
+		}
+	}
+
+	// If we are not top level then record out "family tree"
+	if(Parent) Dict->RootName = Dict->Parent->FullName() + "/";
+
+	// Add to the list of all types
+	AllTypes.push_back(Dict);
+
+	// If it is a top level type then add it to TopTypes as well
+	if(!Parent) TopTypes.push_back(Dict);
+
+	// Set the name lookup - UL lookup set when key set
+	NameLookup[Dict->RootName + Dict->DictName] = Dict;
+
+	// Set the key (if known)
+	if(Key) Dict->Key.Set(Key);
+
+	// Set the global key (if known)
+	// Note: The caller must copy one key to the other if only one is given
+	if(GlobalKey) Dict->GlobalKey.Set(GlobalKey);
+
+	// Set other basic fields - conditionally to allow safe derivation
+	if(Detail.size()) Dict->Detail = Detail;
+	if(Items & DICT_ITEM_USE) Dict->Use = Use;
+	if(Items & DICT_ITEM_REFTYPE) Dict->RefType = RefType;
+	if(Items & DICT_ITEM_CONTAINERTYPE) Dict->ContainerType = ContainerType;
+	if(Items & DICT_ITEM_MINLENGTH) Dict->minLength = minLength;
+	if(Items & DICT_ITEM_MAXLENGTH) 
+	{
+		if((maxLength < minLength) ||(maxLength == 0)) Dict->maxLength = (unsigned int)-1;
+		else Dict->maxLength = maxLength;
+	}
+    if(Items & DICT_ITEM_KEYFORMAT) Dict->KeyFormat = KeyFormat;
+	if(Items & DICT_ITEM_LENFORMAT) Dict->LenFormat = LenFormat;
+	if(ValueType) Dict->ValueType = ValueType;
+	if(TypeName.size()) Dict->TypeName = TypeName;
+	if(RefTargetName.size()) Dict->RefTargetName = RefTargetName;
+
+
+	// Set the type UL
+	if(Dict->GlobalKey.Size != 16)
+	{
+		// Zero byte keys are fine for abstract base classes
+		if(Dict->GlobalKey.Size != 0) 
+		{
+			error("Global key is not 16 bytes long for \"%s\"", Name.c_str());
+		}
+	}
+	else
+	{
+		Dict->TypeUL = new UL(Dict->GlobalKey.Data);
+		if(Dict->TypeUL) ULLookup[UL(Dict->TypeUL)] = Dict;
+	}
+
+	// Process the default now that we know the type
+	if(Default.size())
+	{
+		if(Dict->ValueType)
+		{
+			MDValuePtr Val = new MDValue(Dict->ValueType);
+			if(Val)
+			{
+				Val->SetString(std::string(Default));
+				DataChunkPtr Temp = Val->PutData();
+				Dict->Default.Set(Temp);
+			}
+		}
+		else
+		{
+			warning("Default value for \"%s\" ignored as it is an unknown type", Name.c_str());
+		}
+	}
+
+	// We also process the distinguished value at the end so we know the type
+	if(Items & DICT_ITEM_DVALUE)
+	{
+		if(Dict->ValueType)
+		{
+			MDValuePtr Val = new MDValue(Dict->ValueType);
+			if(Val)
+			{
+				Val->SetString(DValue);
+				DataChunkPtr Temp = Val->PutData();
+				Dict->DValue.Set(Temp);
+			}
+		}
+		else
+		{
+			warning("Distinguished value for \"%s\" ignored as it is an unknown type", Name.c_str());
+		}
+	}
+
+	// Return the new type
+	return Dict;
+}
