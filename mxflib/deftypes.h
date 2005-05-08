@@ -1,6 +1,6 @@
 /*! \file	deftypes.h
  *	\brief	Definition of classes that load type and class dictionaries
- *	\version $Id: deftypes.h,v 1.3 2005/05/03 17:20:41 matt-beard Exp $
+ *	\version $Id: deftypes.h,v 1.4 2005/05/08 15:52:53 matt-beard Exp $
  *
  */
 /*
@@ -469,6 +469,12 @@ namespace mxflib
 	 *  \return -1 on error
 	 */
 	int LoadDictionary(const ConstDictionaryRecord *DictionaryData, bool FastFail = false);
+
+	//! Load dictionary from the specified XML definitions
+	/*! \return 0 if all OK
+	 *  \return -1 on error
+	 */
+	int LoadDictionary(char *DictFile, bool FastFail = false);
 
 
 //! MXFLIB_DICTIONARY_START - Use to start a type definition block
