@@ -9,6 +9,7 @@ libmxf_a_SOURCES = crypto.cpp deftypes.cpp esp_dvdif.cpp esp_mpeg2ves.cpp esp_wa
 INCLUDES = -I$(top_builddir)
 pkginclude_HEADERS = \
 			mxflib.h \
+
 			crypto.h \
 			datachunk.h \
 			debug.h \
@@ -39,4 +40,5 @@ pkginclude_HEADERS = \
 rsrc_DATA = \
 			$(top_builddir)/types.xml \
 			$(top_builddir)/xmldict.xml \
+			$(top_builddir)/dict.xml \
 			$(top_builddir)/DMS_Crypto.xml

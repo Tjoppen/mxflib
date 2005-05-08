@@ -298,6 +298,10 @@ SOURCE=..\..\docs\mxflib.dox
 # End Group
 # Begin Source File
 
+SOURCE=..\..\dict.xml
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\license.txt
 # End Source File
 # Begin Source File
