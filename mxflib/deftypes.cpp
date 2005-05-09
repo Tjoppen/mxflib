@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.9 2005/05/08 15:52:53 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.10 2005/05/09 10:00:22 matt-beard Exp $
  *
  */
 /*
@@ -447,375 +447,380 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 }
 
 
-
-//! XML callback - Deal with start tag of an element
-void ::DefTypes_startElement(void *user_data, const char *name, const char **attrs)
+namespace
 {
-	TypesParserState *State = (TypesParserState*)user_data;
-
-	switch(State->State)
+	//! XML callback - Deal with start tag of an element
+	void DefTypes_startElement(void *user_data, const char *name, const char **attrs)
 	{
-		case StateIdle:
+		TypesParserState *State = (TypesParserState*)user_data;
+
+		switch(State->State)
 		{
-			if(strcmp(name, "MXFTypes") != 0)
+			case StateIdle:
 			{
-				XML_fatalError(user_data, "Outer tag <MXFTypes> expected - <%s> found\n", name);
+				if(strcmp(name, "MXFTypes") != 0)
+				{
+					XML_fatalError(user_data, "Outer tag <MXFTypes> expected - <%s> found\n", name);
+					return;
+				}
+
+				State->State = StateTypes;
+
+				break;
+			}
+
+			case StateTypes:
+			{
+				if(strcmp(name, "Basic") == 0)
+					State->State = StateTypesBasic;
+				else if(strcmp(name, "Interpretation") == 0)
+					State->State = StateTypesInterpretation;
+				else if(strcmp(name, "Multiple") == 0)
+					State->State = StateTypesMultiple;
+				else if(strcmp(name, "Compound") == 0)
+					State->State = StateTypesCompound;
+				else
+					XML_error(user_data, "Tag <%s> found when types class expected\n", name);
+
+				break;
+			}
+
+			case StateTypesBasic:
+			{
+				const char *Detail = "";
+				int Size = 1;
+				bool Endian = false;
+				
+				/* Process attributes */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "detail") == 0)
+						{
+							Detail = val;
+						}
+						else if(strcmp(attr, "size") == 0)
+						{
+							Size = atoi(val);
+						}
+						else if(strcmp(attr, "endian") == 0)
+						{
+							if(strcasecmp(val,"yes") == 0) Endian = true;
+						}
+						else if(strcmp(attr, "ref") == 0)
+						{
+							// Ignore
+						}
+						else
+						{
+							XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
+						}
+					}
+				}
+
+				// Build a new type record
+				TypeRecordPtr ThisType = new TypeRecord;
+
+				ThisType->Class = TypeBasic;
+				ThisType->Type = name;
+				ThisType->Detail = Detail;
+				ThisType->Base = "";
+				ThisType->Size = Size;
+				ThisType->Endian = Endian;
+				ThisType->IsBatch = false;
+
+				// Add this type record
+				State->Types.push_back(ThisType);
+
+				break;
+			}
+
+			case StateTypesInterpretation:
+			{
+				const char *Detail = "";
+				const char *Base = "";
+				int Size = 0;
+				
+				/* Process attributes */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "detail") == 0)
+						{
+							Detail = val;
+						}
+						else if(strcmp(attr, "base") == 0)
+						{
+							Base = val;
+						}
+						else if(strcmp(attr, "size") == 0)
+						{
+							Size = atoi(val);
+						}
+						else if(strcmp(attr, "ref") == 0)
+						{
+							// Ignore
+						}
+						else
+						{
+							XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
+						}
+					}
+				}
+
+				// Build a new type record
+				TypeRecordPtr ThisType = new TypeRecord;
+
+				ThisType->Class = TypeInterpretation;
+				ThisType->Type = name;
+				ThisType->Detail = Detail;
+				ThisType->Base = Base;
+				ThisType->Size = Size;
+				ThisType->Endian = false;
+				ThisType->IsBatch = false;
+
+				// Add this type record
+				State->Types.push_back(ThisType);
+
+				break;
+			}
+
+			case StateTypesMultiple:
+			{
+				const char *Detail = "";
+				const char *Base = "";
+				bool IsBatch = false;
+				int Size = 0;
+
+				/* Process attributes */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "detail") == 0)
+						{
+							Detail = val;
+						}
+						else if(strcmp(attr, "base") == 0)
+						{
+							Base = val;
+						}
+						else if(strcmp(attr, "size") == 0)
+						{
+							Size = atoi(val);
+						}
+						else if(strcmp(attr, "type") == 0)
+						{
+							if(strcasecmp(val, "Batch") == 0) IsBatch = true;
+						}
+						else if(strcmp(attr, "ref") == 0)
+						{
+							// Ignore
+						}
+						else
+						{
+							XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
+						}
+					}
+				}
+
+				// Build a new type record
+				TypeRecordPtr ThisType = new TypeRecord;
+
+				ThisType->Class = TypeMultiple;
+				ThisType->Type = name;
+				ThisType->Detail = Detail;
+				ThisType->Base = Base;
+				ThisType->Size = Size;
+				ThisType->Endian = false;
+				ThisType->IsBatch = IsBatch;
+
+				// Add this type record
+				State->Types.push_back(ThisType);
+
+				break;
+			}
+
+			case StateTypesCompound:
+			{
+				const char *Detail = "";
+
+				/* Process attributes */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "detail") == 0)
+						{
+							Detail = val;
+						}
+						else if(strcmp(attr, "ref") == 0)
+						{
+							// Ignore
+						}
+						else
+						{
+							XML_error(user_data, "Unexpected attribute \"%s\" in compound type \"%s\"\n", attr, name);
+						}
+					}
+				}
+
+				// Build a new type record
+				TypeRecordPtr ThisType = new TypeRecord;
+
+				ThisType->Class = TypeCompound;
+				ThisType->Type = name;
+				ThisType->Detail = Detail;
+				ThisType->Base = "";
+				ThisType->Size = 0;
+				ThisType->Endian = false;
+				ThisType->IsBatch = false;
+
+				// Add this type record
+				State->Types.push_back(ThisType);
+
+				State->State = StateTypesCompoundItem;
+				State->Compound = ThisType;
+
+				break;
+			}
+
+			case StateTypesCompoundItem:
+			{
+				const char *Detail = "";
+				const char *Type = "";
+				int Size = 0;
+				
+				/* Process attributes */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "detail") == 0)
+						{
+							Detail = val;
+						}
+						else if(strcmp(attr, "type") == 0)
+						{
+							Type = val;
+						}
+						else if(strcmp(attr, "size") == 0)
+						{
+							Size = atoi(val);
+						}
+						else if(strcmp(attr, "ref") == 0)
+						{
+							// Ignore
+						}
+						else
+						{
+							error("Unexpected attribute \"%s\" in compound item \"%s\"\n", attr, name);
+						}
+					}
+				}
+
+				// Build a new type record
+				TypeRecordPtr ThisType = new TypeRecord;
+
+				ThisType->Class = TypeSub;
+				ThisType->Type = name;
+				ThisType->Detail = Detail;
+				ThisType->Base = Type;
+				ThisType->Size = Size;
+				ThisType->Endian = false;
+				ThisType->IsBatch = false;
+
+				// Add as a child of the current compound
+				State->Compound->Children.push_back(ThisType);
+
+				break;
+			}
+
+			default:		// Should not be possible
+			case StateDone:
+			{
+				XML_error(user_data, "Tag <%s> found beyond end of dictionary data\n", name);
 				return;
 			}
-
-			State->State = StateTypes;
-
-			break;
-		}
-
-		case StateTypes:
-		{
-			if(strcmp(name, "Basic") == 0)
-				State->State = StateTypesBasic;
-			else if(strcmp(name, "Interpretation") == 0)
-				State->State = StateTypesInterpretation;
-			else if(strcmp(name, "Multiple") == 0)
-				State->State = StateTypesMultiple;
-			else if(strcmp(name, "Compound") == 0)
-				State->State = StateTypesCompound;
-			else
-				XML_error(user_data, "Tag <%s> found when types class expected\n", name);
-
-			break;
-		}
-
-		case StateTypesBasic:
-		{
-			const char *Detail = "";
-			int Size = 1;
-			bool Endian = false;
-			
-			/* Process attributes */
-			if(attrs != NULL)
-			{
-				int this_attr = 0;
-				while(attrs[this_attr])
-				{
-					char const *attr = attrs[this_attr++];
-					char const *val = attrs[this_attr++];
-					
-					if(strcmp(attr, "detail") == 0)
-					{
-						Detail = val;
-					}
-					else if(strcmp(attr, "size") == 0)
-					{
-						Size = atoi(val);
-					}
-					else if(strcmp(attr, "endian") == 0)
-					{
-						if(strcasecmp(val,"yes") == 0) Endian = true;
-					}
-					else if(strcmp(attr, "ref") == 0)
-					{
-						// Ignore
-					}
-					else
-					{
-						XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
-					}
-				}
-			}
-
-			// Build a new type record
-			TypeRecordPtr ThisType = new TypeRecord;
-
-			ThisType->Class = TypeBasic;
-			ThisType->Type = name;
-			ThisType->Detail = Detail;
-			ThisType->Base = "";
-			ThisType->Size = Size;
-			ThisType->Endian = Endian;
-			ThisType->IsBatch = false;
-
-			// Add this type record
-			State->Types.push_back(ThisType);
-
-			break;
-		}
-
-		case StateTypesInterpretation:
-		{
-			const char *Detail = "";
-			const char *Base = "";
-			int Size = 0;
-			
-			/* Process attributes */
-			if(attrs != NULL)
-			{
-				int this_attr = 0;
-				while(attrs[this_attr])
-				{
-					char const *attr = attrs[this_attr++];
-					char const *val = attrs[this_attr++];
-					
-					if(strcmp(attr, "detail") == 0)
-					{
-						Detail = val;
-					}
-					else if(strcmp(attr, "base") == 0)
-					{
-						Base = val;
-					}
-					else if(strcmp(attr, "size") == 0)
-					{
-						Size = atoi(val);
-					}
-					else if(strcmp(attr, "ref") == 0)
-					{
-						// Ignore
-					}
-					else
-					{
-						XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
-					}
-				}
-			}
-
-			// Build a new type record
-			TypeRecordPtr ThisType = new TypeRecord;
-
-			ThisType->Class = TypeInterpretation;
-			ThisType->Type = name;
-			ThisType->Detail = Detail;
-			ThisType->Base = Base;
-			ThisType->Size = Size;
-			ThisType->Endian = false;
-			ThisType->IsBatch = false;
-
-			// Add this type record
-			State->Types.push_back(ThisType);
-
-			break;
-		}
-
-		case StateTypesMultiple:
-		{
-			const char *Detail = "";
-			const char *Base = "";
-			bool IsBatch = false;
-			int Size = 0;
-
-			/* Process attributes */
-			if(attrs != NULL)
-			{
-				int this_attr = 0;
-				while(attrs[this_attr])
-				{
-					char const *attr = attrs[this_attr++];
-					char const *val = attrs[this_attr++];
-					
-					if(strcmp(attr, "detail") == 0)
-					{
-						Detail = val;
-					}
-					else if(strcmp(attr, "base") == 0)
-					{
-						Base = val;
-					}
-					else if(strcmp(attr, "size") == 0)
-					{
-						Size = atoi(val);
-					}
-					else if(strcmp(attr, "type") == 0)
-					{
-						if(strcasecmp(val, "Batch") == 0) IsBatch = true;
-					}
-					else if(strcmp(attr, "ref") == 0)
-					{
-						// Ignore
-					}
-					else
-					{
-						XML_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
-					}
-				}
-			}
-
-			// Build a new type record
-			TypeRecordPtr ThisType = new TypeRecord;
-
-			ThisType->Class = TypeMultiple;
-			ThisType->Type = name;
-			ThisType->Detail = Detail;
-			ThisType->Base = Base;
-			ThisType->Size = Size;
-			ThisType->Endian = false;
-			ThisType->IsBatch = IsBatch;
-
-			// Add this type record
-			State->Types.push_back(ThisType);
-
-			break;
-		}
-
-		case StateTypesCompound:
-		{
-			const char *Detail = "";
-
-			/* Process attributes */
-			if(attrs != NULL)
-			{
-				int this_attr = 0;
-				while(attrs[this_attr])
-				{
-					char const *attr = attrs[this_attr++];
-					char const *val = attrs[this_attr++];
-					
-					if(strcmp(attr, "detail") == 0)
-					{
-						Detail = val;
-					}
-					else if(strcmp(attr, "ref") == 0)
-					{
-						// Ignore
-					}
-					else
-					{
-						XML_error(user_data, "Unexpected attribute \"%s\" in compound type \"%s\"\n", attr, name);
-					}
-				}
-			}
-
-			// Build a new type record
-			TypeRecordPtr ThisType = new TypeRecord;
-
-			ThisType->Class = TypeCompound;
-			ThisType->Type = name;
-			ThisType->Detail = Detail;
-			ThisType->Base = "";
-			ThisType->Size = 0;
-			ThisType->Endian = false;
-			ThisType->IsBatch = false;
-
-			// Add this type record
-			State->Types.push_back(ThisType);
-
-			State->State = StateTypesCompoundItem;
-			State->Compound = ThisType;
-
-			break;
-		}
-
-		case StateTypesCompoundItem:
-		{
-			const char *Detail = "";
-			const char *Type = "";
-			int Size = 0;
-			
-			/* Process attributes */
-			if(attrs != NULL)
-			{
-				int this_attr = 0;
-				while(attrs[this_attr])
-				{
-					char const *attr = attrs[this_attr++];
-					char const *val = attrs[this_attr++];
-					
-					if(strcmp(attr, "detail") == 0)
-					{
-						Detail = val;
-					}
-					else if(strcmp(attr, "type") == 0)
-					{
-						Type = val;
-					}
-					else if(strcmp(attr, "size") == 0)
-					{
-						Size = atoi(val);
-					}
-					else if(strcmp(attr, "ref") == 0)
-					{
-						// Ignore
-					}
-					else
-					{
-						error("Unexpected attribute \"%s\" in compound item \"%s\"\n", attr, name);
-					}
-				}
-			}
-
-			// Build a new type record
-			TypeRecordPtr ThisType = new TypeRecord;
-
-			ThisType->Class = TypeSub;
-			ThisType->Type = name;
-			ThisType->Detail = Detail;
-			ThisType->Base = Type;
-			ThisType->Size = Size;
-			ThisType->Endian = false;
-			ThisType->IsBatch = false;
-
-			// Add as a child of the current compound
-			State->Compound->Children.push_back(ThisType);
-
-			break;
-		}
-
-		default:		// Should not be possible
-		case StateDone:
-		{
-			XML_error(user_data, "Tag <%s> found beyond end of dictionary data\n", name);
-			return;
 		}
 	}
 }
 
 
-//! XML callback - Deal with end tag of an element
-void ::DefTypes_endElement(void *user_data, const char *name)
+namespace
 {
-	TypesParserState *State = (TypesParserState*)user_data;
-
-	switch(State->State)
+	//! XML callback - Deal with end tag of an element
+	void DefTypes_endElement(void *user_data, const char *name)
 	{
-		default:
-		case StateIdle:
-		{
-			XML_error(user_data, "Closing tag </%s> found when not unexpected\n", name);
-			return;
-		}
+		TypesParserState *State = (TypesParserState*)user_data;
 
-		case StateTypes:
+		switch(State->State)
 		{
-			State->State = StateDone;
-			break;
-		}
-
-		case StateTypesBasic: 
-		{
-			if(strcmp(name,"Basic") == 0) State->State = StateTypes;
-			break;
-		}
-		case StateTypesInterpretation: 
-		{
-			if(strcmp(name,"Interpretation") == 0) State->State = StateTypes;
-			break;
-		}
-		case StateTypesMultiple: 
-		{
-			if(strcmp(name,"Multiple") == 0) State->State = StateTypes;
-			break;
-		}
-		case StateTypesCompound: 
-		{
-			if(strcmp(name,"Compound") == 0) State->State = StateTypes;
-			break;
-		}
-		
-		case StateTypesCompoundItem:
-		{
-			if(strcmp(name,State->Compound->Type.c_str()) == 0)
+			default:
+			case StateIdle:
 			{
-				State->State = StateTypesCompound;
-				State->Compound = NULL;
+				XML_error(user_data, "Closing tag </%s> found when not unexpected\n", name);
+				return;
 			}
-			break;
+
+			case StateTypes:
+			{
+				State->State = StateDone;
+				break;
+			}
+
+			case StateTypesBasic: 
+			{
+				if(strcmp(name,"Basic") == 0) State->State = StateTypes;
+				break;
+			}
+			case StateTypesInterpretation: 
+			{
+				if(strcmp(name,"Interpretation") == 0) State->State = StateTypes;
+				break;
+			}
+			case StateTypesMultiple: 
+			{
+				if(strcmp(name,"Multiple") == 0) State->State = StateTypes;
+				break;
+			}
+			case StateTypesCompound: 
+			{
+				if(strcmp(name,"Compound") == 0) State->State = StateTypes;
+				break;
+			}
+			
+			case StateTypesCompoundItem:
+			{
+				if(strcmp(name,State->Compound->Type.c_str()) == 0)
+				{
+					State->State = StateTypesCompound;
+					State->Compound = NULL;
+				}
+				break;
+			}
 		}
 	}
 }
@@ -1343,440 +1348,447 @@ int mxflib::LoadDictionary(char *DictFile, bool FastFail /*=false*/)
 }
 
 
-//! XML callback - Deal with start tag of an element
-void ::DictLoad_startElement(void *user_data, const char *name, const char **attrs)
+namespace
 {
-	DictParserState *State = (DictParserState*)user_data;
-
-	switch(State->State)
+	//! XML callback - Deal with start tag of an element
+	void DictLoad_startElement(void *user_data, const char *name, const char **attrs)
 	{
-		// Identify the outer type
-		case DictStateIdle:
+		DictParserState *State = (DictParserState*)user_data;
+
+		switch(State->State)
 		{
-			// Normal start of unified dictionary, or start of old-style classes dictionary
-			if(strcmp(name, "MXFDictionary") == 0)
+			// Identify the outer type
+			case DictStateIdle:
 			{
-				State->State = DictStateDictionary;
+				// Normal start of unified dictionary, or start of old-style classes dictionary
+				if(strcmp(name, "MXFDictionary") == 0)
+				{
+					State->State = DictStateDictionary;
+					break;
+				}
+				// Start of old-style classes dictionary
+				else if(strcmp(name, "MXFTypes") == 0)
+				{
+					State->State = DictStateDictionary;
+					
+					// ... fall through to the DictStateDictionary code where we will process this tag again
+				}
+				else
+				{
+					XML_fatalError(user_data, "Outer tag <MXFTypes> or <MXFDictionary> expected - <%s> found\n", name);
+					State->State = DictStateError;
+					return;
+				}
+			}
+
+			case DictStateDictionary:
+			{
+				if(strcmp(name, "MXFTypes") == 0)
+				{
+					/* Start types parsing */
+
+					// Define the known traits
+					// Test before calling as two partial definition files could be loaded!
+					if(TraitsMap.empty()) DefineTraits();
+
+					// Initialize the types parser state
+					State->ClassState.State = StateIdle;
+
+					// Switch to types parsing
+					State->State = DictStateTypes;
+
+					// Call the old parser to process the MXFTypes tag
+					DefTypes_startElement(&State->ClassState, name, attrs);
+
+					break;
+				}
+
+				// Start classes parsing
+				State->State = DictStateClasses;
+				State->Parents.clear();
+
+				if(strcmp(name, "MXFClasses") == 0)
+				{
+					// Found an indicator that we are starting new-style unified dictionary classes
+					break;
+				}
+
+				// Otherwise it seems that this is an old-style classes dictionary and are now in a classes section
+				// ... fall through to DictStateClasses and parse this first class
+			}
+
+			// Parse classes
+			case DictStateClasses:
+			{
+				ProcessClassElement(user_data, name, attrs);
+			
 				break;
 			}
-			// Start of old-style classes dictionary
-			else if(strcmp(name, "MXFTypes") == 0)
+
+			// Parse types
+			case DictStateTypes:
 			{
-				State->State = DictStateDictionary;
-				
-				// ... fall through to the DictStateDictionary code where we will process this tag again
-			}
-			else
-			{
-				XML_fatalError(user_data, "Outer tag <MXFTypes> or <MXFDictionary> expected - <%s> found\n", name);
-				State->State = DictStateError;
-				return;
-			}
-		}
-
-		case DictStateDictionary:
-		{
-			if(strcmp(name, "MXFTypes") == 0)
-			{
-				/* Start types parsing */
-
-				// Define the known traits
-				// Test before calling as two partial definition files could be loaded!
-				if(TraitsMap.empty()) DefineTraits();
-
-				// Initialize the types parser state
-				State->ClassState.State = StateIdle;
-
-				// Switch to types parsing
-				State->State = DictStateTypes;
-
-				// Call the old parser to process the MXFTypes tag
+				// Call the old parser
 				DefTypes_startElement(&State->ClassState, name, attrs);
 
 				break;
 			}
 
-			// Start classes parsing
-			State->State = DictStateClasses;
-			State->Parents.clear();
+			default:		// All other cases
+				return;
 
-			if(strcmp(name, "MXFClasses") == 0)
-			{
-				// Found an indicator that we are starting new-style unified dictionary classes
-				break;
-			}
-
-			// Otherwise it seems that this is an old-style classes dictionary and are now in a classes section
-			// ... fall through to DictStateClasses and parse this first class
 		}
-
-		// Parse classes
-		case DictStateClasses:
-		{
-			ProcessClassElement(user_data, name, attrs);
-		
-			break;
-		}
-
-		// Parse types
-		case DictStateTypes:
-		{
-			// Call the old parser
-			DefTypes_startElement(&State->ClassState, name, attrs);
-
-			break;
-		}
-
-		default:		// All other cases
-			return;
-
 	}
 }
 
 
-
-//! Process an XML element that has been determined to be part of a class definition
-/*! \return true if all OK
- */
-bool ::ProcessClassElement(void *user_data, const char *name, const char **attrs)
+namespace
 {
-	DictParserState *State = (DictParserState*)user_data;
-
-	bool Ret = true;
-	int this_attr = 0;
-
-	debug("Element : %s\n", name);
-
-	if(attrs != NULL)
+	//! Process an XML element that has been determined to be part of a class definition
+	/*! \return true if all OK
+	 */
+	bool ProcessClassElement(void *user_data, const char *name, const char **attrs)
 	{
-		while(attrs[this_attr])
+		DictParserState *State = (DictParserState*)user_data;
+
+		bool Ret = true;
+		int this_attr = 0;
+
+		debug("Element : %s\n", name);
+
+		if(attrs != NULL)
 		{
-			debug("  Attribute : %s = \"%s\"\n", attrs[this_attr], attrs[this_attr+1]);
-			this_attr += 2;
+			while(attrs[this_attr])
+			{
+				debug("  Attribute : %s = \"%s\"\n", attrs[this_attr], attrs[this_attr+1]);
+				this_attr += 2;
+			}
 		}
-	}
 
-	//! Bit map of items to set for this definition (as opposed to inheriting them from any base class)
-	UInt32 Items = 0;
+		//! Bit map of items to set for this definition (as opposed to inheriting them from any base class)
+		UInt32 Items = 0;
 
-	//! Used to determine if we need to copy the main key to the global key
-	bool HasGlobalKey = false;
+		//! Used to determine if we need to copy the main key to the global key
+		bool HasGlobalKey = false;
 
-	/* Variables required to build this item */
-	DataChunkPtr Key;
-	DataChunkPtr GlobalKey;
-	std::string Detail;
-	std::string Base;
-	DictUse Use = DICT_USE_OPTIONAL;
-	DictRefType RefType = DICT_REF_NONE;
-	MDTypePtr ValueType;
-	std::string TypeName;
-	MDContainerType ContainerType = NONE;
-	DictKeyFormat KeyFormat = DICT_KEY_NONE;
-	DictLenFormat LenFormat = DICT_LEN_NONE;
-	int minLength = 0;
-	int maxLength = 0;
-	std::string RefTargetName;
-	MDOTypePtr Parent;
-	std::string Default;
-	std::string DValue;
+		/* Variables required to build this item */
+		DataChunkPtr Key;
+		DataChunkPtr GlobalKey;
+		std::string Detail;
+		std::string Base;
+		DictUse Use = DICT_USE_OPTIONAL;
+		DictRefType RefType = DICT_REF_NONE;
+		MDTypePtr ValueType;
+		std::string TypeName;
+		MDContainerType ContainerType = NONE;
+		DictKeyFormat KeyFormat = DICT_KEY_NONE;
+		DictLenFormat LenFormat = DICT_LEN_NONE;
+		int minLength = 0;
+		int maxLength = 0;
+		std::string RefTargetName;
+		MDOTypePtr Parent;
+		std::string Default;
+		std::string DValue;
 
-	// Record the parent
-	if(State->Parents.size())
-	{
-		// Our parent is the last entry in the parents list
-		Parent = *State->Parents.rbegin();
-	}
-
-	/* Scan attributes */
-	this_attr = 0;
-	if(attrs != NULL)
-	{
-		while(attrs[this_attr])
+		// Record the parent
+		if(State->Parents.size())
 		{
-			char const *attr = attrs[this_attr++];
-			char const *val = attrs[this_attr++];
-			
-			if(strcmp(attr, "key") == 0)
+			// Our parent is the last entry in the parents list
+			Parent = *State->Parents.rbegin();
+		}
+
+		/* Scan attributes */
+		this_attr = 0;
+		if(attrs != NULL)
+		{
+			while(attrs[this_attr])
 			{
-				int Size;
-				const char *p = val;
-				Uint8 Buffer[32];
-
-				Size = ReadHexString(&p, 32, Buffer, " \t.");
-
-				Key = new DataChunk(Size, Buffer);
-			}
-			else if(strcmp(attr, "globalKey") == 0)
-			{
-				int Size;
-				const char *p = val;
-				Uint8 Buffer[32];
-
-				Size = ReadHexString(&p, 32, Buffer, " \t.");
-
-				GlobalKey = new DataChunk(Size, Buffer);
-
-				HasGlobalKey = true;
-			}
-			else if(strcmp(attr, "detail") == 0)
-			{
-				Detail = std::string(val);
-			}
-			else if(strcmp(attr, "use") == 0)
-			{
-				Items |= (UInt32)MDOType::DICT_ITEM_USE;
-
-				if(strcasecmp(val,"required") == 0) Use = DICT_USE_REQUIRED;
-				else if(strcasecmp(val,"encoder required") == 0) Use = DICT_USE_ENCODER_REQUIRED;
-				else if(strcasecmp(val,"decoder required") == 0) Use = DICT_USE_DECODER_REQUIRED;
-				else if(strcasecmp(val,"best effort") == 0) Use = DICT_USE_BEST_EFFORT;
-				else if(strcasecmp(val,"optional") == 0) Use = DICT_USE_OPTIONAL;
-				else if(strcasecmp(val,"dark") == 0) Use = DICT_USE_DARK;
-				else if(strcasecmp(val,"toxic") == 0) Use = DICT_USE_TOXIC;
-				else
+				char const *attr = attrs[this_attr++];
+				char const *val = attrs[this_attr++];
+				
+				if(strcmp(attr, "key") == 0)
 				{
-					XML_warning(user_data, "Unknown use value use=\"%s\" in <%s/>", val, name);
+					int Size;
+					const char *p = val;
+					Uint8 Buffer[32];
+
+					Size = ReadHexString(&p, 32, Buffer, " \t.");
+
+					Key = new DataChunk(Size, Buffer);
 				}
-			}
-			else if(strcmp(attr, "ref") == 0)
-			{
-				Items |= (UInt32)MDOType::DICT_ITEM_REFTYPE;
-
-				if(strcasecmp(val,"strong") == 0) RefType = DICT_REF_STRONG;
-				else if(strcasecmp(val,"target") == 0) RefType = DICT_REF_TARGET;
-				else if(strcasecmp(val,"weak") == 0) RefType = DICT_REF_WEAK;
-				else
+				else if(strcmp(attr, "globalKey") == 0)
 				{
-					XML_warning(user_data, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+					int Size;
+					const char *p = val;
+					Uint8 Buffer[32];
+
+					Size = ReadHexString(&p, 32, Buffer, " \t.");
+
+					GlobalKey = new DataChunk(Size, Buffer);
+
+					HasGlobalKey = true;
 				}
-			}
-			else if(strcmp(attr, "type") == 0)
-			// TODO: This section is rather inefficient due to the way that it was
-			//       originally used - needs to be recoded at some point!
-			{
-				ValueType = MDType::Find(val);
-
-				if(!ValueType)
+				else if(strcmp(attr, "detail") == 0)
 				{
-					/*
-					** Enumeration type for dictionary entry 'Type' field
-					*/
-					typedef enum 
-					{
-						DICT_TYPE_NONE = 0,
-						DICT_TYPE_U8,
-						DICT_TYPE_I8,
-						DICT_TYPE_U16,
-						DICT_TYPE_I16,
-						DICT_TYPE_U32,
-						DICT_TYPE_I32,
-						DICT_TYPE_U64,
-						DICT_TYPE_I64,
-						DICT_TYPE_ISO7,
-						DICT_TYPE_UTF8,
-						DICT_TYPE_UTF16,
-						DICT_TYPE_UUID,
-						DICT_TYPE_UMID,
-						DICT_TYPE_LABEL,
-						DICT_TYPE_TIMESTAMP,
-						DICT_TYPE_VERTYPE,
-						DICT_TYPE_RATIONAL,
-						DICT_TYPE_RAW,
-						DICT_TYPE_I32ARRAY,
+					Detail = std::string(val);
+				}
+				else if(strcmp(attr, "use") == 0)
+				{
+					Items |= (UInt32)MDOType::DICT_ITEM_USE;
 
-						/* Special to allow decoding of Sony IBC 2000 file */
-						DICT_TYPE_UTFSONY,
-
-						/* New types (soon to be added via types registry) */
-						DICT_TYPE_BOOLEAN,
-						DICT_TYPE_ISO7STRING,
-						DICT_TYPE_UTF16STRING,
-						DICT_TYPE_IEEEFLOAT64,
-						DICT_TYPE_UINT8STRING,
-						DICT_TYPE_PRODUCTVERSION,
-
-						/* Container types */
-						DICT_TYPE_UNIVERSAL_SET,
-						DICT_TYPE_LOCAL_SET,
-						DICT_TYPE_FIXED_PACK,
-						DICT_TYPE_VARIABLE_PACK,
-						DICT_TYPE_VECTOR,
-						DICT_TYPE_ARRAY,
-
-						/* Types for pixel layout */
-						DICT_TYPE_RGBALAYOUT,
-
-					} DictType;
-
-
-					DictType DType = DICT_TYPE_NONE;
-					if(strcasecmp(val,"universalSet") == 0) DType = DICT_TYPE_UNIVERSAL_SET;
-					else if(strcasecmp(val,"localSet") == 0) DType = DICT_TYPE_LOCAL_SET;
-					else if(strcasecmp(val,"subLocalSet") == 0) DType = DICT_TYPE_LOCAL_SET;
-					else if(strcasecmp(val,"fixedPack") == 0) DType = DICT_TYPE_FIXED_PACK;
-					else if(strcasecmp(val,"subFixedPack") == 0) DType = DICT_TYPE_FIXED_PACK;
-					else if(strcasecmp(val,"variablePack") == 0) DType = DICT_TYPE_VARIABLE_PACK;
-					else if(strcasecmp(val,"subVariablePack") == 0) DType = DICT_TYPE_VARIABLE_PACK;
-					else if(strcasecmp(val,"vector") == 0) DType = DICT_TYPE_VECTOR;
-					else if(strcasecmp(val,"subVector") == 0) DType = DICT_TYPE_VECTOR;
-					else if(strcasecmp(val,"array") == 0) DType = DICT_TYPE_ARRAY;
-					else if(strcasecmp(val,"subArray") == 0) DType = DICT_TYPE_ARRAY;
+					if(strcasecmp(val,"required") == 0) Use = DICT_USE_REQUIRED;
+					else if(strcasecmp(val,"encoder required") == 0) Use = DICT_USE_ENCODER_REQUIRED;
+					else if(strcasecmp(val,"decoder required") == 0) Use = DICT_USE_DECODER_REQUIRED;
+					else if(strcasecmp(val,"best effort") == 0) Use = DICT_USE_BEST_EFFORT;
+					else if(strcasecmp(val,"optional") == 0) Use = DICT_USE_OPTIONAL;
+					else if(strcasecmp(val,"dark") == 0) Use = DICT_USE_DARK;
+					else if(strcasecmp(val,"toxic") == 0) Use = DICT_USE_TOXIC;
 					else
 					{
-						XML_warning(user_data, "Unknown type \"%s\" in <%s/>", val, name);
-					}
-
-					// Set the container type
-					if((DType == DICT_TYPE_UNIVERSAL_SET) || (DType == DICT_TYPE_LOCAL_SET))
-					{
-						ContainerType = SET;
-					}
-					else if((DType == DICT_TYPE_FIXED_PACK) || (DType == DICT_TYPE_VARIABLE_PACK))
-					{
-						ContainerType = PACK;
-					}
-					else if(DType == DICT_TYPE_VECTOR)
-					{
-						ContainerType = BATCH;
-					}
-					else if(DType == DICT_TYPE_ARRAY)
-					{
-						ContainerType = ARRAY;
-					}
-
-					// If we set a container type ensure that it is used
-					if(ContainerType != NONE) Items |= (UInt32)MDOType::DICT_ITEM_CONTAINERTYPE;
-
-					// Modify 'omitted' items by type
-					if(DType == DICT_TYPE_FIXED_PACK)
-					{
-						Items |= (UInt32(MDOType::DICT_ITEM_KEYFORMAT)) | (UInt32(MDOType::DICT_ITEM_LENFORMAT));
-						KeyFormat = DICT_KEY_NONE;
-						LenFormat = DICT_LEN_NONE;
-					}
-					else if(DType == DICT_TYPE_VARIABLE_PACK)
-					{
-						Items |= MDOType::DICT_ITEM_KEYFORMAT;
-						KeyFormat = DICT_KEY_NONE;
+						XML_warning(user_data, "Unknown use value use=\"%s\" in <%s/>", val, name);
 					}
 				}
-
-				TypeName = std::string(val);
-			}
-			else if(strcmp(attr, "minLength") == 0)
-			{
-				Items |= (UInt32)MDOType::DICT_ITEM_MINLENGTH;
-				minLength = atoi(val);
-			}
-			else if(strcmp(attr, "maxLength") == 0)
-			{
-				Items |= (UInt32)MDOType::DICT_ITEM_MAXLENGTH;
-				maxLength = atoi(val);
-			}
-			else if(strcmp(attr, "keyFormat") == 0)
-			{
-				Items |= (UInt32)MDOType::DICT_ITEM_KEYFORMAT;
-				KeyFormat = (DictKeyFormat)atoi(val);
-			}
-			else if(strcmp(attr, "lengthFormat") == 0)
-			{
-				Items |= (UInt32)MDOType::DICT_ITEM_LENFORMAT;
-				if(strcmp(val, "BER")==0)
+				else if(strcmp(attr, "ref") == 0)
 				{
-					LenFormat = DICT_LEN_BER;
+					Items |= (UInt32)MDOType::DICT_ITEM_REFTYPE;
+
+					if(strcasecmp(val,"strong") == 0) RefType = DICT_REF_STRONG;
+					else if(strcasecmp(val,"target") == 0) RefType = DICT_REF_TARGET;
+					else if(strcasecmp(val,"weak") == 0) RefType = DICT_REF_WEAK;
+					else
+					{
+						XML_warning(user_data, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+					}
+				}
+				else if(strcmp(attr, "type") == 0)
+				// TODO: This section is rather inefficient due to the way that it was
+				//       originally used - needs to be recoded at some point!
+				{
+					ValueType = MDType::Find(val);
+
+					if(!ValueType)
+					{
+						/*
+						** Enumeration type for dictionary entry 'Type' field
+						*/
+						typedef enum 
+						{
+							DICT_TYPE_NONE = 0,
+							DICT_TYPE_U8,
+							DICT_TYPE_I8,
+							DICT_TYPE_U16,
+							DICT_TYPE_I16,
+							DICT_TYPE_U32,
+							DICT_TYPE_I32,
+							DICT_TYPE_U64,
+							DICT_TYPE_I64,
+							DICT_TYPE_ISO7,
+							DICT_TYPE_UTF8,
+							DICT_TYPE_UTF16,
+							DICT_TYPE_UUID,
+							DICT_TYPE_UMID,
+							DICT_TYPE_LABEL,
+							DICT_TYPE_TIMESTAMP,
+							DICT_TYPE_VERTYPE,
+							DICT_TYPE_RATIONAL,
+							DICT_TYPE_RAW,
+							DICT_TYPE_I32ARRAY,
+
+							/* Special to allow decoding of Sony IBC 2000 file */
+							DICT_TYPE_UTFSONY,
+
+							/* New types (soon to be added via types registry) */
+							DICT_TYPE_BOOLEAN,
+							DICT_TYPE_ISO7STRING,
+							DICT_TYPE_UTF16STRING,
+							DICT_TYPE_IEEEFLOAT64,
+							DICT_TYPE_UINT8STRING,
+							DICT_TYPE_PRODUCTVERSION,
+
+							/* Container types */
+							DICT_TYPE_UNIVERSAL_SET,
+							DICT_TYPE_LOCAL_SET,
+							DICT_TYPE_FIXED_PACK,
+							DICT_TYPE_VARIABLE_PACK,
+							DICT_TYPE_VECTOR,
+							DICT_TYPE_ARRAY,
+
+							/* Types for pixel layout */
+							DICT_TYPE_RGBALAYOUT,
+
+						} DictType;
+
+
+						DictType DType = DICT_TYPE_NONE;
+						if(strcasecmp(val,"universalSet") == 0) DType = DICT_TYPE_UNIVERSAL_SET;
+						else if(strcasecmp(val,"localSet") == 0) DType = DICT_TYPE_LOCAL_SET;
+						else if(strcasecmp(val,"subLocalSet") == 0) DType = DICT_TYPE_LOCAL_SET;
+						else if(strcasecmp(val,"fixedPack") == 0) DType = DICT_TYPE_FIXED_PACK;
+						else if(strcasecmp(val,"subFixedPack") == 0) DType = DICT_TYPE_FIXED_PACK;
+						else if(strcasecmp(val,"variablePack") == 0) DType = DICT_TYPE_VARIABLE_PACK;
+						else if(strcasecmp(val,"subVariablePack") == 0) DType = DICT_TYPE_VARIABLE_PACK;
+						else if(strcasecmp(val,"vector") == 0) DType = DICT_TYPE_VECTOR;
+						else if(strcasecmp(val,"subVector") == 0) DType = DICT_TYPE_VECTOR;
+						else if(strcasecmp(val,"array") == 0) DType = DICT_TYPE_ARRAY;
+						else if(strcasecmp(val,"subArray") == 0) DType = DICT_TYPE_ARRAY;
+						else
+						{
+							XML_warning(user_data, "Unknown type \"%s\" in <%s/>", val, name);
+						}
+
+						// Set the container type
+						if((DType == DICT_TYPE_UNIVERSAL_SET) || (DType == DICT_TYPE_LOCAL_SET))
+						{
+							ContainerType = SET;
+						}
+						else if((DType == DICT_TYPE_FIXED_PACK) || (DType == DICT_TYPE_VARIABLE_PACK))
+						{
+							ContainerType = PACK;
+						}
+						else if(DType == DICT_TYPE_VECTOR)
+						{
+							ContainerType = BATCH;
+						}
+						else if(DType == DICT_TYPE_ARRAY)
+						{
+							ContainerType = ARRAY;
+						}
+
+						// If we set a container type ensure that it is used
+						if(ContainerType != NONE) Items |= (UInt32)MDOType::DICT_ITEM_CONTAINERTYPE;
+
+						// Modify 'omitted' items by type
+						if(DType == DICT_TYPE_FIXED_PACK)
+						{
+							Items |= ((UInt32)MDOType::DICT_ITEM_KEYFORMAT) | ((UInt32)MDOType::DICT_ITEM_LENFORMAT);
+							KeyFormat = DICT_KEY_NONE;
+							LenFormat = DICT_LEN_NONE;
+						}
+						else if(DType == DICT_TYPE_VARIABLE_PACK)
+						{
+							Items |= MDOType::DICT_ITEM_KEYFORMAT;
+							KeyFormat = DICT_KEY_NONE;
+						}
+					}
+
+					TypeName = std::string(val);
+				}
+				else if(strcmp(attr, "minLength") == 0)
+				{
+					Items |= (UInt32)MDOType::DICT_ITEM_MINLENGTH;
+					minLength = atoi(val);
+				}
+				else if(strcmp(attr, "maxLength") == 0)
+				{
+					Items |= (UInt32)MDOType::DICT_ITEM_MAXLENGTH;
+					maxLength = atoi(val);
+				}
+				else if(strcmp(attr, "keyFormat") == 0)
+				{
+					Items |= (UInt32)MDOType::DICT_ITEM_KEYFORMAT;
+					KeyFormat = (DictKeyFormat)atoi(val);
+				}
+				else if(strcmp(attr, "lengthFormat") == 0)
+				{
+					Items |= (UInt32)MDOType::DICT_ITEM_LENFORMAT;
+					if(strcmp(val, "BER")==0)
+					{
+						LenFormat = DICT_LEN_BER;
+					}
+					else
+					{
+						LenFormat = (DictLenFormat)atoi(val);
+					}
+				}
+				else if(strcmp(attr, "default") == 0)
+				{
+					Default = std::string(val);
+				}
+				else if(strcmp(attr, "dvalue") == 0)
+				{
+					Items |= (UInt32)MDOType::DICT_ITEM_DVALUE;
+					DValue = std::string(val);
+				}
+				else if(strcmp(attr, "target") == 0)
+				{
+					RefTargetName = std::string(val);
+				}
+				else if(strcmp(attr, "base") == 0)
+				{
+					Base = std::string(val);
 				}
 				else
 				{
-					LenFormat = (DictLenFormat)atoi(val);
+					XML_warning(user_data, "Unexpected attribute '%s' in <%s/>", attr, name);
 				}
 			}
-			else if(strcmp(attr, "default") == 0)
-			{
-				Default = std::string(val);
-			}
-			else if(strcmp(attr, "dvalue") == 0)
-			{
-				Items |= (UInt32)MDOType::DICT_ITEM_DVALUE;
-				DValue = std::string(val);
-			}
-			else if(strcmp(attr, "target") == 0)
-			{
-				RefTargetName = std::string(val);
-			}
-			else if(strcmp(attr, "base") == 0)
-			{
-				Base = std::string(val);
-			}
+		}
+
+		/* If only a 'key' is given index it with global key as well */
+		if(!HasGlobalKey)
+		{
+			if(Key) GlobalKey = new DataChunk(Key);
+		}
+
+
+		// Build this item
+		if(Ret)
+		{
+			MDOTypePtr Dict = MDOType::BuildTypeFromDict(std::string(name), Base, Parent, Key, GlobalKey, Detail,
+														 Use, RefType, ValueType, TypeName, ContainerType, 
+														 minLength, maxLength, KeyFormat, LenFormat,
+														 RefTargetName, Default, DValue, Items);
+
+			// Add us as parent to any following entries
+			if(Dict) State->Parents.push_back(Dict);
+			else Ret = false;
+		}
+
+		return Ret;
+	}
+}
+
+
+namespace
+{
+	//! XML callback - Deal with end tag of an element
+	void DictLoad_endElement(void *user_data, const char *name)
+	{
+		DictParserState *State = (DictParserState*)user_data;
+
+		// If we have finished the classes dictionary then we are idle again
+		if(State->State == DictStateClasses)
+		{
+			if(strcmp(name, "MXFDictionary") == 0) State->State = DictStateIdle;
+			else if(strcmp(name, "MXFClasses") == 0) State->State = DictStateDictionary;
 			else
 			{
-				XML_warning(user_data, "Unexpected attribute '%s' in <%s/>", attr, name);
+				// Remove the last parent from the stack
+				std::list<MDOTypePtr>::iterator it = State->Parents.end();
+				if(--it != State->Parents.end()) State->Parents.erase(it);
+			}
+
+			// Tidy up at end of class parsing if we have finished processing classes
+			if(State->State != DictStateClasses)
+			{
+				// Build a static primer (for use in index tables)
+				MDOType::MakePrimer(true);
+			}
+		}
+
+		if(State->State == DictStateTypes)
+		{
+			// Call the old parser
+			DefTypes_endElement(&State->ClassState, name);
+
+			if(strcmp(name, "MXFTypes") == 0)
+			{
+				// Load the types that were found
+				LoadTypes(State->ClassState.Types);
+
+				// Back to the outer level of the dictionary
+				State->State = DictStateDictionary;
 			}
 		}
 	}
-
-	/* If only a 'key' is given index it with global key as well */
-	if(!HasGlobalKey)
-	{
-		if(Key) GlobalKey = new DataChunk(Key);
-	}
-
-
-	// Build this item
-	if(Ret)
-	{
-		MDOTypePtr Dict = MDOType::BuildTypeFromDict(std::string(name), Base, Parent, Key, GlobalKey, Detail,
-									                 Use, RefType, ValueType, TypeName, ContainerType, 
-													 minLength, maxLength, KeyFormat, LenFormat,
-													 RefTargetName, Default, DValue, Items);
-
-		// Add us as parent to any following entries
-		if(Dict) State->Parents.push_back(Dict);
-		else Ret = false;
-	}
-
-	return Ret;
 }
-
-
-//! XML callback - Deal with end tag of an element
-void ::DictLoad_endElement(void *user_data, const char *name)
-{
-	DictParserState *State = (DictParserState*)user_data;
-
-	// If we have finished the classes dictionary then we are idle again
-	if(State->State == DictStateClasses)
-	{
-		if(strcmp(name, "MXFDictionary") == 0) State->State = DictStateIdle;
-		else if(strcmp(name, "MXFClasses") == 0) State->State = DictStateDictionary;
-		else
-		{
-			// Remove the last parent from the stack
-			std::list<MDOTypePtr>::iterator it = State->Parents.end();
-			if(--it != State->Parents.end()) State->Parents.erase(it);
-		}
-
-		// Tidy up at end of class parsing if we have finished processing classes
-		if(State->State != DictStateClasses)
-		{
-			// Build a static primer (for use in index tables)
-			MDOType::MakePrimer(true);
-		}
-	}
-
-	if(State->State == DictStateTypes)
-	{
-		// Call the old parser
-		DefTypes_endElement(&State->ClassState, name);
-
-		if(strcmp(name, "MXFTypes") == 0)
-		{
-			// Load the types that were found
-			LoadTypes(State->ClassState.Types);
-
-			// Back to the outer level of the dictionary
-			State->State = DictStateDictionary;
-		}
-	}
-}
-
