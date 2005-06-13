@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.4 2004/12/18 20:33:15 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.5 2005/06/13 10:21:00 matt-beard Exp $
  *
  */
 /*
@@ -311,8 +311,8 @@ void MDValue::Init(void)
 {
 	ASSERT(Type);
 	
-	// If it's a basic type build an empty one
-	if(Type->EffectiveClass() == BASIC)
+	// If it's a basic type (or handles its sub data) build an empty item
+	if(Type->HandlesSubdata() || (Type->EffectiveClass() == BASIC))
 	{
 		if(Type->Size)
 		{
