@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.3 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.4 2005/06/17 16:34:09 matt-beard Exp $
  *
  */
 /*
@@ -32,6 +32,14 @@
 #include <math.h>	// For "floor"
 
 using namespace mxflib;
+
+//! Local definitions
+namespace
+{
+	//! Modified UUID for RIFF-wrapped wave PCM audio
+	const Uint8 WAVE_PCM_RIFF_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 'R', 'I', 'F',  'F', 'W', 'A', 'V' };
+}
+
 
 //! Examine the open file and return a list of essence descriptors
 /*! \note This call will modify properties SampleRate, DataStart and DataSize */
@@ -64,7 +72,11 @@ EssenceStreamDescriptorList mxflib::WAVE_PCM_EssenceSubParser::IdentifyEssence(F
 	EssenceStreamDescriptor Descriptor;
 	Descriptor.ID = 0;
 	Descriptor.Description = "Wave audio essence";
+	Descriptor.SourceFormat.Set(WAVE_PCM_RIFF_Format);
 	Descriptor.Descriptor = DescObj;
+
+	// Record a pointer to the descriptor so we can check if we are asked to process this source
+	CurrentDescriptor = DescObj;
 
 	// Set the single descriptor
 	Ret.push_back(Descriptor);
@@ -79,13 +91,16 @@ EssenceStreamDescriptorList mxflib::WAVE_PCM_EssenceSubParser::IdentifyEssence(F
  *		   of the essence stream requiring wrapping
  *	\note The options should be returned in an order of preference as the caller is likely to use the first that it can support
  */
-WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor Descriptor)
+WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
 	Uint8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x02, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x06, 0x01, 0x00 };
 	WrappingOptionList Ret;
 
-	// If the supplied descriptor isn't a wave audio descriptor then we can't wrap the essence
-	if(Descriptor.Descriptor->Name() != "WaveAudioDescriptor") return Ret;
+	// If the source format isn't RIFF-wrapped wave PCM then we can't wrap the essence
+	if(memcmp(Descriptor.SourceFormat.GetValue(), WAVE_PCM_RIFF_Format, 16) != 0) return Ret;
+
+	// The identify step configures some member variables so we can only continue if we just identified this very source
+	if((!CurrentDescriptor) || (Descriptor.Descriptor != CurrentDescriptor)) return Ret;
 
 	// Build a WrappingOption for clip wrapping
 	WrappingOptionPtr ClipWrap = new WrappingOption;

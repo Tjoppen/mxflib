@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.3 2004/11/13 10:26:23 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.4 2005/06/17 16:34:09 matt-beard Exp $
  *
  */
 /*
@@ -33,15 +33,26 @@
 
 using namespace mxflib;
 
+//! Local definitions
+namespace
+{
+	//! Modified UUID for raw DV
+	const Uint8 DV_DIF_RAW_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 0xfa, 'R',  'A', 'W', 'D', 'V' };
+
+	//! Modified UUID for AVI-wrapped DV
+	const Uint8 DV_DIF_AVI_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 0xfa, 'A',  'V', 'I', 'D', 'V' };
+}
 
 
 //! Examine the open file and return a list of essence descriptors
 EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle InFile)
 {
 	int BufferBytes;
-//	Uint8 Buffer[12]; // Use the object's buffer!
 
 	EssenceStreamDescriptorList Ret;
+
+	// Allocate a buffer if we don't have one
+	if(!Buffer) Buffer = new Uint8[DV_DIF_BUFFERSIZE];
 
 	// Read the first 12 bytes of the file to allow us to identify it
 	FileSeek(InFile, 0);
@@ -174,65 +185,16 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	EssenceStreamDescriptor Descriptor;
 	Descriptor.ID = 0;
 	Descriptor.Description = "DV-DIF audio/video essence";
+	Descriptor.SourceFormat.Set(DV_DIF_RAW_Format);
 	Descriptor.Descriptor = DescObj;
+
+	// Record a pointer to the descriptor so we can check if we are asked to process this source
+	CurrentDescriptor = DescObj;
 
 	// Set the single descriptor
 	Ret.push_back(Descriptor);
 
 	return Ret;
-
-/*	int BufferBytes;
-	Uint8 Buffer[512];
-	Uint8 *BuffPtr;
-
-	EssenceStreamDescriptorList Ret;
-
-	// Read the first 512 bytes of the file to allow us to investigate it
-	FileSeek(InFile, 0);
-	BufferBytes = FileRead(InFile, Buffer, 512);
-	
-	// If the file is smaller than 16 bytes give up now!
-	if(BufferBytes < 16) return Ret;
-
-	// If the file doesn't start with two zeros the it doesn't start
-	// with a start code and so it can't be a valid MPEG2-VES file
-	if((Buffer[0] != 0) || (Buffer[1] != 0)) return Ret;
-
-	// Scan for the first start code
-	BuffPtr = &Buffer[2];
-	int StartPos = 0;						//!< Start position of sequence header (when found)
-	int ScanLeft = BufferBytes - 3;			//!< Number of bytes left in buffer to scan
-	while(!(*BuffPtr))
-	{
-		if(!--ScanLeft) break;
-		StartPos++;
-		BuffPtr++;
-	}
-
-	// If we haven't found a start code then quit
-	if(*BuffPtr != 1) return Ret;
-
-	// Check what type of start code we have found
-	// Only accept MPEG2-VES which will always start with a sequence header
-	BuffPtr++;
-	if(*BuffPtr != 0xb3) return Ret;
-
-	MDObjectPtr DescObj = BuildMPEG2VideoDescriptor(InFile, StartPos);
-	
-	// Quit here if we couldn't build an essence descriptor
-	if(!DescObj) return Ret;
-
-	// Build a descriptor with a zero ID (we only support single stream files)
-	EssenceStreamDescriptor Descriptor;
-	Descriptor.ID = 0;
-	Descriptor.Description = "DV video essence";
-	Descriptor.Descriptor = DescObj;
-
-	// Set the single descriptor
-	Ret.push_back(Descriptor);
-
-	return Ret;
-	*/
 }
 
 
@@ -242,13 +204,16 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
  *		   of the essence stream requiring wrapping
  *	\note The options should be returned in an order of preference as the caller is likely to use the first that it can support
  */
-WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor Descriptor)
+WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
 	Uint8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x02, 0x7f, 0x01 };
 	WrappingOptionList Ret;
 
-	// If the supplied descriptor isn't an CDCI Essence Descriptor then we can't wrap the essence
-	if(Descriptor.Descriptor->Name() != "CDCIEssenceDescriptor") return Ret;
+	// If the source format isn't RAW DV-DIFF then we can't wrap the essence
+	if(memcmp(Descriptor.SourceFormat.GetValue(), DV_DIF_RAW_Format, 16) != 0) return Ret;
+
+	// The identify step configures some member variables so we can only continue if we just identified this very source
+	if((!CurrentDescriptor) || (Descriptor.Descriptor != CurrentDescriptor)) return Ret;
 
 	// Build a WrappingOption for clip wrapping
 	WrappingOptionPtr ClipWrap = new WrappingOption;
@@ -429,7 +394,7 @@ Length DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFileP
 MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFile, Uint64 Start /*=0*/)
 {
 	MDObjectPtr Ret;
-//	Uint8 Buffer[80];	Use existing buffer!
+	Uint8 Buffer[80];
 
 	// Read the header DIF block
 	FileSeek(InFile, Start);

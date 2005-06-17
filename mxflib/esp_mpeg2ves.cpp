@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.2 2004/11/12 09:20:43 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.3 2005/06/17 16:34:09 matt-beard Exp $
  *
  */
 /*
@@ -32,6 +32,14 @@
 #include <math.h>	// For "floor"
 
 using namespace mxflib;
+
+//! Local definitions
+namespace
+{
+	//! Modified UUID for MPEG2-VES
+	const Uint8 MPEG2_VES_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 'M', 'P',  'E', 'G', '2', 'V' };
+}
+
 
 //! Report the extensions of files this sub-parser is likely to handle
 StringList MPEG2_VES_EssenceSubParser::HandledExtensions(void)
@@ -97,7 +105,11 @@ EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHand
 	EssenceStreamDescriptor Descriptor;
 	Descriptor.ID = 0;
 	Descriptor.Description = "MPEG2 video essence";
+	Descriptor.SourceFormat.Set(MPEG2_VES_Format);
 	Descriptor.Descriptor = DescObj;
+
+	// Record a pointer to the descriptor so we can check if we are asked to process this source
+	CurrentDescriptor = DescObj;
 
 	// Set the single descriptor
 	Ret.push_back(Descriptor);
@@ -112,13 +124,16 @@ EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHand
  *		   of the essence stream requiring wrapping
  *	\note The options should be returned in an order of preference as the caller is likely to use the first that it can support
  */
-WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor Descriptor)
+WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
 	Uint8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x02, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x04, 0x60, 0x01 };
 	WrappingOptionList Ret;
 
-	// If the supplied descriptor isn't an MPEG2 Video Descriptor then we can't wrap the essence
-	if(Descriptor.Descriptor->Name() != "MPEG2VideoDescriptor") return Ret;
+	// If the source format isn't MPEG2-VES then we can't wrap the essence
+	if(memcmp(Descriptor.SourceFormat.GetValue(), MPEG2_VES_Format, 16) != 0) return Ret;
+
+	// The identify step configures some member variables so we can only continue if we just identified this very source
+	if((!CurrentDescriptor) || (Descriptor.Descriptor != CurrentDescriptor)) return Ret;
 
 	// Build a WrappingOption for frame wrapping
 	WrappingOptionPtr FrameWrap = new WrappingOption;
@@ -128,7 +143,7 @@ WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandl
 
 	BaseUL[15] = 0x01;									// Frame wrapping
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
-	FrameWrap->GCEssenceType = 0x15;					// GP Picture wrapping type
+	FrameWrap->GCEssenceType = 0x15;					// GC Picture wrapping type
 	FrameWrap->GCElementType = 0x05;					// Frame wrapped picture elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = false;						// Can only use the correct edit rate
@@ -144,7 +159,7 @@ WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandl
 
 	BaseUL[15] = 0x02;									// Clip wrapping
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
-	ClipWrap->GCEssenceType = 0x15;						// GP Picture wrapping type
+	ClipWrap->GCEssenceType = 0x15;						// GC Picture wrapping type
 	ClipWrap->GCElementType = 0x06;						// Clip wrapped picture elemenet
 	ClipWrap->ThisWrapType = WrappingOption::Clip;		// Clip wrapping
 	ClipWrap->CanSlave = true;							// Can use non-native edit rate (clip wrap only!)

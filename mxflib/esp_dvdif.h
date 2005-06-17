@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.3 2004/11/13 10:26:23 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.4 2005/06/17 16:34:09 matt-beard Exp $
  *
  */
 /*
@@ -54,11 +54,13 @@ namespace mxflib
 		int SeqCount;										//!< Number of DIF sequences in a frame
 
 		// File buffering
-		// TODO: Dynamically allocate this rather that using 256K at all times!!
-		Uint8 Buffer[DV_DIF_BUFFERSIZE];					//!< Buffer for efficient file reading
+		Uint8 *Buffer;										//!< Buffer for efficient file reading
 
 		int BuffCount;										//!< Count of bytes still unread in Buffer
 		Uint8 *BuffPtr;										//!< Pointer to next byte to read from Buffer
+
+		MDObjectParent CurrentDescriptor;					//!< Pointer to the last essence descriptor we built
+															/*!< This is used as a quick-and-dirty check that we know how to process this source */
 
 		// Options
 		// None (yet)
@@ -119,6 +121,13 @@ namespace mxflib
 			DIFStart = 0;
 			DIFEnd = 0;
 			SeqCount = 10;
+			Buffer = NULL;
+		}
+
+		~DV_DIF_EssenceSubParser()
+		{
+			// Free our buffer if we have allocated one
+			if(Buffer) delete[] Buffer;
 		}
 
 		//! Build a new parser of this type and return a pointer to it
@@ -140,7 +149,7 @@ namespace mxflib
 		virtual EssenceStreamDescriptorList IdentifyEssence(FileHandle InFile);
 
 		//! Examine the open file and return the wrapping options known by this parser
-		virtual WrappingOptionList IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor Descriptor);
+		virtual WrappingOptionList IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor);
 
 		//! Set a wrapping option for future Read and Write calls
 		virtual void Use(Uint32 Stream, WrappingOptionPtr &UseWrapping);
