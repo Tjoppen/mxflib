@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.6 2004/12/18 20:25:10 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.7 2005/06/17 16:11:27 matt-beard Exp $
  *
  */
 /*
@@ -421,6 +421,7 @@ namespace mxflib
 	{
 		Uint32 ID;								//!< ID for this essence stream
 		std::string Description;				//!< Description of this essence stream
+		UUID SourceFormat;						//!< A UUID (or byte-swapped UL) identifying the source format
 		MDObjectPtr Descriptor;					//!< Pointer to an actual essence descriptor for this stream
 	};
 	typedef std::list<EssenceStreamDescriptor> EssenceStreamDescriptorList;
@@ -606,13 +607,27 @@ namespace mxflib
 		 *		   of the essence stream requiring wrapping
 		 *	\note The options should be returned in an order of preference as the caller is likely to use the first that it can support
 		 */
-		virtual WrappingOptionList IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor Descriptor) = 0;
+		virtual WrappingOptionList IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor) = 0;
 
 		//! Set a wrapping option for future Read and Write calls
 		virtual void Use(Uint32 Stream, WrappingOptionPtr &UseWrapping)
 		{
 			// DRAGONS: Any derived version of Use() must also set SelectedWrapping
 			SelectedWrapping = UseWrapping;
+		}
+
+		//! Does this essence parser support ReValidate()
+		virtual bool CanReValidate(void) { return false; }
+
+		//! Quickly validate that the given (open) file can be wrapped as specified
+		/*! Providing that the given essence descriptor and wrapping option can be used this will leave the parser
+		 *  in the state it would have been in after calls to IdentifyEssence(), IdentifyWrappingOptions() and Use().
+		 *  This is used when parsing a list of files to check that the second and later files are the same format as the first
+		 *  \return true if all OK
+		 */
+		virtual bool ReValidate(FileHandle Infile, Uint32 Stream, MDObjectPtr &Descriptor, WrappingOptionPtr &UseWrapping)
+		{
+			return false;
 		}
 
 		//! Get the wrapping type that has been selected by Use()
@@ -634,7 +649,7 @@ namespace mxflib
 		virtual Rational GetEditRate(void) = 0;
 
 		//! Get the preferred edit rate (if one is known)
-		/*! \return The prefered edit rate or 0/0 if not known
+		/*! \return The prefered edit rate or 0/0 if note known
 		 */
 		virtual Rational GetPreferredEditRate(void)
 		{
@@ -759,118 +774,49 @@ namespace mxflib
 
 namespace mxflib
 {
-	//! Base class for handlers to receive notification of the next file about to be opened
-	class NewFileHandler : public RefCount<NewFileHandler>
-	{
-	public:
-		virtual ~NewFileHandler();
-
-		//! Receive notification of a new file about to be opened
-		/*! \param FileName - reference to a std::string containing the name of the file about to be opened - <b>may be changed by this function if required</b>
-		 */
-		virtual void NewFile(std::string &FileName) = 0;
-	};
-
-	//! Smart pointer to a NewFileHandler
-	typedef SmartPtr<NewFileHandler> NewFileHandlerPtr;
-
-	//! File parser
-	class FileParser : public RefCount<FileParser>
-	{
-	protected:
-		NewFileHandlerPtr Handler;
-		std::string BaseFileName;
-		bool IsFileList;
-		int ListOrigin;
-		int ListIncrement;
-
-	public:
-		//! Construct a FileParser and optionally set a single source filename
-		FileParser(std::string FileName = "") 
-		{ 
-			BaseFileName = FileName; 
-			IsFileList = false; 
-		}
-
-		//! Set a single source filename
-		void SetFileName(std::string &FileName) { BaseFileName = FileName; IsFileList = false; }
-
-		//! Set a source file list
-		void SetFileList(std::string &FileList, int Origin = 0, int Increment = 1)
-		{
-			BaseFileName = FileList;
-			IsFileList = true;
-			ListOrigin = Origin;
-			ListIncrement = Increment;
-		}
-
-		//! Set a handler to receive notification of all file open actions
-		void SetNewFileHandler(NewFileHandlerPtr &NewHandler) { Handler = NewHandler; }
-
-		//!####
-		EssenceStreamDescriptorList IdentifyEssence(void);
-
-		//!####
-		WrappingOptionList IdentifyWrappingOptions(EssenceStreamDescriptor Descriptor);
-
-		//! Read a number of wrapping items from the specified stream and return them in a data chunk
-		/*! If frame or line mapping is used the parameter Count is used to
-		 *	determine how many items are read. In frame wrapping it is in
-		 *	units of EditRate, as specified in the call to Use(), which may
-		 *  not be the frame rate of this essence
-		 *	\note This is going to take a lot of memory in clip wrapping! 
-		 */
-		DataChunkPtr Read(Uint32 Stream, Uint64 Count = 1);
-
-		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(Uint32 Stream, Uint64 Count = 1);
-
-		//! Write a number of wrapping items from the specified stream to an MXF file
-		/*! If frame or line mapping is used the parameter Count is used to
-		 *	determine how many items are read. In frame wrapping it is in
-		 *	units of EditRate, as specified in the call to Use(), which may
-		 *  not be the frame rate of this essence stream
-		 *	\note This is the only safe option for clip wrapping
-		 *	\return Count of bytes transferred
-		 */
-		Uint64 Write(Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1);
-	};
-}
-
-namespace mxflib
-{
 	//! Pair containing a pointer to an essence parser and its associated essence descriptors
 	typedef std::pair<EssenceSubParserPtr, EssenceStreamDescriptorList> ParserDescriptorPair;
+	//! List of pointers to essence parsers
+	typedef std::list<EssenceSubParserPtr> EssenceParserList;
 
 	//! List of pairs of essence parser pointers with associated file descriptors
 	class ParserDescriptorList : public RefCount<ParserDescriptorList>, public std::list<ParserDescriptorPair> {};
 	typedef SmartPtr<ParserDescriptorList> ParserDescriptorListPtr;
 
-
-	class EssenceParser
+	//! Master-class for parsing essence via EssenceSubParser objects
+	class EssenceParser : public RefCount<EssenceParser>
 	{
 	private:
-		//! List of pointers to essence parsers
-		typedef std::list<EssenceSubParserPtr> EssenceParserList;
-
 		//! List of pointers to known parsers
 		/*! Used only for building parsers to parse essence - the parses 
 		 *  in this list must not themselves be used for essence parsing 
-		 *
-		 *	DRAGONS: Should this be static?
 		 */
-		EssenceParserList EPList;
+		static EssenceParserList EPList;
+		
+		//! Initialization flag for EPList
+		static bool EPListInited;
 
 	public:
 		//! Build an essence parser with all known sub-parsers
 		EssenceParser();
+
+		//! Add a new EssenceSubParser type (Deprecated)
+		/*! DRAGONS: This version is deprecated in favour of the static version AddNewSubParserType()
+		 *  This adds an instance of a sub parser type that can be used to identify essence 
+		 *  and will act as a factory to build more instances of that sub parser type if required
+		 *  to parse an essence stream
+		 */
+		void AddSubParserType(EssenceSubParserPtr NewType)
+		{
+			EPList.push_back(NewType);
+		}
 
 		//! Add a new EssenceSubParser type
 		/*! This adds an instance of a sub parser type that can be used to identify essence 
 		 *  and will act as a factory to build more instances of that sub parser type if required
 		 *  to parse an essence stream
 		 */
-		void AddSubParserType(EssenceSubParserPtr NewType)
+		static void AddNewSubParserType(EssenceSubParserPtr NewType)
 		{
 			EPList.push_back(NewType);
 		}
@@ -896,7 +842,11 @@ namespace mxflib
 		//! Select the best wrapping option
 		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
 	};
+
+	//! Smart pointer to an EssenceParser
+	typedef SmartPtr<EssenceParser> EssenceParserPtr;
 }
+
 
 
 // GCReader and associated structures
