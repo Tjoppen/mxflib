@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.4 2005/02/05 13:27:02 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.5 2005/06/17 16:13:34 matt-beard Exp $
  *
  */
 /*
@@ -286,7 +286,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 {
 	//! Template for all GC essence item keys
 	/*! DRAGONS: Version number is hard coded as 1 */
-	static const Uint8 GCSystemKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
+	static const Uint8 GCEssenceKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
 
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -300,7 +300,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	Uint8 *Buffer = new Uint8[(size_t)(16 + 9 + Size)];
 
 	// Copy in the key template
-	memcpy(Buffer, GCSystemKey, 12);
+	memcpy(Buffer, GCEssenceKey, 12);
 
 	// Set up the rest of the key
 	Buffer[7] = Stream->RegVer;
@@ -364,7 +364,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source)
 {
 	//! Template for all GC essence item keys
 	/*! DRAGONS: Version number is hard coded as 1 */
-	static const Uint8 GCSystemKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
+	static const Uint8 GCEssenceKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
 
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -378,7 +378,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source)
 	Uint8 *Buffer = new Uint8[16];
 
 	// Copy in the key template
-	memcpy(Buffer, GCSystemKey, 12);
+	memcpy(Buffer, GCEssenceKey, 12);
 
 	// Set up the rest of the key
 	Buffer[7] = Stream->RegVer;
@@ -435,7 +435,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source)
 {
 	//! Template for all GC essence item keys
 	/*! DRAGONS: Version number is hard coded as 1 */
-	static const Uint8 GCSystemKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
+	static const Uint8 GCEssenceKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
 
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -449,7 +449,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source)
 	Uint8 *Buffer = new Uint8[16];
 
 	// Copy in the key template
-	memcpy(Buffer, GCSystemKey, 12);
+	memcpy(Buffer, GCEssenceKey, 12);
 
 	// Set up the rest of the key
 	Buffer[7] = Stream->RegVer;
@@ -851,7 +851,7 @@ void GCWriter::WriteRaw(KLVObjectPtr Object)
 		StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
 	}
 
-	// Set this fila and position as the destination for the KLVObject
+	// Set this file and position as the destination for the KLVObject
 	Object->SetDestination(LinkedFile);
 
 	// Write the KL
@@ -887,14 +887,28 @@ void GCWriter::WriteRaw(KLVObjectPtr Object)
 
 
 
+//! List of pointers to known parsers
+/*! Used only for building parsers to parse essence - the parses 
+ *  in this list must not themselves be used for essence parsing 
+ */
+EssenceParserList EssenceParser::EPList;
+
+//! Initialization flag for EPList
+bool EssenceParser::EPListInited = false;
+
 
 // Build an essence parser with all known sub-parsers
 EssenceParser::EssenceParser()
 {
-	//! Add one instance of all known essence parsers
-	EPList.push_back(new MPEG2_VES_EssenceSubParser);
-	EPList.push_back(new WAVE_PCM_EssenceSubParser);
-	EPList.push_back(new DV_DIF_EssenceSubParser);
+	if(!EPListInited)
+	{
+		//! Add one instance of all known essence parsers
+		EPList.push_back(new MPEG2_VES_EssenceSubParser);
+		EPList.push_back(new WAVE_PCM_EssenceSubParser);
+		EPList.push_back(new DV_DIF_EssenceSubParser);
+
+		EPListInited = true;
+	}
 }
 
 
@@ -1409,7 +1423,7 @@ ParserDescriptorListPtr EssenceParser::IdentifyEssence(FileHandle InFile)
 //! Select the best wrapping option
 EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
 {
-	WrappingConfigPtr Ret;
+	EssenceParser::WrappingConfigPtr Ret;
 
 	// No options!
 	if(PDList->empty()) return Ret;
@@ -2830,4 +2844,7 @@ bool mxflib::BodyWriter::AddStream(BodyStreamPtr &Stream, Length StopAfter /*=0*
 
 	return true;
 }
+
+
+
 
