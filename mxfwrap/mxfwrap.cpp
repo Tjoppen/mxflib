@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.21 2005/02/05 13:35:19 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.22 2005/06/18 14:30:31 matt-beard Exp $
  *
  */
 /*
@@ -160,6 +160,7 @@ namespace
 	Int64 Duration[16];						//!< Duration of each ganged section of essence
 
 	bool OPAtom = false;					//!< Is OP-Atom mode being forced?
+	bool OPAtom2Part = false;				//!< Has a 2-partition OP-Atom file been requested (only works for VBR)
 	bool UpdateHeader= false;				//!< Is the header going to be updated after writing the footer
 	bool StreamMode = false;				//!< Wrap in stream-mode
 	bool EditAlign = false;					//!< Start new body partitions only at the start of a GOP
@@ -467,7 +468,13 @@ bool ParseCommandLine(int &argc, char **argv)
 			char *Val = "";							// Any value attached to the option
 			if(strlen(p) > 2) Val = &p[2];			// Only set a value if one found
 
-			if(Opt == 'a') OPAtom = true;
+			if(Opt == 'a') 
+			{
+				OPAtom = true;
+
+				// See if the user has requested for a 2-partition OP-Atom file
+				if(p[1] == '2') OPAtom2Part = true;
+			}
 			else if(Opt == 'p')
 			{
 				// The value is further along as we are using a 2-byte option
@@ -593,7 +600,7 @@ bool ParseCommandLine(int &argc, char **argv)
 		printf("      Also all files in each set must be the same duration\n\n");
 
 		printf("Options:\n");
-		printf("    -a         = Force OP-Atom\n");
+		printf("    -a[2]      = Force OP-Atom (optionally with only 2 partitions if VBR)\n");
 		printf("    -e         = Only start body partitions at edit points\n");
 		printf("    -f         = Frame-wrap and group in one container\n");
 		printf("    -h=<size>  = Leave at least <size> bytes of expansion space in the header\n");
@@ -744,8 +751,9 @@ bool ParseCommandLine(int &argc, char **argv)
 
 	if(OPAtom)
 	{
-		printf("Output OP = OP-Atom\n");
-		
+		if(OPAtom2Part)	printf("Output OP = OP-Atom (with only 2 partitions if VBR)\n");
+		else printf("Output OP = OP-Atom\n");
+
 		// We will need to update the header
 		UpdateHeader = true;
 
@@ -1000,9 +1008,17 @@ int Process(	int OutFileNum,
 	Writer->SetKAG(KAGSize);
 	Writer->SetForceBER4(true);
 
-	// Index data can't share with metadata if very-isolated but essence can always share with metadata
-	Writer->SetMetadataSharing(!VeryIsolatedIndex, true);
-
+	// SMPTE 390M does not recommend placing Essence in the header partition
+	if(OPAtom && (!OPAtom2Part))
+	{
+		// Index data can't share with metadata if very-isolated, essence can never share with metadata
+		Writer->SetMetadataSharing(!VeryIsolatedIndex, false);
+	}
+	else
+	{
+		// Index data can't share with metadata if very-isolated but essence can always share with metadata
+		Writer->SetMetadataSharing(!VeryIsolatedIndex, true);
+	}
 
 	// Build the File Packages and all essence tracks
 
