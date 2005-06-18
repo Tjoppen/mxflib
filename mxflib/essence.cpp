@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.5 2005/06/17 16:13:34 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.6 2005/06/18 14:50:55 matt-beard Exp $
  *
  */
 /*
@@ -906,6 +906,7 @@ EssenceParser::EssenceParser()
 		EPList.push_back(new MPEG2_VES_EssenceSubParser);
 		EPList.push_back(new WAVE_PCM_EssenceSubParser);
 		EPList.push_back(new DV_DIF_EssenceSubParser);
+		EPList.push_back(new JP2K_EssenceSubParser);
 
 		EPListInited = true;
 	}

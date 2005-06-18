@@ -101,6 +101,10 @@ SOURCE=..\..\mxflib\esp_dvdif.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\mxflib\esp_jp2k.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\mxflib\esp_mpeg2ves.cpp
 # End Source File
 # Begin Source File
@@ -190,6 +194,10 @@ SOURCE=..\..\mxflib\endian.h
 # Begin Source File
 
 SOURCE=..\..\mxflib\esp_dvdif.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\mxflib\esp_jp2k.h
 # End Source File
 # Begin Source File
 
