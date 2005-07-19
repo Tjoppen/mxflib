@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.9 2005/05/08 15:51:29 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.10 2005/07/19 11:55:48 matt-beard Exp $
  *
  */
 /*
@@ -725,8 +725,8 @@ namespace mxflib
 		MDObjectPtr GetLink(void) const { return Link; };
 
 		//! Make a link from this reference source to the specified target set
-		bool MakeLink(MDObjectPtr TargetSet);
-		
+		bool MakeLink(MDObjectPtr &TargetSet, bool ForceLink = false);
+	
 		//! Record that a link exists (not the same as making a link - see MakeLink)
 		void SetLink(MDObjectPtr NewLink) { Link = NewLink; };
 
