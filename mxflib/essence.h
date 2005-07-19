@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.7 2005/06/17 16:11:27 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.8 2005/07/19 13:34:28 matt-beard Exp $
  *
  */
 /*
@@ -46,6 +46,35 @@ namespace mxflib
 
 	// Type used to identify stream
 	typedef int GCStreamID;
+}
+
+
+/* Global definitions */
+namespace mxflib
+{
+	//! Flag that allows faster clip wrapping using random access
+	/*! Clip wrapped essence may contain huge essence KLVs and it is often not
+	 *  practical (or even possible) to load the whole value into memory before
+	 *  writing the K and L. This means that unless it is possible to use some
+	 *  shortcut to calculate the size of the value before building it, the value
+	 *  will need to be 'built' twice - once without storing the data to enable
+	 *  its length to be calculated, then again to actually write it.
+	 *  "FastClipWrap" mode gets around this by writing the length as (2^56)-1,
+	 *  the largest 8-byte BER length, writing the value, then returning to update
+	 *  the length field with the correct size. This huge length ensures that any
+	 *  reader that is attempting to read the file while it is being written will
+	 *  have a lower chance of barfing than if any "guestimate" value is written.
+	 *  The reader will see the whole of the rest of the file as the essence.
+	 *  This method requires random access to the medium holding the MXF file
+	 *  being written, therefore is disable by default.
+	 */
+	extern bool AllowFastClipWrap;
+
+	//! Enable or disable "FastClipWrap" mode
+	inline void SetFastClipWrap(bool Flag) { AllowFastClipWrap = Flag; }
+
+	//! Read the status of the "FastClipWrap" mode flag
+	inline bool GetFastClipWrap(void) { return AllowFastClipWrap; }
 }
 
 
@@ -103,6 +132,11 @@ namespace mxflib
 		 */
 		virtual bool EndOfItem(void) = 0;
 
+		//! Is all data exhasted?
+		/*! \return true if a call to GetEssenceData() will return some valid essence data
+		 */
+		virtual bool EndOfData(void) = 0;
+
 		//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
 		virtual Uint8 GetGCEssenceType(void) = 0;
 
@@ -130,6 +164,9 @@ namespace mxflib
 		 *  exhausted the value returned shall be the size of the essence
 		 */
 		virtual Position GetCurrentPosition(void) = 0;
+
+		//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
+		virtual int GetBERSize(void) { return 0; }
 
 		//! Set a source type or parser specific option
 		/*! \return true if the option was successfully set */
@@ -191,9 +228,11 @@ namespace mxflib
 		Uint8 SubOrNumber;					//!< Sub ID if system or element number if essence
 		Uint8 RegDes;						//!< The registry designator if this is a system item
 		Uint8 RegVer;						//!< The registry version number for the item key
+		int LenSize;						//!< The KLV length size to use for this stream (0 for auto)
 		IndexManagerPtr IndexMan;			//!< If indexing this stream a pointer to the index manager, else NULL
 		int IndexSubStream;					//!< If indexing this stream the sub stream number, else undefined
 		bool IndexFiller;					//!< If indexing this stream true if filler <b>preceeding</b> this stream is to be indexed, else undefined
+		bool IndexClip;						//!< True if indexing clip-wrapped essence
 		bool CountFixed;					//!< True once the essence element count has been fixed
 											/*!< The count is fixed the first time either a key is written
 											 *   or a track number is reported */
@@ -284,10 +323,10 @@ namespace mxflib
 		GCStreamID AddCompoundElement(unsigned int ElementType) { return AddEssenceElement( 0x18, ElementType); }
 
 		//! Define a new essence element for this container
-		GCStreamID AddEssenceElement(unsigned int EssenceType, unsigned int ElementType);
+		GCStreamID AddEssenceElement(unsigned int EssenceType, unsigned int ElementType, int LenSize = 0);
 
 		//! Allow this data stream to be indexed and set the index manager
-		void AddStreamIndex(GCStreamID ID, IndexManagerPtr &IndexMan, int IndexSubStream, bool IndexFiller = false);
+		void AddStreamIndex(GCStreamID ID, IndexManagerPtr &IndexMan, int IndexSubStream, bool IndexFiller = false, bool IndexClip = false);
 
 		//! Get the track number associated with the specified stream
 		Uint32 GetTrackNumber(GCStreamID ID);
@@ -332,19 +371,19 @@ namespace mxflib
 		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk) { AddEssenceData(ID, Chunk->Size, Chunk->Data); }
 
 		//! Add essence data to the current CP
-		void AddEssenceData(GCStreamID ID, EssenceSource* Source);
+		void AddEssenceData(GCStreamID ID, EssenceSource* Source, bool FastClipWrap = false);
 
-		//! Add encrypted essence data to the current CP
+/*		//! Add encrypted essence data to the current CP
 		void AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data, UUIDPtr ContextID, Length PlaintextOffset = 0);
 		
 		//! Add encrypted essence data to the current CP
 		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk, UUIDPtr ContextID, Length PlaintextOffset = 0)  { AddEssenceData(ID, Chunk->Size, Chunk->Data, ContextID, PlaintextOffset); }
 
 		//! Add encrypted essence data to the current CP
-		void AddEssenceData(GCStreamID ID, EssenceSource* Source, UUIDPtr ContextID, Length PlaintextOffset = 0);
-
+		void AddEssenceData(GCStreamID ID, EssenceSource* Source, UUIDPtr ContextID, Length PlaintextOffset = 0, bool FastClipWrap = false);
+*/
 		//! Add an essence item to the current CP with the essence to be read from a KLVObject
-		void AddEssenceData(GCStreamID ID, KLVObjectPtr Source);
+		void AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipWrap = false);
 
 
 		//! Calculate how many bytes would be written if the specified object were written with WriteRaw()
@@ -361,10 +400,13 @@ namespace mxflib
 			Uint8 *Buffer;				//!< Pointer to bytes to write
 			EssenceSource *Source;		//!< Pointer to an EssenceSource object or NULL
 			KLVObjectPtr KLVSource;		//!< Pointer to a KLVObject as source - or NULL
+			int LenSize;				//!< The KLV length size to use for this item (0 for auto)
 			IndexManagerPtr IndexMan;	//!< Index manager that wants to know about this data
 			int IndexSubStream;			//!< Sub-stream ID of data for indexing
 			bool IndexFiller;			//!< If true filler will also be indexed with SubStream -1
+			bool IndexClip;				//!< True if indexing clip-wrapped essence
 			bool WriteEncrypted;		//!< True if the data is to be written as encrypted data (via a KLVEObject)
+			bool FastClipWrap;			//!< True if this KLV is to be "FastClipWrapped"
 		};
 
 		//! Type for holding the write queue in write order
@@ -454,7 +496,7 @@ namespace mxflib
 			Uint64 RequestedCount;
 			IndexTablePtr Index;
 			DataChunkPtr RemainingData;
-			bool EndOfData;
+			bool AtEndOfData;
 			bool Started;
 
 		public:
@@ -465,7 +507,7 @@ namespace mxflib
 				File = InFile;
 				Stream = UseStream;
 				RequestedCount = Count;
-				EndOfData = false;
+				AtEndOfData = false;
 				Started = false;
 			};
 
@@ -513,7 +555,7 @@ namespace mxflib
 				}
 
 				// Record when we hit the end of all data
-				if(!Data) EndOfData = true;
+				if(!Data) AtEndOfData = true;
 
 				return Data;
 			}
@@ -528,11 +570,16 @@ namespace mxflib
 			virtual bool EndOfItem(void) 
 			{ 
 				// If we are clip wrapping then we only end when no more data
-				if(Caller->GetWrapType() == WrappingOption::Clip) return EndOfData;
+				if(Caller->GetWrapType() == WrappingOption::Clip) return AtEndOfData;
 
 				// Otherwise items end when there is no data remaining from the last read
 				return !RemainingData;
 			}
+
+			//! Is all data exhasted?
+			/*! \return true if a call to GetEssenceData() will return some valid essence data
+			 */
+			virtual bool EndOfData(void) { return AtEndOfData; }
 
 			//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
 			virtual Uint8 GetGCEssenceType(void) { return Caller->GetGCEssenceType(); }
@@ -839,8 +886,14 @@ namespace mxflib
 		typedef SmartPtr<WrappingConfig> WrappingConfigPtr;
 		typedef std::list<WrappingConfigPtr> WrappingConfigList;
 
+		//! Produce a list of available wrapping options
+		EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
 		//! Select the best wrapping option
 		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Select the specified wrapping options
+		void SelectWrappingOption(EssenceParser::WrappingConfigPtr Config);
 	};
 
 	//! Smart pointer to an EssenceParser
@@ -1216,6 +1269,12 @@ namespace mxflib
 		
 		Position NextSprinkled;										//!< The location of the first edit-unit to use for the next sprinkled index segment
 
+		bool FreeSpaceIndex;										//!< True if the free space at the end of the essenc eis to be indexed
+																	/*!< When an essence stream may be extended during file creation it may be useful to know
+																	 *   where the essence currently ends (to allow new essence to be added).
+																	 *   /note DRAGONS: This is non-standard and will produce invalid index tables (even if they are later "fixed")
+																	 */
+
 		//! KLV Alignment Grid to use for this stream (of zero if default for this body is to be used)
 		Uint32 KAG;
 
@@ -1275,7 +1334,7 @@ namespace mxflib
 			// If the writer has already been defined add this stream to it
 			if(StreamWriter)
 			{
-				GCStreamID EssenceID = StreamWriter->AddEssenceElement(SubSource->GetGCEssenceType(), SubSource->GetGCElementType());
+				GCStreamID EssenceID = StreamWriter->AddEssenceElement(SubSource->GetGCEssenceType(), SubSource->GetGCElementType(), SubSource->GetBERSize());
 
 				SubSource->SetStreamID(EssenceID);
 			}
@@ -1350,7 +1409,7 @@ namespace mxflib
 			BodyStream::iterator it = begin();
 			while(it != end())
 			{
-				GCStreamID EssenceID = Writer->AddEssenceElement((*it)->GetGCEssenceType(), (*it)->GetGCElementType());
+				GCStreamID EssenceID = Writer->AddEssenceElement((*it)->GetGCEssenceType(), (*it)->GetGCElementType(), (*it)->GetBERSize());
 				
 				(*it)->SetStreamID(EssenceID);
 
@@ -1412,6 +1471,13 @@ namespace mxflib
 		//! Get edit align forced partitioning flag
 		bool GetEditAlign(void) { return EditAlign; }
 
+		//! Set the "FreeSpaceIndex" flag
+		/*! /note DRAGONS: Setting this flag will cause index tables that are not SMPTE 377M complient to be created */
+		void SetFreeSpaceIndex(bool Flag) { FreeSpaceIndex = Flag; }
+
+		//! Read the "FreeSpaceIndex" flag
+		bool GetFreeSpaceIndex(void) { return FreeSpaceIndex; }
+
 	protected:
 		//! Initialize an index manager if required
 // FIXME: Move to .cpp file!
@@ -1450,7 +1516,7 @@ namespace mxflib
 				(*it)->SetIndexManager(IndexMan, StreamID);
 
 				// TODO: Currently no support for filler indexing here - needs adding
-				StreamWriter->AddStreamIndex((*it)->GetStreamID(), IndexMan, StreamID, false);
+				StreamWriter->AddStreamIndex((*it)->GetStreamID(), IndexMan, StreamID, false, (StreamWrap == StreamWrapClip));
 
 				it++;
 			}

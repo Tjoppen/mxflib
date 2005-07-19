@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.6 2005/06/18 14:50:55 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.7 2005/07/19 13:34:28 matt-beard Exp $
  *
  */
 /*
@@ -31,6 +31,11 @@
 #include <mxflib/mxflib.h>
 
 using namespace mxflib;
+
+
+
+//! Flag that allows faster clip wrapping using random access
+bool mxflib::AllowFastClipWrap;
 
 
 //! Constructor
@@ -100,6 +105,9 @@ GCStreamID GCWriter::AddSystemElement(bool CPCompatible, unsigned int RegistryDe
 	// Not used with system items
 	Stream->CountFixed = false;
 
+	// Use auto BER length size for system items
+	Stream->LenSize = 0;
+
 	// "Default" system item write order:
 	//  0000100s 10SSSSSS Seeeeeee 0nnnnnnn
 	// Where:
@@ -119,7 +127,7 @@ GCStreamID GCWriter::AddSystemElement(bool CPCompatible, unsigned int RegistryDe
 
 
 //! Define a new essence element for this container
-GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int ElementType)
+GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int ElementType, int LenSize /*=0*/)
 {
 	// This will be returned as an error if all goes wrong
 	GCStreamID ID = -1;
@@ -190,6 +198,10 @@ GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int El
 	Stream->IndexMan = NULL;
 	Stream->IndexFiller = 0;
 
+	// Set BER length size for essence items
+	Stream->LenSize = LenSize;
+
+
 	// "Default" essence item write order:
 	//  TTTTTTTs 10eeeeee e0000000 0nnnnnnn
 	// Where:
@@ -207,7 +219,7 @@ GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int El
 
 
 //! Allow this data stream to be indexed and set the index manager
-void GCWriter::AddStreamIndex(GCStreamID ID, IndexManagerPtr &IndexMan, int IndexSubStream, bool IndexFiller /*=false*/)
+void GCWriter::AddStreamIndex(GCStreamID ID, IndexManagerPtr &IndexMan, int IndexSubStream, bool IndexFiller /*=false*/, bool IndexClip /*=false*/)
 {
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -220,6 +232,7 @@ void GCWriter::AddStreamIndex(GCStreamID ID, IndexManagerPtr &IndexMan, int Inde
 	Stream->IndexMan = IndexMan;
 	Stream->IndexSubStream = IndexSubStream;
 	Stream->IndexFiller = IndexFiller;
+	Stream->IndexClip = IndexClip;
 }
 
 
@@ -229,7 +242,7 @@ void GCWriter::AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	//! Template for all GC system item keys
 	/*! DRAGONS: Version number is hard coded as 1 */
 	static const Uint8 GCSystemKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x00, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
-
+	
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
 	{
@@ -266,13 +279,16 @@ void GCWriter::AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	WB.Buffer = Buffer;
 	WB.Source = NULL;
 	WB.KLVSource = NULL;
-	
+	WB.FastClipWrap = false;
+	WB.LenSize = Stream->LenSize;
+
 	// Add the index data
 	WB.IndexMan = Stream->IndexMan;
 	if(WB.IndexMan)
 	{
 		WB.IndexSubStream = Stream->IndexSubStream;
 		WB.IndexFiller = Stream->IndexFiller;
+		WB.IndexClip = Stream->IndexClip;
 	}
 	else
 		WB.IndexFiller = false;
@@ -344,6 +360,8 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	WB.Buffer = Buffer;
 	WB.Source = NULL;
 	WB.KLVSource = NULL;
+	WB.FastClipWrap = false;
+	WB.LenSize = Stream->LenSize;
 
 	// Add the index data
 	WB.IndexMan = Stream->IndexMan;
@@ -351,6 +369,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	{
 		WB.IndexSubStream = Stream->IndexSubStream;
 		WB.IndexFiller = Stream->IndexFiller;
+		WB.IndexClip = Stream->IndexClip;
 	}
 	else
 		WB.IndexFiller = false;
@@ -360,7 +379,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 
 
 //! Add an essence item to the current CP with the essence to be read from an EssenceSource object
-void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source)
+void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source, bool FastClipWrap /*=false*/)
 {
 	//! Template for all GC essence item keys
 	/*! DRAGONS: Version number is hard coded as 1 */
@@ -414,6 +433,8 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source)
 	WB.Buffer = Buffer;
 	WB.Source = Source;
 	WB.KLVSource = NULL;
+	WB.FastClipWrap = FastClipWrap;
+	WB.LenSize = Stream->LenSize;
 
 	// Add the index data
 	WB.IndexMan = Stream->IndexMan;
@@ -421,6 +442,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source)
 	{
 		WB.IndexSubStream = Stream->IndexSubStream;
 		WB.IndexFiller = Stream->IndexFiller;
+		WB.IndexClip = Stream->IndexClip;
 	}
 	else
 		WB.IndexFiller = false;
@@ -431,7 +453,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source)
 
 
 //! Add an essence item to the current CP with the essence to be read from a KLVObject
-void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source)
+void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipWrap /*=false*/)
 {
 	//! Template for all GC essence item keys
 	/*! DRAGONS: Version number is hard coded as 1 */
@@ -485,6 +507,8 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source)
 	WB.Buffer = Buffer;
 	WB.Source = NULL;
 	WB.KLVSource = Source;
+	WB.FastClipWrap = FastClipWrap;
+	WB.LenSize = Stream->LenSize;
 
 	// Add the index data
 	WB.IndexMan = Stream->IndexMan;
@@ -492,6 +516,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source)
 	{
 		WB.IndexSubStream = Stream->IndexSubStream;
 		WB.IndexFiller = Stream->IndexFiller;
+		WB.IndexClip = Stream->IndexClip;
 	}
 	else
 		WB.IndexFiller = false;
@@ -549,6 +574,8 @@ void GCWriter::StartNewCP(void)
 
 
 //! Calculate how much data will be written if "Flush" is called now
+/*! /note Will return (2^64)-1 if the buffer contains a "FastClipWrap" item
+ */
 Uint64 GCWriter::CalcWriteSize(void)
 {
 	Uint64 Ret = 0;
@@ -565,7 +592,15 @@ Uint64 GCWriter::CalcWriteSize(void)
 		// Add the size of any filler
 		if((ThisType != LastType) && (KAGSize > 1))
 		{
-			Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+			if(!LinkedFile->IsBlockAligned())
+			{
+				Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+			}
+			else
+			{
+				// Do nothing when block aligned
+				// DRAGONS: Should we do something here?
+			}
 		}
 
 		// Add the chunk size
@@ -581,6 +616,10 @@ Uint64 GCWriter::CalcWriteSize(void)
 		// Add any non-buffered essence data
 		else if((*it).second.Source)
 		{
+			// If any item is to be "FastClipWrapped" then return a huge size
+			// to flag that we cannot know the size of the next write
+			if((*it).second.FastClipWrap) return (Uint64)-1;
+
 			Length Size = (*it).second.Source->GetEssenceDataSize();
 			DataChunkPtr BER = MakeBER(Size);
 			Ret += BER->Size + Size;
@@ -597,7 +636,15 @@ Uint64 GCWriter::CalcWriteSize(void)
 	// Align to the next KAG
 	if(KAGSize > 1)
 	{
-		Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+		if(!LinkedFile->IsBlockAligned())
+		{
+			Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+		}
+		else
+		{
+			// Do nothing when block aligned
+			// DRAGONS: Should we do something here?
+		}
 	}
 
 	return Ret;
@@ -627,13 +674,23 @@ void GCWriter::Flush(void)
 				if((*it).second.IndexMan) (*it).second.IndexMan->OfferOffset(-1, IndexEditUnit, StreamOffset);
 			}
 
-			Uint64 Pos = LinkedFile->Tell();
-			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+			if(!LinkedFile->IsBlockAligned())
+			{
+				Uint64 Pos = LinkedFile->Tell();
+				StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+			}
+			else
+			{
+				// Do nothing when block aligned
+				// DRAGONS: Should we do something here?
+			}
 		}
 
-		// Index this item (if we are indexing)
-		// TODO: This doesn't take account of clip-wrapping
-		if((*it).second.IndexMan) (*it).second.IndexMan->OfferOffset((*it).second.IndexSubStream, IndexEditUnit, StreamOffset);
+		// Index this item (if we are indexing, but not if we are clip-wrap indexing)
+		if((*it).second.IndexMan)
+		{
+			if(!(*it).second.IndexClip) (*it).second.IndexMan->OfferOffset((*it).second.IndexSubStream, IndexEditUnit, StreamOffset);
+		}
 
 		// Write the pre-formatted data and free its buffer
 		StreamOffset += LinkedFile->Write((*it).second.Buffer, (Uint32)((*it).second.Size));
@@ -665,15 +722,46 @@ void GCWriter::Flush(void)
 		// Handle any non-buffered essence data
 		else if((*it).second.Source)
 		{
-			Uint64 Size = (*it).second.Source->GetEssenceDataSize();
+			Position LenPosition;
+			Uint64 Size;
+
+			// If we are fast clip wrapping flag the rest of the file as the value
+			// and record the location of this length for later correction
+			if((*it).second.FastClipWrap)
+			{
+				if((*it).second.LenSize == 4) Size = 0x00ffffff;
+				else Size = UINT64_C(0x00ffffffffffffff);
+
+				LenPosition = LinkedFile->Tell();
+			}
+			else Size = (*it).second.Source->GetEssenceDataSize();
 
 			// Write out the length
-			DataChunkPtr BER = MakeBER(Size);
-			StreamOffset += LinkedFile->Write(*BER);
+			int LenSize = LinkedFile->WriteBER(Size, (*it).second.LenSize);
+			StreamOffset += LenSize;
+
+			// Fast access to IndexClip flag
+			bool IndexClip = ((*it).second.IndexMan) && ((*it).second.IndexClip);
+			Position LastEditUnit = -1;
 
 			// Write out all the data
 			for(;;)
 			{
+				bool IndexThisItem = false;
+
+				// If we are clip-wrap indexing we need to determine if this is the start of an edit unit
+				// The EssenceSource is responsible for ensuring that each edit unit starts at the 
+				// beginning of a new GetEssenceData() chunk
+				if(IndexClip)
+				{
+					Position EditUnit = (*it).second.Source->GetCurrentPosition();
+					if(EditUnit != LastEditUnit)
+					{
+						LastEditUnit = EditUnit;
+						IndexThisItem = true;
+					}
+				}
+
 				DataChunkPtr Data = (*it).second.Source->GetEssenceData();
 				
 				// Exit when no more data left
@@ -685,7 +773,31 @@ void GCWriter::Flush(void)
 					continue;
 				}
 
+				// Index this item if required
+				if(IndexThisItem) (*it).second.IndexMan->OfferOffset((*it).second.IndexSubStream, LastEditUnit, StreamOffset);
+
+				// Write the data
 				StreamOffset += LinkedFile->Write(*Data);
+			}
+
+			// Now correct the length if we are fast clip wrapping
+			if((*it).second.FastClipWrap)
+			{
+				Position ValueEnd = LinkedFile->Tell();
+
+				// Calculate the size of the value taking into account the size of the BER length
+				Uint64 ValueSize = (Uint64)(ValueEnd - (LenPosition + LenSize));
+
+				// Write the true length over the (2^xx)-1 version
+				LinkedFile->Seek(LenPosition);
+				if(LinkedFile->WriteBER(ValueSize, LenSize) != LenSize)
+				{
+					// DRAGONS: At this point the file is broken - but there is no graceful solution!
+					error("Clip wrapped essence item greater than will fit in the required %d-byte BER length\n", LenSize);
+				}
+
+				// Return to the current write point
+				LinkedFile->Seek(ValueEnd);
 			}
 		}
 
@@ -704,8 +816,16 @@ void GCWriter::Flush(void)
 	// Align to the next KAG
 	if(KAGSize > 1)
 	{
-		Uint64 Pos = LinkedFile->Tell();
-		StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+		if(!LinkedFile->IsBlockAligned())
+		{
+			Uint64 Pos = LinkedFile->Tell();
+			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+		}
+		else
+		{
+			// Do nothing when block aligned
+			// DRAGONS: Should we do something here?
+		}
 	}
 
 	// Increment edit unit
@@ -821,7 +941,15 @@ Length GCWriter::CalcRawSize(KLVObjectPtr Object)
 	// Add the size of any filler
 	if(KAGSize > 1)
 	{
-		Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+		if(!LinkedFile->IsBlockAligned())
+		{
+			Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+		}
+		else
+		{
+			// Do nothing when block aligned
+			// DRAGONS: Should we do something here?
+		}
 	}
 
 	// Add the chunk size
@@ -834,7 +962,15 @@ Length GCWriter::CalcRawSize(KLVObjectPtr Object)
 	// Align to the next KAG
 	if(KAGSize > 1)
 	{
-		Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+		if(!LinkedFile->IsBlockAligned())
+		{
+			Ret += LinkedFile->FillerSize(ForceFillerBER4, KAGSize);
+		}
+		else
+		{
+			// Do nothing when block aligned
+			// DRAGONS: Should we do something here?
+		}
 	}
 
 	return Ret;
@@ -847,8 +983,16 @@ void GCWriter::WriteRaw(KLVObjectPtr Object)
 	// Align to the next KAG
 	if(KAGSize > 1)
 	{
-		Uint64 Pos = LinkedFile->Tell();
-		StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+		if(!LinkedFile->IsBlockAligned())
+		{
+			Uint64 Pos = LinkedFile->Tell();
+			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+		}
+		else
+		{
+			// Do nothing when block aligned
+			// DRAGONS: Should we do something here?
+		}
 	}
 
 	// Set this file and position as the destination for the KLVObject
@@ -877,8 +1021,16 @@ void GCWriter::WriteRaw(KLVObjectPtr Object)
 	// Align to the next KAG
 	if(KAGSize > 1)
 	{
-		Uint64 Pos = LinkedFile->Tell();
-		StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+		if(!LinkedFile->IsBlockAligned())
+		{
+			Uint64 Pos = LinkedFile->Tell();
+			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
+		}
+		else
+		{
+			// Do nothing when block aligned
+			// DRAGONS: Should we do something here?
+		}
 	}
 
 	return;
@@ -1421,6 +1573,89 @@ ParserDescriptorListPtr EssenceParser::IdentifyEssence(FileHandle InFile)
 }
 
 
+//! Produce a list of available wrapping options
+EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+{
+	WrappingConfigList Ret;
+
+	// No options!
+	if(PDList->empty()) return Ret;
+
+	// Identify the wrapping options for each descriptor
+	ParserDescriptorList::iterator pdit = PDList->begin();
+	while(pdit != PDList->end())
+	{
+		EssenceStreamDescriptorList::iterator it = (*pdit).second.begin();
+		while(it != (*pdit).second.end())
+		{
+			WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, (*it));
+
+			WrappingOptionList::iterator it2 = WO.begin();
+			while(it2 != WO.end())
+			{
+				// Only accept wrappings of the specified type
+				if(ForceWrap != WrappingOption::None)
+				{
+					if((*it2)->ThisWrapType != ForceWrap)
+					{
+						it2++;
+						continue;
+					}
+				}
+
+				// Attempt to build a wrapping config for this wrapping option
+				EssenceParser::WrappingConfigPtr Config = new WrappingConfig;
+
+				Config->EssenceDescriptor = (*it).Descriptor;
+				MDObjectPtr SampleRate = Config->EssenceDescriptor["SampleRate"];
+
+				// Work out what edit rate to use
+				if((!SampleRate) || (ForceEditRate.Numerator != 0))
+				{
+					Config->EditRate.Numerator = ForceEditRate.Numerator;
+					Config->EditRate.Denominator = ForceEditRate.Denominator;
+				}
+				else
+				{
+					Rational Preferred = (*it2)->Handler->GetPreferredEditRate();
+
+					// No preferrred rate given so use the sample rate
+					if(Preferred.Numerator == 0)
+					{
+						Config->EditRate.Numerator = SampleRate->GetInt("Numerator");
+						Config->EditRate.Denominator = SampleRate->GetInt("Denominator");
+					}
+					else
+					{
+						Config->EditRate = Preferred;
+					}
+				}
+
+				// Set the parser up to wrap this essence stream
+				Config->Parser = (*it2)->Handler;
+				Config->WrapOpt = (*it2);
+				Config->Stream = (*it).ID;
+				Config->Parser->Use(Config->Stream, Config->WrapOpt);
+
+				// Check if the edit rate is acceptable
+				if( Config->Parser->SetEditRate(Config->EditRate) )
+				{
+					// All OK, including requested edit rate - add this option to the list
+					Ret.push_back(Config);
+				}
+
+				it2++;
+			}
+			it++;
+		}
+		pdit++;
+	}
+
+	return Ret;
+}
+
+
+
 //! Select the best wrapping option
 EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
 {
@@ -1515,6 +1750,26 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 }
 
 
+//! Select the specified wrapping options
+void EssenceParser::SelectWrappingOption(EssenceParser::WrappingConfigPtr Config)
+{
+	// Ensure that these settings are in use by the parser
+	Config->Parser->Use(Config->Stream, Config->WrapOpt);
+	Config->Parser->SetEditRate(Config->EditRate);
+
+	// Update the SampleRate in the Descriptor to the rate in use (which may be different than its native rate)
+	MDObjectPtr SampleRate = Config->EssenceDescriptor["SampleRate"];
+	if(!SampleRate) SampleRate = Config->EssenceDescriptor->AddChild("SampleRate");
+	if(SampleRate)
+	{
+		SampleRate->SetInt("Numerator", Config->EditRate.Numerator);
+		SampleRate->SetInt("Denominator", Config->EditRate.Denominator);
+	}
+
+	// FIXME: This does not take into account the KAG
+	Config->WrapOpt->BytesPerEditUnit = Config->Parser->GetBytesPerEditUnit();
+}
+
 
 //! Write a complete partition's worth of essence
 /*! Will stop if:
@@ -1580,7 +1835,8 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 			// Get the stream ID for this sub-stream
 			GCStreamID EssenceID = (*it)->GetStreamID();
 
-			Writer->AddEssenceData(EssenceID, (*it));
+			// Add the essence to write - using FastClipWrap if available
+			Writer->AddEssenceData(EssenceID, (*it), GetFastClipWrap());
 			it++;
 		}
 
@@ -1589,6 +1845,31 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 
 		// Write the essence
 		Writer->StartNewCP();
+
+		// After writing the clip this must be the end of the stream
+		Stream->SetEndOfStream(true);
+
+		// DRAGONS: Is this the right thing to do?
+		if(VBRIndex)
+		{
+			// Index the first edit unit of the essence for clip-wrap
+			// FIXME: we need to do proper clip-wrap indexing!!
+			Position EditUnit = IndexMan->AcceptProvisional();
+			if(EditUnit == -1) EditUnit = IndexMan->GetLastNewEditUnit();
+			Stream->SparseList.push_back(EditUnit);
+
+			// If we are requested to add a "free space" index entry do so here
+			if(Stream->GetFreeSpaceIndex())
+			{
+				// Add free space entry for each sub-stream
+				BodyStream::iterator it = Stream->begin();
+				while(it != Stream->end())
+				{
+					IndexMan->OfferOffset((*it)->GetIndexStreamID(), EditUnit + 1, Writer->GetStreamOffset());
+					it++;
+				}
+			}
+		}
 
 		// FIXME: We don't yet count the duration of the clip wrapped essence
 	}
@@ -2154,6 +2435,7 @@ void mxflib::BodyWriter::EndPartition(void)
 		MinPartitionFiller = 0;
 		MinPartitionSize = 0;
 	}
+
 }
 
 
