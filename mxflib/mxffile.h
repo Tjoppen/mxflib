@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.5 2005/05/03 18:06:47 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.6 2005/07/19 11:51:24 matt-beard Exp $
  *
  */
 /*
@@ -50,14 +50,18 @@ namespace mxflib
 	class MXFFile : public RefCount<MXFFile>
 	{
 	protected:
-		bool isOpen;				//! True when the file is open
-		bool isMemoryFile;			//! True is the file is a "memory file"
-		FileHandle Handle;			//! File hanlde
-		Uint32 RunInSize;			//! Size of run-in in physical file
+		bool isOpen;					//!< True when the file is open
+		bool isMemoryFile;				//!< True is the file is a "memory file"
+		FileHandle Handle;				//!< File hanlde
+		Uint32 RunInSize;				//!< Size of run-in in physical file
 
-		DataChunkPtr Buffer;		//! Memory file buffer pointer
-		Uint64 BufferOffset;		//! Offset of the start of the buffer from the start of the memory file
-		Uint64 BufferCurrentPos;	//! Offset of the current position from the start of the memory file
+		DataChunkPtr Buffer;			//!< Memory file buffer pointer
+		Uint64 BufferOffset;			//!< Offset of the start of the buffer from the start of the memory file
+		Uint64 BufferCurrentPos;		//!< Offset of the current position from the start of the memory file
+
+		Uint32 BlockAlign;				//!< Some systems can run more efficiently if the essence and index data start on a block boundary - if used this is the block size
+		Int32 BlockAlignEssenceOffset;	//!< Fixed distance from the block grid at which to align essence (+ve is after the grid, -ve before)
+		Int32 BlockAlignIndexOffset;	//!< Fixed distance from the block grid at which to align index (+ve is after the grid, -ve before)
 
 		//DRAGONS: There should probably be a property to say that in-memory values have changed?
 		//DRAGONS: Should we have a flush() function
@@ -67,7 +71,7 @@ namespace mxflib
 		std::string Name;
 
 	public:
-		MXFFile() : isOpen(false), isMemoryFile(false) {};
+		MXFFile() : isOpen(false), isMemoryFile(false), BlockAlign(0) {};
 		~MXFFile() { if(isOpen) Close(); };
 
 		virtual bool Open(std::string FileName, bool ReadOnly = false );
@@ -345,6 +349,17 @@ namespace mxflib
 				BufferOffset = Offset;
 			}
 		}
+
+		//! Set the block alignment block size
+		void SetBlockAlign(Uint32 Size, Int32 EssenceOffset = 0, Int32 IndexOffset = 0)
+		{
+			BlockAlign = Size;
+			BlockAlignEssenceOffset = EssenceOffset;
+			BlockAlignIndexOffset = IndexOffset;
+		}
+
+		//! Determine if this file used block alignment
+		bool IsBlockAligned(void) { return (BlockAlign != 0); }
 
 	protected:
 		Uint64 ScanRIP_FindFooter(Length MaxScan);

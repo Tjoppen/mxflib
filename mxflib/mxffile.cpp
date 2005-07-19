@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.6 2005/03/25 13:14:41 terabrit Exp $
+ *	\version $Id: mxffile.cpp,v 1.7 2005/07/19 11:51:24 matt-beard Exp $
  *
  */
 /*
@@ -608,7 +608,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 		FileRIP.AddPartition(ThisPartition, Location, BodySID);
 
-		Uint64 Skip = 0;
+		Length Skip = 0;
 
 		// Work out how far to skip ahead
 		Ptr = ThisPartition["HeaderByteCount"];
@@ -619,7 +619,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 		if(Skip)
 		{
 			// Location before we skip
-			Uint64 PreSkip = Tell();
+			Position PreSkip = Tell();
 
 			/* Check for version 10 HeaderByteCount and possible bug version */
 			// Version 10 of MXF counts from the end of the partition pack, however
@@ -660,7 +660,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 						else if(First->Name() == "KLVFill")
 						{
 							U = Tell() / KAGSize;
-							if( (U * KAGSize) == Tell() )
+							if( (U * KAGSize) == (UInt64)Tell() )
 							{
 								warning("(Version 10 file) HeaderByteCount in %s at 0x%s in %s does not include the leading filler\n",
 										ThisPartition->FullName().c_str(), Int64toHexString(ThisPartition->GetLocation(),8).c_str(), 
@@ -701,7 +701,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 			}
 
 			// Skip over header
-			Uint64 NextPos = PreSkip + Skip;
+			Position NextPos = PreSkip + Skip;
 			Seek(NextPos);
 			if( Tell() != NextPos)
 			{
@@ -757,7 +757,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 			}
 
 			Skip = ReadBER();
-			Uint64 NextPos = Tell() + Skip;
+			Position NextPos = Tell() + Skip;
 			Seek(NextPos);
 			if( (Skip < 0) || (Tell() != NextPos))
 			{
@@ -982,6 +982,18 @@ Uint64 MXFFile::Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize /*=0*/)
  */
 bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding, Uint32 MinPartitionSize)
 {
+	//! Length of the partition pack for calculating block alignment
+	Length PartitionPackSize = 0;
+
+	//! Essence BodySID for calculating block alignment
+	Uint32 BodySID = 0;
+
+	//! Length of block alignment padding after the header metadata (if required)
+	Length BlockAlignHeaderBytes = 0;
+
+	//! Length of block alignment padding after the index table (if required)
+	Length BlockAlignIndexBytes = 0;
+
 	//! Previous partition if re-writing
 	PartitionPtr OldPartition;
 
@@ -1014,8 +1026,8 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		if(thisUL && *thisUL==PrefaceUL)
 		{
 
-		// Update partition pack settings from the preface (if we find one)
-		// if((*it)->Name() == "Preface" || (*it)->Name() == "Header" )
+			// Update partition pack settings from the preface (if we find one)
+			// if((*it)->Name() == "Preface" || (*it)->Name() == "Header" )
 			//	if( *(*it)->GetType()->GetTypeUL() == PrefaceUL )
 
 			// Update OP label
@@ -1044,7 +1056,6 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 				}
 			}
 		}
-
 		it++;
 	}
 
@@ -1060,13 +1071,14 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 	// Initialy we have no header data
 	Uint64 HeaderByteCount = 0;
-	
+
 	// Read the old partition pack if re-writing
 	if(ReWrite)
 	{
-		Uint64 Pos = Tell();
+		Position CurrentPos = Tell();
 		OldPartition = ReadPartition();
-
+		PartitionPackSize = (Length)(Tell() - CurrentPos);
+		
 		if(!OldPartition)
 		{
 			error("Failed to read old partition pack in MXFFile::ReWritePartition()\n"); 
@@ -1074,7 +1086,22 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		}
 
 		// Move back to re-write partition pack
-		Seek(Pos);
+		Seek(CurrentPos);
+	}
+
+	// If we are going to be doing block alignment we will need to know the size of the partition pack
+	else if(BlockAlign)
+	{
+		// Write the (currently incomplete) partition pack to determine its size
+		Position CurrentPos = Tell();
+		WritePartitionPack(ThisPartition);
+		PartitionPackSize = (Length)(Tell() - CurrentPos);
+		
+		// Then move back so that we re-write it later
+		Seek(CurrentPos);
+
+		// Read the partition's body SID so we know if there is essence in this partition
+		BodySID = ThisPartition->GetUint("BodySID");
 	}
 
 	if(IncludeMetadata)
@@ -1120,8 +1147,12 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		}
 		else
 		{
+			if(BlockAlign && (IndexData || (BodySID != 0)))
+			{
+				// Allow block alignment padding (calculated later)
+			}
 			// Padding follows the header if no index data
-			if(((Padding > 0) || (MinPartitionSize > HeaderByteCount)) && (!IndexData))
+			else if(((Padding > 0) || (MinPartitionSize > HeaderByteCount)) && (!IndexData))
 			{
 				// Work out which of the two padding methods requires the greater padding
 				Length UsePadding = (Length)MinPartitionSize - (Length)HeaderByteCount;
@@ -1143,12 +1174,116 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		ThisPartition->SetUint64("HeaderByteCount", 0);
 	}
 
+	// Some systems can run more efficiently if the essence and index data start on a block boundary in addition to any alignment provided by KAG
+	// We perform this alignment here if the partition contains an index table or essence data
+	if(BlockAlign && (IndexData || (BodySID != 0)))
+	{
+		// Work out how far off the block grid we are at the start of this partition
+		Position BlockOffset = Tell() % BlockAlign;
+
+		// Calculate how many bytes will be written before the start of the header metadata
+		Length BytesBefore = PartitionPackSize;
+		
+		// There will be a filler between the partition pack and the header metadata if KAG > 1 and there is header metadata
+		if((KAGSize > 1) && (HeaderByteCount > 0)) BytesBefore += FillerSize(PartitionPackSize, KAGSize);
+
+		// Work out what alignment offset to use (+ve aligns us after the block boundary, -ve before)
+		Int32 Offset;
+		if(IndexData) Offset = BlockAlignIndexOffset; else Offset = BlockAlignEssenceOffset;
+
+		/* So, (BlockOffset + BytesBefore + HeaderByteCount + RequiredPadding + Offset) must be an integer number of blocks */
+		
+		// Work out how many blocks are completely or partially used by everything except the padding				
+		Length Blocks = ((BlockOffset + BytesBefore + HeaderByteCount + Offset - 1) / BlockAlign) + 1;
+		
+		// Preserve the old byte count
+		Uint64 OldHeaderByteCount = HeaderByteCount;
+
+		// Make the header size equal to the number of bytes in that many blocks, less the preceeding data
+		HeaderByteCount = (Blocks * BlockAlign) - (BytesBefore + BlockOffset) + Offset;
+
+		// Work out the number of padding bytes required
+		BlockAlignHeaderBytes = HeaderByteCount - OldHeaderByteCount;
+
+		// If this is too small for a BER-4 filler KLV keep adding blocks until it is big enough
+		while(BlockAlignHeaderBytes < 20)
+		{
+			BlockAlignHeaderBytes += BlockAlign;
+			HeaderByteCount += BlockAlign;
+		}
+
+		if(!IndexData)
+		{
+			// If this is less than the requested padding keep adding blocks until it is enough
+			while(BlockAlignHeaderBytes < Padding)
+			{
+				BlockAlignHeaderBytes += BlockAlign;
+				HeaderByteCount += BlockAlign;
+			}
+
+			// Ensure we meet the requested minimum partition size
+			while((BytesBefore + OldHeaderByteCount + BlockAlignHeaderBytes) < MinPartitionSize)
+			{
+				BlockAlignHeaderBytes += BlockAlign;
+				HeaderByteCount += BlockAlign;
+			}
+		}
+	}
+
 	// Calculate the index byte size
 	if(IndexData)
 	{
 		Uint64 IndexByteCount = IndexData->Size;
 
-		if( (!IsFooter) || (Padding > 0) || (MinPartitionSize > HeaderByteCount) ) 
+		// Some systems can run more efficiently if the essence and index data start on a block boundary in addition to any alignment provided by KAG
+		if(BlockAlign && (BodySID != 0))
+		{
+			// Work out how far off the block grid we are at the start of this partition
+			Position BlockOffset = Tell() % BlockAlign;
+
+			// Calculate how many bytes will be written before the start of the index
+			Length BytesBefore = PartitionPackSize;
+			if(KAGSize > 1) BytesBefore += (PartitionPackSize, KAGSize);
+			BytesBefore += HeaderByteCount;
+
+
+			/* So, (BlockOffset + BytesBefore + IndexByteCount + RequiredPadding + BlockAlignEssenceOffset) must be an integer number of blocks */
+			
+			// Work out how many blocks are completely or partially used by everything except the padding				
+			Length Blocks = ((BlockOffset + BytesBefore + IndexByteCount + BlockAlignEssenceOffset - 1) / BlockAlign) + 1;
+			
+			// Preserve the old byte count
+			Uint64 OldIndexByteCount = IndexByteCount;
+
+			// Make the index size equal to the number of bytes in that many blocks, less the preceeding data
+			IndexByteCount = (Blocks * BlockAlign) - (BytesBefore + BlockOffset) + BlockAlignEssenceOffset;
+
+			// Work out the number of padding bytes required
+			BlockAlignIndexBytes = IndexByteCount - OldIndexByteCount;
+
+			// If this is too small for a BER-4 filler KLV keep adding blocks until it is big enough
+			while(BlockAlignIndexBytes < 20)
+			{
+				BlockAlignIndexBytes += BlockAlign;
+				IndexByteCount += BlockAlign;
+			}
+
+			// If this is less than the requested padding keep adding blocks until it is enough
+			while(BlockAlignHeaderBytes < Padding)
+			{
+				BlockAlignIndexBytes += BlockAlign;
+				IndexByteCount += BlockAlign;
+			}
+
+			// Ensure we meet the requested minimum partition size
+			while((BytesBefore + OldIndexByteCount + BlockAlignIndexBytes) < MinPartitionSize)
+			{
+				BlockAlignIndexBytes += BlockAlign;
+				IndexByteCount += BlockAlign;
+			}
+		}
+
+		else if( (!IsFooter) || (Padding > 0) || (MinPartitionSize > HeaderByteCount) ) 
 		{
 			// Work out which of the two padding methods requires the greater padding
 			Length UsePadding = (Length)MinPartitionSize - (Length)(HeaderByteCount + IndexByteCount);
@@ -1172,6 +1307,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 			ThisPartition->SetUint("IndexSID", 0);
 			ThisPartition->SetUint64("IndexByteCount", 0);
 		}
+
 	}
 
 	// Write the pack
@@ -1189,19 +1325,28 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		Write(MetaBuffer);
 	}
 
+	// Write a filler of the required size for block alignment (note the forced KAG of 1 in this case)
+	if(BlockAlignHeaderBytes) Align((Uint32)1, BlockAlignHeaderBytes); 
+
 	if(IndexData)
 	{
 		// Align if required
-		if(KAGSize > 1) Align(KAGSize);
+		if((KAGSize > 1) && (!BlockAlign)) Align(KAGSize);
 
 		// Write the index data
 		Write(IndexData);
+
+		// Write a filler of the required size for block alignment (note the forced KAG of 1 in this case)
+		if(BlockAlignIndexBytes) Align((Uint32)1, BlockAlignIndexBytes); 
 	}
 
 	// If not a footer align to the KAG (add padding if requested even if it is a footer)
 	if( (!IsFooter) || (Padding > 0))
 	{
-		if((KAGSize > 1) || (Padding > 0)) Align(KAGSize, Padding);
+		if(!BlockAlignHeaderBytes)
+		{
+			if((KAGSize > 1) || (Padding > 0)) Align(KAGSize, Padding);
+		}
 	}
 
 	return true;
