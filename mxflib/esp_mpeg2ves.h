@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.h
  *	\brief	Definition of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.h,v 1.3 2005/06/17 16:34:09 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.h,v 1.4 2005/07/19 13:38:41 matt-beard Exp $
  *
  */
 /*
@@ -98,7 +98,12 @@ namespace mxflib
 			{
 				Offset = 0;
 				MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
-				ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
+				
+				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip)
+					ByteCount = pCaller->ReadInternal(File, Stream, 0);
+				else
+					ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
+				
 				return ByteCount;
 			};
 
