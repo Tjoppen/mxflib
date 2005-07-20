@@ -31,13 +31,7 @@ using namespace mxflib;
 
 #ifdef COMPILED_DICT
 
-#include <mxflib/dict_types.h>
-#include <mxflib/dict_classes.h>
-
-MXFLIB_DICTIONARY_START(CompileTimeDict)
-	MXFLIB_DICTIONARY_TYPES(dict_types)
-	MXFLIB_DICTIONARY_CLASSES(dict_classes)
-MXFLIB_DICTIONARY_END
+#include <mxflib/dict.h>
 
 #endif // COMPILED_DICT
 
@@ -87,13 +81,9 @@ int main_process(int argc, char *argv[])
 
 #ifdef COMPILED_DICT
 	printf("- using compile-time dictionary\n");
-	LoadDictionary(CompileTimeDict);
+	LoadDictionary(DictData);
 #else
 	printf("- using run-time dictionary\n");
-//	LoadTypes("types.xml");
-//	MDOType::LoadDict("xmldict.xml");
-//	LoadDictionary("types.xml");
-//	LoadDictionary("xmldict.xml");
 	LoadDictionary("dict.xml");
 #endif
 
