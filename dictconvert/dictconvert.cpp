@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.2 2005/05/03 14:06:36 matt-beard Exp $
+ *	\version $Id: dictconvert.cpp,v 1.3 2005/07/20 10:37:32 matt-beard Exp $
  *
  */
 /*
@@ -48,10 +48,16 @@ void Convert_fatalError(void *user_data, const char *msg, ...);
 //! Should we pause before exit?
 bool PauseBeforeExit = false;
 
-// Name of the structure to build
+//! Name of the structure to build
 std::string UseName = "DictData";
 
-// Name of the file to be converted
+//! The number of (new style) types sections found
+int TypesCount = 0;
+
+//! The number of (new style) classes sections found
+int ClassesCount = 0;
+
+//! Name of the file to be converted
 char *InputFile = "";
 
 // Declare main process function
@@ -92,6 +98,9 @@ struct ConvertState
 	int Depth;									//!< Nesting depth in class parsing
 	std::list<std::string> EndTagText;			//!< Text to be output at the next class end tag
 	std::map<std::string, std::string> TypeMap;	//!< Map of type for each class - to allow types to be inherited
+	bool FoundType;								//!< Set true once we have determined the dictionary type (old or new)
+	bool FoundMulti;							//!< Found new multi-style dictionary
+	std::string SymSpace;						//!< The symbol space attribute of the classes tag (stored if deferring the header line)
 };
 
 
@@ -163,10 +172,35 @@ int main_process(int argc, char *argv[])
 	State.State = StateIdle;
 	State.OutFile = outfile;
 	State.Depth = 0;
+	State.FoundType = false;
+	State.FoundMulti = false;
 
 	// Parse the file
 	bool result = false;
 	result = XMLParserParseFile(&XMLHandler, &State, InputFile);
+
+	if((ClassesCount > 0) || (TypesCount > 0))
+	{
+		fprintf(outfile, "\n");
+		fprintf(outfile, "\t// Build a complete dictionary from above types and classes\n");
+		fprintf(outfile, "\tMXFLIB_DICTIONARY_START(%s)\n", UseName.c_str());
+		int i;
+		for(i=1; i<=TypesCount; i++)
+		{
+			if(i==1)
+				fprintf(outfile, "\t\tMXFLIB_DICTIONARY_TYPES(%s_Types)\n", UseName.c_str());
+			else
+				fprintf(outfile, "\t\tMXFLIB_DICTIONARY_TYPES(%s_Types_%d)\n", UseName.c_str(), i);
+		}
+		for(i=1; i<=ClassesCount; i++)
+		{
+			if(i==1)
+				fprintf(outfile, "\t\tMXFLIB_DICTIONARY_CLASSES(%s_Classes)\n", UseName.c_str());
+			else
+				fprintf(outfile, "\t\tMXFLIB_DICTIONARY_CLASSES(%s_Classes_%d)\n", UseName.c_str(), i);
+		}
+		fprintf(outfile, "\tMXFLIB_DICTIONARY_END\n", UseName.c_str());
+	}
 
 	return result ? 0 : 1;
 }
@@ -200,22 +234,106 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 		{
 			if(strcmp(name, "MXFTypes") == 0)
 			{
+				// Types at the outer level is an old style dictionary
+				if(!State->FoundType)
+				{
+					State->FoundType = true;
+					State->FoundMulti = false;
+				}
+
+				if(State->FoundMulti) TypesCount++;
+
 				State->State = StateTypes;
 
+				if((ClassesCount + TypesCount) > 0)	fprintf(State->OutFile, "\n");
+
 				fprintf(State->OutFile, "\t// Types definitions converted from file %s\n", InputFile);
-				fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s)\n", UseName.c_str());
+				
+				if(!State->FoundMulti)
+				{
+					fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s)\n", UseName.c_str());
+				}
+				else if(TypesCount <= 1)
+				{
+					fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s_Types)\n", UseName.c_str());
+				}
+				else
+				{
+					fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s_Types_%d)\n", UseName.c_str(), TypesCount);
+				}
 			}
-			else if(strcmp(name, "MXFDictionary") == 0)
+			else if((strcmp(name, "MXFDictionary") == 0) || (strcmp(name, "MXFClasses") == 0))
 			{
 				State->State = StateClasses;
 
-				fprintf(State->OutFile, "\t// Class definitions converted from file %s\n", InputFile);
-				fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s)\n", UseName.c_str());
+				/* Check for symSpace */
+				std::string SymSpace;
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "symSpace") == 0)
+						{
+							SymSpace = val;
+						}
+					}
+				}
+
+				// If the tag is MXFClasses we are in a new type dictionary
+				if((!State->FoundType) && (strcmp(name, "MXFClasses") == 0))
+				{
+					State->FoundType = true;
+					State->FoundMulti = true;
+				}
+
+				// If we already know what type of dictionary this is we can send the header
+				if(State->FoundType)
+				{
+					if(State->FoundMulti) ClassesCount++;
+
+					if((ClassesCount + TypesCount) > 0)	fprintf(State->OutFile, "\n");
+
+					fprintf(State->OutFile, "\t// Class definitions converted from file %s\n", InputFile);
+					
+					if(!State->FoundMulti)
+					{
+						if(SymSpace.size() == 0)
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s)\n", UseName.c_str());
+						else
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s, %s)\n", UseName.c_str(), SymSpace.c_str());
+					}
+					else if(ClassesCount <= 1)
+					{
+						if(SymSpace.size() == 0)
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s_Classes)\n", UseName.c_str());
+						else
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s_Classes, %s)\n", UseName.c_str(), SymSpace.c_str());
+					}
+					else
+					{
+						if(SymSpace.size() == 0)
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s_Classes_%d)\n", UseName.c_str(), ClassesCount);
+						else
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s_Classes_%d, %s)\n", UseName.c_str(), ClassesCount, SymSpace.c_str());
+					}
+				}
+				// Otherwise we store the symspace (if any) for later when we do send the header
+				else
+				{
+					State->SymSpace = SymSpace;
+				}
 			}
 			else
 			{
-				Convert_fatalError(user_data, "Outer tag <MXFTypes> or <MXFDictionary> expected - <%s> found\n", name);
-				return;
+				// Allow MXF dictionaries to be wrapped inside other XML files
+				debug("Stepping into outer level <%s>\n", name);
+
+//				Convert_fatalError(user_data, "Outer tag <MXFTypes> or <MXFDictionary> expected - <%s> found\n", name);
+//				return;
 			}
 
 			break;
@@ -239,12 +357,11 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 		case StateTypesBasic:
 		{
-//			const char *Detail = "";
 			std::string Detail;
 
 			int Size = 1;
 			bool Endian = false;
-			
+
 			/* Process attributes */
 			if(attrs != NULL)
 			{
@@ -454,6 +571,36 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 		case StateClasses:
 		{
+			// If we find a new style "MXFTypes" or "MXFClasses" section then restart in idle to enter mode properly
+			if((strcmp(name, "MXFTypes") == 0) || (strcmp(name, "MXFClasses") == 0))
+			{
+				// Types or classes inside MXFDictionary is a new style dictionary
+				if(!State->FoundType)
+				{
+					State->FoundType = true;
+					State->FoundMulti = true;
+				}
+
+				State->State = StateIdle;
+				Convert_startElement(user_data, name, attrs);
+				return;
+			}
+			
+			// Anything else at this point is an old style dictionary
+			if(!State->FoundType)
+			{
+				State->FoundType = true;
+				State->FoundMulti = false;
+
+				// At this point we will have a deferred header - so issue it
+				fprintf(State->OutFile, "\t// Class definitions converted from file %s\n", InputFile);
+				
+				if(State->SymSpace.size() == 0)
+					fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s)\n", UseName.c_str());
+				else
+					fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s, %s)\n", UseName.c_str(), State->SymSpace.c_str());
+			}
+
 			bool HasGlobalKey = false;
 			bool HasDValue = false;
 			bool HasDefault = false;
@@ -469,6 +616,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			std::string Base;
 			std::string default_text;
 			std::string dvalue_text;
+			std::string SymSpace;
 
 			/* Scan attributes */
 			int this_attr = 0;
@@ -567,6 +715,10 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						Base = val;
 					}
+					else if(strcmp(attr, "symSpace") == 0)
+					{
+						SymSpace = CConvert(val);
+					}
 					else
 					{
 						Convert_warning(State, "Unexpected attribute '%s' in <%s/>", attr, name);
@@ -611,18 +763,31 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			else if(   (strcasecmp(TypeBuff,"localSet") == 0)
 				    || (strcasecmp(TypeBuff,"subLocalSet") == 0) )
 			{
-				fprintf(State->OutFile, "%sMXFLIB_CLASS_SET(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+				if(SymSpace.size() == 0)
+					fprintf(State->OutFile, "%sMXFLIB_CLASS_SET(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+				else
+					fprintf(State->OutFile, "%sMXFLIB_CLASS_SET_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+
 				State->EndTagText.push_back(Indent + "MXFLIB_CLASS_SET_END");
 			}
 			else if(   (strcasecmp(TypeBuff,"fixedPack") == 0)
 				    || (strcasecmp(TypeBuff,"subFixedPack") == 0) )
 			{
-				fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+				if(SymSpace.size() == 0)
+					fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+				else
+					fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+
 				State->EndTagText.push_back(Indent + "MXFLIB_CLASS_FIXEDPACK_END");
 			}
 			else if(   (strcasecmp(TypeBuff,"vector") == 0)
 				    || (strcasecmp(TypeBuff,"subVector") == 0) )
 			{
+				if(SymSpace.size() != 0)
+				{
+					Convert_error(State, "Symbol space not currently supported for vector types such as <%s>\n", name);
+				}
+				
 				if(RefType == "ClassRefNone")
 					fprintf(State->OutFile, "%sMXFLIB_CLASS_VECTOR(\"%s\", \"%s\", %s, 0x%04x, \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Use.c_str(), Tag, GlobalKey.c_str());
 				else
@@ -633,6 +798,11 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			else if(   (strcasecmp(TypeBuff,"array") == 0)
 				    || (strcasecmp(TypeBuff,"subArray") == 0) )
 			{
+				if(SymSpace.size() != 0)
+				{
+					Convert_error(State, "Symbol space not currently supported for arrays types such as <%s>\n", name);
+				}
+				
 				if(RefType == "ClassRefNone")
 					fprintf(State->OutFile, "%sMXFLIB_CLASS_ARRAY(\"%s\", \"%s\", %s, 0x%04x, \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Use.c_str(), Tag, GlobalKey.c_str());
 				else
@@ -653,12 +823,19 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 				std::string Ref;
 				if(RefType != "ClassRefNone") Ref = "_REF";
-				fprintf(State->OutFile, "%sMXFLIB_CLASS_ITEM%s(\"%s\", \"%s\", %s, \"%s\", %d, %d, 0x%04x, \"%s\", ", Indent.c_str(), Ref.c_str(), name, Detail.c_str(), Use.c_str(), Type.c_str(), minLength, maxLength, Tag, GlobalKey.c_str());
+
+				if(SymSpace.size() == 0)
+					fprintf(State->OutFile, "%sMXFLIB_CLASS_ITEM%s(\"%s\", \"%s\", %s, \"%s\", %d, %d, 0x%04x, \"%s\", ", Indent.c_str(), Ref.c_str(), name, Detail.c_str(), Use.c_str(), Type.c_str(), minLength, maxLength, Tag, GlobalKey.c_str());
+				else
+					fprintf(State->OutFile, "%sMXFLIB_CLASS_ITEM%s_SYM(\"%s\", \"%s\", %s, \"%s\", %d, %d, 0x%04x, \"%s\", ", Indent.c_str(), Ref.c_str(), name, Detail.c_str(), Use.c_str(), Type.c_str(), minLength, maxLength, Tag, GlobalKey.c_str());
 
 				if(RefType != "ClassRefNone")	fprintf(State->OutFile, "%s, \"%s\", ", RefType.c_str(), RefTargetName.c_str());
 
 				if(HasDefault) fprintf(State->OutFile, "\"%s\", ", default_text.c_str()); else fprintf(State->OutFile, "NULL, ");
-				if(HasDValue) fprintf(State->OutFile, "\"%s\")\n", dvalue_text.c_str()); else fprintf(State->OutFile, "NULL)\n");
+				if(HasDValue) fprintf(State->OutFile, "\"%s\"", dvalue_text.c_str()); else fprintf(State->OutFile, "NULL");
+
+				if(SymSpace.size() != 0) fprintf(State->OutFile, ", \"%s\"", SymSpace.c_str());
+				fprintf(State->OutFile, ")\n");
 
 				State->EndTagText.push_back("");
 			}
@@ -697,14 +874,18 @@ void Convert_endElement(void *user_data, const char *name)
 
 		case StateIdle:
 		{
-			Convert_error(user_data, "Closing tag </%s> found when not unexpected\n", name);
-			return;
+			// Allow MXF dictionaries to be wrapped inside other XML files
+			debug("Stepping out of outer level <%s>\n", name);
+			break;
+			
+//			Convert_error(user_data, "Closing tag </%s> found when not unexpected\n", name);
+//			return;
 		}
 
 		case StateTypes:
 		{
 			fprintf(State->OutFile, "\tMXFLIB_TYPE_END\n");
-			State->State = StateDone;
+			State->State = StateIdle;
 			break;
 		}
 
@@ -745,7 +926,7 @@ void Convert_endElement(void *user_data, const char *name)
 			if(State->Depth == 0)
 			{
 				fprintf(State->OutFile, "\tMXFLIB_CLASS_END\n");
-				State->State = StateDone;
+				State->State = StateIdle;
 				break;
 			}
 
