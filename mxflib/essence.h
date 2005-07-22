@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.8 2005/07/19 13:34:28 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.9 2005/07/22 18:04:48 matt-beard Exp $
  *
  */
 /*
@@ -1310,6 +1310,7 @@ namespace mxflib
 			NextSprinkled = 0;
 			EssencePendingData = false;
 			EndOfStream = false;
+			FreeSpaceIndex = false;
 
 			KAG = 0;
 			ForceBER4 = false;
