@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.23 2005/06/18 15:18:28 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.24 2005/07/22 18:02:18 matt-beard Exp $
  *
  */
 /*
@@ -288,9 +288,59 @@ int main_process(int argc, char *argv[])
 			return 3;
 		}
 
+		// Wrapping config to use
 		EssenceParser::WrappingConfigPtr WCP;
-		if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
-		else WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate);
+
+		// Auto wrapping selection
+		if(SelectedWrappingOption < 0)
+		{
+			// Select the best wrapping option
+			if(FrameGroup) WCP = FParser->SelectWrappingOption(PDList, ForceEditRate, WrappingOption::Frame);				//#FParse
+			else WCP = FParser->SelectWrappingOption(PDList, ForceEditRate);													//#FParse
+		}
+		else
+		// Manual wrapping selection
+		{
+			// Return code for -w options - used to flag error yet still show options
+			int Ret = 0;
+
+			EssenceParser::WrappingConfigList WCList;
+			if(FrameGroup) WCList = FParser->ListWrappingOptions(PDList, ForceEditRate, WrappingOption::Frame);
+			else WCList = FParser->ListWrappingOptions(PDList, ForceEditRate);
+
+			// Ensure that there are enough wrapping options
+			if(SelectedWrappingOption > WCList.size())
+			{
+				error("Wrapping option %d not available\n", SelectedWrappingOption);
+				SelectedWrappingOption = 0;
+				Ret = 6;
+			}
+
+			// If the caller has requested a list of wrapping options, list them and exit
+			if(SelectedWrappingOption == 0)
+			{
+				int Opt = 0;
+				printf("\nAvailable wrapping options:\n");
+
+				EssenceParser::WrappingConfigList::iterator it = WCList.begin();
+				while(it != WCList.end())
+				{
+					printf("  %d: %s\n", (++Opt), (*it)->WrapOpt->Description.c_str());
+					it++;
+				}
+
+				if(Opt == 0) printf("  NONE\n");
+
+				return Ret;
+			}
+
+			// Select the nth config
+			EssenceParser::WrappingConfigList::iterator it = WCList.begin();
+			while(SelectedWrappingOption-- > 1) it++;
+			WCP = *it;
+			
+			FParser->SelectWrappingOption(WCP);
+		}
 
 		if(!WCP)
 		{
@@ -547,6 +597,12 @@ bool ParseCommandLine(int &argc, char **argv)
 			{
 				UpdateHeader = true;
 			}
+			else if(Opt == 'w') 
+			{
+				char *temp;
+				SelectedWrappingOption = strtoul(Val, &temp, 0);
+			}
+
 #ifdef DMStiny
 			else if(Opt == 't')
 			{
@@ -616,6 +672,8 @@ bool ParseCommandLine(int &argc, char **argv)
 		printf("    -s         = Interleave essence containers for streaming\n");
 		printf("    -u         = Update the header after writing footer\n");
 		printf("    -v         = Verbose mode\n");
+		printf("    -w         = List available wrapping options (does not build a file)\n");
+		printf("    -w=<num>   = Use wrapping option <num>\n");
 		printf("    -z         = Pause for input before final exit\n");
 
 #ifdef DMStiny
@@ -746,6 +804,12 @@ bool ParseCommandLine(int &argc, char **argv)
 			printf("%s", OutFilename[i]);
 		}
 		printf("\n");
+	}
+
+	if((SelectedWrappingOption >= 0) && (InFileGangCount * InFileGangSize) != 1)
+	{
+		error("Selection of wrapping options only currently available with single input files\n");
+		SelectedWrappingOption = -1;
 	}
 
 	if(OPAtom)
