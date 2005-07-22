@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.6 2005/05/06 14:57:21 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.7 2005/07/22 18:05:51 matt-beard Exp $
  *
  */
 /*
@@ -1512,6 +1512,7 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 		int i;
 		for(i=0; i<StreamCount; i++)
 		{
+			// DRAGONS: Why not just shorten the loop??
 			if( i!=StreamCount-1 ) // if this is the last Stream, there is no next Slice
 			{
 				if( ElementSizeList[i] == 0) // VBR - next Stream will be start of next Slice
