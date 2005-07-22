@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.24 2005/07/22 18:02:18 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.25 2005/07/22 18:14:15 matt-beard Exp $
  *
  */
 /*
@@ -170,6 +170,8 @@ namespace
 	bool IsolatedIndex = false;				//!< Don't write essence and index in same partition
 	bool VeryIsolatedIndex = false;			//!< Don't write metadata and index in same partition
 
+	int SelectedWrappingOption = -1;		//!< Selected wrapping option: -1 = auto, 0 = list choices
+
 	Position LastEditUnit[128];				//!< Table of last edit units written in sparse index tables (per BodySID)
 
 
@@ -295,8 +297,8 @@ int main_process(int argc, char *argv[])
 		if(SelectedWrappingOption < 0)
 		{
 			// Select the best wrapping option
-			if(FrameGroup) WCP = FParser->SelectWrappingOption(PDList, ForceEditRate, WrappingOption::Frame);				//#FParse
-			else WCP = FParser->SelectWrappingOption(PDList, ForceEditRate);													//#FParse
+			if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
+			else WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate);
 		}
 		else
 		// Manual wrapping selection
@@ -305,8 +307,8 @@ int main_process(int argc, char *argv[])
 			int Ret = 0;
 
 			EssenceParser::WrappingConfigList WCList;
-			if(FrameGroup) WCList = FParser->ListWrappingOptions(PDList, ForceEditRate, WrappingOption::Frame);
-			else WCList = FParser->ListWrappingOptions(PDList, ForceEditRate);
+			if(FrameGroup) WCList = EssParse.ListWrappingOptions(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
+			else WCList = EssParse.ListWrappingOptions(InFile[i], PDList, ForceEditRate);
 
 			// Ensure that there are enough wrapping options
 			if(SelectedWrappingOption > WCList.size())
@@ -339,7 +341,7 @@ int main_process(int argc, char *argv[])
 			while(SelectedWrappingOption-- > 1) it++;
 			WCP = *it;
 			
-			FParser->SelectWrappingOption(WCP);
+			EssParse.SelectWrappingOption(WCP);
 		}
 
 		if(!WCP)
