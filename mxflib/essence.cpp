@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.7 2005/07/19 13:34:28 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.8 2005/07/22 18:00:35 matt-beard Exp $
  *
  */
 /*
@@ -1943,6 +1943,25 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 				{
 					Stream->SetEndOfStream(true);
 					Stream->GetNextState();
+
+					// If we are requested to add a "free space" index entry do so here
+					if(Stream->GetFreeSpaceIndex())
+					{
+						Position EditUnit = IndexMan->AcceptProvisional();
+						if(EditUnit == -1) EditUnit = IndexMan->GetLastNewEditUnit();
+
+						if(EditUnit >= 0)
+						{
+							// Add free space entry for each sub-stream
+							BodyStream::iterator it = Stream->begin();
+							while(it != Stream->end())
+							{
+								IndexMan->OfferOffset((*it)->GetIndexStreamID(), EditUnit + 1, Writer->GetStreamOffset());
+								it++;
+							}
+						}
+					}
+
 					return Ret;
 				}
 
