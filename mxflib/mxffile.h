@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.6 2005/07/19 11:51:24 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.7 2005/07/28 14:28:21 matt-beard Exp $
  *
  */
 /*
@@ -92,6 +92,11 @@ namespace mxflib
 		/*! \ret NULL if none found
 		 */
 		PartitionPtr ReadMasterPartition(Length MaxScan = 1024*1024);
+
+		//! Locate and read the footer partition
+		/*! \ret NULL if not found
+		 */
+		PartitionPtr ReadFooterPartition(Length MaxScan = 1024*1024);
 
 		//! Report the position of the file pointer
 		Position Tell(void) 
