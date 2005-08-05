@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.10 2005/07/19 11:55:48 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.11 2005/08/05 14:31:20 matt-beard Exp $
  *
  */
 /*
@@ -343,6 +343,9 @@ namespace mxflib
 		//! Map for UL lookups
 		static std::map<UL, MDOTypePtr> ULLookup;
 		
+		//! Map for UL lookups - ignoring the version number (all entries use version = 1)
+		static std::map<UL, MDOTypePtr> ULLookupVer1;
+
 		//! Map for reverse lookups based on type name
 		static MDOTypeMap NameLookup;
 
@@ -383,6 +386,9 @@ namespace mxflib
 	public:
 		//! Load the dictionary
 		static void LoadDict(const char *DictFile);
+
+		//! Locate reference target types for any types not yet located
+		static void LocateRefTypes(void);
 
 		//! Build a primer
 		static PrimerPtr MakePrimer(bool SetStatic = false);
@@ -486,6 +492,9 @@ namespace mxflib
 										/*!< This is used to automatically update the GenerationUID when writing the object */
 
 		ObjectInterface *Outer;			//!< Pointer to outer object if this is a sub-object of an ObjectInterface derived object
+
+		//! Static flag to say if dark metadata sets that appear to be valid KLV 2x2 sets should be parsed
+		static bool ParseDark;
 
 	public:
 		MDValuePtr Value;
@@ -704,7 +713,11 @@ namespace mxflib
 		std::string Name(void) { return ObjectName; };
 
 		//! Report the full name of this item (the full name of its type)
-		std::string FullName(void) { ASSERT(Type); return Type->FullName(); };
+		std::string FullName(void) const 
+		{
+			if(Parent) return Parent->FullName() + "/" + ObjectName;
+			else return ObjectName; 
+		};
 
 		//! Inset a new child object - overloads the existing MDObjectList version
 		void insert(MDObjectPtr NewObject)
@@ -733,6 +746,9 @@ namespace mxflib
 		//! Ref access function
 		DictRefType GetRefType(void) const { ASSERT(Type); return Type->GetRefType(); };
 
+		//! Accessor for Reference Target
+		MDOTypePtr GetRefTarget(void) const { if(Type) return Type->GetRefTarget(); else return NULL; };
+
 		//! Set the parent details when an object has been read from a file
 		void SetParent(MXFFilePtr File, Uint64 Location, Uint32 NewKLSize)
 		{
@@ -753,8 +769,17 @@ namespace mxflib
 			ParentFile = NULL;
 		}
 
+		//! Access function for Parent
+		MDObjectParent &GetParent(void) { return Parent; }
+
 		//! Access function for ParentFile
 		MXFFilePtr &GetParentFile(void) { return ParentFile; };
+
+		//! Get a copy of the object's UL
+		UL GetUL(void) { return *TheUL; }
+
+		//! Get the object's UL
+		const ULPtr &GetUL(void) { return TheUL; }
 
 		//! Set the object's UL
 		void SetUL(ULPtr &NewUL) { TheUL = NewUL; }
@@ -818,6 +843,10 @@ namespace mxflib
 
 		//! Set pointer to Outer object
 		void SetOuter(ObjectInterface *NewOuter) { Outer = NewOuter; };
+
+	public:
+		//! Set the "attempt to parse dark metadata" flag
+		static void SetParseDark(bool Value) { ParseDark = Value; }
 
 	protected:
 		// Some private helper functions

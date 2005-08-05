@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.13 2005/07/19 11:55:48 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.14 2005/08/05 14:31:19 matt-beard Exp $
  *
  */
 /*
@@ -38,6 +38,10 @@
 
 using namespace mxflib;
 
+
+
+//! Static flag to say if dark metadata sets that appear to be valid KLV 2x2 sets should be parsed
+bool MDObject::ParseDark = false;
 
 
 //! Static primer to use for index tables
@@ -136,6 +140,19 @@ MDOTypePtr MDOType::Find(const UL& BaseUL)
 	{
 		theType = (*it).second;
 	}
+	else
+	{
+		// If the exact match is not found try a version-less lookup by changing the version number to 1
+		UL Ver1UL = BaseUL;
+		Ver1UL.Set(7, 1);
+
+		std::map<UL, MDOTypePtr>::iterator it2 = ULLookupVer1.find(Ver1UL);
+		if(it2 != ULLookupVer1.end())
+		{
+			theType = (*it2).second;
+		}
+
+	}
 
 	return theType;
 }
@@ -159,11 +176,24 @@ MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 	if(it != BasePrimer->end())
 	{
 		UL BaseUL = (*it).second;
-		std::map<UL, MDOTypePtr>::iterator it2 = ULLookup.find(UL(BaseUL));
+		std::map<UL, MDOTypePtr>::iterator it2 = ULLookup.find(BaseUL);
 
 		if(it2 != ULLookup.end())
 		{
 			theType = (*it2).second;
+		}
+		else
+		{
+			// Force the version number to 1
+			BaseUL.Set(7, 1);
+
+			// Look-up in the non-version specific map
+			std::map<UL, MDOTypePtr>::iterator it3 = ULLookupVer1.find(BaseUL);
+
+			if(it3 != ULLookupVer1.end())
+			{
+				theType = (*it3).second;
+			}
 		}
 	}
 
@@ -255,10 +285,6 @@ MDObject::MDObject(ULPtr BaseUL)
 
 		// Shall we try and parse this?
 		bool ParseDark = false;
-
-#ifdef PARSEDARK
-		ParseDark = true;
-#endif
 
 		if(ParseDark)
 		{
@@ -2290,7 +2316,20 @@ void MDOType::XML_startElement(void *user_data, const char *name, const char **a
 			else
 			{
 				Dict->TypeUL = new UL(Dict->GlobalKey.Data);
-				if(Dict->TypeUL) ULLookup[UL(Dict->TypeUL)] = Dict;
+				if(Dict->TypeUL)
+				{
+					// Add the given UL
+					ULLookup[UL(Dict->TypeUL)] = Dict;
+
+					// Add a version 1 copy of the UL for version-less lookups (but only if this is a boda-fide UL
+					const UInt8 ULStart[] = { 0x06, 0x0e, 0x2b, 0x34 };
+					if(memcmp(Dict->TypeUL->GetValue(), ULStart, 4) == 0)
+					{
+						UL Ver1UL = *Dict->TypeUL;
+						Ver1UL.Set(7, 1);
+						ULLookupVer1[UL(Dict->TypeUL)] = Dict;
+					}
+				}
 			}
 
 			/* We process the default at the end so we are certain to know the type! */
@@ -2530,6 +2569,32 @@ void MDOType::XML_fatalError(void *user_data, const char *msg, ...)
 
 
 
+//! Locate reference target types for any types not yet located
+void mxflib::MDOType::LocateRefTypes(void)
+{
+	MDOTypeList::iterator it = MDOType::AllTypes.begin();
+	while(it != MDOType::AllTypes.end())
+	{
+		// Locate the reference target if the name exists, but not the type
+		if((*it)->RefTargetName.size() && !(*it)->RefTarget)
+		{
+			MDOTypeMap::iterator it2 = NameLookup.find((*it)->RefTargetName);
+
+			if(it2 == NameLookup.end())
+			{
+				error("Type %s specifies an unknown reference target type of %s\n", (*it)->Name().c_str(), (*it)->RefTargetName.c_str());
+			}
+			else
+			{
+				(*it)->RefTarget = (*it2).second;
+			}
+		}
+
+		it++;
+	}
+}
+
+
 //** Static Instantiations for MDOType class **
 //*********************************************
 
@@ -2538,6 +2603,9 @@ MDOTypeList MDOType::TopTypes;	//!< The top-level types managed by the MDOType c
 
 //! Map for UL lookups
 std::map<UL, MDOTypePtr> MDOType::ULLookup;
+		
+//! Map for UL version-less lookups
+std::map<UL, MDOTypePtr> MDOType::ULLookupVer1;
 		
 //! Map for reverse lookups based on type name
 std::map<std::string, MDOTypePtr> MDOType::NameLookup;
@@ -2649,7 +2717,20 @@ MDOTypePtr MDOType::BuildTypeFromDict(std::string Name, std::string Base, MDOTyp
 	else
 	{
 		Dict->TypeUL = new UL(Dict->GlobalKey.Data);
-		if(Dict->TypeUL) ULLookup[UL(Dict->TypeUL)] = Dict;
+		if(Dict->TypeUL)
+		{
+			// Add the given UL
+			ULLookup[UL(Dict->TypeUL)] = Dict;
+
+			// Add a version 1 copy of the UL for version-less lookups (but only if this is a boda-fide UL
+			const UInt8 ULStart[] = { 0x06, 0x0e, 0x2b, 0x34 };
+			if(memcmp(Dict->TypeUL->GetValue(), ULStart, 4) == 0)
+			{
+				UL Ver1UL = *Dict->TypeUL;
+				Ver1UL.Set(7, 1);
+				ULLookupVer1[UL(Dict->TypeUL)] = Dict;
+			}
+		}
 	}
 
 	// Process the default now that we know the type
