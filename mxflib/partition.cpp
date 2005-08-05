@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.5 2005/05/03 18:10:21 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.6 2005/08/05 14:37:28 matt-beard Exp $
  *
  */
 /*
@@ -161,7 +161,12 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 			DictRefType Ref = (*it).second->GetRefType();
 			if((Ref == DICT_REF_STRONG) || (Ref == DICT_REF_WEAK))
 			{
-				if((*it).second->Value->GetData().Size != 16)
+				if(!(*it).second->Value)
+				{
+					error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has no valid value\n",
+						  ThisObject->Name().c_str(), (*it).second->Name().c_str());
+				}
+				else if((*it).second->Value->GetData().Size != 16)
 				{
 					error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
 						  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
@@ -231,6 +236,7 @@ Length mxflib::Partition::ReadMetadata(void)
 Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 {
 	Length Bytes = 0;
+	Length FillerBytes = 0;
 
 	// Clear any existing metadata
 	ClearMetadata();
@@ -258,7 +264,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 			// Skip over the filler, recording how far we went
 			Position NewLocation = File->ReadBER();
 			NewLocation += File->Tell();
-			Bytes = NewLocation - Location;
+			FillerBytes = NewLocation - Location;
 			Location = NewLocation;
 		}
 	}
@@ -390,7 +396,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 		AddMetadata(NewItem);
 	}
 
-	return Bytes;
+	return Bytes + FillerBytes;
 }
 
 
