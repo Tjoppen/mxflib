@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.9 2005/03/25 13:18:12 terabrit Exp $
+ *	\version $Id: system.h,v 1.10 2005/08/05 14:38:37 matt-beard Exp $
  *
  */
 /*
@@ -251,7 +251,7 @@ namespace mxflib
 		CoCreateGuid(reinterpret_cast<GUID*>(Buffer));
 	}
 
-	//! Determine if the spacified filename refers to an absolute path
+	//! Determine if the specified filename refers to an absolute path
 	inline bool IsAbsolutePath(const char *Filename)
 	{
 		if(*Filename == '\\') return true;
@@ -443,7 +443,7 @@ namespace mxflib
 	}
 #endif // HAVE_UUID_GENERATE
 
-	//! Determine if the spacified filename refers to an absolute path
+	//! Determine if the specified filename refers to an absolute path
 	inline bool IsAbsolutePath(const char *Filename)
 	{
 		if(*Filename == '/') return true;
