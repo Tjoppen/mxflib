@@ -53,6 +53,9 @@ static bool FullIndex = false;
 //! Flag for dumping all body partitions
 static bool FullBody = false;
 
+//! Flag for dumping object locations as well as object data
+static bool DumpLocation = false;
+
 
 static void DumpObject(MDObjectPtr Object, std::string Prefix);
 
@@ -99,6 +102,8 @@ int main_process(int argc, char *argv[])
 				FullIndex = true;
 			else if((argv[i][1] == 'b') || (argv[i][1] == 'B'))
 				FullBody = true;
+			else if((argv[i][1] == 'l') || (argv[i][1] == 'L'))
+				DumpLocation = true;
 			else if((argv[i][1] == 'd') || (argv[i][1] == 'D'))
 			{
 				int Start = 2;
@@ -121,6 +126,7 @@ int main_process(int argc, char *argv[])
 		printf("Options: -b         Dump body partitions (rather than just header and footer)\n");
 		printf("         -d <dict>  Load supplementary dictionary\n");
 		printf("         -i         Dump full index tables (can be lengthy)\n");
+		printf("         -l         Show the location (byte offset) of metadata items dumped\n");
 		printf("         -v         Verbose mode - shows lots of debug info\n");
 		printf("         -z         Pause for input before final exit\n");
 		return 1;
@@ -331,7 +337,7 @@ int main_process(int argc, char *argv[])
 //! Dump an object and any physical or logical children
 void DumpObject(MDObjectPtr Object, std::string Prefix)
 {
-//	printf("0x%s in %s : ", Int64toHexString(Object->GetLocation(),8).c_str(), Object->GetSource().c_str());
+	if(DumpLocation) printf("0x%s : ", Int64toHexString(Object->GetLocation(),8).c_str());
 
 	if(Object->IsModified()) printf("%s%s is *MODIFIED*\n", Object->FullName().c_str(), Prefix.c_str() );
 
@@ -340,7 +346,10 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 		if(Object->GetRefType() == DICT_REF_STRONG)
 		{
 			printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+
+			if(DumpLocation) printf("0x%s : ", Int64toHexString(Object->GetLocation(),8).c_str());
 			printf("%s%s -> Strong Reference to %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetLink()->Name().c_str());
+
 			DumpObject(Object->GetLink(), Prefix + "  ");
 		}
 		else
