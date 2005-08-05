@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.10 2005/05/09 10:00:22 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.11 2005/08/05 14:28:15 matt-beard Exp $
  *
  */
 /*
@@ -1241,6 +1241,9 @@ int mxflib::LoadDictionary(DictionaryPtr &DictionaryData, bool FastFail /*=false
 		Classes_it++;
 	}
 
+	// Locate reference target types for any new types
+	MDOType::LocateRefTypes();
+
 	return Ret;
 }
 
@@ -1270,6 +1273,9 @@ int mxflib::LoadDictionary(const ConstDictionaryRecord *DictionaryData, bool Fas
 
 		DictionaryData++;
 	}
+
+	// Locate reference target types for any new types
+	MDOType::LocateRefTypes();
 
 	return Ret;
 }
