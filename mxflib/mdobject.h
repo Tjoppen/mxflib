@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.11 2005/08/05 14:31:20 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.12 2005/08/06 11:27:19 matt-beard Exp $
  *
  */
 /*
@@ -786,6 +786,9 @@ namespace mxflib
 
 		//! Set the object's tag
 		void SetTag(Tag NewTag) { TheTag = NewTag; }
+
+		//! Get the object's tag
+		Tag GetTag(void) { return TheTag; }
 
 		//! Change the type of an MDObject
 		/*! \note This may result in very wrong data - exercise great care! */
