@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.12 2005/08/06 11:27:19 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.13 2005/08/08 09:02:10 matt-beard Exp $
  *
  */
 /*
@@ -333,6 +333,9 @@ namespace mxflib
 
 		//! Read-only access to the global key
 		const DataChunk &GetGlobalKey(void) { return GlobalKey; }
+
+		//! Get the usage for this type
+		ClassUsage GetUse(void) { return (ClassUsage)Use; }
 
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
@@ -774,9 +777,6 @@ namespace mxflib
 
 		//! Access function for ParentFile
 		MXFFilePtr &GetParentFile(void) { return ParentFile; };
-
-		//! Get a copy of the object's UL
-		UL GetUL(void) { return *TheUL; }
 
 		//! Get the object's UL
 		const ULPtr &GetUL(void) { return TheUL; }
