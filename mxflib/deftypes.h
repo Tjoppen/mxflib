@@ -1,6 +1,6 @@
 /*! \file	deftypes.h
  *	\brief	Definition of classes that load type and class dictionaries
- *	\version $Id: deftypes.h,v 1.4 2005/05/08 15:52:53 matt-beard Exp $
+ *	\version $Id: deftypes.h,v 1.5 2005/08/08 09:41:26 matt-beard Exp $
  *
  */
 /*
@@ -212,7 +212,7 @@ namespace mxflib
 		ClassUsageDecoderRequired,			//!< Item is optional, but if present the decoder must use this value
 		ClassUsageEncoderRequired,			//!< Item must be encoded, but decoder may ignore the value
 		ClassUsageRequired,					//!< Item must be encoded and the decoder must use this value
-		ClassUsageBestEffort,				//!< As ClassUsageRequired, but an "Open" set of metadata may signal unknown by using a distinguished value
+		ClassUsageBestEffort,				//!< As ClassUsageRequired, but an "Incomplete" set of metadata may signal unknown by using a distinguished value
 		ClassUsageToxic,					//!< Item must not be encoded - kept for compatibility!
 		ClassUsageDark						//!< Item is dark - no longer makes sense: kept for compatibility
 	};
