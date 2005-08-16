@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.3 2005/03/25 13:15:12 terabrit Exp $
+ *	\version $Id: smartptr.h,v 1.4 2005/08/16 18:03:47 matt-beard Exp $
  *
  */
 /*
@@ -83,6 +83,8 @@ namespace mxflib
 		virtual void AddRef(ParentPtr<T> &Ptr) = 0;		//!< Add a parent pointer to this object
 		virtual void DeleteRef(ParentPtr<T> &Ptr) = 0;	//!< Delete a parent pointer to this object
 		virtual void ClearParents(void) = 0;			//!< Clear all parent pointers
+		
+		virtual ~IRefCount() {};
 	};
 
 	// Definitions for running memory leak tests
@@ -507,6 +509,7 @@ namespace mxflib
 	 *  A child may not hold a smart pointer to a parent (or grand-parent etc.) otherwise a loop will be formed and
 	 *  these objects will never be deleted.  Child objects may reference parents using ParentPtr.
 	 */
+	// DRAGONS: Strict C++ compilers (such as GCC 3.4.x) require members of superclass templates to be referenced by this-> to remove possilbe ambiguities
 	template<class T> class ParentPtr : public SmartPtr<T>
 	{
 	protected:
@@ -519,10 +522,10 @@ namespace mxflib
 			PTRDEBUG( debug("Assigning parent pointer at 0x%08x to 0x%08x\n", (int)this, (int)refcount); )
 
 			// Remove us from the old parent's list of parent pointers
-			if(__m_refcount) __m_refcount->DeleteRef(*this);
+			if(this->__m_refcount) this->__m_refcount->DeleteRef(*this);
 
 			// Make the new attachment
-			__m_refcount = refcount;
+			this->__m_refcount = refcount;
 
 			// Add us to the new parent's list of parent pointers (so we will be cleared if it is deleted)
 			if(refcount) refcount->AddRef(*this);
@@ -532,27 +535,27 @@ namespace mxflib
 		//! Construct a parent pointer that points to nothing
 		ParentPtr()
 		{
-			__m_refcount = NULL;
+			this->__m_refcount = NULL;
 		}
 
 		//!	Construct a parent pointer from a smart pointer
 		ParentPtr(SmartPtr<T> ptr)
 		{
-			__m_refcount = NULL;
+			this->__m_refcount = NULL;
 			__Assign(ptr.GetRef());
 		}
 
 		//!	Construct a parent pointer to an object
 		ParentPtr(IRefCount<T> * ptr)
 		{
-			__m_refcount = NULL;
+			this->__m_refcount = NULL;
 			__Assign(ptr);
 		}
 
 		//! Copy construct
 		ParentPtr(const ParentPtr &rhs)
 		{
-			__m_refcount = NULL;
+			this->__m_refcount = NULL;
 			__Assign(rhs.GetRef());
 		}
 
@@ -560,9 +563,9 @@ namespace mxflib
 		~ParentPtr()
 		{
 			// Remove us from the old parent's list of parent pointers
-			if(__m_refcount) __m_refcount->DeleteRef(*this);
+			if(this->__m_refcount) (this->__m_refcount)->DeleteRef(*this);
 
-			__m_refcount = NULL;
+			this->__m_refcount = NULL;
 		}
 
 		//! Set value from a smart pointer
@@ -578,14 +581,14 @@ namespace mxflib
 		void Clear(void) 
 		{
 			// Remove us from the old parent's list of parent pointers
-			if(__m_refcount) __m_refcount->DeleteRef(*this);
+			if(this->__m_refcount) this->__m_refcount->DeleteRef(*this);
 
-			__m_refcount = NULL; 
+			this->__m_refcount = NULL; 
 		}
 
 		//! Clear the recorded value of this pointer
 		/*! This call <b>does not</b> remove us from the parent's list of parent pointers (called by the parent) */
-		void ClearFromParent(void) { __m_refcount = NULL; };
+		void ClearFromParent(void) { this->__m_refcount = NULL; };
 	};
 }
 
