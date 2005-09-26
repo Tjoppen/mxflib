@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.5 2005/06/13 10:21:00 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.6 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -236,7 +236,7 @@ MDTypePtr MDType::EffectiveBase(void) const
 //! Report the effective size of this type
 /*! /ret The size in bytes of a single instance of this type, or 0 if variable size
  */
-Uint32 MDType::EffectiveSize(void) const
+UInt32 MDType::EffectiveSize(void) const
 {
 	// If we are an array calculate the total array size (will be zero if either is undefined)
 	if(Class == TYPEARRAY)
@@ -248,14 +248,14 @@ Uint32 MDType::EffectiveSize(void) const
 	// If we are a compound calculate the size of the compound
 	if(Class == COMPOUND)
 	{
-		Uint32 Ret = 0;
+		UInt32 Ret = 0;
 
 		MDType::const_iterator it;
 		it = this->begin();
 
 		while(it != end())
 		{
-			Uint32 ItemSize = (*it).second->EffectiveSize();
+			UInt32 ItemSize = (*it).second->EffectiveSize();
 
 			// If any item is variable then we are variable
 			if(ItemSize == 0) return 0;
@@ -352,7 +352,7 @@ void MDValue::Init(void)
  *  This function assumes that this is a viable thing to do!
  *  \return The size of the resized item
  */
-Uint32 MDValue::MakeSize(Uint32 NewSize)
+UInt32 MDValue::MakeSize(UInt32 NewSize)
 {
 	// Enforce fixed size if one exists for this type
 	if(Type->Size) NewSize = Type->Size;
@@ -363,7 +363,7 @@ Uint32 MDValue::MakeSize(Uint32 NewSize)
 
 
 /* //! Set the value of an object from a pre-formatted buffer
-void MDValue::SetValue(int ValSize, const Uint8 *Val)
+void MDValue::SetValue(int ValSize, const UInt8 *Val)
 {
 	if(ValSize > Size)
 	{
@@ -446,7 +446,7 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 //! Add or Remove children from an MDValue continer to make a fixed size
 /*! Probably only useful for resizing arrays.
  */
-void MDValue::Resize(Uint32 Count)
+void MDValue::Resize(UInt32 Count)
 {
 	MDTypeClass Class = Type->EffectiveClass();
 
@@ -543,7 +543,7 @@ MDValuePtr MDValue::operator[](const std::string ChildName)
 /*!
  *  \return Number of bytes read
  */
-Uint32 MDValue::ReadValue(const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDValue::ReadValue(const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
 	return Type->Traits->ReadValue(this, Buffer, Size, Count);
 }
@@ -557,7 +557,7 @@ DataChunkPtr MDValue::PutData(void)
 	MDTypePtr EffType = EffectiveType();
 	if(EffType->GetArrayClass() == ARRAYBATCH)
 	{
-		Uint8 Buffer[8];
+		UInt8 Buffer[8];
 		PutU32(size(), Buffer);
 		PutU32(Type->EffectiveSize(), &Buffer[4]);
 

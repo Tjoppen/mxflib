@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.3 2004/12/18 20:39:28 matt-beard Exp $
+ *	\version $Id: partition.h,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -131,17 +131,17 @@ namespace mxflib
 		MDObjectListPtr ReadIndex(void);
 
 		//! Read any index table segments from a file
-		MDObjectListPtr ReadIndex(MXFFilePtr File, Uint64 Size);
+		MDObjectListPtr ReadIndex(MXFFilePtr File, UInt64 Size);
 
 		//! Read raw index table data from this partition's source file
 		DataChunkPtr ReadIndexChunk(void);
 
 		//! Set the KAG for this partition
-		void SetKAG(Uint64 KAG)
+		void SetKAG(UInt64 KAG)
 		{
 			MDObjectPtr Ptr = Object->Child("KAGSize");
 			ASSERT(Ptr);
-			Ptr->SetUint64(KAG);
+			Ptr->SetUInt64(KAG);
 		}
 
 		// Access functions for the reference resolving properties
@@ -180,14 +180,14 @@ namespace mxflib
 		// skip over a KLV packet
 
 	protected:
-		Uint64 Skip( Uint64 start );
+		UInt64 Skip( UInt64 start );
 		// skip over any KLVFill
 		// DRAGONS: does not iterate - only copes with single KLVFill
-		Uint64 SkipFill( Uint64 start );
+		UInt64 SkipFill( UInt64 start );
 
 	private:
-		Uint64 _BodyLocation;				// file position for current Element
-		Uint64 _NextBodyLocation;		// file position for Element after this
+		UInt64 _BodyLocation;				// file position for current Element
+		UInt64 _NextBodyLocation;		// file position for Element after this
 
 	private:
 		void ProcessChildRefs(MDObjectPtr ThisObject);

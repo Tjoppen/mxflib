@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.7 2005/07/28 14:28:21 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.8 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -53,13 +53,13 @@ namespace mxflib
 		bool isOpen;					//!< True when the file is open
 		bool isMemoryFile;				//!< True is the file is a "memory file"
 		FileHandle Handle;				//!< File hanlde
-		Uint32 RunInSize;				//!< Size of run-in in physical file
+		UInt32 RunInSize;				//!< Size of run-in in physical file
 
 		DataChunkPtr Buffer;			//!< Memory file buffer pointer
-		Uint64 BufferOffset;			//!< Offset of the start of the buffer from the start of the memory file
-		Uint64 BufferCurrentPos;		//!< Offset of the current position from the start of the memory file
+		UInt64 BufferOffset;			//!< Offset of the start of the buffer from the start of the memory file
+		UInt64 BufferCurrentPos;		//!< Offset of the current position from the start of the memory file
 
-		Uint32 BlockAlign;				//!< Some systems can run more efficiently if the essence and index data start on a block boundary - if used this is the block size
+		UInt32 BlockAlign;				//!< Some systems can run more efficiently if the essence and index data start on a block boundary - if used this is the block size
 		Int32 BlockAlignEssenceOffset;	//!< Fixed distance from the block grid at which to align essence (+ve is after the grid, -ve before)
 		Int32 BlockAlignIndexOffset;	//!< Fixed distance from the block grid at which to align index (+ve is after the grid, -ve before)
 
@@ -76,7 +76,7 @@ namespace mxflib
 
 		virtual bool Open(std::string FileName, bool ReadOnly = false );
 		virtual bool OpenNew(std::string FileName);
-		virtual bool OpenMemory(DataChunkPtr Buff = NULL, Uint64 Offset = 0);
+		virtual bool OpenMemory(DataChunkPtr Buff = NULL, UInt64 Offset = 0);
 		virtual bool Close(void);
 
 		bool ReadRunIn(void);
@@ -103,7 +103,7 @@ namespace mxflib
 		{ 
 			if(!isOpen) return 0;
 			if(isMemoryFile) return BufferCurrentPos-RunInSize;
-			return Uint64(mxflib::FileTell(Handle))-RunInSize;
+			return UInt64(mxflib::FileTell(Handle))-RunInSize;
 		}
 
 		//! Move the file pointer
@@ -158,8 +158,8 @@ namespace mxflib
 			return mxflib::FileEof(Handle) ? true : false; 
 		};
 
-		DataChunkPtr Read(Uint64 Size);
-		Uint64 Read(Uint8 *Buffer, Uint64 Size);
+		DataChunkPtr Read(UInt64 Size);
+		UInt64 Read(UInt8 *Buffer, UInt64 Size);
 
 //		MDObjectPtr ReadObject(void);
 //		template<class TP, class T> TP ReadObjectBase(void) { TP x; return x; };
@@ -174,28 +174,28 @@ namespace mxflib
 		void WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL);
 
 		//! Write a partition pack and associated metadata (no index table segments)
-		void WritePartition(PartitionPtr ThisPartition, Uint32 Padding = 0, Uint32 MinPartitionSize = 0) { WritePartition(ThisPartition, true, NULL, Padding, MinPartitionSize); };
+		void WritePartition(PartitionPtr ThisPartition, UInt32 Padding = 0, UInt32 MinPartitionSize = 0) { WritePartition(ThisPartition, true, NULL, Padding, MinPartitionSize); };
 
 		//! Write a partition pack and associated metadata and preformatted index table segments
 		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
-		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, Uint32 Padding = 0, Uint32 MinPartitionSize = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, NULL, Padding, MinPartitionSize); };
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, UInt32 Padding = 0, UInt32 MinPartitionSize = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, NULL, Padding, MinPartitionSize); };
 
 		//! Write a partition pack and associated metadata (no index table segments)
-		void WritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer, Uint32 Padding = 0, Uint32 MinPartitionSize = 0) { WritePartition(ThisPartition, true, UsePrimer, Padding, MinPartitionSize); };
+		void WritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer, UInt32 Padding = 0, UInt32 MinPartitionSize = 0) { WritePartition(ThisPartition, true, UsePrimer, Padding, MinPartitionSize); };
 
 		//! Write a partition pack and associated metadata and preformatted index table segments
 		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
-		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding = 0, Uint32 MinPartitionSize = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, UsePrimer, Padding, MinPartitionSize); };
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer, UInt32 Padding = 0, UInt32 MinPartitionSize = 0) { WritePartitionWithIndex(ThisPartition, IndexData, true, UsePrimer, Padding, MinPartitionSize); };
 
 		//! Write a partition pack and (optionally) associated metadata (no index table segments)
-		void WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0, Uint32 MinPartitionSize = 0)
+		void WritePartition(PartitionPtr ThisPartition, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, UInt32 Padding = 0, UInt32 MinPartitionSize = 0)
 		{
 			WritePartitionInternal(false, ThisPartition, IncludeMetadata, NULL, UsePrimer, Padding, MinPartitionSize);
 		}
 
 		//! Write a partition pack and (optionally) associated metadata and preformatted index table segments
 		/*! \note The value of IndexSID must be set prior to calling WritePartitionWithIndex */
-		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, Uint32 Padding = 0, Uint32 MinPartitionSize = 0)
+		void WritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, bool IncludeMetadata, PrimerPtr UsePrimer = NULL, UInt32 Padding = 0, UInt32 MinPartitionSize = 0)
 		{
 			WritePartitionInternal(false, ThisPartition, IncludeMetadata, IndexData, UsePrimer, Padding, MinPartitionSize);
 		}
@@ -220,7 +220,7 @@ namespace mxflib
 
 	protected:
 		//! Write or re-write a partition pack and associated metadata (and index table segments?)
-		bool WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, Uint32 Padding, Uint32 MinPartitionSize);
+		bool WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, bool IncludeMetadata, DataChunkPtr IndexData, PrimerPtr UsePrimer, UInt32 Padding, UInt32 MinPartitionSize);
 
 	public:
 		//! Write the RIP
@@ -239,14 +239,14 @@ namespace mxflib
 					RIP::iterator it = FileRIP.begin();
 					while(it != FileRIP.end())
 					{
-						PA->AddChild("BodySID", false)->SetUint((*it).second->BodySID);
-						PA->AddChild("ByteOffset", false)->SetUint64((*it).second->ByteOffset);
+						PA->AddChild("BodySID", false)->SetUInt((*it).second->BodySID);
+						PA->AddChild("ByteOffset", false)->SetUInt64((*it).second->ByteOffset);
 						it++;
 					}
 				}
 				
 				// Calculate the pack length
-				RIPObject->SetUint("Length", 16 + 4 + (FileRIP.size() * 12) + 4);
+				RIPObject->SetUInt("Length", 16 + 4 + (FileRIP.size() * 12) + 4);
 
 				DataChunkPtr Buffer = RIPObject->WriteObject();
 
@@ -255,12 +255,12 @@ namespace mxflib
 		}
 
 		//! Calculate the size of a filler to align to a specified KAG
-		Uint32 FillerSize(Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize = 0) { return FillerSize(false, FillPos, KAGSize, MinSize); };
-		Uint32 FillerSize(bool ForceBER4, Uint64 FillPos, Uint32 KAGSize, Uint32 MinSize = 0);
+		UInt32 FillerSize(UInt64 FillPos, UInt32 KAGSize, UInt32 MinSize = 0) { return FillerSize(false, FillPos, KAGSize, MinSize); };
+		UInt32 FillerSize(bool ForceBER4, UInt64 FillPos, UInt32 KAGSize, UInt32 MinSize = 0);
 
 		//! Write a filler to align to a specified KAG
-		Uint64 Align(Uint32 KAGSize, Uint32 MinSize = 0) { return Align(false, KAGSize, MinSize); };
-		Uint64 Align(bool ForceBER4, Uint32 KAGSize, Uint32 MinSize = 0);
+		UInt64 Align(UInt32 KAGSize, UInt32 MinSize = 0) { return Align(false, KAGSize, MinSize); };
+		UInt64 Align(bool ForceBER4, UInt32 KAGSize, UInt32 MinSize = 0);
 
 		ULPtr ReadKey(void);
 		Length ReadBER(void);
@@ -271,10 +271,10 @@ namespace mxflib
 		 *	\note If the size is specified it will be overridden for lengths
 		 *		  that will not fit. However an error message will be produced.
 		 */
-		Uint32 WriteBER(Uint64 Length, Uint32 Size = 0) { DataChunkPtr BER = MakeBER(Length, Size); Write(*BER); return BER->Size; };
+		UInt32 WriteBER(UInt64 Length, UInt32 Size = 0) { DataChunkPtr BER = MakeBER(Length, Size); Write(*BER); return BER->Size; };
 
 		//! Write raw data
-		Uint64 Write(const Uint8 *Buffer, Uint32 Size) 
+		UInt64 Write(const UInt8 *Buffer, UInt32 Size) 
 		{ 
 			if(isMemoryFile) return MemoryWrite(Buffer, Size);
 
@@ -282,7 +282,7 @@ namespace mxflib
 		};
 
 		//! Write the contents of a DataChunk by reference
-		Uint64 Write(const DataChunk &Data) 
+		UInt64 Write(const DataChunk &Data) 
 		{ 
 			if(isMemoryFile) return MemoryWrite(Data.Data, Data.Size);
 
@@ -290,7 +290,7 @@ namespace mxflib
 		};
 
 		//! Write the contents of a DataChunk by SmartPtr
-		Uint64 Write(DataChunkPtr Data)
+		UInt64 Write(DataChunkPtr Data)
 		{ 
 			if(isMemoryFile) return MemoryWrite(Data->Data, Data->Size);
 
@@ -298,16 +298,16 @@ namespace mxflib
 		};
 
 		//! Write 8-bit unsigned integer
-		void WriteU8(Uint8 Val) { unsigned char Buffer[1]; PutU8(Val, Buffer); Write(Buffer, 1); }
+		void WriteU8(UInt8 Val) { unsigned char Buffer[1]; PutU8(Val, Buffer); Write(Buffer, 1); }
 
 		//! Write 16-bit unsigned integer
-		void WriteU16(Uint16 Val) { unsigned char Buffer[2]; PutU16(Val, Buffer); Write(Buffer, 2); }
+		void WriteU16(UInt16 Val) { unsigned char Buffer[2]; PutU16(Val, Buffer); Write(Buffer, 2); }
 
 		//! Write 32-bit unsigned integer
-		void WriteU32(Uint32 Val) { unsigned char Buffer[4]; PutU32(Val, Buffer); Write(Buffer, 4); }
+		void WriteU32(UInt32 Val) { unsigned char Buffer[4]; PutU32(Val, Buffer); Write(Buffer, 4); }
 
 		//! Write 64-bit unsigned integer
-		void WriteU64(Uint64 Val) { unsigned char Buffer[8]; PutU64(Val, Buffer); Write(Buffer, 8); }
+		void WriteU64(UInt64 Val) { unsigned char Buffer[8]; PutU64(Val, Buffer); Write(Buffer, 8); }
 
 		//! Write 8-bit signed integer
 		void WriteI8(Int8 Val) { unsigned char Buffer[1]; PutI8(Val, Buffer); Write(Buffer, 1); }
@@ -322,16 +322,16 @@ namespace mxflib
 		void WriteI64(Int64 Val) { unsigned char Buffer[8]; PutI64(Val, Buffer); Write(Buffer, 8); }
 
 		//! Read 8-bit unsigned integer
-		Uint8 ReadU8(void) { unsigned char Buffer[1]; if(Read(Buffer, 1) == 1) return GetU8(Buffer); else return 0; }
+		UInt8 ReadU8(void) { unsigned char Buffer[1]; if(Read(Buffer, 1) == 1) return GetU8(Buffer); else return 0; }
 
 		//! Read 16-bit unsigned integer
-		Uint16 ReadU16(void) { unsigned char Buffer[2]; if(Read(Buffer, 2) == 2) return GetU16(Buffer); else return 0; }
+		UInt16 ReadU16(void) { unsigned char Buffer[2]; if(Read(Buffer, 2) == 2) return GetU16(Buffer); else return 0; }
 
 		//! Read 32-bit unsigned integer
-		Uint32 ReadU32(void) { unsigned char Buffer[4]; if(Read(Buffer, 4) == 4) return GetU32(Buffer); else return 0; }
+		UInt32 ReadU32(void) { unsigned char Buffer[4]; if(Read(Buffer, 4) == 4) return GetU32(Buffer); else return 0; }
 
 		//! Read 64-bit unsigned integer
-		Uint64 ReadU64(void) { unsigned char Buffer[8]; if(Read(Buffer, 8) == 8) return GetU64(Buffer); else return 0; }
+		UInt64 ReadU64(void) { unsigned char Buffer[8]; if(Read(Buffer, 8) == 8) return GetU64(Buffer); else return 0; }
 
 		//! Read 8-bit signed integer (casts from unsigned version)
 		Int8 ReadI8(void) { return (Int8)ReadU8(); }
@@ -346,7 +346,7 @@ namespace mxflib
 		Int64 ReadI64(void) { return (Int64)ReadU64(); }
 
 		// Set a new buffer into this memory file
-		void SetMemoryBuffer(DataChunkPtr Buff, Uint32 Offset)
+		void SetMemoryBuffer(DataChunkPtr Buff, UInt32 Offset)
 		{
 			if(isMemoryFile)
 			{
@@ -356,7 +356,7 @@ namespace mxflib
 		}
 
 		//! Set the block alignment block size
-		void SetBlockAlign(Uint32 Size, Int32 EssenceOffset = 0, Int32 IndexOffset = 0)
+		void SetBlockAlign(UInt32 Size, Int32 EssenceOffset = 0, Int32 IndexOffset = 0)
 		{
 			BlockAlign = Size;
 			BlockAlignEssenceOffset = EssenceOffset;
@@ -367,15 +367,15 @@ namespace mxflib
 		bool IsBlockAligned(void) { return (BlockAlign != 0); }
 
 	protected:
-		Uint64 ScanRIP_FindFooter(Length MaxScan);
+		UInt64 ScanRIP_FindFooter(Length MaxScan);
 
 		//! Write to memory file buffer
 		/*! \note This can be overridden in classes derived from MXFFile to give different memory write behaviour */
-		virtual Uint32 MemoryWrite(Uint8 const *Data, Uint32 Size);
+		virtual UInt32 MemoryWrite(UInt8 const *Data, UInt32 Size);
 
 		//! Read from a memory file buffer
 		/*! \note This can be overridden in classes derived from MXFFile to give different memory read behaviour */
-		virtual Uint32 MemoryRead(Uint8 *Data, Uint32 Size);
+		virtual UInt32 MemoryRead(UInt8 *Data, UInt32 Size);
 	};
 }
 
@@ -385,7 +385,7 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 {
 	TP Ret;
 
-	Uint64 Location = This->Tell();
+	UInt64 Location = This->Tell();
 	ULPtr Key = This->ReadKey();
 
 	// If we couldn't read the key then bug out
@@ -400,7 +400,7 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 	if(Length > 0)
 	{
 		// Work out how big the key and length are in the file
-		Uint32 KLSize = (Uint32)(This->Tell() - Location);
+		UInt32 KLSize = (UInt32)(This->Tell() - Location);
 
 		// Read the actual data
 		DataChunkPtr Data = This->Read(Length);

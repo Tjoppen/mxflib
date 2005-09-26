@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.6 2005/03/25 13:18:12 terabrit Exp $
+ *	\version $Id: mdtraits.cpp,v 1.7 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -44,7 +44,13 @@ using namespace mxflib;
  *        an indication that the limit has been reached (e.g. "01 23 45 67 ..." for a very short limit).
  *        It is also permissable to simply stop at the limit (e.g. "A very long stri")
  */
-Uint32 mxflib::MDTraits_StringLimit = 10240;
+UInt32 mxflib::MDTraits_StringLimit = 10240;
+
+
+//! Flag to modify string behaviour to terminate all strings written
+/*! \note This only works for UTF16 and ISO7 string SetString traits
+ */
+bool mxflib::TerminateStrings = false;
 
 
 // Default trait implementations
@@ -52,24 +58,24 @@ Uint32 mxflib::MDTraits_StringLimit = 10240;
 
 void mxflib::MDTraits::SetInt(MDValuePtr Object, Int32 Val) { error("NO BODY!\n"); }
 void mxflib::MDTraits::SetInt64(MDValuePtr Object, Int64 Val) { error("NO BODY!\n"); }
-void mxflib::MDTraits::SetUInt(MDValuePtr Object, Uint32 Val) { error("NO BODY!\n"); }
-void mxflib::MDTraits::SetUInt64(MDValuePtr Object, Uint64 Val) { error("NO BODY!\n"); }
+void mxflib::MDTraits::SetUInt(MDValuePtr Object, UInt32 Val) { error("NO BODY!\n"); }
+void mxflib::MDTraits::SetUInt64(MDValuePtr Object, UInt64 Val) { error("NO BODY!\n"); }
 void mxflib::MDTraits::SetString(MDValuePtr Object, std::string Val) { error("NO BODY!\n"); }
 Int32 mxflib::MDTraits::GetInt(MDValuePtr Object) { error("NO BODY!\n"); return 0;}
 Int64 mxflib::MDTraits::GetInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
-Uint32 mxflib::MDTraits::GetUInt(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
-Uint64 mxflib::MDTraits::GetUInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
+UInt32 mxflib::MDTraits::GetUInt(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
+UInt64 mxflib::MDTraits::GetUInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
 std::string mxflib::MDTraits::GetString(MDValuePtr Object) { return std::string("Base"); }
 
-Uint32 MDTraits::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDTraits::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
 	// If multiple items are found read them all "blindly"
-	Uint32 FullSize = Size;
+	UInt32 FullSize = Size;
 	if(Count) FullSize *= Count;
 
 	// Try and make exactly the right amount of room
 	// Some objects will not allow this and will return a different size
-	Uint32 ObjSize = Object->MakeSize(FullSize);
+	UInt32 ObjSize = Object->MakeSize(FullSize);
 
 	// If the object is too small, only read what we can
 	if(ObjSize < FullSize)
@@ -87,7 +93,7 @@ Uint32 MDTraits::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, 
 	{
 		// If the object ends up too big we build a copy
 		// of the data with zero padding
-		Uint8 *Temp = new Uint8[ObjSize];
+		UInt8 *Temp = new UInt8[ObjSize];
 
 		memcpy(Temp, Buffer, FullSize);
 		memset(&Temp[FullSize], 0, ObjSize - FullSize);
@@ -117,11 +123,11 @@ Uint32 MDTraits::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, 
 //! Set from an Int64
 void mxflib::MDTraits_BasicInt::SetInt64(MDValuePtr Object, Int64 Val) { SetInt(Object, (Int32)Val); }
 
-//! Set from a Uint32
-void mxflib::MDTraits_BasicInt::SetUInt(MDValuePtr Object, Uint32 Val) { SetInt(Object, (Int32)Val); }
+//! Set from a UInt32
+void mxflib::MDTraits_BasicInt::SetUInt(MDValuePtr Object, UInt32 Val) { SetInt(Object, (Int32)Val); }
 
-//! Set from a Uint64
-void mxflib::MDTraits_BasicInt::SetUInt64(MDValuePtr Object, Uint64 Val) { SetInt(Object, (Int32)Val); }
+//! Set from a UInt64
+void mxflib::MDTraits_BasicInt::SetUInt64(MDValuePtr Object, UInt64 Val) { SetInt(Object, (Int32)Val); }
 
 //! Set from a string
 void mxflib::MDTraits_BasicInt::SetString(MDValuePtr Object, std::string Val) { SetInt(Object, (Int32)atoi(Val.c_str())); }
@@ -129,8 +135,8 @@ void mxflib::MDTraits_BasicInt::SetString(MDValuePtr Object, std::string Val) { 
 //! Get Int64
 Int64 mxflib::MDTraits_BasicInt::GetInt64(MDValuePtr Object) { return (Int64) GetInt(Object); }
 
-//! Get Uint64
-Uint64 mxflib::MDTraits_BasicInt::GetUInt64(MDValuePtr Object) { return (Uint64) GetUInt(Object); }
+//! Get UInt64
+UInt64 mxflib::MDTraits_BasicInt::GetUInt64(MDValuePtr Object) { return (UInt64) GetUInt(Object); }
 
 //!	Get string from an integer
 std::string mxflib::MDTraits_BasicInt::GetString(MDValuePtr Object) 
@@ -140,10 +146,10 @@ std::string mxflib::MDTraits_BasicInt::GetString(MDValuePtr Object)
 	return std::string(Buffer);
 }
 
-Uint32 MDTraits_BasicInt::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDTraits_BasicInt::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
 	// Limit the size attempted to be read to the size of the type
-	Uint32 TypeSize = Object->GetType()->Size;
+	UInt32 TypeSize = Object->GetType()->Size;
 	if(TypeSize && (Size > TypeSize)) Size = TypeSize;
 
 	if(Size >= 8)
@@ -172,10 +178,10 @@ Uint32 MDTraits_BasicInt::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint
 }
 
 //! Special unsigned integer version of ReadValue - called by all basic unsigned integers
-Uint32 mxflib::ReadValueUint(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 mxflib::ReadValueUInt(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
 	// Limit the size attempted to be read to the size of the type
-	Uint32 TypeSize = Object->GetType()->Size;
+	UInt32 TypeSize = Object->GetType()->Size;
 	if(TypeSize && (Size > TypeSize)) Size = TypeSize;
 
 	if(Size >= 8)
@@ -224,7 +230,7 @@ void mxflib::MDTraits_Int8::SetInt(MDValuePtr Object, Int32 Val)
 
 	// Now we know the value will fit, set it
 	Int8 i = Val;
-	Object->SetData(1, (Uint8*)&i);
+	Object->SetData(1, (UInt8*)&i);
 }
 
 //! Get Int32 from an Int8
@@ -245,13 +251,13 @@ Int32 mxflib::MDTraits_Int8::GetInt(MDValuePtr Object)
 	return (Int32) *((const Int8*)(Object->GetData().Data));
 }
 
-//! Get Uint32 from an Int8
+//! Get UInt32 from an Int8
 /*! \note
  *	This function will return 128 through 255 for bit values 10000000 through 11111111
  *	even though an Int8 cannot store them. This is as opposed to the option of returning
  *  0xffffff80 through 0xffffffff for those values.
  */
-Uint32 mxflib::MDTraits_Int8::GetUInt(MDValuePtr Object)
+UInt32 mxflib::MDTraits_Int8::GetUInt(MDValuePtr Object)
 { 
 	int Size = Object->GetData().Size;
 
@@ -265,16 +271,16 @@ Uint32 mxflib::MDTraits_Int8::GetUInt(MDValuePtr Object)
 	}
 
 	// Return the value promoted to 32-bits
-	return (Uint32) *((const Uint8*)(Object->GetData().Data));
+	return (UInt32) *((const UInt8*)(Object->GetData().Data));
 }
 
 
 /******************************
-**   Uint8 Implementations   **
+**   UInt8 Implementations   **
 ******************************/
 
-//!	Get string from a Uint8
-std::string MDTraits_Uint8::GetString(MDValuePtr Object) 
+//!	Get string from a UInt8
+std::string MDTraits_UInt8::GetString(MDValuePtr Object) 
 { 
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%u", GetUInt(Object));
@@ -282,9 +288,9 @@ std::string MDTraits_Uint8::GetString(MDValuePtr Object)
 }
 
 //! Read value from memory buffer
-Uint32 MDTraits_Uint8::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDTraits_UInt8::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
-	return ReadValueUint(Object, Buffer, Size, Count);
+	return ReadValueUInt(Object, Buffer, Size, Count);
 }
 
 
@@ -311,9 +317,9 @@ void mxflib::MDTraits_Int16::SetInt(MDValuePtr Object, Int32 Val)
 	// to byte swap it...
 	// Note that the swap is done in an unsigned int
 	// to prevent any sign problems!
-	Uint16 i = Swap((Uint16)Val);
+	UInt16 i = Swap((UInt16)Val);
 
-	Object->SetData(2, (Uint8*)&i);
+	Object->SetData(2, (UInt8*)&i);
 }
 
 //! Get Int32 from an Int16
@@ -334,8 +340,8 @@ Int32 mxflib::MDTraits_Int16::GetInt(MDValuePtr Object)
 	return ((Object->GetData().Data)[0] << 8) | (Object->GetData().Data)[1];
 }
 
-//! Get Uint32 from an Int16
-Uint32 mxflib::MDTraits_Int16::GetUInt(MDValuePtr Object) 
+//! Get UInt32 from an Int16
+UInt32 mxflib::MDTraits_Int16::GetUInt(MDValuePtr Object) 
 { 
 	int Size = Object->GetData().Size;
 
@@ -354,11 +360,11 @@ Uint32 mxflib::MDTraits_Int16::GetUInt(MDValuePtr Object)
 
 
 /*******************************
-**   Uint16 Implementations   **
+**   UInt16 Implementations   **
 *******************************/
 
-//!	Get string from a Uint16
-std::string MDTraits_Uint16::GetString(MDValuePtr Object) 
+//!	Get string from a UInt16
+std::string MDTraits_UInt16::GetString(MDValuePtr Object) 
 { 
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%u", GetUInt(Object));
@@ -366,9 +372,9 @@ std::string MDTraits_Uint16::GetString(MDValuePtr Object)
 }
 
 //! Read value from memory buffer
-Uint32 MDTraits_Uint16::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDTraits_UInt16::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
-	return ReadValueUint(Object, Buffer, Size, Count);
+	return ReadValueUInt(Object, Buffer, Size, Count);
 }
 
 
@@ -395,9 +401,9 @@ void mxflib::MDTraits_Int32::SetInt(MDValuePtr Object, Int32 Val)
 	// to byte swap it...
 	// Note that the swap is done in an unsigned int
 	// to prevent any sign problems!
-	Uint32 i = Swap((Uint32)Val);
+	UInt32 i = Swap((UInt32)Val);
 
-	Object->SetData(4, (Uint8*)&i);
+	Object->SetData(4, (UInt8*)&i);
 }
 
 //! Get Int32 from an Int32
@@ -419,21 +425,21 @@ Int32 mxflib::MDTraits_Int32::GetInt(MDValuePtr Object)
 		 | ((Object->GetData().Data)[2] << 8) | (Object->GetData().Data)[3];
 }
 
-//! Get Uint32 from an Int32
-Uint32 mxflib::MDTraits_Int32::GetUInt(MDValuePtr Object)
+//! Get UInt32 from an Int32
+UInt32 mxflib::MDTraits_Int32::GetUInt(MDValuePtr Object)
 {
 	// As the return value is the same size as our working variables
 	// the signed to unsigned conversion should be safe like this
-	return (Uint32)GetInt(Object);
+	return (UInt32)GetInt(Object);
 }
 
 
 /*******************************
-**   Uint32 Implementations   **
+**   UInt32 Implementations   **
 *******************************/
 
-//!	Get string from a Uint32
-std::string MDTraits_Uint32::GetString(MDValuePtr Object) 
+//!	Get string from a UInt32
+std::string MDTraits_UInt32::GetString(MDValuePtr Object) 
 { 
 	char Buffer[32];					//!< Buffer to hold text version of the value (32 bytes must be enough!)
 	sprintf(Buffer, "%u", GetUInt(Object));
@@ -441,9 +447,9 @@ std::string MDTraits_Uint32::GetString(MDValuePtr Object)
 }
 
 //! Read value from memory buffer
-Uint32 MDTraits_Uint32::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDTraits_UInt32::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
-	return ReadValueUint(Object, Buffer, Size, Count);
+	return ReadValueUInt(Object, Buffer, Size, Count);
 }
 
 
@@ -471,22 +477,22 @@ void mxflib::MDTraits_Int64::SetInt64(MDValuePtr Object, Int64 Val)
 	// to byte swap it...
 	// Note that the swap is done in an unsigned int
 	// to prevent any sign problems!
-	Uint64 i = Swap((Uint64)Val);
+	UInt64 i = Swap((UInt64)Val);
 
-	Object->SetData(8, (Uint8*)&i);
+	Object->SetData(8, (UInt8*)&i);
 }
 
 //! Set from an Int32
 void mxflib::MDTraits_Int64::SetInt(MDValuePtr Object, Int32 Val) { SetInt64(Object, (Int64)Val); }
 
-//! Set from a Uint32
-void mxflib::MDTraits_Int64::SetUInt(MDValuePtr Object, Uint32 Val) { SetUInt64(Object, (Uint64)Val); }
+//! Set from a UInt32
+void mxflib::MDTraits_Int64::SetUInt(MDValuePtr Object, UInt32 Val) { SetUInt64(Object, (UInt64)Val); }
 
-//! Set from a Uint64
-/*! DRAGONS: Will this always work? This relies on the Uint64 -> Int64 -> Uint64
+//! Set from a UInt64
+/*! DRAGONS: Will this always work? This relies on the UInt64 -> Int64 -> UInt64
  *           conversion being valid for all values!
  */
-void mxflib::MDTraits_Int64::SetUInt64(MDValuePtr Object, Uint64 Val) { SetInt64(Object, (Uint64)Val); }
+void mxflib::MDTraits_Int64::SetUInt64(MDValuePtr Object, UInt64 Val) { SetInt64(Object, (UInt64)Val); }
 
 //! Set from a string
 void mxflib::MDTraits_Int64::SetString(MDValuePtr Object, std::string Val) { SetInt64(Object, ato_Int64(Val.c_str())); }
@@ -500,8 +506,8 @@ std::string mxflib::MDTraits_Int64::GetString(MDValuePtr Object)
 //! Get Int
 Int32 mxflib::MDTraits_Int64::GetInt(MDValuePtr Object) { return (Int32) GetInt64(Object); }
 
-//! Get Uint
-Uint32 mxflib::MDTraits_Int64::GetUInt(MDValuePtr Object) { return (Uint32) GetUInt64(Object); }
+//! Get UInt
+UInt32 mxflib::MDTraits_Int64::GetUInt(MDValuePtr Object) { return (UInt32) GetUInt64(Object); }
 
 //! Get Int64
 Int64 mxflib::MDTraits_Int64::GetInt64(MDValuePtr Object) 
@@ -517,38 +523,38 @@ Int64 mxflib::MDTraits_Int64::GetInt64(MDValuePtr Object)
 		return 0;
 	}
 
-	// Build the 64-bit value using Uint32s to prevent possible sign problems
-	Uint32 HiVal = ((Object->GetData().Data)[0] << 24) | ((Object->GetData().Data)[1] << 16)
+	// Build the 64-bit value using UInt32s to prevent possible sign problems
+	UInt32 HiVal = ((Object->GetData().Data)[0] << 24) | ((Object->GetData().Data)[1] << 16)
 		         | ((Object->GetData().Data)[2] << 8) | (Object->GetData().Data)[3];
-	Uint32 LoVal = ((Object->GetData().Data)[4] << 24) | ((Object->GetData().Data)[5] << 16)
+	UInt32 LoVal = ((Object->GetData().Data)[4] << 24) | ((Object->GetData().Data)[5] << 16)
 		         | ((Object->GetData().Data)[6] << 8) | (Object->GetData().Data)[7];
 
-	return (Uint64(HiVal) << 32) | LoVal;
+	return (UInt64(HiVal) << 32) | LoVal;
 }
 
-//! Get Uint64
-Uint64 mxflib::MDTraits_Int64::GetUInt64(MDValuePtr Object)
+//! Get UInt64
+UInt64 mxflib::MDTraits_Int64::GetUInt64(MDValuePtr Object)
 {
 	// As the return value is the same size as our working variables
 	// the signed to unsigned conversion should be safe like this
-	return (Uint64)GetInt64(Object);
+	return (UInt64)GetInt64(Object);
 }
 
 
 /*******************************
-**   Uint64 Implementations   **
+**   UInt64 Implementations   **
 *******************************/
 
 //!	Get string from an integer
-std::string mxflib::MDTraits_Uint64::GetString(MDValuePtr Object) 
+std::string mxflib::MDTraits_UInt64::GetString(MDValuePtr Object) 
 { 
-	return Uint64toString(GetUInt64(Object));
+	return UInt64toString(GetUInt64(Object));
 }
 
 //! Read value from memory buffer
-Uint32 MDTraits_Uint64::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDTraits_UInt64::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
-	return ReadValueUint(Object, Buffer, Size, Count);
+	return ReadValueUInt(Object, Buffer, Size, Count);
 }
 
 
@@ -591,13 +597,13 @@ std::string MDTraits_UTF16::GetString(MDValuePtr Object)
 	UInt16 Value = GetInt(Object);
 
 	// Is this a simple 7-bit character?
-	if((Value & (Uint16)(~0x7f)) == 0)
+	if((Value & (UInt16)(~0x7f)) == 0)
 	{
 		Buffer[0] = (char)Value;
 		Buffer[1] = 0;
 	}
 	// How about a value that can be represented in 2 UTF8 bytes?
-	else if((Value & (Uint16)(~0x7ff)) == 0)
+	else if((Value & (UInt16)(~0x7ff)) == 0)
 	{
 		Buffer[0] = (char)(0xc0 | (Value >> 6));
 		Buffer[1] = (char)(0x80 | (Value & 0x3f));
@@ -636,17 +642,17 @@ void MDTraits_UTF16::SetString(MDValuePtr Object, std::string Val)
 	// Is is a simple 7-bit character?
 	if((Buffer[0] & 0x80) == 0)
 	{
-		Value = (Uint16)Buffer[0];
+		Value = (UInt16)Buffer[0];
 	}
 	// Or a 2-byte code?
 	else if((Buffer[0] & 0xe0) == 0xc0)
 	{
-		Value = (((Uint16)(Buffer[0] & 0x1f)) << 6) | ((Uint16)(Buffer[1] & 0x3f));
+		Value = (((UInt16)(Buffer[0] & 0x1f)) << 6) | ((UInt16)(Buffer[1] & 0x3f));
 	}
 	// Or a 3-byte code?
 	else if((Buffer[0] & 0xf0) == 0xe0)
 	{
-		Value = (((Uint16)(Buffer[0] & 0x0f)) << 12) | (((Uint16)(Buffer[1] & 0x3f)) << 6) | ((Uint16)(Buffer[2] & 0x3f));
+		Value = (((UInt16)(Buffer[0] & 0x0f)) << 12) | (((UInt16)(Buffer[1] & 0x3f)) << 6) | ((UInt16)(Buffer[2] & 0x3f));
 	}
 	// Anything that requires > 16 bits becomes a "replacement character"
 	// Not strictly 100% valid Unicode perhaps but not much else is possible!
@@ -683,7 +689,7 @@ std::string MDTraits_UTF16String::GetString(MDValuePtr Object)
 { 
 	std::string Ret;				//!< Return value being built
 	char Buffer[5];					//!< Buffer for building each Unicode symbol
-	Uint16 Surrogate = 0;			//!< First surrogate if processing a pair
+	UInt16 Surrogate = 0;			//!< First surrogate if processing a pair
 
 	MDValue::iterator it = Object->begin();
 	while(it != Object->end())
@@ -695,7 +701,7 @@ std::string MDTraits_UTF16String::GetString(MDValuePtr Object)
 
 		if(Surrogate)
 		{
-			Uint16 UValue = ((Surrogate >> 6) & 0x000f) + 1;
+			UInt16 UValue = ((Surrogate >> 6) & 0x000f) + 1;
 			Buffer[0] = (char)(0xf0 | (UValue >> 2));
 			Buffer[1] = (char)(0x80 | ((UValue & 0x03) << 4) | ((Surrogate & 0x003c) >> 2));
 			Buffer[2] = (char)(0x80 | ((Surrogate & 0x03) << 4) | ((Value & 0x03c0) >> 6));
@@ -708,13 +714,13 @@ std::string MDTraits_UTF16String::GetString(MDValuePtr Object)
 		else
 		{
 			// Is this a simple 7-bit character?
-			if((Value & (Uint16)(~0x7f)) == 0)
+			if((Value & (UInt16)(~0x7f)) == 0)
 			{
 				Buffer[0] = (char)Value;
 				Buffer[1] = 0;
 			}
 			// How about a value that can be represented in 2 UTF8 bytes?
-			else if((Value & (Uint16)(~0x7ff)) == 0)
+			else if((Value & (UInt16)(~0x7ff)) == 0)
 			{
 				Buffer[0] = (char)(0xc0 | (Value >> 6));
 				Buffer[1] = (char)(0x80 | (Value & 0x3f));
@@ -770,8 +776,13 @@ void MDTraits_UTF16String::SetString(MDValuePtr Object, std::string Val)
 	Buffer = new char[Len + 1];
 	strcpy(Buffer, Val.c_str());
 
-	// Initially assume that the return string will be the same size as the input string (it will be no longer)
-	Object->Resize(Len);
+	// Initially assume that the return string will be the same size (times two) as the input string.
+	// It will be no longer as four-byte UTF-16 codes start as four UTF-8 bytes
+	if(GetStringTermination())
+		Object->Resize(Len + 1);
+	else
+		Object->Resize(Len);
+
 
 	// Count the actual length
 	RetLen = 0;
@@ -783,21 +794,21 @@ void MDTraits_UTF16String::SetString(MDValuePtr Object, std::string Val)
 		// Is is a simple 7-bit character?
 		if((p[0] & 0x80) == 0)
 		{
-			Value = (Uint16)*p;
+			Value = (UInt16)*p;
 			p++;
 			Len--;
 		}
 		// Or a 2-byte code?
 		else if((Len >= 2) && ((p[0] & 0xe0) == 0xc0))
 		{
-			Value = (((Uint16)(p[0] & 0x1f)) << 6) | ((Uint16)(p[1] & 0x3f));
+			Value = (((UInt16)(p[0] & 0x1f)) << 6) | ((UInt16)(p[1] & 0x3f));
 			p += 2;
 			Len -= 2;
 		}
 		// Or a 3-byte code?
 		else if((Len >= 3) && ((p[0] & 0xf0) == 0xe0))
 		{
-			Value = (((Uint16)(p[0] & 0x0f)) << 12) | (((Uint16)(p[1] & 0x3f)) << 6) | ((Uint16)(p[2] & 0x3f));
+			Value = (((UInt16)(p[0] & 0x0f)) << 12) | (((UInt16)(p[1] & 0x3f)) << 6) | ((UInt16)(p[2] & 0x3f));
 			p += 3;
 			Len -= 3;
 		}
@@ -805,7 +816,7 @@ void MDTraits_UTF16String::SetString(MDValuePtr Object, std::string Val)
 		else if((Len >= 4) && ((p[0] & 0xf0) == 0xf0))
 		{
 			// Build leading surrogate
-			UInt16 UValue = (((Uint16)(p[0] & 0x07)) << 2) | (((Uint16)(p[1] & 0x30)) >> 4);
+			UInt16 UValue = (((UInt16)(p[0] & 0x07)) << 2) | (((UInt16)(p[1] & 0x30)) >> 4);
 			Value = 0xd800 | ((UValue - 1) << 6) | ((p[1] & 0x0f) << 2) | ((p[2] & 0x30) >> 4);
 
 			(*it).second->SetUInt(Value);
@@ -833,14 +844,17 @@ void MDTraits_UTF16String::SetString(MDValuePtr Object, std::string Val)
 		it++;
 	}
 
-/*  NOTE: We don't currently terminate UTF16 strings, but if required here is code to do it
-	// Terminate the string if we can
-	if(it != Object->end())
+	// Terminate the string if requested
+	if(GetStringTermination())
+
 	{
-		(*it).second->SetUint(0);
-		RetLen++;
+		if(it != Object->end())
+		{
+			(*it).second->SetUInt(0);
+			RetLen++;
+		}
 	}
-*/
+
 
 	// Shrink output array to the actual size required
 	Object->Resize(RetLen);
@@ -878,7 +892,7 @@ void MDTraits_BasicArray::SetInt64(MDValuePtr Object, Int64 Val)
 	}
 }
 
-void MDTraits_BasicArray::SetUInt(MDValuePtr Object, Uint32 Val)
+void MDTraits_BasicArray::SetUInt(MDValuePtr Object, UInt32 Val)
 {
 	MDValue::iterator it;
 
@@ -890,7 +904,7 @@ void MDTraits_BasicArray::SetUInt(MDValuePtr Object, Uint32 Val)
 	}
 }
 
-void MDTraits_BasicArray::SetUInt64(MDValuePtr Object, Uint64 Val)
+void MDTraits_BasicArray::SetUInt64(MDValuePtr Object, UInt64 Val)
 {
 	MDValue::iterator it;
 
@@ -966,7 +980,7 @@ Int64 MDTraits_BasicArray::GetInt64(MDValuePtr Object)
 }
 
 
-Uint32 MDTraits_BasicArray::GetUInt(MDValuePtr Object)
+UInt32 MDTraits_BasicArray::GetUInt(MDValuePtr Object)
 {
 	MDValue::iterator it;
 
@@ -978,7 +992,7 @@ Uint32 MDTraits_BasicArray::GetUInt(MDValuePtr Object)
 	return (*it).second->GetUInt();
 }
 
-Uint64 MDTraits_BasicArray::GetUInt64(MDValuePtr Object)
+UInt64 MDTraits_BasicArray::GetUInt64(MDValuePtr Object)
 {
 	MDValue::iterator it;
 
@@ -1009,7 +1023,7 @@ std::string MDTraits_BasicArray::GetString(MDValuePtr Object)
 }
 
 
-Uint32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
 	// Start with no children in the object
 	Object->clear();
@@ -1035,8 +1049,8 @@ Uint32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Ui
 			return 0;
 		}
 
-		Uint32 ItemCount = GetU32(Buffer);
-		Uint32 ItemSize = GetU32(&Buffer[4]);
+		UInt32 ItemCount = GetU32(Buffer);
+		UInt32 ItemSize = GetU32(&Buffer[4]);
 
 		Buffer += 8;
 		Size -= 8;
@@ -1061,18 +1075,18 @@ Uint32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Ui
 	}
 
 	// Figure out the maximum number of items to read
-	Uint32 MaxItems = Object->GetType()->Size;
+	UInt32 MaxItems = Object->GetType()->Size;
 
 	// Count of actual items read, and bytes read in doing so
-	Uint32 ActualCount = 0;
-	Uint32 Bytes = 0;
+	UInt32 ActualCount = 0;
+	UInt32 Bytes = 0;
 
 	// Either the size of each item to read, or the total size (for unknown count)
-	Uint32 ThisSize = Size;
+	UInt32 ThisSize = Size;
 
 	while(Count)
 	{
-		Uint32 ThisBytes;
+		UInt32 ThisBytes;
 
 		MDValuePtr NewItem = new MDValue(Object->EffectiveBase());
 
@@ -1141,7 +1155,10 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 	int Size = Val.length();
 	int Index = 0;
 	
-	Object->Resize(Size);
+	if(GetStringTermination())
+		Object->Resize(Size + 1);
+	else
+		Object->Resize(Size);
 
 	it = Object->begin();
 	while(it != Object->end())
@@ -1150,11 +1167,7 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 		char c = Val[Index];
 
 		// Stop at a terminating NUL
-		if(c=='\0') 
-		{
-			Object->Resize(Index);
-			break;
-		}
+		if(c=='\0') break;
 
 		Temp = c;
 		(*it).second->SetString(Temp);
@@ -1162,6 +1175,18 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 		it++;
 		Index++;
 	}
+
+	if(GetStringTermination())
+	{
+		if(it != Object->end())
+		{
+			(*it).second->SetUInt(0);
+			it++;
+			Index++;
+		}
+	}
+
+	Object->Resize(Index);
 }
 
 
@@ -1174,7 +1199,7 @@ std::string MDTraits_Raw::GetString(MDValuePtr Object)
 {
 	std::string Ret;
 	int Count = Object->GetData().Size;
-	const Uint8 *Data = Object->GetData().Data;
+	const UInt8 *Data = Object->GetData().Data;
 
 	Ret = "";
 
@@ -1197,8 +1222,8 @@ void MDTraits_Raw::SetString(MDValuePtr Object, std::string Val)
 {
 	int Count = Object->GetData().Size;
 	int Value = -1;
-	Uint8 *Data = new Uint8[Count];
-	Uint8 *pD = Data;
+	UInt8 *Data = new UInt8[Count];
+	UInt8 *pD = Data;
 	const char *p = Val.c_str();
 
 	// During this loop Value = -1 when no digits of a number are mid-process
@@ -1360,7 +1385,7 @@ std::string MDTraits_UUID::GetString(MDValuePtr Object)
 	char Buffer[100];
 
 	ASSERT(Object->GetData().Size >= 16);
-	const Uint8 *Ident = Object->GetData().Data;
+	const UInt8 *Ident = Object->GetData().Data;
 
 	// Check which format should be used
 	if( !(0x80&Ident[8]) )
@@ -1397,7 +1422,7 @@ std::string MDTraits_Label::GetString(MDValuePtr Object)
 	// TODO: This uses the sets registry for label lookups, which can work but is not really correct
 
 	ASSERT(Object->GetData().Size >= 16);
-	const Uint8 *Ident = Object->GetData().Data;
+	const UInt8 *Ident = Object->GetData().Data;
 
 	// Look up the Ident in the dictionary
 	// if found, emit the Name (should by symbol)
@@ -1444,7 +1469,7 @@ std::string MDTraits_UMID::GetString(MDValuePtr Object)
 	char Buffer[100];
 
 	ASSERT(Object->GetData().Size >= 32);
-	const Uint8 *Ident = Object->GetData().Data;
+	const UInt8 *Ident = Object->GetData().Data;
 
 	sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x]",
 					  Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5],
@@ -1458,7 +1483,7 @@ std::string MDTraits_UMID::GetString(MDValuePtr Object)
 	Ret += Buffer;
 
 	// Decide how best to represent the material number
-	const Uint8* Material = &Ident[16];
+	const UInt8* Material = &Ident[16];
 	if( !(0x80&Material[8]) )
 	{	// Half-swapped UL packed into a UUID datatype
 		// Return as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
@@ -1619,9 +1644,9 @@ void MDTraits_BasicCompound::SetString(MDValuePtr Object, std::string Val)
 //! Basic function to read a compound from a buffer
 /*! \note Count is ignored in this function
  */
-Uint32 MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const Uint8 *Buffer, Uint32 Size, int Count /*=0*/)
+UInt32 MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
 {
-	Uint32 Bytes = 0;
+	UInt32 Bytes = 0;
 
 	StringList::iterator it = Object->EffectiveType()->ChildOrder.begin();
 	StringList::iterator itend = Object->EffectiveType()->ChildOrder.end();
@@ -1636,7 +1661,7 @@ Uint32 MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const Uint8 *Buffer,
 		}
 		else
 		{
-			Uint32 ThisBytes = Value->ReadValue(Buffer, Size);
+			UInt32 ThisBytes = Value->ReadValue(Buffer, Size);
 			Bytes += ThisBytes;
 
 			Buffer += ThisBytes;
@@ -1663,12 +1688,12 @@ std::string MDTraits_Rational::GetString(MDValuePtr Object)
 	MDValuePtr Numerator = Object["Numerator"];
 	MDValuePtr Denominator = Object["Denominator"];
 
-	Uint32 Num = 0;
-	Uint32 Den = 1;
+	UInt32 Num = 0;
+	UInt32 Den = 1;
 	if(Numerator) Num = Numerator->GetUInt();
 	if(Denominator) Den = Denominator->GetUInt();
 
-	return Uint2String(Num) + "/" + Uint2String(Den);
+	return UInt2String(Num) + "/" + UInt2String(Den);
 }
 
 
@@ -1677,9 +1702,9 @@ void MDTraits_Rational::SetString(MDValuePtr Object, std::string Val)
 	MDValuePtr Numerator = Object["Numerator"];
 	MDValuePtr Denominator = Object["Denominator"];
 
-	Uint32 Num = atoi(Val.c_str());
+	UInt32 Num = atoi(Val.c_str());
 
-	Uint32 Den = 1;
+	UInt32 Den = 1;
 	std::string::size_type Slash = Val.find("/");
 	if(Slash != std::string::npos) Den = atoi(&(Val.c_str()[Slash+1]));
 
@@ -1703,13 +1728,13 @@ std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 	MDValuePtr Seconds = Object["Seconds"];
 	MDValuePtr msBy4 = Object["msBy4"];
 
-	Uint32 Y;
-	Uint32 M;
-	Uint32 D;
-	Uint32 H;
-	Uint32 Min;
-	Uint32 S;
-	Uint32 ms;
+	UInt32 Y;
+	UInt32 M;
+	UInt32 D;
+	UInt32 H;
+	UInt32 Min;
+	UInt32 S;
+	UInt32 ms;
 
 	if(Year) Y = Year->GetUInt(); else Y = 0;
 	if(Month) M = Month->GetUInt(); else M = 0;
@@ -1732,14 +1757,14 @@ std::string MDTraits_TimeStamp::GetString(MDValuePtr Object)
 
 	std::string date = monthNames[ M ];
 
-	return date + " "  + Uint2String(D,2)
-	            + ", " + Uint2String(Y)
-	            + " "  + Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2)
-				+ "."  + Uint2String(ms,3)
+	return date + " "  + UInt2String(D,2)
+	            + ", " + UInt2String(Y)
+	            + " "  + UInt2String(H) + ":" + UInt2String(Min,2) + ":" + UInt2String(S,2)
+				+ "."  + UInt2String(ms,3)
 				+ " GMT";
 #else
-	return Uint2String(Y) + "-" + Uint2String(M,2) + "-" + Uint2String(D,2) + " " +
-		   Uint2String(H) + ":" + Uint2String(Min,2) + ":" + Uint2String(S,2) + "." + Uint2String(ms,3);
+	return UInt2String(Y) + "-" + UInt2String(M,2) + "-" + UInt2String(D,2) + " " +
+		   UInt2String(H) + ":" + UInt2String(Min,2) + ":" + UInt2String(S,2) + "." + UInt2String(ms,3);
 #endif
 }
 
@@ -1755,13 +1780,13 @@ void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
 	MDValuePtr Seconds = Object["Seconds"];
 	MDValuePtr msBy4 = Object["msBy4"];
 
-	Uint32 Y = 0;
-	Uint32 M = 0;
-	Uint32 D = 0;
-	Uint32 H = 0;
-	Uint32 Min = 0;
-	Uint32 S = 0;
-	Uint32 ms = 0;
+	UInt32 Y = 0;
+	UInt32 M = 0;
+	UInt32 D = 0;
+	UInt32 H = 0;
+	UInt32 Min = 0;
+	UInt32 S = 0;
+	UInt32 ms = 0;
 
 	sscanf(Val.c_str(), "%d-%d-%d", &Y, &M, &D);
 	std::string::size_type Pos = Val.find("T");

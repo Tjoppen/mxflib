@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.4 2004/12/18 20:20:11 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -64,7 +64,7 @@ namespace mxflib
 		//! Set an encryption key
 		/*! \return True if key is accepted
 		 */
-		virtual bool SetKey(Uint32 KeySize, const Uint8 *Key) = 0;
+		virtual bool SetKey(UInt32 KeySize, const UInt8 *Key) = 0;
 
 		//! Set an encryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -74,7 +74,7 @@ namespace mxflib
 		 *        and false for any other calls.  This allows different schemes to be
 		 *        used with minimal changes in the calling code.
 		 */
-		virtual bool SetIV(Uint32 IVSize, const Uint8 *IV, bool Force = false) = 0;
+		virtual bool SetIV(UInt32 IVSize, const UInt8 *IV, bool Force = false) = 0;
 
 		//! Set an encryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -107,12 +107,12 @@ namespace mxflib
 		/*! If BlockSize is 0 this function will return true if encryption of all block sizes can be "in place".
 		 *  Otherwise the result will indicate whether the given blocksize can be encrypted "in place".
 		 */
-		virtual bool CanEncryptInPlace(Uint32 BlockSize = 0) = 0;
+		virtual bool CanEncryptInPlace(UInt32 BlockSize = 0) = 0;
 
 		//! Encrypt data bytes in place
 		/*! \return true if the encryption is successful
 		 */
-		virtual bool EncryptInPlace(Uint32 Size, Uint8 *Data) = 0;
+		virtual bool EncryptInPlace(UInt32 Size, UInt8 *Data) = 0;
 
 		//! Encrypt data bytes in place
 		/*! \return true if the encryption is successful
@@ -127,7 +127,7 @@ namespace mxflib
 		//! Encrypt data and return in a new buffer
 		/*! \return NULL pointer if the encryption is unsuccessful
 		 */
-		virtual DataChunkPtr Encrypt(Uint32 Size, const Uint8 *Data) = 0;
+		virtual DataChunkPtr Encrypt(UInt32 Size, const UInt8 *Data) = 0;
 
 		//! Encrypt data and return in a new buffer
 		/*! \return NULL pointer if the encryption is unsuccessful
@@ -166,7 +166,7 @@ namespace mxflib
 		//! Set a decryption key
 		/*! \return True if key is accepted
 		 */
-		virtual bool SetKey(Uint32 KeySize, const Uint8 *Key) = 0;
+		virtual bool SetKey(UInt32 KeySize, const UInt8 *Key) = 0;
 
 		//! Set a decryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -176,7 +176,7 @@ namespace mxflib
 		 *        and false for any other calls.  This allows different schemes to be
 		 *        used with minimal changes in the calling code.
 		 */
-		virtual bool SetIV(Uint32 IVSize, const Uint8 *IV, bool Force = false) = 0;
+		virtual bool SetIV(UInt32 IVSize, const UInt8 *IV, bool Force = false) = 0;
 
 		//! Set a decryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -209,12 +209,12 @@ namespace mxflib
 		/*! If BlockSize is 0 this function will return true if decryption of all block sizes can be "in place".
 		 *  Otherwise the result will indicate whether the given blocksize can be decrypted "in place".
 		 */
-		virtual bool CanDecryptInPlace(Uint32 BlockSize = 0) = 0;
+		virtual bool CanDecryptInPlace(UInt32 BlockSize = 0) = 0;
 
 		//! Decrypt data bytes in place
 		/*! \return true if the decryption <i>appears to be</i> successful
 		 */
-		virtual bool DecryptInPlace(Uint32 Size, Uint8 *Data) = 0;
+		virtual bool DecryptInPlace(UInt32 Size, UInt8 *Data) = 0;
 
 		//! Decrypt data bytes in place
 		/*! \return true if the decryption <i>appears to be</i> successful
@@ -229,7 +229,7 @@ namespace mxflib
 		//! Decrypt data and return in a new buffer
 		/*! \return NULL pointer if the decryption is unsuccessful
 		 */
-		virtual DataChunkPtr Decrypt(Uint32 Size, const Uint8 *Data) = 0;
+		virtual DataChunkPtr Decrypt(UInt32 Size, const UInt8 *Data) = 0;
 
 		//! Decrypt data and return in a new buffer
 		/*! \return NULL pointer if the decryption is unsuccessful
@@ -272,7 +272,7 @@ namespace mxflib
 		//! Set a hashing key (if required)
 		/*! \return True if key is accepted
 		 */
-		virtual bool SetKey(Uint32 Size, const Uint8 *Key) 
+		virtual bool SetKey(UInt32 Size, const UInt8 *Key) 
 		{ 
 			UNUSED_PARAMETER(Key); 
 			UNUSED_PARAMETER(Size); 
@@ -286,7 +286,7 @@ namespace mxflib
 		void HashData(DataChunkPtr &Data) { HashData(Data->Size, Data->Data); }
 
 		//! Add the given data to the current hash being calculated
-		virtual void HashData(Uint32 Size, const Uint8 *Data) = 0;
+		virtual void HashData(UInt32 Size, const UInt8 *Data) = 0;
 
 		//! Get the finished hash value
 		virtual DataChunkPtr GetHash(void) = 0;
@@ -324,10 +324,10 @@ namespace mxflib
 		ULPtr SourceKey;							//!< Key for the plaintext KLV
 		Length EncryptedLength;						//!< Length of the encrypted KLV Value
 		int SourceLengthFormat;						//!< Number of bytes used to encode SourceLength in the KLVE (allows us to faithfully recreate if required)
-		Uint8 IV[16];								//!< The Initialization Vector for this KLVE
-		Uint8 Check[16];							//!< The check value for this KLVE
+		UInt8 IV[16];								//!< The Initialization Vector for this KLVE
+		UInt8 Check[16];							//!< The check value for this KLVE
 		UUIDPtr TrackFileID;						//!< The optional TrackFile ID or NULL
-		Uint64 SequenceNumber;						//!< The optional Sequence Number of this KLVE within the TrackFile
+		UInt64 SequenceNumber;						//!< The optional Sequence Number of this KLVE within the TrackFile
 		bool HasSequenceNumber;						//!< True if SequenceNumber has been set or read
 		DataChunkPtr MIC;							//!< The optional MIC (if loaded or computed when reading or computed when writing) else NULL
 
@@ -339,14 +339,14 @@ namespace mxflib
 		Position CurrentWriteOffset;				//!< The location of the next write (if writing in sequence) - used to detect random access attempts
 
 		int PreDecrypted;							//!< Number of extra bytes decrypted last time that are buffer for the next read
-		Uint8 PreDecryptBuffer[EncryptionGranularity];
+		UInt8 PreDecryptBuffer[EncryptionGranularity];
 													//!< Left over bytes from decrypting the last chunk - these will be returned first with the next read call
 
 		int AwaitingEncryption;						//!< Number of left over bytes not encrypted last time that are buffer for the next write
-		Uint8 AwaitingEncryptionBuffer[EncryptionGranularity];
+		UInt8 AwaitingEncryptionBuffer[EncryptionGranularity];
 													//!< Left over bytes from encrypting the last chunk - these will be written first at the next write call
 
-		Uint32 FooterLength;						//!< The size of the AS-DCP footer to be written for this KLVEObject
+		UInt32 FooterLength;						//!< The size of the AS-DCP footer to be written for this KLVEObject
 
 	public:
 		//** KLVEObject Specifics **//
@@ -371,7 +371,7 @@ namespace mxflib
 		//! Set an encryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
 		 */
-		virtual bool SetEncryptIV(Uint32 IVSize, const Uint8 *IV, bool Force = false)
+		virtual bool SetEncryptIV(UInt32 IVSize, const UInt8 *IV, bool Force = false)
 		{
 			Force = !(!Force);		// Unused parameter
 
@@ -383,7 +383,7 @@ namespace mxflib
 		//! Set a decryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
 		 */
-		virtual bool SetDecryptIV(Uint32 IVSize, const Uint8 *IV, bool Force = false);
+		virtual bool SetDecryptIV(UInt32 IVSize, const UInt8 *IV, bool Force = false);
 
 		//! Get the Initialization Vector that will be used for the next encryption
 		virtual DataChunkPtr GetEncryptIV(void);
@@ -429,7 +429,7 @@ namespace mxflib
 		virtual GCElementKind GetGCElementKind(void);
 
 		//! Get the track number of this KLVObject (if it is a GC KLV, else 0)
-		virtual Uint32 GetGCTrackNumber(void);
+		virtual UInt32 GetGCTrackNumber(void);
 
 		//! Get text that describes where this item came from
 		virtual std::string GetSource(void);
@@ -504,7 +504,7 @@ namespace mxflib
 		 *  \note As there may be a need for the implementation to know where within the value field
 		 *        this data lives, there is no WriteData(Buffer, Size) function.
 		 */
-		virtual Length WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size);
+		virtual Length WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size);
 
 		//! Get the length of the value field
 		virtual Length GetLength(void) 
@@ -542,7 +542,7 @@ namespace mxflib
 
 		//! Calculate the size of the AS-DCP footer for this KLVEObject
 		/*! The size it returned and also written to property FooterLength */
-		Uint32 CalcFooterLength(void);
+		UInt32 CalcFooterLength(void);
 
 		//! Write the AS-DCP footer (if fequired)
 		/*! /ret false on error, else true
@@ -575,7 +575,7 @@ namespace mxflib
 		 *	The IV must have already been set.
 		 *  Only encrypted parts of the value may be written using this function (i.e. Offset >= PlaintextOffset)
 		 */
-		Length WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Length Size);
+		Length WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, Length Size);
 	};
 
 	//! Smart pointer to a KLVEObject (cannot point to KLVObjects)

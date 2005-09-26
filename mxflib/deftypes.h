@@ -1,6 +1,6 @@
 /*! \file	deftypes.h
  *	\brief	Definition of classes that load type and class dictionaries
- *	\version $Id: deftypes.h,v 1.5 2005/08/08 09:41:26 matt-beard Exp $
+ *	\version $Id: deftypes.h,v 1.6 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -115,6 +115,7 @@ namespace mxflib
 	 */
 	int LoadTypes(TypeRecordList &TypesData);
 
+	const MDTraits* LookupTraits(const char* TraitsName);
 
 	/* Define macros for static type definitions */
 
@@ -168,7 +169,7 @@ namespace mxflib
 
 /* Example usage:
 	MXFLIB_TYPE_START(TypeArray)
-		MXFLIB_TYPE_BASIC("Uint8", "Unsigned 8 bit integer", 1, false)
+		MXFLIB_TYPE_BASIC("UInt8", "Unsigned 8 bit integer", 1, false)
 		MXFLIB_TYPE_BASIC("UInt16", "Unsigned 16 bit integer", 2, true)
 		MXFLIB_TYPE_BASIC("Int32", "32 bit integer", 4, true)
 		
@@ -201,7 +202,8 @@ namespace mxflib
 		ClassVector,						//!< Vector (with 8-byte count and size header) definition
 		ClassArray,							//!< Array definition
 		ClassItem,							//!< Definition of an item in a set, pack, vector or array
-		ClassRename							//!< Rename of a set or pack without new children
+		ClassRename,						//!< Rename of a set or pack without new children
+		ClassSymbolSpace					//!< Define the default symbol space for all classes in this list
 	};
 
 	//! Usage types for classes
@@ -236,12 +238,13 @@ namespace mxflib
 		const char *Detail;					//!< The human readable description of this type
 		ClassUsage Usage;					//!< The usage type for this class
 		const char *Base;					//!< The type of an item, or base type if redefining
-		Uint16 Tag;							//!< The 2-byte tag, or zero
+		UInt16 Tag;							//!< The 2-byte tag, or zero
 		const char *UL;						//!< The UL for this class or item (if known)
 		const char *Default;				//!< Default value as a string, or NULL if none
 		const char *DValue;					//!< Distinguished value as a string, or NULL if none
 		ClassRef RefType;					//!< Reference type of this item (if a reference or target)
 		const char *RefTarget;				//!< Type of the reference target (if this is a referencing type)
+		const char *SymSpace;				//!< SymbolSpace for this class, or NULL if none specified (will inherit)
 	};
 
 	// Forward declare ClassRecord to allow ClassRecordPtr to be defined early
@@ -267,7 +270,7 @@ namespace mxflib
 		std::string Detail;					//!< The human readable description of this type
 		ClassUsage Usage;					//!< The usage type for this class
 		std::string Base;					//!< The type of an item, or base type if redefining
-		Uint16 Tag;							//!< The 2-byte tag, or zero
+		UInt16 Tag;							//!< The 2-byte tag, or zero
 		ULPtr UL;							//!< The UL for this class or item (or NULL if not known)
 		bool HasDefault;					//!< True if the item has a default value
 		std::string Default;				//!< Default value as a string
@@ -276,6 +279,7 @@ namespace mxflib
 		ClassRecordList Children;			//!< Sub-items within this class (if it is a set or pack)
 		ClassRef RefType;					//!< Reference type of this item (if a reference or target)
 		std::string RefTarget;				//!< Type of the reference target (if this is a referencing type)
+		std::string SymSpace;				//!< SymbolSpace for this class, or "" if none specified (will inherit)
 	};
 
 
@@ -283,19 +287,23 @@ namespace mxflib
 	/*! \return 0 if all OK
 	 *  \return -1 on error
 	 */
-	int LoadClasses(ClassRecordList &ClassesData);
+	int LoadClasses(ClassRecordList &ClassesData, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols);
 
 	//! Load classeses from the specified in-memory definitions
 	/*! \note There must be enough terminating entries (with Class == TypeNULL) to end the list
 	 *  \return 0 if all OK
 	 *  \return -1 on error
 	 */
-	int LoadClasses(const ConstClassRecord *ClassData);
+	int LoadClasses(const ConstClassRecord *ClassData, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols);
+
 
 	/* Define macros for static type definitions */
 
 //! MXFLIB_CLASS_START - Use to start a type definition block
 #define MXFLIB_CLASS_START(Name) const ConstClassRecord Name[] = {
+
+//! MXFLIB_CLASS_START_SYM - Use to start a type definition block and define a default symbol space
+#define MXFLIB_CLASS_START_SYM(Name, Sym) const ConstClassRecord Name[] = { { ClassSymbolSpace, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", Sym },
 
 //! MXFLIB_CLASS_SET - Use to define a local set that has 2-byte tags and 2-byte lengths
 /*! \param Name The name of the set being defined
@@ -303,10 +311,19 @@ namespace mxflib
  *  \param Base The base class if this set is a derived class, else ""
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_SET(Name, Detail, Base, UL) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_SET(Name, Detail, Base, UL) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL },
+
+//! MXFLIB_CLASS_SET_SYM - Use to define a local set that has 2-byte tags and 2-byte lengths and override the default symbol space
+/*! \param Name The name of the set being defined
+ *  \param Detail A human readable description of the set
+ *  \param Base The base class if this set is a derived class, else ""
+ *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
+ *  \param Sym The name of the symbol space for this set
+ */
+#define MXFLIB_CLASS_SET_SYM(Name, Detail, Base, UL, Sym) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", "This:" Sym },
 
 //! MXFLIB_CLASS_SET_END - Use to end a set definition
-#define MXFLIB_CLASS_SET_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_SET_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL },
 
 //! MXFLIB_CLASS_FIXEDPACK - Use to define a fixed length pack (defined length pack)
 /*! \param Name The name of the pack being defined
@@ -314,10 +331,19 @@ namespace mxflib
  *  \param Base The base class if this pack is a derived class, else ""
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_FIXEDPACK(Name, Detail, Base, UL) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_FIXEDPACK(Name, Detail, Base, UL) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL },
+
+//! MXFLIB_CLASS_FIXEDPACK_SYM - Use to define a fixed length pack (defined length pack) and override the default symbol space
+/*! \param Name The name of the pack being defined
+ *  \param Detail A human readable description of the pack
+ *  \param Base The base class if this pack is a derived class, else ""
+ *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
+ *  \param Sym The name of the symbol space for this set
+ */
+#define MXFLIB_CLASS_FIXEDPACK_SYM(Name, Detail, Base, UL, Sym) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", Sym },
 
 //! MXFLIB_CLASS_FIXEDPACK_END - Use to end a pack definition
-#define MXFLIB_CLASS_FIXEDPACK_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_FIXEDPACK_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL },
 
 //! MXFLIB_CLASS_ITEM - Use to define a single item in a set or pack
 /*! \param Name The name of the item being defined
@@ -329,7 +355,7 @@ namespace mxflib
  *	\param Default The default value for this item as a string (or NULL if none)
  *	\param DValue The distinguished value for this item as a string (or NULL if none)
  */
-#define MXFLIB_CLASS_ITEM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, Default, DValue) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, ClassRefNone, "" },
+#define MXFLIB_CLASS_ITEM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, Default, DValue) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, ClassRefNone, "", NULL },
 
 //! MXFLIB_CLASS_ITEM_REF - Use to define a single item in a set or pack that is a reference source or target
 /*! \param Name The name of the item being defined
@@ -343,7 +369,35 @@ namespace mxflib
  *	\param RefType The reference type (RefWeak, RefStrong or RefTarget)
  *  \param RefTarget The type of the reference target
  */
-#define MXFLIB_CLASS_ITEM_REF(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, RefType, RefTarget, Default, DValue) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, RefType, RefTarget },
+#define MXFLIB_CLASS_ITEM_REF(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, RefType, RefTarget, Default, DValue) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, RefType, RefTarget, NULL },
+
+//! MXFLIB_CLASS_ITEM_SYM - Use to define a single item in a set or pack and override the default symbol space
+/*! \param Name The name of the item being defined
+ *  \param Detail A human readable description of the item
+ *  \param Usage The usage type of this item (ClassUsageRequired, ClassUsageOptional, etc.)
+ *  \param Type The type of this item
+ *  \param Tag The tag for this item as a string of hex bytes e.g. "03 2b" (if in a set, else "")
+ *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
+ *	\param Default The default value for this item as a string (or NULL if none)
+ *	\param DValue The distinguished value for this item as a string (or NULL if none)
+ *  \param Sym The name of the symbol space for this set
+ */
+#define MXFLIB_CLASS_ITEM_SYM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, Default, DValue, Sym) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, ClassRefNone, "", Sym },
+
+//! MXFLIB_CLASS_ITEM_REF_SYM - Use to define a single item in a set or pack that is a reference source or target and override the default symbol space
+/*! \param Name The name of the item being defined
+ *  \param Detail A human readable description of the item
+ *  \param Usage The usage type of this item (ClassUsageRequired, ClassUsageOptional, etc.)
+ *  \param Type The type of this item
+ *  \param Tag The tag for this item as a string of hex bytes e.g. "03 2b" (if in a set, else "")
+ *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
+ *	\param RefType The reference type (RefWeak, RefStrong or RefTarget)
+ *  \param RefTarget The type of the reference target
+ *	\param Default The default value for this item as a string (or NULL if none)
+ *	\param DValue The distinguished value for this item as a string (or NULL if none)
+ *  \param Sym The name of the symbol space for this set
+ */
+#define MXFLIB_CLASS_ITEM_REF_SYM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, RefType, RefTarget, Default, DValue, Sym) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, RefType, RefTarget, Sym },
 
 //! MXFLIB_CLASS_VECTOR - Use to define a vector holding items
 /*! \param Name The name of the vector being defined
@@ -352,7 +406,7 @@ namespace mxflib
  *  \param Tag The tag for this vector as a string of hex bytes e.g. "03 2b" (if in a set, else "")
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_VECTOR(Name, Detail, Usage, Tag, UL) { ClassVector, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_VECTOR(Name, Detail, Usage, Tag, UL) { ClassVector, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, ClassRefNone, "", NULL },
 
 //! MXFLIB_CLASS_VECTOR_REF - Use to define a vector holding items that are reference sources or targets
 /*! \param Name The name of the vector being defined
@@ -363,10 +417,10 @@ namespace mxflib
  *	\param RefType The reference type (RefWeak, RefStrong or RefTarget)
  *  \param RefTarget The type of the reference target
  */
-#define MXFLIB_CLASS_VECTOR_REF(Name, Detail, Usage, Tag, UL, RefType, RefTarget) { ClassVector, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, RefType, RefTarget },
+#define MXFLIB_CLASS_VECTOR_REF(Name, Detail, Usage, Tag, UL, RefType, RefTarget) { ClassVector, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, RefType, RefTarget, NULL },
 
 //! MXFLIB_CLASS_VECTOR_END - Use to end a vector definition
-#define MXFLIB_CLASS_VECTOR_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_VECTOR_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL },
 
 //! MXFLIB_CLASS_ARRAY - Use to define an array holding items
 /*! \param Name The name of the array being defined
@@ -375,7 +429,7 @@ namespace mxflib
  *  \param Tag The tag for this array as a string of hex bytes e.g. "03 2b" (if in a set, else "")
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_ARRAY(Name, Detail, Usage, Tag, UL) { ClassArray, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_ARRAY(Name, Detail, Usage, Tag, UL) { ClassArray, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, ClassRefNone, "", NULL },
 
 //! MXFLIB_CLASS_ARRAY - Use to define an array holding items
 /*! \param Name The name of the array being defined
@@ -384,10 +438,10 @@ namespace mxflib
  *  \param Tag The tag for this array as a string of hex bytes e.g. "03 2b" (if in a set, else "")
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_ARRAY_REF(Name, Detail, Usage, Tag, UL, RefType, RefTarget) { ClassArray, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, RefType, RefTarget },
+#define MXFLIB_CLASS_ARRAY_REF(Name, Detail, Usage, Tag, UL, RefType, RefTarget) { ClassArray, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, RefType, RefTarget, NULL },
 
 //! MXFLIB_CLASS_ARRAY_END - Use to end a array definition
-#define MXFLIB_CLASS_ARRAY_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_ARRAY_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL },
 
 //! MXFLIB_CLASS_RENAME - Use to rename a set or pack without defining new members
 /*! \param Name The name of the class being defined
@@ -395,10 +449,10 @@ namespace mxflib
  *  \param Base The base class of which this is a rename
  *  \param UL The UL of this class (if one exists, else "")
  */
-#define MXFLIB_CLASS_RENAME(Name, Detail, Base, UL) { ClassRename, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "" },
+#define MXFLIB_CLASS_RENAME(Name, Detail, Base, UL) { ClassRename, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL },
 
 //! MXFLIB_CLASS_END - Use to end a class definition block
-#define MXFLIB_CLASS_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "" } };
+#define MXFLIB_CLASS_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL } };
 
 
 /* Example usage:
@@ -457,24 +511,70 @@ namespace mxflib
 	};
 
 
+	//! Load dictionary from the specified in-memory definitions with a default symbol space
+	/*! \return 0 if all OK
+	 *  \return -1 on error
+	 */
+	int LoadDictionary(DictionaryPtr &DictionaryData, SymbolSpacePtr DefaultSymbolSpace, bool FastFail = false);
+
 	//! Load dictionary from the specified in-memory definitions
 	/*! \return 0 if all OK
 	 *  \return -1 on error
 	 */
-	int LoadDictionary(DictionaryPtr &DictionaryData, bool FastFail = false);
+	inline int LoadDictionary(DictionaryPtr &DictionaryData, bool FastFail = false, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols)
+	{
+		return LoadDictionary(DictionaryData, DefaultSymbolSpace, FastFail );
+	}
+
+	//! Load dictionary from the specified in-memory definitions with a default symbol space
+	/*! \note There must be a terminating entry (with Type == DictionaryNULL) to end the list
+	 *  \return 0 if all OK
+	 *  \return -1 on error
+	 */
+	int LoadDictionary(const ConstDictionaryRecord *DictionaryData, SymbolSpacePtr DefaultSymbolSpace, bool FastFail = false);
 
 	//! Load dictionary from the specified in-memory definitions
 	/*! \note There must be a terminating entry (with Type == DictionaryNULL) to end the list
 	 *  \return 0 if all OK
 	 *  \return -1 on error
 	 */
-	int LoadDictionary(const ConstDictionaryRecord *DictionaryData, bool FastFail = false);
+	inline int LoadDictionary(const ConstDictionaryRecord *DictionaryData, bool FastFail = false, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols)
+	{
+		return LoadDictionary(DictionaryData, DefaultSymbolSpace, FastFail);
+	}
+
+	//! Load dictionary from the specified XML definitions with a default symbol space
+	/*! \return 0 if all OK
+	 *  \return -1 on error
+	 */
+	int LoadDictionary(const char *DictFile, SymbolSpacePtr DefaultSymbolSpace, bool FastFail = false);
+
+	//! Load dictionary from the specified XML definitions with a default symbol space
+	/*! \return 0 if all OK
+	 *  \return -1 on error
+	 */
+	inline int LoadDictionary(std::string DictFile, SymbolSpacePtr DefaultSymbolSpace, bool FastFail = false)
+	{
+		return LoadDictionary(DictFile.c_str(), DefaultSymbolSpace, FastFail );
+	}
 
 	//! Load dictionary from the specified XML definitions
 	/*! \return 0 if all OK
 	 *  \return -1 on error
 	 */
-	int LoadDictionary(char *DictFile, bool FastFail = false);
+	inline int LoadDictionary(const char *DictFile, bool FastFail = false, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols)
+	{
+		return LoadDictionary(DictFile, DefaultSymbolSpace, FastFail );
+	}
+
+	//! Load dictionary from the specified XML definitions
+	/*! \return 0 if all OK
+	 *  \return -1 on error
+	 */
+	inline int LoadDictionary(std::string DictFile, bool FastFail = false, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols)
+	{
+		return LoadDictionary(DictFile.c_str(), DefaultSymbolSpace, FastFail );
+	}
 
 
 //! MXFLIB_DICTIONARY_START - Use to start a type definition block

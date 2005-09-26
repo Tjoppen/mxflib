@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.5 2005/02/05 13:16:37 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.6 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -36,7 +36,7 @@ using namespace mxflib;
 //! Set a decryption Initialization Vector
 /*! \return False if Initialization Vector is rejected
  */
-bool KLVEObject::SetDecryptIV(Uint32 IVSize, const Uint8 *IV, bool Force /*=false*/)
+bool KLVEObject::SetDecryptIV(UInt32 IVSize, const UInt8 *IV, bool Force /*=false*/)
 {
 	// Fail if we don't have a decryption wrapper
 	if(!Decrypt) return false;
@@ -221,13 +221,13 @@ bool KLVEObject::LoadData(void)
 	if(Bytes < 76) return false;
 
 	// Index the start of the data
-	Uint8 *p = Data.Data;
+	UInt8 *p = Data.Data;
 
 
 	// ** Load the ContextID **
 
 	// Read the BER length and move the pointer
-	Uint8 *Prev_p = p;
+	UInt8 *Prev_p = p;
 	Length ItemLength = ReadBER(&p, (int)Bytes);
 	Bytes -= (p - Prev_p);
 
@@ -258,7 +258,7 @@ bool KLVEObject::LoadData(void)
 		return false;
 	}
 	// Read the PlaintextOffset
-	// DRAGONS: The format used in the file is Uint64, but as KLVObject used "Length" (Int64) for its lengths
+	// DRAGONS: The format used in the file is UInt64, but as KLVObject used "Length" (Int64) for its lengths
 	//          we impose a limit of 2^63 bytes on Plaintext offset and keep everything signed internally
 	PlaintextOffset = (Length)GetU64(p);
 
@@ -294,7 +294,7 @@ bool KLVEObject::LoadData(void)
 	// ** Load the SourceLength **
 	//
 	// Note: The source length in the original specification was BER coded
-	//       A later version of the specification uses Uint64
+	//       A later version of the specification uses UInt64
 	//       This code attempts to determine which is used
 
 	// Read the BER length and move the pointer
@@ -308,8 +308,8 @@ bool KLVEObject::LoadData(void)
 		return false;
 	}
 
-	// If not 8-bytes it can't be Uint64 - otherwise it may be BER or Uint64 so see if it is valid BER
-	// This will fail for unimaginably large Uint64 coded SourceLengths
+	// If not 8-bytes it can't be UInt64 - otherwise it may be BER or UInt64 so see if it is valid BER
+	// This will fail for unimaginably large UInt64 coded SourceLengths
 	if((ItemLength != 8) || (*p == 0x87))
 	{
 		// Read the BER SourceLength
@@ -320,7 +320,7 @@ bool KLVEObject::LoadData(void)
 	}
 	else
 	{
-		// Read the Uint64 SourceLength
+		// Read the UInt64 SourceLength
 		ValueLength = GetU64(p);
 		SourceLengthFormat = 8;
 		p += 8;
@@ -402,7 +402,7 @@ GCElementKind KLVEObject::GetGCElementKind(void)
 
 
 //! Get the track number of this KLVObject (if it is a GC KLV, else 0)
-Uint32 KLVEObject::GetGCTrackNumber(void)
+UInt32 KLVEObject::GetGCTrackNumber(void)
 {
 	if(!DataLoaded) if(!LoadData()) return 0;
 
@@ -450,7 +450,7 @@ Length KLVEObject::ReadDataFrom(Position Offset, Length Size /*=-1*/)
 		DataChunkPtr PlainCheck = Decrypt->Decrypt(16, &Data.Data[16]);
 
 		// Encrypt the check value... (Which is "CHUKCHUKCHUKCHUK" who ever said Chuck Harrison has no ego?)
-		const Uint8 DefinitivePlainCheck[16] = { 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B };
+		const UInt8 DefinitivePlainCheck[16] = { 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B };
 		if((!PlainCheck) || (memcmp(PlainCheck->Data, DefinitivePlainCheck, PlainCheck->Size) != 0))
 		{
 			error("Check value did not correctly decrypt in KLVEObject::ReadDataFrom() - is the encryption key correct?\n");
@@ -581,13 +581,13 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 	if(BytesToRead <= PreDecrypted)
 	{
 		// Set the data	into the DataChunk
-		Data.Set(BytesToRead, (Uint32)PreDecryptBuffer);
+		Data.Set(BytesToRead, (UInt32)PreDecryptBuffer);
 
 		// Remove any padding if required
 		if(Offset + Data.Size > ValueLength)
 		{
 			BytesToRead = ValueLength - Offset;
-			Data.Resize((Uint32)BytesToRead);
+			Data.Resize((UInt32)BytesToRead);
 		}
 
 		// Shuffle any remaining bytes
@@ -615,16 +615,16 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 	if(PreDecrypted)
 	{
 		// Steal the newly decrypted bytes
-		Uint8 *Buffer = Data.StealBuffer(true);
+		UInt8 *Buffer = Data.StealBuffer(true);
 
 		// Make a buffer large enough for the complete data
-		Data.ResizeBuffer((Uint32)(PreDecrypted + BytesToDecrypt));
+		Data.ResizeBuffer((UInt32)(PreDecrypted + BytesToDecrypt));
 
 		// Put the pre-decrypted bytes at the start
 		Data.Set(PreDecrypted, PreDecryptBuffer);
 
 		// Follow it with the newly decrypted data
-		Data.Set((Uint32)BytesToDecrypt, Buffer, PreDecrypted);
+		Data.Set((UInt32)BytesToDecrypt, Buffer, PreDecrypted);
 	}
 
 	// If we have decrypted more than requested store them as pre-decrypted for next time
@@ -632,7 +632,7 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 	{
 		PreDecrypted = (int)(Data.Size - Size);
 		memcpy(PreDecryptBuffer, &Data.Data[Size], PreDecrypted);
-		Data.Resize((Uint32)Size);
+		Data.Resize((UInt32)Size);
 	}
 	else 
 		PreDecrypted = 0;
@@ -641,7 +641,7 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 	if(Offset + Data.Size > ValueLength)
 	{
 		Size = ValueLength - Offset;
-		Data.Resize((Uint32)Size);
+		Data.Resize((UInt32)Size);
 	}
 
 	return Size;
@@ -667,7 +667,7 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 	if(NewSize != Size)
 	{
 		Size = NewSize;
-		Data.Resize((Uint32)Size);
+		Data.Resize((UInt32)Size);
 		if(Size == 0) return 0;
 
 		// We can cope with less bytes, as long as it is an integer number of blocks
@@ -682,7 +682,7 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
 	}
 
 	// See if we can decrypt this in place...
-	if(Decrypt->CanDecryptInPlace((Uint32)Size))
+	if(Decrypt->CanDecryptInPlace((UInt32)Size))
 	{
 		if(!Decrypt->DecryptInPlace(Data))
 		{
@@ -720,7 +720,7 @@ Length KLVEObject::ReadChunkedCryptoDataFrom(Position Offset, Length Size)
  *  \note As there may be a need for the implementation to know where within the value field
  *        this data lives, there is no WriteData(Buffer, Size) function.
  */
-Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size)
+Length KLVEObject::WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size)
 {
 	// Don't encrypt if we have no encryption wrapper
 	if(!Encrypt) return Base_WriteDataTo(Buffer, Offset, Size);
@@ -774,7 +774,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 			srand((time(NULL)) ^ ((int)(Data.Data)) ^ (clock() << 2) ^ rand());
 
 			int i;
-			for(i=0; i< 16; i++) { IV[i] = (Uint8)rand(); };
+			for(i=0; i< 16; i++) { IV[i] = (UInt8)rand(); };
 
 			Encrypt->SetIV(16, IV, true);
 		}
@@ -787,7 +787,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
 		// ** Write the check value
 
 		// Encrypt the check value... (Which is "CHUKCHUKCHUKCHUK" who ever said Chuck Harrison has no ego?)
-		const Uint8 PlainCheck[16] = { 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B };
+		const UInt8 PlainCheck[16] = { 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B, 0x43, 0x48, 0x55, 0x4B };
 		DataChunkPtr CheckData = Encrypt->Encrypt(16, PlainCheck);
 
 		// Write the encrypted check value
@@ -902,7 +902,7 @@ Length KLVEObject::WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size
  *	The IV must have already been set.
  *  Only encrypted parts of the value may be written using this function (i.e. Offset >= PlaintextOffset)
  */
-Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Length Size)
+Length KLVEObject::WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, Length Size)
 {
 	// Self-deleting store to allow us to extend working buffer if required
 	DataChunk TempData;
@@ -934,13 +934,13 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 	if(AwaitingEncryption)
 	{
 		// Build the full data in the temporary buffer
-		TempData.ResizeBuffer((Uint32)(AwaitingEncryption + Size));
+		TempData.ResizeBuffer((UInt32)(AwaitingEncryption + Size));
 
 		// Start with "waiting" data
 		TempData.Set(AwaitingEncryption, AwaitingEncryptionBuffer);
 
 		// Copy in the new data
-		TempData.Append((Uint32)Size, Buffer);
+		TempData.Append((UInt32)Size, Buffer);
 
 		// Replace the working buffer pointer with a pointer to the temporary buffer
 		Buffer = TempData.Data;
@@ -968,7 +968,7 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 		if(StartSize)
 		{
 			// Encrypt by making a copy
-			DataChunkPtr NewData = Encrypt->Encrypt((Uint32)StartSize, Buffer);
+			DataChunkPtr NewData = Encrypt->Encrypt((UInt32)StartSize, Buffer);
 			if(!NewData) return 0;
 
 			// Write the encrypted data
@@ -979,19 +979,19 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 		}
 
 		// Buffer for last data to be encrypted
-		Uint8 TempBuffer[EncryptionGranularity];
+		UInt8 TempBuffer[EncryptionGranularity];
 
 		// Copy in the remaining bytes from the end of the given buffer
 		// Add padding bytes in a 16-byte version of the scheme defined in RFC 2898
-		const Uint8 *pSrc = &Buffer[StartSize];
-		Uint8 *pDst = TempBuffer;
+		const UInt8 *pSrc = &Buffer[StartSize];
+		UInt8 *pDst = TempBuffer;
 		int i;
 		int EncData = (int)(BytesToEncrypt - StartSize);
 		int Pad = EncryptionGranularity - EncData;
 		for(i=0; i<16; i++)
 		{
 			if(i < EncData) *(pDst++) = *(pSrc++);
-			else *(pDst++) = (Uint8)Pad;
+			else *(pDst++) = (UInt8)Pad;
 		}
 
 		// Encrypt by making a copy
@@ -1017,10 +1017,10 @@ Length KLVEObject::WriteCryptoDataTo(const Uint8 *Buffer, Position Offset, Lengt
 	BytesToEncrypt *= EncryptionGranularity;
 
 	// Any differnece will be "left-over"
-	AwaitingEncryption = (Uint32)(BytesRequiringEncryption - BytesToEncrypt);
+	AwaitingEncryption = (UInt32)(BytesRequiringEncryption - BytesToEncrypt);
 
 	// Encrypt by making a copy
-	DataChunkPtr NewData = Encrypt->Encrypt((Uint32)BytesToEncrypt, Buffer);
+	DataChunkPtr NewData = Encrypt->Encrypt((UInt32)BytesToEncrypt, Buffer);
 	if(!NewData) return 0;
 
 	// If there will be any "left-over" bytes they will be awaiting next time
@@ -1082,7 +1082,7 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 		if(!TripletType)
 		{
 			warning("EncryptedTriplet type not known\n");
-			const Uint8 TripletData[] =  { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x04, 0x01, 0x07, 0x0f, 0x01, 0x03, 0x7f, 0x01, 0x00, 0x00, 0x00 };
+			const UInt8 TripletData[] =  { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x04, 0x01, 0x07, 0x0f, 0x01, 0x03, 0x7f, 0x01, 0x00, 0x00, 0x00 };
 			TripletKey = new UL(TripletData);
 			TheUL = TripletKey;
 			InitedKey = true;
@@ -1096,10 +1096,10 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	}
 	
 	// Small buffer for header (note: max valid size of header should be 116 bytes)
-	Uint8 Buffer[128];
+	UInt8 Buffer[128];
 
 	// Walking pointer for buffer writing
-	Uint8 *pBuffer;
+	UInt8 *pBuffer;
 
 	// ** Write ContextID **
 
@@ -1125,7 +1125,7 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	if(PlaintextOffset > ValueLength) PlaintextOffset = ValueLength;
 
 	pBuffer += MakeBER(pBuffer, 4, 8, 4);
-	PutU64((Uint64)PlaintextOffset, pBuffer); pBuffer += 8;
+	PutU64((UInt64)PlaintextOffset, pBuffer); pBuffer += 8;
 
 
 	// ** Write SourceKey **
@@ -1172,7 +1172,7 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 
 	// Set up the data offset
 	// Note that we haven't yet written the IV and check value, but we count those as "header" bytes
-	DataOffset = (Uint32)(pBuffer - Buffer) + EncryptionOverhead;
+	DataOffset = (UInt32)(pBuffer - Buffer) + EncryptionOverhead;
 
 
 	/** Write Out the Header **/
@@ -1184,7 +1184,7 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	Dest.OuterLength = DataOffset + EncryptedLength + FooterLength;
 
 	// Start off with the actual KL - using the OuterLength to include the header
-	Uint32 KLBytes = Base_WriteKL(LenSize, Dest.OuterLength);
+	UInt32 KLBytes = Base_WriteKL(LenSize, Dest.OuterLength);
 
 	// Then write the header
 	Dest.File->Write(Buffer, DataOffset);
@@ -1223,12 +1223,12 @@ bool KLVEObject::ReadFooter(void)
 	}
 
 	// Index the start of the data
-	Uint8 *p = Buffer->Data;
+	UInt8 *p = Buffer->Data;
 
 	// ** Load the (optional) TrackFileID **
 
 	// Read the BER length and move the pointer
-	Uint8 *Prev_p = p;
+	UInt8 *Prev_p = p;
 	Length ItemLength = ReadBER(&p, (int)Bytes);
 	Bytes -= (p - Prev_p);
 
@@ -1324,7 +1324,7 @@ bool KLVEObject::ReadFooter(void)
 
 //! Calculate the size of the AS-DCP footer for this KLVEObject
 /*! The size it returned and also written to property FooterLength */
-Uint32 KLVEObject::CalcFooterLength(void)
+UInt32 KLVEObject::CalcFooterLength(void)
 {
 	// Start with a zero-byte footer
 	FooterLength = 0;
@@ -1404,7 +1404,7 @@ bool KLVEObject::WriteFooter(void)
 	}
 
 	// Resize the buffer to exactly the amount of data we built
-	ASSERT((Uint32)(p - Buffer->Data) == FooterLength);
+	ASSERT((UInt32)(p - Buffer->Data) == FooterLength);
 	Buffer->Resize((int)(p - Buffer->Data));
 
 	// Write the footer

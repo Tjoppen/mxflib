@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.3 2004/12/18 20:31:07 matt-beard Exp $
+ *	\version $Id: klvobject.cpp,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -86,7 +86,7 @@ Int32 KLVObject::Base_ReadKL(void)
 	ValueLength = Dest.OuterLength = Source.OuterLength = Source.File->ReadBER();
 
 	// Work out the size of the key and length
-	Source.KLSize = (Uint32)(Source.File->Tell() - Source.Offset);
+	Source.KLSize = (UInt32)(Source.File->Tell() - Source.Offset);
 	
 	// Initially set the destination KLSize target to match the source
 	Dest.KLSize = Source.KLSize;
@@ -142,13 +142,13 @@ Length KLVObject::Base_ReadDataFrom(DataChunk &Buffer, Position Offset, Length S
 	// Discarding old data first (by setting Size to 0) prevents old data being 
 	// copied needlessly if the buffer is reallocated to increase its size
 	Buffer.Size = 0;
-	Buffer.Resize((Uint32)BytesToRead);
+	Buffer.Resize((UInt32)BytesToRead);
 
 	// Read into the buffer (only as big as the buffer is!)
 	Length Bytes = (Length)Source.File->Read(Buffer.Data, Buffer.Size);
 
 	// Resize the buffer if something odd happened (such as an early end-of-file)
-	if(Bytes != BytesToRead) Buffer.Resize((Uint32)Bytes);
+	if(Bytes != BytesToRead) Buffer.Resize((UInt32)Bytes);
 
 	return Bytes;
 }
@@ -196,7 +196,7 @@ Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/, Length NewLength /*=-1*/)
 	Dest.File->WriteBER(NewLength, LenSize);
 
 	// Work out the new KLSize
-	Dest.KLSize =(Uint32)( Dest.File->Tell() - Dest.Offset);
+	Dest.KLSize =(UInt32)( Dest.File->Tell() - Dest.Offset);
 
 	// Return the number of bytes we wrote
 	return Dest.KLSize;
@@ -213,7 +213,7 @@ Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/, Length NewLength /*=-1*/)
  *           It is therefore vital that the function does not call any "virtual" KLVObject
  *           functions, directly or indirectly.
  */
-Length KLVObject::Base_WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size)
+Length KLVObject::Base_WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size)
 {
 	// Don't write zero bytes
 	if(Size == 0) return 0;
@@ -240,6 +240,6 @@ Length KLVObject::Base_WriteDataTo(const Uint8 *Buffer, Position Offset, Length 
 	Dest.File->Seek(Dest.Offset + Dest.KLSize + Offset);
 
 	// Write from the specified buffer
-	return (Length)Dest.File->Write(Buffer, (Uint32)Size);
+	return (Length)Dest.File->Write(Buffer, (UInt32)Size);
 }
 

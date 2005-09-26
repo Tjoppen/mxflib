@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.4 2005/05/03 17:53:49 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -34,6 +34,12 @@
 #include <mxflib/mxflib.h>
 
 using namespace mxflib;
+
+/* Define metadata static members */
+
+Track::TrackTypeList Track::TrackTypes;		//!< List of known track type definitions
+bool Track::TrackTypesInited;				//!< Set true once TrackTypeList has been initialized
+
 
 //! Construct a basic Metadata object with current timestamp
 mxflib::Metadata::Metadata()
@@ -80,7 +86,7 @@ void Metadata::Init(void)
 }
 
 // Add a package of the specified type to the matadata
-PackagePtr mxflib::Metadata::AddPackage(std::string PackageType, std::string PackageName, UMIDPtr PackageUMID, Uint32 BodySID /*=0*/)
+PackagePtr mxflib::Metadata::AddPackage(std::string PackageType, std::string PackageName, UMIDPtr PackageUMID, UInt32 BodySID /*=0*/)
 {
 	PackagePtr Ret;
 
@@ -152,7 +158,7 @@ PackagePtr Metadata::GetPrimaryPackage(void)
 	// Couldn't locate the primary package!
 	if(!PrimaryPackage)	return NULL;
 
-	// Get the contasining Package object
+	// Get the containing Package object
 	return Package::GetPackage(PrimaryPackage);
 }
 
@@ -186,7 +192,7 @@ bool SourceClip::MakeLink(TrackPtr SourceTrack, Int64 StartPosition /*=0*/)
 	if(!SourceTrack) return false;
 
 	SetInt64("StartPosition", StartPosition);
-	SetUint("SourceTrackID", SourceTrack->GetInt("TrackID"));
+	SetUInt("SourceTrackID", SourceTrack->GetInt("TrackID"));
 	SetValue("SourcePackageID",SourceTrack->GetParent()["PackageUID"]);
 
 	return true;
@@ -194,10 +200,10 @@ bool SourceClip::MakeLink(TrackPtr SourceTrack, Int64 StartPosition /*=0*/)
 
 
 //! Make a link to a UMID and TrackID
-bool SourceClip::MakeLink(UMIDPtr LinkUMID, Uint32 LinkTrackID, Int64 StartPosition /*=0*/)
+bool SourceClip::MakeLink(UMIDPtr LinkUMID, UInt32 LinkTrackID, Int64 StartPosition /*=0*/)
 {
 	SetInt64("StartPosition", StartPosition);
-	SetUint("SourceTrackID", LinkTrackID);
+	SetUInt("SourceTrackID", LinkTrackID);
 	SetValue("SourcePackageID", DataChunk(32, LinkUMID->GetValue()));
 
 	return true;
@@ -226,14 +232,14 @@ void TimecodeComponent::SetDuration(Int64 Duration /*=-1*/)
 }
 
 
-bool Metadata::AddEssenceContainerData(UMIDPtr TheUMID, Uint32 BodySID, Uint32 IndexSID /*=0*/)
+bool Metadata::AddEssenceContainerData(UMIDPtr TheUMID, UInt32 BodySID, UInt32 IndexSID /*=0*/)
 {
 	MDObjectPtr EssenceContainerData = new MDObject("EssenceContainerData");
 	ASSERT(EssenceContainerData);
 	
 	EssenceContainerData->SetValue("LinkedPackageUID", DataChunk(TheUMID.GetPtr()));
-	EssenceContainerData->SetUint("BodySID", BodySID);
-	if(IndexSID) EssenceContainerData->SetUint("IndexSID", IndexSID);
+	EssenceContainerData->SetUInt("BodySID", BodySID);
+	if(IndexSID) EssenceContainerData->SetUInt("IndexSID", IndexSID);
 
 	MDObjectPtr Content = Object["ContentStorage"];
 	if(Content) Content = Content->GetLink();
@@ -457,15 +463,15 @@ SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
  *	\param Start The starting timecode converted to an integer frame count since 00:00:00:00
  *	\param Duration The duration of this SourceClip, -1 or omitted for unknown
  */
-TimecodeComponentPtr Track::AddTimecodeComponent(Uint16 FPS, bool DropFrame, Int64 Start /*=0*/, Int64 Duration /*=-1*/)
+TimecodeComponentPtr Track::AddTimecodeComponent(UInt16 FPS, bool DropFrame, Int64 Start /*=0*/, Int64 Duration /*=-1*/)
 {
 	// DRAGONS: If the track is a DM track should we add a DM SourceClip?
 	TimecodeComponentPtr Ret = new TimecodeComponent("TimecodeComponent");
 	if(!Ret) return Ret;
 
 	//! Set the framerate
-	Ret->SetUint("RoundedTimecodeBase", FPS);
-	if(DropFrame) Ret->SetUint("DropFrame", 1); else Ret->SetUint("DropFrame", 0);
+	Ret->SetUInt("RoundedTimecodeBase", FPS);
+	if(DropFrame) Ret->SetUInt("DropFrame", 1); else Ret->SetUInt("DropFrame", 0);
 
 	//! Set the initial timecode
 	Ret->SetInt64("StartTimecode", Start);
@@ -579,7 +585,7 @@ Int64 Track::UpdateDuration(void)
 
 //! Add a timeline track to the package
 /*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
-TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, std::string TrackName /*=""*/, Uint32 TrackID /*=0*/)
+TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate, std::string TrackName /*=""*/, UInt32 TrackID /*=0*/)
 {
 	TrackPtr Ret = new Track("Track");
 	if(!Ret) return Ret;
@@ -651,7 +657,7 @@ void Package::UpdateDurations(void)
 
 //! Add an event track to the package
 /*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
-TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName /* = "" */ , Uint32 TrackID /* = 0 */)
+TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName /* = "" */ , UInt32 TrackID /* = 0 */)
 {
 	TrackPtr Ret = new Track("EventTrack");
 	if(!Ret) return Ret;
@@ -710,7 +716,7 @@ TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate,
 
 //! Add a static track to the package
 /*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
-TrackPtr Package::AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string TrackName /*=""*/, Uint32 TrackID /*=0*/)
+TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, std::string TrackName /*=""*/, UInt32 TrackID /*=0*/)
 {
 	TrackPtr Ret = new Track("StaticTrack");
 	if(!Ret) return Ret;
@@ -956,7 +962,7 @@ PackagePtr Package::Parse(MDObjectPtr BaseObject)
 				ThisTrack->SetParent(Ret);
 
 				// Get the ID of this track and update LastTrackID if required
-				Uint32 ThisID = ThisTrack->GetUint("TrackID");
+				UInt32 ThisID = ThisTrack->GetUInt("TrackID");
 				if(ThisID > Ret->LastTrackID) Ret->LastTrackID = ThisID;
 
 				// Add it to the list of tracks for this package
@@ -1087,3 +1093,91 @@ DMSegmentPtr DMSegment::Parse(MDObjectPtr BaseObject)
 }
 
 
+//! Determine the type of this track
+Track::TrackType Track::GetType(void)
+{
+	/* Find the data def in the sequence */
+
+	MDObjectPtr Sequence = Child("Sequence");
+	if(Sequence) Sequence = Sequence->GetLink();
+	
+	MDObjectPtr DataDef;
+	if(Sequence) DataDef = Sequence["DataDefinition"];
+
+	// If we dont seem to have one return the last known value rather than unknown (it may still end up as undetermined)
+	if(!DataDef) return ThisTrackType;
+
+	// If we have already determined the type and it has not changed leave it as it is
+	if((ThisTrackType != TypeUndetermined) && (!DataDef->IsModified()))
+	{
+		return ThisTrackType;
+	}
+
+	// Get the actual data definition bytes
+	DataChunkPtr Data = DataDef->PutData();
+	
+	// Sanity check the result
+	if(!Data || Data->Size != 16) return ThisTrackType;
+
+	// Initialise the track type list if required
+	if(!TrackTypesInited) InitTrackTypes();
+
+	// Check all known types
+	TrackTypeList::iterator it = TrackTypes.begin();
+	while(it != TrackTypes.end())
+	{
+		// Compare only the specified length
+		if(memcmp(Data->Data, (*it).Label, (*it).CompareLength) == 0)
+		{
+			ThisTrackType = (*it).Type;
+			break;
+		}
+		it++;
+	}
+
+	return ThisTrackType;
+}
+
+
+//! Add a new track type definition label
+/*! /param Type The type of track that this new definition identifies
+ *  /param Label The label to compare with the data definition
+ *  /param CompareLength The number of bytes to compare in the label, this allows generic labels
+ */
+void mxflib::Track::AddTrackType(TrackType Type, const UInt8 *Label, int CompareLength /* =16 */)
+{
+	TrackTypeListItem Item;
+
+	Item.Type = Type;
+	Item.CompareLength = CompareLength;
+
+	// Only copy the compare length (in case the caller sent a small array)
+	memcpy(Item.Label, Label, CompareLength);
+
+	// If the compare length is less zero pad
+	if(CompareLength < 16)
+	{
+		memset(&Item.Label[CompareLength], 0, 16-CompareLength);
+	}
+
+	// Add this new item
+	TrackTypes.push_back(Item);
+}
+
+
+//! Initialise the TrackTypes list with known track types
+void mxflib::Track::InitTrackTypes(void)
+{
+	// Don't initialize twice
+	if(TrackTypesInited) return;
+
+	AddTrackType(TypeTimecode, TrackTypeDataDefTimecode12M, TrackTypeDataDefTimecode12MCompare);
+	AddTrackType(TypeTimecode, TrackTypeDataDefTimecode12MUser, TrackTypeDataDefTimecode12MUserCompare);
+	AddTrackType(TypeTimecode, TrackTypeDataDefTimecode309M, TrackTypeDataDefTimecode309MCompare);
+	AddTrackType(TypePicture, TrackTypeDataDefPicture, TrackTypeDataDefPictureCompare);
+	AddTrackType(TypeSound, TrackTypeDataDefSound, TrackTypeDataDefSoundCompare);
+	AddTrackType(TypeData, TrackTypeDataDefData, TrackTypeDataDefDataCompare);
+	AddTrackType(TypeDM, TrackTypeDataDefDM, TrackTypeDataDefDMCompare);
+
+	TrackTypesInited = true;
+}

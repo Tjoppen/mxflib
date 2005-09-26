@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.4 2005/05/03 18:04:41 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -236,7 +236,7 @@ namespace mxflib
 		bool MakeLink(TrackPtr SourceTrack, Int64 StartPosition = 0);
 
 		//! Make a link to a UMID and TrackID
-		bool MakeLink(UMIDPtr LinkUMID, Uint32 LinkTrackID, Int64 StartPosition = 0);
+		bool MakeLink(UMIDPtr LinkUMID, UInt32 LinkTrackID, Int64 StartPosition = 0);
 
 		//! Return the containing "SourceClip" object for this MDObject
 		/*! \return NULL if MDObject is not contained in a SourceClip object
@@ -317,24 +317,58 @@ namespace mxflib
 	class Track : public ObjectInterface, public RefCount<Track>
 	{
 	public:
+		//! Type of a track
+		enum TrackType
+		{
+			TypeUndetermined = -1,				//!< Not yet checked
+			TypeUnknown = 0,					//!< Not a known type
+			TypeTimecode,						//!< Timecode track (of any type)
+			TypeDM,								//!< Descriptive Metadata track
+			TypePicture,						//!< Picture track
+			TypeSound,							//!< Sound track
+			TypeData,							//!< Data track
+			TypeAux,							//!< Auxiliary track
+			TypePText							//!< Parsed Text track
+		};
+
+	public:
 		ComponentList Components;				//!< Each component on this track
 
 	protected:
 		PackageParent Parent;					//!< Package containing this track
 
+		TrackType ThisTrackType;				//!< The type of this track
+
 		//! Protected constructor used to create from an existing MDObject
-		Track(MDObjectPtr BaseObject) : ObjectInterface(BaseObject) {}
+		Track(MDObjectPtr BaseObject) : ObjectInterface(BaseObject) 
+		{
+			ThisTrackType = TypeUndetermined;
+		}
+
+		//! Structure for a single item in the track type list (for comparing data definitions)
+		struct TrackTypeListItem
+		{
+			TrackType Type;						//!< The type that this label represents
+			UInt8 Label[16];					//!< The label for this track type definition
+			int CompareLength;					//!< The number of bytes to compare (to allow generic versions)
+		};
+
+		//! List of track type definitions
+		typedef std::list<TrackTypeListItem> TrackTypeList;
+
+		static TrackTypeList TrackTypes;		//!< List of known track type definitions
+		static bool TrackTypesInited;			//!< Set true once TrackTypeList has been initialized
 
 	public:
-		Track(std::string BaseType) { Object = new MDObject(BaseType); }
-		Track(MDOTypePtr BaseType) { Object = new MDObject(BaseType); }
-		Track(ULPtr BaseUL) { Object = new MDObject(BaseUL); }
+		Track(std::string BaseType) { Object = new MDObject(BaseType); ThisTrackType = TypeUndetermined; }
+		Track(MDOTypePtr BaseType) { Object = new MDObject(BaseType); ThisTrackType = TypeUndetermined; }
+		Track(ULPtr BaseUL) { Object = new MDObject(BaseUL); ThisTrackType = TypeUndetermined; }
 
 		//! Add a SourceClip to a track
 		SourceClipPtr AddSourceClip(Int64 Duration = -1);
 
 		//! Add a Timecode Component to a track
-		TimecodeComponentPtr AddTimecodeComponent(Uint16 FPS, bool DropFrame, Int64 Start = 0, Int64 Duration = -1);
+		TimecodeComponentPtr AddTimecodeComponent(UInt16 FPS, bool DropFrame, Int64 Start = 0, Int64 Duration = -1);
 
 		//! Add a DMSegment to a track
 		DMSegmentPtr AddDMSegment(Int64 EventStart = -1, Int64 Duration = -1);
@@ -351,6 +385,44 @@ namespace mxflib
 		//! Set the track containing this component
 		void SetParent(IRefCount<Package> *NewParent) { Parent = PackageParent(NewParent); }
 
+		//! Determine the type of this track
+		TrackType GetType(void);
+
+		//! Determine if this is an essence track
+		bool IsEssenceTrack(void)
+		{
+			TrackType ThisType = GetType();
+
+			switch(ThisType)
+			{
+				case TypePicture:				//!< Picture track
+				case TypeSound:					//!< Sound track
+				case TypeData:					//!< Data track
+
+				// DRAGONS: We currently don't treat the following as essence
+//				case TypeAux:					//!< Auxiliary track
+//				case TypePText:					//!< Parsed Text track
+					return true;
+
+				default:
+					return false;
+			}
+		}
+
+		//! Determine if this is a timecode track
+		bool IsTimecodeTrack(void)
+		{
+			if(GetType() == TypeTimecode) return true;
+			return false;
+		}
+
+		//! Determine if this is a descriptive metadata track
+		bool IsDMTrack(void)
+		{
+			if(GetType() == TypeDM) return true;
+			return false;
+		}
+
 		//! Return the containing "Track" object for this MDObject
 		/*! \return NULL if MDObject is not contained in a Track object
 		 */
@@ -358,6 +430,17 @@ namespace mxflib
 
 		//! Parse an existing MDObject into a Track object
 		static TrackPtr Parse(MDObjectPtr BaseObject);
+
+		//! Add a new track type definition label
+		/*! /param Type The type of track that this new definition identifies
+		 *  /param Label The label to compare with the data definition
+		 *  /param CompareLength The number of bytes to compare in the label, this allows generic labels
+		 */
+		static void AddTrackType(TrackType Type, const UInt8 *Label, int CompareLength = 16);
+
+	protected:
+		//! Initialise the TrackTypes list with known track types
+		static void InitTrackTypes(void);
 	};
 }
 
@@ -379,7 +462,7 @@ namespace mxflib
 		TrackList Tracks;						//!< Each track in this package
 
 	protected:
-		Uint32 LastTrackID;						//!< Last auto-allocated track ID
+		UInt32 LastTrackID;						//!< Last auto-allocated track ID
 
 		//! Protected constructor used to create from an existing MDObject
 		Package(MDObjectPtr BaseObject) : ObjectInterface(BaseObject) {}
@@ -394,70 +477,63 @@ namespace mxflib
 		Package(ULPtr BaseUL) : LastTrackID(0) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
 
 		//! Add a timeline track to the package
-		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, std::string TrackName = "", Uint32 TrackID = 0);
+		TrackPtr AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate, std::string TrackName = "", UInt32 TrackID = 0);
 
 		//! Add an event track to the package
-		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName = "", Uint32 TrackID = 0);
+		TrackPtr AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName = "", UInt32 TrackID = 0);
 
 		//! Add a static track to the package
-		TrackPtr AddTrack(ULPtr DataDef, Uint32 TrackNumber, std::string TrackName = "", Uint32 TrackID = 0);
+		TrackPtr AddTrack(ULPtr DataDef, UInt32 TrackNumber, std::string TrackName = "", UInt32 TrackID = 0);
 
-		TrackPtr AddPictureTrack(Rational EditRate, std::string TrackName = "Picture Track", Uint32 TrackID = 0) { return AddPictureTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddPictureTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Picture Track", Uint32 TrackID = 0)
+		TrackPtr AddPictureTrack(Rational EditRate, std::string TrackName = "Picture Track", UInt32 TrackID = 0) { return AddPictureTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddPictureTrack(UInt32 TrackNumber, Rational EditRate, std::string TrackName = "Picture Track", UInt32 TrackID = 0)
 		{
-			static const Uint8 PictureDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x01, 0x00, 0x00, 0x00 };
-			static const ULPtr PictureDD = new UL(PictureDD_Data);
+			static const ULPtr PictureDD = new UL(TrackTypeDataDefPicture);
 			return AddTrack(PictureDD, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
-		TrackPtr AddSoundTrack(Rational EditRate, std::string TrackName = "Sound Track", Uint32 TrackID = 0) { return AddSoundTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddSoundTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Sound Track", Uint32 TrackID = 0)
+		TrackPtr AddSoundTrack(Rational EditRate, std::string TrackName = "Sound Track", UInt32 TrackID = 0) { return AddSoundTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddSoundTrack(UInt32 TrackNumber, Rational EditRate, std::string TrackName = "Sound Track", UInt32 TrackID = 0)
 		{
-			static const Uint8 SoundDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x02, 0x00, 0x00, 0x00 };
-			static const ULPtr SoundDD = new UL(SoundDD_Data);
+			static const ULPtr SoundDD = new UL(TrackTypeDataDefSound);
 			return AddTrack(SoundDD, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
-		TrackPtr AddDataTrack(Rational EditRate, std::string TrackName = "Data Track", Uint32 TrackID = 0) { return AddDataTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddDataTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Data Track", Uint32 TrackID = 0)
+		TrackPtr AddDataTrack(Rational EditRate, std::string TrackName = "Data Track", UInt32 TrackID = 0) { return AddDataTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddDataTrack(UInt32 TrackNumber, Rational EditRate, std::string TrackName = "Data Track", UInt32 TrackID = 0)
 		{
-			static const Uint8 DataDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x02, 0x03, 0x00, 0x00, 0x00 };
-			static const ULPtr DataDD = new UL(DataDD_Data);
+			static const ULPtr DataDD = new UL(TrackTypeDataDefData);
 			return AddTrack(DataDD, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
-		TrackPtr AddTimecodeTrack(Rational EditRate, std::string TrackName = "Timecode Track", Uint32 TrackID = 0) { return AddTimecodeTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddTimecodeTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Timecode Track", Uint32 TrackID = 0)
+		TrackPtr AddTimecodeTrack(Rational EditRate, std::string TrackName = "Timecode Track", UInt32 TrackID = 0) { return AddTimecodeTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddTimecodeTrack(UInt32 TrackNumber, Rational EditRate, std::string TrackName = "Timecode Track", UInt32 TrackID = 0)
 		{
-			static const Uint8 TCDD_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00 };
-			static const ULPtr TCDD = new UL(TCDD_Data);
+			static const ULPtr TCDD = new UL(TrackTypeDataDefTimecode12M);
 			return AddTrack(TCDD, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
 		//! Add an EVENT DM Track
-		TrackPtr AddDMTrack(Rational EditRate, Length DefaultDuration = DurationUnspecified, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, EditRate, DefaultDuration, TrackName, TrackID); }
-		TrackPtr AddDMTrack(Uint32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
+		TrackPtr AddDMTrack(Rational EditRate, Length DefaultDuration = DurationUnspecified, std::string TrackName = "Descriptive Track", UInt32 TrackID = 0) { return AddDMTrack(0, EditRate, DefaultDuration, TrackName, TrackID); }
+		TrackPtr AddDMTrack(UInt32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName = "Descriptive Track", UInt32 TrackID = 0)
 		{
-			static const Uint8 TCDM_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
-			static const ULPtr TCDM = new UL(TCDM_Data);
+			static const ULPtr TCDM = new UL(TrackTypeDataDefDM);
 			return AddTrack(TCDM, TrackNumber, EditRate, DefaultDuration, TrackName, TrackID);
 		}
 
 		//! Add a TIMELINE DM Track
-		TrackPtr AddDMTrack(Rational EditRate, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddDMTrack(Uint32 TrackNumber, Rational EditRate, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
+		TrackPtr AddDMTrack(Rational EditRate, std::string TrackName = "Descriptive Track", UInt32 TrackID = 0) { return AddDMTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddDMTrack(UInt32 TrackNumber, Rational EditRate, std::string TrackName = "Descriptive Track", UInt32 TrackID = 0)
 		{
-			static const Uint8 TCDM_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
-			static const ULPtr TCDM = new UL(TCDM_Data);
+			static const ULPtr TCDM = new UL(TrackTypeDataDefDM);
 			return AddTrack(TCDM, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
 		//! Add a STATIC DM Track
-		TrackPtr AddDMTrack(std::string TrackName = "Descriptive Track", Uint32 TrackID = 0) { return AddDMTrack(0, TrackName, TrackID); }
-		TrackPtr AddDMTrack(Uint32 TrackNumber, std::string TrackName = "Descriptive Track", Uint32 TrackID = 0)
+		TrackPtr AddDMTrack(std::string TrackName = "Descriptive Track", UInt32 TrackID = 0) { return AddDMTrack(0, TrackName, TrackID); }
+		TrackPtr AddDMTrack(UInt32 TrackNumber, std::string TrackName = "Descriptive Track", UInt32 TrackID = 0)
 		{
-			static const Uint8 TCDM_Data[16] = { 0x06, 0x0e, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
-			static const ULPtr TCDM = new UL(TCDM_Data);
+			static const ULPtr TCDM = new UL(TrackTypeDataDefDM);
 			return AddTrack(TCDM, TrackNumber, TrackName, TrackID);
 		}
 
@@ -541,14 +617,14 @@ namespace mxflib
 		PackagePtr AddMaterialPackage(std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("MaterialPackage", PackageName, PackageUMID); }
 
 		// Add a top-level file package to the metadata
-		PackagePtr AddFilePackage(Uint32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); }
-		PackagePtr AddFilePackage(Uint32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("SourcePackage", PackageName, PackageUMID, BodySID); }
+		PackagePtr AddFilePackage(UInt32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); }
+		PackagePtr AddFilePackage(UInt32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("SourcePackage", PackageName, PackageUMID, BodySID); }
 
 		// Add a lower-level source package to the metadata
-		PackagePtr AddSourcePackage(Uint32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); }
-		PackagePtr AddSourcePackage(Uint32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("SourcePackage", PackageName, PackageUMID, BodySID); }
+		PackagePtr AddSourcePackage(UInt32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); }
+		PackagePtr AddSourcePackage(UInt32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("SourcePackage", PackageName, PackageUMID, BodySID); }
 
-		bool AddEssenceContainerData(UMIDPtr TheUMID, Uint32 BodySID, Uint32 IndexSID = 0);
+		bool AddEssenceContainerData(UMIDPtr TheUMID, UInt32 BodySID, UInt32 IndexSID = 0);
 
 		//! Set the primary package property of the preface
 		void SetPrimaryPackage(PackagePtr Package) { SetPrimaryPackage(Package->Object); }
@@ -577,7 +653,7 @@ namespace mxflib
 
 	private:
 		//! Add a package of the specified type to the matadata
-		PackagePtr AddPackage(std::string PackageType, std::string PackageName, UMIDPtr PackageUMID, Uint32 BidySID = 0);
+		PackagePtr AddPackage(std::string PackageType, std::string PackageName, UMIDPtr PackageUMID, UInt32 BidySID = 0);
 
 		//! Update the Generation UID of a set if modified - then iterate through strongly linked sets
 		bool UpdateGenerations_Internal(MDObjectPtr Obj, UUIDPtr ThisGeneration);

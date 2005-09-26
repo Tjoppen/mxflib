@@ -4,7 +4,7 @@
  *			The RIP class holds Random Index Pack data, either loaded from a real
  *			Random Index Pack in the file or built by discovering partitions.
  *
- *	\version $Id: rip.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: rip.cpp,v 1.3 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -52,7 +52,7 @@ mxflib::RIP::~RIP()
 //! Add a partition to a RIP
 void mxflib::RIP::AddPartition(PartitionPtr Part,
 						  Position Offset			/* = -1 */, 
-						  Uint32 SID				/* = 0 */)
+						  UInt32 SID				/* = 0 */)
 {
 	debug("Adding a partition to a RIP\n");
 
@@ -69,7 +69,7 @@ void mxflib::RIP::AddPartition(PartitionPtr Part,
 //! PartitionInfo constructor
 mxflib::PartitionInfo::PartitionInfo(PartitionPtr Part	/* = NULL */,
 									 Position Offset			/* = -1 */, 
-									 Uint32 SID					/* = 0 */)
+									 UInt32 SID					/* = 0 */)
 	: ThePartition(Part), ByteOffset(Offset), BodySID(SID)
 {
 	debug("Generating new PartitionInfo\n");

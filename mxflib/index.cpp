@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.7 2005/07/22 18:05:51 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.8 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -35,7 +35,7 @@ using namespace mxflib;
 
 //! Free memory by purging the specified range from the index
 /*! DRAGONS: This function needs testing, also it could be improved to purge partial segments as well */
-void IndexTable::Purge(Uint64 FirstPosition, Uint64 LastPosition)
+void IndexTable::Purge(UInt64 FirstPosition, UInt64 LastPosition)
 {
 	// Find the correct entry, or the nearest after it
 	// DRAGONS: Is this inefficient?
@@ -48,7 +48,7 @@ void IndexTable::Purge(Uint64 FirstPosition, Uint64 LastPosition)
 	// Erase all complete segments up to the last position
 	while(it != SegmentMap.end())
 	{
-		if( (Uint64)((*it).first + (*it).second->EntryCount - 1) <= LastPosition)
+		if( (UInt64)((*it).first + (*it).second->EntryCount - 1) <= LastPosition)
 			SegmentMap.erase(it++);
 		else
 			break;
@@ -93,8 +93,8 @@ IndexSegmentPtr IndexTable::GetSegment(Position EditUnit)
 
 
 //! Add a single index entry creating segments as required
-bool IndexTable::AddIndexEntry(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags, Uint64 StreamOffset, 
-				   int SliceCount /*=0*/, Uint32 *SliceOffsets /*=NULL*/, int PosCount /*=0*/, Rational *PosTable /*=NULL*/)
+bool IndexTable::AddIndexEntry(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8 Flags, UInt64 StreamOffset, 
+				   int SliceCount /*=0*/, UInt32 *SliceOffsets /*=NULL*/, int PosCount /*=0*/, Rational *PosTable /*=NULL*/)
 {
 	// Get the correct segment to use
 	IndexSegmentPtr Segment = GetSegment(EditUnit);
@@ -220,7 +220,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->ThisPos = Segment->StartPosition + Segment->EntryCount - 1;
 		
 		// Index the start of the index entry
-		Uint8 *Ptr = &Segment->IndexEntryArray.Data[(Segment->EntryCount-1) * IndexEntrySize];
+		UInt8 *Ptr = &Segment->IndexEntryArray.Data[(Segment->EntryCount-1) * IndexEntrySize];
 
 		// Skip the temporal and key-frame offsets and the flags as this is not an exact result
 		Ptr += 3;
@@ -240,7 +240,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	}
 
 	// Index the start of the correct index entry
-	Uint8 *Ptr = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition) * IndexEntrySize];
+	UInt8 *Ptr = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition) * IndexEntrySize];
 
 	// Read the temporal offset
 	Int8 TemporalOffset = GetI8(Ptr);
@@ -267,7 +267,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	}
 	else
 	{
-		Uint8 *PKF = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition - Ret->KeyFrameOffset) * IndexEntrySize];
+		UInt8 *PKF = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition - Ret->KeyFrameOffset) * IndexEntrySize];
 		PKF += 3;
 		Ret->KeyLocation = GetI64(PKF);
 	}
@@ -303,7 +303,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		int Slice = Segment->DeltaArray[SubItem].Slice;
 		if(Slice)
 		{
-			Uint8 *SlicePtr = Ptr + ((Slice - 1) * sizeof(Uint32));
+			UInt8 *SlicePtr = Ptr + ((Slice - 1) * sizeof(UInt32));
 			Ret->Location += GetU32(SlicePtr);
 		}
 
@@ -316,7 +316,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	if(PosTableIndex > 0)
 	{
 		// Index the correct PosTable entry for this sub-item
-		Uint8 *PosPtr = Ptr + (NSL * sizeof(Uint32)) + ((PosTableIndex - 1) * (sizeof(Uint32)*2) );
+		UInt8 *PosPtr = Ptr + (NSL * sizeof(UInt32)) + ((PosTableIndex - 1) * (sizeof(UInt32)*2) );
 
 		Ret->PosOffset.Numerator = GetI32(PosPtr);
 		PosPtr += 4;
@@ -340,14 +340,14 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 	// DRAGONS: Must complete this!
 //	warning("Index table reading not complete!\n");
 
-	EditUnitByteCount = Segment->GetUint("EditUnitByteCount");
+	EditUnitByteCount = Segment->GetUInt("EditUnitByteCount");
 
 	// Set the index and body SIDs if not yet known
 	// DRAGONS: Should we check that they match when loading later segments?
 	if( IndexSID == 0 )
 	{
-		IndexSID = Segment->GetUint("IndexSID");
-		BodySID = Segment->GetUint("BodySID");
+		IndexSID = Segment->GetUInt("IndexSID");
+		BodySID = Segment->GetUInt("BodySID");
 	}
 
 	if( EditUnitByteCount ) // CBR
@@ -376,10 +376,10 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 				BaseDeltaArray[Delta].PosTableIndex = (*it).second->GetInt();
 				if(++it == Ptr->end()) break;
 
-				BaseDeltaArray[Delta].Slice = (*it).second->GetUint();
+				BaseDeltaArray[Delta].Slice = (*it).second->GetUInt();
 				if(++it == Ptr->end()) break;
 
-				PutU32((*it).second->GetUint(), BaseDeltaArray[Delta].ElementDelta);
+				PutU32((*it).second->GetUInt(), BaseDeltaArray[Delta].ElementDelta);
 				it++;
 				Delta++;
 			}
@@ -413,10 +413,10 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 				Ret->DeltaArray[Delta].PosTableIndex = (*it).second->GetInt();
 				if(++it == Ptr->end()) break;
 
-				Ret->DeltaArray[Delta].Slice = (*it).second->GetUint();
+				Ret->DeltaArray[Delta].Slice = (*it).second->GetUInt();
 				if(++it == Ptr->end()) break;
 
-				PutU32((*it).second->GetUint(), Ret->DeltaArray[Delta].ElementDelta);
+				PutU32((*it).second->GetUInt(), Ret->DeltaArray[Delta].ElementDelta);
 				it++;
 				Delta++;
 			}
@@ -427,8 +427,8 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		}
 
 		// Copy index entry bits...
-		NSL = Segment->GetUint("SliceCount");
-		NPE = Segment->GetUint("PosTableCount");
+		NSL = Segment->GetUInt("SliceCount");
+		NPE = Segment->GetUInt("PosTableCount");
 		// Calculate the size of each IndexEntry
 		IndexEntrySize = (11 + 4*NSL + 8*NPE);
 
@@ -460,8 +460,8 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 
 			if(Entries->Size >= 28)
 			{
-				Uint32 EntryCount = GetU32(&Entries->Data[20]);
-				Uint32 EntrySize = GetU32(&Entries->Data[24]);
+				UInt32 EntryCount = GetU32(&Entries->Data[20]);
+				UInt32 EntrySize = GetU32(&Entries->Data[24]);
 
 				if((Int32)EntrySize != IndexEntrySize)
 				{
@@ -489,8 +489,8 @@ IndexSegmentPtr IndexTable::AddSegment(Int64 StartPosition)
 //! Add a single index entry
 /*! \return true if the entry was added OK, false if an error occured or the segment would be too big (sizeof(IndexEntryArray) > 65535)
 */
-bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags, Uint64 StreamOffset, 
-								 int SliceCount /*=0*/, Uint32 *SliceOffsets /*=NULL*/,
+bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8 Flags, UInt64 StreamOffset, 
+								 int SliceCount /*=0*/, UInt32 *SliceOffsets /*=NULL*/,
 								 int PosCount /*=0*/, Rational *PosTable /*=NULL*/)
 {
 	ASSERT(Parent);
@@ -511,16 +511,16 @@ bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8
 	int NewSize = (EntryCount+1) * Parent->IndexEntrySize;
 	if(NewSize > 0xffff) return false;
 
-	Uint8 *Buffer = new Uint8[Parent->IndexEntrySize];
+	UInt8 *Buffer = new UInt8[Parent->IndexEntrySize];
 
 	// Write the new entry
-	Buffer[0] = (Uint8) TemporalOffset;
-	Buffer[1] = (Uint8) KeyFrameOffset;
+	Buffer[0] = (UInt8) TemporalOffset;
+	Buffer[1] = (UInt8) KeyFrameOffset;
 	Buffer[2] = Flags;
 	PutU64(StreamOffset, &Buffer[3]);
 
-	Uint8 *Ptr = &Buffer[11];
-	Uint32 *SlicePtr = SliceOffsets;
+	UInt8 *Ptr = &Buffer[11];
+	UInt32 *SlicePtr = SliceOffsets;
 	int i;
 	for(i=0; i<SliceCount; i++)
 	{
@@ -552,7 +552,7 @@ bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8
 
 
 //! Add multiple - pre-formed index entries
-bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
+bool IndexSegment::AddIndexEntries(int Count, int Size, UInt8 *Entries)
 {
 	ASSERT(Parent);
 
@@ -569,7 +569,7 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, Uint8 *Entries)
 // diagnostics
 #ifdef MXFLIB_DEBUG
 	debug("\nAddIndexEntries() %d, %d:\n", Size, Count);
-	Uint8 *p = (Uint8*)Entries;
+	UInt8 *p = (UInt8*)Entries;
 	int i, j, k;
 	for(i=0; i<Count && i<35; i++)
 	{
@@ -617,7 +617,7 @@ IndexSegmentPtr IndexSegment::AddIndexSegmentToIndexTable(IndexTablePtr ParentTa
 
 
 //! Write this index table to a memory buffer
-Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
+UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 {
 	// If we don't have a delta array we must build a simple one
 	if(BaseDeltaCount == 0)
@@ -655,22 +655,32 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 		ThisSegment->SetInt64("IndexStartPosition", 0);
 		ThisSegment->SetInt64("IndexDuration", 0);
-		ThisSegment->SetUint("EditUnitByteCount", EditUnitByteCount);
-		ThisSegment->SetUint("IndexSID", IndexSID);
-		ThisSegment->SetUint("BodySID", BodySID);
+		ThisSegment->SetUInt("EditUnitByteCount", EditUnitByteCount);
+		ThisSegment->SetUInt("IndexSID", IndexSID);
+		ThisSegment->SetUInt("BodySID", BodySID);
 
 		// Add a delta entry array if we have anything meaningful
 		if((BaseDeltaCount > 1) && (BaseDeltaArray != NULL))
 		{
 			// DRAGONS: A bit clunky!
 			// DRAGONS: What if on this platform sizeof(DeltaEntry) != 6 ?
-			Uint8 Buf[8];
+			ASSERT(sizeof(DeltaEntry) == 6);
+			UInt8 Buf[8];
 			DataChunk Deltas;
 			PutU32(BaseDeltaCount, Buf);
 			PutU32(sizeof(DeltaEntry), &Buf[4]);
 			Deltas.Set(8, Buf);
-			Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (Uint8*)BaseDeltaArray, 8);
+			Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (UInt8*)BaseDeltaArray, 8);
 
+			ThisSegment->SetValue("DeltaEntryArray", Deltas);
+		}
+		else
+		{
+			UInt8 Buf[8];
+			DataChunk Deltas;
+			PutU32(0, Buf);
+			PutU32(sizeof(DeltaEntry), &Buf[4]);
+			Deltas.Set(8, Buf);
 			ThisSegment->SetValue("DeltaEntryArray", Deltas);
 		}
 
@@ -710,22 +720,23 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 			ThisSegment->SetInt64("IndexStartPosition", Segment->StartPosition);
 			ThisSegment->SetInt64("IndexDuration", Segment->EntryCount);
-			ThisSegment->SetUint("EditUnitByteCount", EditUnitByteCount);
-			ThisSegment->SetUint("IndexSID", IndexSID);
-			ThisSegment->SetUint("BodySID", BodySID);
+			ThisSegment->SetUInt("EditUnitByteCount", EditUnitByteCount);
+			ThisSegment->SetUInt("IndexSID", IndexSID);
+			ThisSegment->SetUInt("BodySID", BodySID);
 
 			// DRAGONS: This assumes constant NSL and NPE...
-			ThisSegment->SetUint("SliceCount", NSL);
-			ThisSegment->SetUint("PosTableCount", NPE);
+			ThisSegment->SetUInt("SliceCount", NSL);
+			ThisSegment->SetUInt("PosTableCount", NPE);
 
 			// DRAGONS: A bit clunky!
 			// DRAGONS: What if on this platform sizeof(DeltaEntry) != 6 ?
-			Uint8 Buf[8];
+			ASSERT(sizeof(DeltaEntry) == 6);
 			DataChunk Deltas;
+			UInt8 Buf[8];
 			PutU32(BaseDeltaCount, Buf);
 			PutU32(sizeof(DeltaEntry), &Buf[4]);
 			Deltas.Set(8, Buf);
-			Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (Uint8*)Segment->DeltaArray, 8);
+			Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (UInt8*)Segment->DeltaArray, 8);
 
 			ThisSegment->SetValue("DeltaEntryArray", Deltas);
 
@@ -753,7 +764,7 @@ Uint32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 
 //! Fudge to correct index entry
-void IndexTable::Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags)
+void IndexTable::Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8 Flags)
 {
 	IndexPosPtr Ret = new IndexPos;
 
@@ -774,7 +785,7 @@ void IndexTable::Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOf
 	if((Segment->StartPosition + Segment->EntryCount - 1) < EditUnit) return;
 
 	// Index the start of the correct index entry
-	Uint8 *Ptr = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition) * IndexEntrySize];
+	UInt8 *Ptr = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition) * IndexEntrySize];
 
 	// Write the new temporal offset
 	PutI8(TemporalOffset, Ptr);
@@ -793,7 +804,7 @@ void IndexTable::Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOf
 
 
 //! Add a new entry to the table (setting flags and anchor offset)
-bool ReorderIndex::SetEntry(Position Pos, Uint8 Flags, Int8 AnchorOffset, Uint8 *Tables /*=NULL*/ )
+bool ReorderIndex::SetEntry(Position Pos, UInt8 Flags, Int8 AnchorOffset, UInt8 *Tables /*=NULL*/ )
 {
 	// If this is the first entry we have added to the table set FirstPosition
 	if(IndexEntries.Size == 0)
@@ -807,7 +818,7 @@ bool ReorderIndex::SetEntry(Position Pos, Uint8 Flags, Int8 AnchorOffset, Uint8 
 		Int64 Shift = (FirstPosition - Pos) * IndexEntrySize;
 
 		// Make enought room
-		IndexEntries.Resize((Uint32)(IndexEntries.Size + Shift));
+		IndexEntries.Resize((UInt32)(IndexEntries.Size + Shift));
 
 		// Shift the entries forwards
 		memmove(&IndexEntries.Data[Shift], IndexEntries.Data, EntryCount * IndexEntrySize);
@@ -834,7 +845,7 @@ bool ReorderIndex::SetEntry(Position Pos, Uint8 Flags, Int8 AnchorOffset, Uint8 
 	if(Entry >= CompleteEntryCount) CompleteEntryCount = Entry + 1;
 
 	// Index the start of the entry
-	Uint8 *EntryPtr = &IndexEntries.Data[Entry * IndexEntrySize];
+	UInt8 *EntryPtr = &IndexEntries.Data[Entry * IndexEntrySize];
 
 	// Clear the temporal offset if it hasn't yet been set
 	if(Entry >= EntryCount) *EntryPtr = 0;
@@ -844,7 +855,7 @@ bool ReorderIndex::SetEntry(Position Pos, Uint8 Flags, Int8 AnchorOffset, Uint8 
 	EntryPtr[2] = Flags;
 
 	// Clear 8 bytes for the stream offset (should be efficient with most compilers)
-	Uint8 *p = &EntryPtr[3];
+	UInt8 *p = &EntryPtr[3];
 	*(p++) = 0; *(p++) = 0; *(p++) = 0; *(p++) = 0;
 	*(p++) = 0; *(p++) = 0; *(p++) = 0; *(p++) = 0;
 
@@ -879,7 +890,7 @@ bool ReorderIndex::SetStreamOffset(Position Pos, Position StreamOffset)
 	}
 
 	// Index the start of the entry
-	Uint8 *EntryPtr = &IndexEntries.Data[Entry * IndexEntrySize];
+	UInt8 *EntryPtr = &IndexEntries.Data[Entry * IndexEntrySize];
 
 	// Updata the data
 	PutI64(StreamOffset, &EntryPtr[3]);
@@ -903,7 +914,7 @@ bool ReorderIndex::SetTemporalOffset(Position Pos, Int8 TemporalOffset)
 		Int64 Shift = (FirstPosition - Pos) * IndexEntrySize;
 
 		// Make enought room
-		IndexEntries.Resize((Uint32)(IndexEntries.Size + Shift));
+		IndexEntries.Resize((UInt32)(IndexEntries.Size + Shift));
 
 		// Shift the entries forwards
 		memmove(&IndexEntries.Data[Shift], IndexEntries.Data, EntryCount * IndexEntrySize);
@@ -927,7 +938,7 @@ bool ReorderIndex::SetTemporalOffset(Position Pos, Int8 TemporalOffset)
 	}
 	
 	// Index the start of the entry
-	Uint8 *EntryPtr = &IndexEntries.Data[Entry * IndexEntrySize];
+	UInt8 *EntryPtr = &IndexEntries.Data[Entry * IndexEntrySize];
 
 	// Set the temporal offset
 	*EntryPtr = TemporalOffset;
@@ -992,7 +1003,7 @@ Int32 ReorderIndex::CommitEntries(IndexTablePtr Index, Int32 Count /*=-1*/)
 
 
 //! Construct with main stream details
-IndexManager::IndexManager(int PosTableIndex, Uint32 ElementSize)
+IndexManager::IndexManager(int PosTableIndex, UInt32 ElementSize)
 {
 	// We haven't yet finalised the format
 	FormatFixed = false;
@@ -1007,7 +1018,7 @@ IndexManager::IndexManager(int PosTableIndex, Uint32 ElementSize)
 	// Initialise arrays for up to 16 sub-streams - we will increase this if required
 	StreamListSize = 16;
 	PosTableList = new int[16];
-	ElementSizeList = new Uint32[16];
+	ElementSizeList = new UInt32[16];
 
 	// Initialise the main stream
 	StreamCount = 1;
@@ -1037,12 +1048,15 @@ IndexManager::IndexManager(int PosTableIndex, Uint32 ElementSize)
 
 	// Initialise acceptance rules
 	AcceptNextEntry = false;
+
+	// Clear the value-relative indexing flag
+	ValueRelativeIndexing = false;
 }
 
 
 //! Add a sub-stream
 /*! \ret Sub-stream ID or 0 if error */
-int IndexManager::AddSubStream(int PosTableIndex, Uint32 ElementSize)
+int IndexManager::AddSubStream(int PosTableIndex, UInt32 ElementSize)
 {
 	// If we have finalised the format we can't add a new stream
 	if(FormatFixed)
@@ -1062,7 +1076,7 @@ int IndexManager::AddSubStream(int PosTableIndex, Uint32 ElementSize)
 	{
 		int NewSize = StreamListSize + 16;
 		int *NewPosTableList = new int[NewSize];
-		Uint32 *NewElementSizeList = new Uint32[NewSize];
+		UInt32 *NewElementSizeList = new UInt32[NewSize];
 		
 		memcpy(NewPosTableList, PosTableList, StreamListSize);
 		memcpy(NewElementSizeList, ElementSizeList, StreamListSize);
@@ -1080,7 +1094,7 @@ int IndexManager::AddSubStream(int PosTableIndex, Uint32 ElementSize)
 	ElementSizeList[StreamCount] = ElementSize;
 
 	// Resize to accomodate new stream
-	ManagedDataEntrySize = sizeof(IndexData) + (StreamCount * sizeof(Uint64));
+	ManagedDataEntrySize = sizeof(IndexData) + (StreamCount * sizeof(UInt64));
 
 	// Return this stream ID, them increment the count
 	return StreamCount++;
@@ -1118,7 +1132,7 @@ void IndexManager::AddEditUnit(int SubStream, Position EditUnit, int KeyOffset /
 			LastNewEditUnit = EditUnit;
 		}
 		else
-			delete[] (Uint8*)ProvisionalEntry;
+			delete[] (UInt8*)ProvisionalEntry;
 
 		ProvisionalEntry = NULL;
 	}
@@ -1132,7 +1146,7 @@ void IndexManager::AddEditUnit(int SubStream, Position EditUnit, int KeyOffset /
 		// Not found - create a new one
 		if(it == ManagedData.end())
 		{
-			ThisEntry = (IndexData*)(new Uint8[ManagedDataEntrySize]);
+			ThisEntry = (IndexData*)(new UInt8[ManagedDataEntrySize]);
 			
 			// Initialise the new entry
 			memset(ThisEntry, 0, ManagedDataEntrySize);
@@ -1177,7 +1191,7 @@ void IndexManager::AddEditUnit(int SubStream, Position EditUnit, int KeyOffset /
 	\param KeyOffset	The key frame offset for this edit unit (or 0 if not being set by this call)
 	\param Flags		The flags for this edit unit (or -1 if not being set by this call)
 */
-void IndexManager::SetOffset(int SubStream, Position EditUnit, Uint64 Offset, int KeyOffset /*=0*/, int Flags /*=-1*/)
+void IndexManager::SetOffset(int SubStream, Position EditUnit, UInt64 Offset, int KeyOffset /*=0*/, int Flags /*=-1*/)
 {
 	// No need for a CBR index table
 	if(DataIsCBR) return;
@@ -1202,7 +1216,7 @@ void IndexManager::SetOffset(int SubStream, Position EditUnit, Uint64 Offset, in
 			LastNewEditUnit = EditUnit;
 		}
 		else
-			delete[] (Uint8*)ProvisionalEntry;
+			delete[] (UInt8*)ProvisionalEntry;
 
 		ProvisionalEntry = NULL;
 	}
@@ -1216,7 +1230,7 @@ void IndexManager::SetOffset(int SubStream, Position EditUnit, Uint64 Offset, in
 		// Not found - create a new one
 		if(it == ManagedData.end())
 		{
-			ThisEntry = (IndexData*)(new Uint8[ManagedDataEntrySize]);
+			ThisEntry = (IndexData*)(new UInt8[ManagedDataEntrySize]);
 			
 			// Initialise the new entry
 			memset(ThisEntry, 0, ManagedDataEntrySize);
@@ -1271,7 +1285,7 @@ bool IndexManager::OfferEditUnit(int SubStream, Position EditUnit, int KeyOffset
 
 
 //! Accept or decline an offered offset for a particular edit unit of a stream
-bool IndexManager::OfferOffset(int SubStream, Position EditUnit, Uint64 Offset, int KeyOffset /*=0*/, int Flags /*=-1*/)
+bool IndexManager::OfferOffset(int SubStream, Position EditUnit, UInt64 Offset, int KeyOffset /*=0*/, int Flags /*=-1*/)
 {
 	// DRAGONS: Currently we accept all offered entries
 
@@ -1434,7 +1448,7 @@ IndexTablePtr IndexManager::MakeIndex(void)
 	// Calculate length if CBR
 	if( DataIsCBR )
 	{
-		Uint32 ByteCount = 0;
+		UInt32 ByteCount = 0;
 		for(i=0; i<StreamCount; i++)
 		{
 			ByteCount += ElementSizeList[i];
@@ -1467,8 +1481,8 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 
 	// Set up SliceOffsets and PosTable arrays
 	int NSL = Index->NSL;
-	Uint32 *SliceOffsets = NULL;
-	if(NSL) SliceOffsets = new Uint32[NSL];
+	UInt32 *SliceOffsets = NULL;
+	if(NSL) SliceOffsets = new UInt32[NSL];
 	int NPE = Index->NPE;
 	Rational *PosTable = NULL;
 	if(NPE) PosTable = new Rational[NPE];
@@ -1518,7 +1532,7 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 				if( ElementSizeList[i] == 0) // VBR - next Stream will be start of next Slice
 				{
 					Position NextPos = ThisEntry->StreamOffset[i+1];
-					SliceOffsets[Slice]=(Uint32)(NextPos - StreamPos);
+					SliceOffsets[Slice]=(UInt32)(NextPos - StreamPos);
 					Slice++;
 				}
 			}

@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.8 2005/07/22 18:00:35 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.9 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -32,6 +32,22 @@
 
 using namespace mxflib;
 
+//! Template for all GC essence item keys
+/*! DRAGONS: Version number is hard coded as 0 - must be overwritten */
+
+namespace
+{
+	//! The standard Generic Container essence key root
+	const UInt8 GCEssenceKey[16] =	{ 0x06, 0x0e, 0x2B, 0x34,
+									  0x01, 0x02, 0x01, 0x00,
+									  0x0d, 0x01, 0x03, 0x01,
+									  0x00, 0x00, 0x00, 0x00  };
+
+	//! A list of pointers to alternative essence key roots to treat as GC keys
+	/*! This allows private or experimental essence keys to be treated as standard GC keys when reading 
+	 */
+	DataChunkList GCEssenceKeyAlternatives;
+}
 
 
 //! Flag that allows faster clip wrapping using random access
@@ -39,7 +55,7 @@ bool mxflib::AllowFastClipWrap;
 
 
 //! Constructor
-GCWriter::GCWriter(MXFFilePtr File, Uint32 BodySID /*=0*/, int Base /*=0*/)
+GCWriter::GCWriter(MXFFilePtr File, UInt32 BodySID /*=0*/, int Base /*=0*/)
 {
 	LinkedFile = File;
 	TheBodySID = BodySID;
@@ -86,6 +102,9 @@ GCStreamID GCWriter::AddSystemElement(bool CPCompatible, unsigned int RegistryDe
 
 	// Build a pointer to the new data block
 	GCStreamData *Stream = &StreamTable[ID];
+
+	// All system items are assumed GC
+	Stream->NonGC = false;
 
 	// Set the item type
 	if(CPCompatible) Stream->Type = 0x04; else Stream->Type = 0x14;
@@ -154,6 +173,9 @@ GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int El
 	// Build a pointer to the new data block
 	GCStreamData *Stream = &StreamTable[ID];
 
+	// This is a GC essence stream
+	Stream->NonGC = false;
+
 	// Set the item type
 	Stream->Type = EssenceType;
 
@@ -179,7 +201,7 @@ GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int El
 	Stream->CountFixed = false;
 
 	bool CPCompatible = false;
-	Uint8 Type = EssenceType;
+	UInt8 Type = EssenceType;
 	switch(Type)
 	{
 		case 0x04: CPCompatible = true; break;		// CP System
@@ -192,6 +214,108 @@ GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int El
 		case 0x17: Type = 0x07; break;				// Treat GC Data as "Data"
 		case 0x18: Type = 0x08; break;				// Treat GC Compound as "Compound"
 													// (even though there is no CP-Compound)
+	}
+
+	// Initially we don't index this stream
+	Stream->IndexMan = NULL;
+	Stream->IndexFiller = 0;
+
+	// Set BER length size for essence items
+	Stream->LenSize = LenSize;
+
+
+	// "Default" essence item write order:
+	//  TTTTTTTs 10eeeeee e0000000 0nnnnnnn
+	// Where:
+	//   TTTTTTT = Type (GC types mapped to CP versions)
+	//         s = 0 for CP, 1 for GC
+	//   eeeeeee = Element ID
+	//	 nnnnnnn = Element Number
+
+	if(CPCompatible) Stream->WriteOrder = 0x00800000; else Stream->WriteOrder = 0x01800000;
+
+	Stream->WriteOrder |= (Type << 25) | (Stream->SchemeOrCount << 15) | Stream->SubOrNumber;
+
+	return ID;
+}
+
+
+//! Define a new essence element for this container, with a specified key
+GCStreamID GCWriter::AddEssenceElement(DataChunkPtr &Key, int LenSize /*=0*/, bool NonGC /*=false*/)
+{
+	// This will be returned as an error if all goes wrong
+	GCStreamID ID = -1;
+
+	// Allocate a new ID and increase the count
+	ID = StreamCount++;
+	if(StreamTableSize <= ID)
+	{
+		// Build a new table double the current size
+		GCStreamData *NewTable = new GCStreamData[StreamTableSize * 2];
+
+		// Copy the old data into the new table
+		int i;
+		for(i=0; i<StreamTableSize; i++) NewTable[i] = StreamTable[i];
+
+		// Delete the old table
+		delete[] StreamTable;
+
+		// Set the table and record the new size
+		StreamTable = NewTable;
+		StreamTableSize *= 2;
+	}
+
+	// Build a pointer to the new data block
+	GCStreamData *Stream = &StreamTable[ID];
+
+	// Set the key details
+	Stream->SpecifiedKey = Key;
+	Stream->NonGC = NonGC;
+
+	// Get the item type from the supplied key (should work OK for GCish types)
+	Stream->Type = Key->Data[12];
+
+	// Set the key items (which will probably never be used)
+	Stream->RegVer = 1;
+	Stream->RegDes = 0x02;		// All essence items are "essence items"
+
+	if(!NonGC)
+	{
+		// Count the number of elements of this type
+		int Count = 1;		// Start by counting us
+		int i;
+		for(i=0; i<ID; i++)
+		{
+			// DRAGONS: Should we allow duplicates for same essence types of different element types?
+			if((StreamTable[i].Type == Stream->Type) /*&& (StreamTable[i].Element == ElementType)*/)
+			{
+				Count++;
+			}
+		}
+
+		Stream->SchemeOrCount = Count+StreamBase;
+		Stream->Element = Key->Data[14];
+		Stream->SubOrNumber = Count+StreamBase;
+		Stream->CountFixed = false;
+	}
+
+	bool CPCompatible = false;
+	UInt8 Type = Stream->Type;
+	if(!NonGC)
+	{
+		switch(Type)
+		{
+			case 0x04: CPCompatible = true; break;		// CP System
+			case 0x05: CPCompatible = true; break;		// CP Picture
+			case 0x06: CPCompatible = true; break;		// CP Sound
+			case 0x07: CPCompatible = true; break;		// CP Data
+			case 0x14: Type = 0x04; break;				// Treat GC System as "System"
+			case 0x15: Type = 0x05; break;				// Treat GC Picture as "Picture"
+			case 0x16: Type = 0x06; break;				// Treat GC Sound as "Sound"
+			case 0x17: Type = 0x07; break;				// Treat GC Data as "Data"
+			case 0x18: Type = 0x08; break;				// Treat GC Compound as "Compound"
+														// (even though there is no CP-Compound)
+		}
 	}
 
 	// Initially we don't index this stream
@@ -237,11 +361,11 @@ void GCWriter::AddStreamIndex(GCStreamID ID, IndexManagerPtr &IndexMan, int Inde
 
 
 //! Add system item data to the current CP
-void GCWriter::AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
+void GCWriter::AddSystemData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 {
 	//! Template for all GC system item keys
 	/*! DRAGONS: Version number is hard coded as 1 */
-	static const Uint8 GCSystemKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x00, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
+	static const UInt8 GCSystemKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x00, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
 	
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -252,7 +376,7 @@ void GCWriter::AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	GCStreamData *Stream = &StreamTable[ID];
 
 	// Set up a new buffer big enough for the key, a huge BER length and the data
-	Uint8 *Buffer = new Uint8[(size_t)(16 + 9 + Size)];
+	UInt8 *Buffer = new UInt8[(size_t)(16 + 9 + Size)];
 
 	// Copy in the key template
 	memcpy(Buffer, GCSystemKey, 12);
@@ -298,12 +422,8 @@ void GCWriter::AddSystemData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 
 
 //! Add essence item data to the current CP
-void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
+void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 {
-	//! Template for all GC essence item keys
-	/*! DRAGONS: Version number is hard coded as 1 */
-	static const Uint8 GCEssenceKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
-
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
 	{
@@ -313,38 +433,49 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 	GCStreamData *Stream = &StreamTable[ID];
 
 	// Set up a new buffer big enough for the key, a huge BER length and the data
-	Uint8 *Buffer = new Uint8[(size_t)(16 + 9 + Size)];
+	UInt8 *Buffer = new UInt8[(size_t)(16 + 9 + Size)];
 
-	// Copy in the key template
-	memcpy(Buffer, GCEssenceKey, 12);
-
-	// Set up the rest of the key
-	Buffer[7] = Stream->RegVer;
-	Buffer[12] = Stream->Type;
-
-	// If we have't yet fixed the count then update it and fix it
-	if(!Stream->CountFixed)
+	if(Stream->SpecifiedKey)
 	{
-		// Count the number of elements of this type
-		int Count = 1;		// Start by counting us
-		int i;
-		for(i=0; i<ID; i++)
-		{
-			// DRAGONS: Should we allow duplicates for same essence types of different element types?
-			if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
-			{
-				Count++;
-			}
-		}
+		memcpy(Buffer, Stream->SpecifiedKey->Data, 16);
+	}
+	else
+	{
+		// Copy in the key template
+		memcpy(Buffer, GCEssenceKey, 12);
 
-		Stream->SchemeOrCount = Count+StreamBase;
-		Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
-		Stream->CountFixed = true;
+		// Set up the rest of the key
+		Buffer[7] = Stream->RegVer;
+		Buffer[12] = Stream->Type;
 	}
 
-	Buffer[13] = Stream->SchemeOrCount;
-	Buffer[14] = Stream->Element;
-	Buffer[15] = Stream->SubOrNumber;
+	// Update the last three GC track number bytes unless it's not a GC KLV
+	if(!Stream->NonGC)
+	{
+		// If we have't yet fixed the count then update it and fix it
+		if(!Stream->CountFixed)
+		{
+			// Count the number of elements of this type
+			int Count = 1;		// Start by counting us
+			int i;
+			for(i=0; i<ID; i++)
+			{
+				// DRAGONS: Should we allow duplicates for same essence types of different element types?
+				if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
+				{
+					Count++;
+				}
+			}
+
+			Stream->SchemeOrCount = Count+StreamBase;
+			Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
+			Stream->CountFixed = true;
+		}
+
+		Buffer[13] = Stream->SchemeOrCount;
+		Buffer[14] = Stream->Element;
+		Buffer[15] = Stream->SubOrNumber;
+	}
 
 	// Add the length and work out the start of the data field
 	DataChunkPtr BER = MakeBER(Size);
@@ -381,10 +512,6 @@ void GCWriter::AddEssenceData(GCStreamID ID, Uint64 Size, const Uint8 *Data)
 //! Add an essence item to the current CP with the essence to be read from an EssenceSource object
 void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source, bool FastClipWrap /*=false*/)
 {
-	//! Template for all GC essence item keys
-	/*! DRAGONS: Version number is hard coded as 1 */
-	static const Uint8 GCEssenceKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
-
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
 	{
@@ -394,38 +521,49 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source, bool FastCli
 	GCStreamData *Stream = &StreamTable[ID];
 
 	// Set up a new buffer big enough for the key alone - the BER length and data will be added later
-	Uint8 *Buffer = new Uint8[16];
+	UInt8 *Buffer = new UInt8[16];
 
-	// Copy in the key template
-	memcpy(Buffer, GCEssenceKey, 12);
-
-	// Set up the rest of the key
-	Buffer[7] = Stream->RegVer;
-	Buffer[12] = Stream->Type;
-
-	// If we have't yet fixed the count then update it and fix it
-	if(!Stream->CountFixed)
+	if(Stream->SpecifiedKey)
 	{
-		// Count the number of elements of this type
-		int Count = 1;		// Start by counting us
-		int i;
-		for(i=0; i<ID; i++)
-		{
-			// DRAGONS: Should we allow duplicates for same essence types of different element types?
-			if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
-			{
-				Count++;
-			}
-		}
+		memcpy(Buffer, Stream->SpecifiedKey->Data, 16);
+	}
+	else
+	{
+		// Copy in the key template
+		memcpy(Buffer, GCEssenceKey, 12);
 
-		Stream->SchemeOrCount = Count+StreamBase;
-		Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
-		Stream->CountFixed = true;
+		// Set up the rest of the key
+		Buffer[7] = Stream->RegVer;
+		Buffer[12] = Stream->Type;
 	}
 
-	Buffer[13] = Stream->SchemeOrCount;
-	Buffer[14] = Stream->Element;
-	Buffer[15] = Stream->SubOrNumber;
+	// Update the last three GC track number bytes unless it's not a GC KLV
+	if(!Stream->NonGC)
+	{
+		// If we have't yet fixed the count then update it and fix it
+		if(!Stream->CountFixed)
+		{
+			// Count the number of elements of this type
+			int Count = 1;		// Start by counting us
+			int i;
+			for(i=0; i<ID; i++)
+			{
+				// DRAGONS: Should we allow duplicates for same essence types of different element types?
+				if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
+				{
+					Count++;
+				}
+			}
+
+			Stream->SchemeOrCount = Count+StreamBase;
+			Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
+			Stream->CountFixed = true;
+		}
+
+		Buffer[13] = Stream->SchemeOrCount;
+		Buffer[14] = Stream->Element;
+		Buffer[15] = Stream->SubOrNumber;
+	}
 
 	// Add this item to the write queue (the writer will free the memory and the EssenceSource)
 	WriteBlock WB;
@@ -455,10 +593,6 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source, bool FastCli
 //! Add an essence item to the current CP with the essence to be read from a KLVObject
 void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipWrap /*=false*/)
 {
-	//! Template for all GC essence item keys
-	/*! DRAGONS: Version number is hard coded as 1 */
-	static const Uint8 GCEssenceKey[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x00, 0x0d, 0x01, 0x03, 0x01 };
-
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
 	{
@@ -468,38 +602,49 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipW
 	GCStreamData *Stream = &StreamTable[ID];
 
 	// Set up a new buffer big enough for the key alone - the BER length and data will be added later
-	Uint8 *Buffer = new Uint8[16];
+	UInt8 *Buffer = new UInt8[16];
 
-	// Copy in the key template
-	memcpy(Buffer, GCEssenceKey, 12);
-
-	// Set up the rest of the key
-	Buffer[7] = Stream->RegVer;
-	Buffer[12] = Stream->Type;
-
-	// If we have't yet fixed the count then update it and fix it
-	if(!Stream->CountFixed)
+	if(Stream->SpecifiedKey)
 	{
-		// Count the number of elements of this type
-		int Count = 1;		// Start by counting us
-		int i;
-		for(i=0; i<ID; i++)
-		{
-			// DRAGONS: Should we allow duplicates for same essence types of different element types?
-			if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
-			{
-				Count++;
-			}
-		}
+		memcpy(Buffer, Stream->SpecifiedKey->Data, 16);
+	}
+	else
+	{
+		// Copy in the key template
+		memcpy(Buffer, GCEssenceKey, 12);
 
-		Stream->SchemeOrCount = Count+StreamBase;
-		Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
-		Stream->CountFixed = true;
+		// Set up the rest of the key
+		Buffer[7] = Stream->RegVer;
+		Buffer[12] = Stream->Type;
 	}
 
-	Buffer[13] = Stream->SchemeOrCount;
-	Buffer[14] = Stream->Element;
-	Buffer[15] = Stream->SubOrNumber;
+	// Update the last three GC track number bytes unless it's not a GC KLV
+	if(!Stream->NonGC)
+	{
+		// If we have't yet fixed the count then update it and fix it
+		if(!Stream->CountFixed)
+		{
+			// Count the number of elements of this type
+			int Count = 1;		// Start by counting us
+			int i;
+			for(i=0; i<ID; i++)
+			{
+				// DRAGONS: Should we allow duplicates for same essence types of different element types?
+				if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
+				{
+					Count++;
+				}
+			}
+
+			Stream->SchemeOrCount = Count+StreamBase;
+			Stream->SubOrNumber = Count+StreamBase;	// Could use Count-1, but this is clearer
+			Stream->CountFixed = true;
+		}
+
+		Buffer[13] = Stream->SchemeOrCount;
+		Buffer[14] = Stream->Element;
+		Buffer[15] = Stream->SubOrNumber;
+	}
 
 	// Add this item to the write queue (the writer will free the memory and the EssenceSource)
 	WriteBlock WB;
@@ -533,7 +678,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipW
  *		  (See SMPTE-379M section 7.1)
  *	\note Unusual results are likely if called with the ID of a system item!
  */
-Uint32 GCWriter::GetTrackNumber(GCStreamID ID)
+UInt32 GCWriter::GetTrackNumber(GCStreamID ID)
 {
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -576,18 +721,18 @@ void GCWriter::StartNewCP(void)
 //! Calculate how much data will be written if "Flush" is called now
 /*! /note Will return (2^64)-1 if the buffer contains a "FastClipWrap" item
  */
-Uint64 GCWriter::CalcWriteSize(void)
+UInt64 GCWriter::CalcWriteSize(void)
 {
-	Uint64 Ret = 0;
+	UInt64 Ret = 0;
 
 	//! The last type written - KAG alignment is performed between different types
-	Uint8 LastType = 0xff;
+	UInt8 LastType = 0xff;
 
 	WriteQueueMap::iterator it = WriteQueue.begin();
 	while(it != WriteQueue.end())
 	{
 		// The most significant byte is basically the item type
-		Uint8 ThisType = (*it).first >> 24;
+		UInt8 ThisType = (*it).first >> 24;
 
 		// Add the size of any filler
 		if((ThisType != LastType) && (KAGSize > 1))
@@ -618,7 +763,7 @@ Uint64 GCWriter::CalcWriteSize(void)
 		{
 			// If any item is to be "FastClipWrapped" then return a huge size
 			// to flag that we cannot know the size of the next write
-			if((*it).second.FastClipWrap) return (Uint64)-1;
+			if((*it).second.FastClipWrap) return (UInt64)-1;
 
 			Length Size = (*it).second.Source->GetEssenceDataSize();
 			DataChunkPtr BER = MakeBER(Size);
@@ -655,14 +800,17 @@ Uint64 GCWriter::CalcWriteSize(void)
 /*! \note It is important that any changes to this function are propogated to CalcWriteSize() */
 void GCWriter::Flush(void)
 {
+	//! Stream offset of the first byte of the key for this KLV - this will later be turned into the size of the (Key+Length) once they are written
+	Position KLSize = StreamOffset;
+
 	//! The last type written - KAG alignment is performed between different types
-	Uint8 LastType = 0xff;
+	UInt8 LastType = 0xff;
 
 	WriteQueueMap::iterator it = WriteQueue.begin();
 	while(it != WriteQueue.end())
 	{
 		// The most significant byte is basically the item type
-		Uint8 ThisType = (*it).first >> 24;
+		UInt8 ThisType = (*it).first >> 24;
 
 		// Align to the next KAG
 		if((ThisType != LastType) && (KAGSize > 1))
@@ -676,7 +824,7 @@ void GCWriter::Flush(void)
 
 			if(!LinkedFile->IsBlockAligned())
 			{
-				Uint64 Pos = LinkedFile->Tell();
+				UInt64 Pos = LinkedFile->Tell();
 				StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
 			}
 			else
@@ -693,13 +841,13 @@ void GCWriter::Flush(void)
 		}
 
 		// Write the pre-formatted data and free its buffer
-		StreamOffset += LinkedFile->Write((*it).second.Buffer, (Uint32)((*it).second.Size));
+		StreamOffset += LinkedFile->Write((*it).second.Buffer, (UInt32)((*it).second.Size));
 		delete[] (*it).second.Buffer;
 
 		// Handle any KLVObject-buffered essence data
 		if((*it).second.KLVSource)
 		{
-			Uint64 Size = (*it).second.KLVSource->GetLength();
+			UInt64 Size = (*it).second.KLVSource->GetLength();
 
 			// Write out the length
 			DataChunkPtr BER = MakeBER(Size);
@@ -723,7 +871,7 @@ void GCWriter::Flush(void)
 		else if((*it).second.Source)
 		{
 			Position LenPosition;
-			Uint64 Size;
+			UInt64 Size;
 
 			// If we are fast clip wrapping flag the rest of the file as the value
 			// and record the location of this length for later correction
@@ -743,6 +891,16 @@ void GCWriter::Flush(void)
 			// Fast access to IndexClip flag
 			bool IndexClip = ((*it).second.IndexMan) && ((*it).second.IndexClip);
 			Position LastEditUnit = -1;
+
+			// Record the KLSize if we are doing value-relative indexing
+			if(IndexClip && (*it).second.IndexMan->GetValueRelativeIndexing())
+			{
+				KLSize = StreamOffset - KLSize;
+			}
+			else
+			{
+				KLSize = 0;
+			}
 
 			// Write out all the data
 			for(;;)
@@ -773,8 +931,8 @@ void GCWriter::Flush(void)
 					continue;
 				}
 
-				// Index this item if required
-				if(IndexThisItem) (*it).second.IndexMan->OfferOffset((*it).second.IndexSubStream, LastEditUnit, StreamOffset);
+				// Index this item if required (removing the KLSize if doing value-relative indexing)
+				if(IndexThisItem) (*it).second.IndexMan->OfferOffset((*it).second.IndexSubStream, LastEditUnit, StreamOffset - KLSize);
 
 				// Write the data
 				StreamOffset += LinkedFile->Write(*Data);
@@ -786,7 +944,7 @@ void GCWriter::Flush(void)
 				Position ValueEnd = LinkedFile->Tell();
 
 				// Calculate the size of the value taking into account the size of the BER length
-				Uint64 ValueSize = (Uint64)(ValueEnd - (LenPosition + LenSize));
+				UInt64 ValueSize = (UInt64)(ValueEnd - (LenPosition + LenSize));
 
 				// Write the true length over the (2^xx)-1 version
 				LinkedFile->Seek(LenPosition);
@@ -818,7 +976,7 @@ void GCWriter::Flush(void)
 	{
 		if(!LinkedFile->IsBlockAligned())
 		{
-			Uint64 Pos = LinkedFile->Tell();
+			UInt64 Pos = LinkedFile->Tell();
 			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
 		}
 		else
@@ -985,7 +1143,7 @@ void GCWriter::WriteRaw(KLVObjectPtr Object)
 	{
 		if(!LinkedFile->IsBlockAligned())
 		{
-			Uint64 Pos = LinkedFile->Tell();
+			UInt64 Pos = LinkedFile->Tell();
 			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
 		}
 		else
@@ -1023,7 +1181,7 @@ void GCWriter::WriteRaw(KLVObjectPtr Object)
 	{
 		if(!LinkedFile->IsBlockAligned())
 		{
-			Uint64 Pos = LinkedFile->Tell();
+			UInt64 Pos = LinkedFile->Tell();
 			StreamOffset += LinkedFile->Align(ForceFillerBER4, KAGSize) - Pos;
 		}
 		else
@@ -1154,7 +1312,7 @@ bool GCReader::HandleData(KLVObjectPtr Object)
 	// false for all GC sets and packs. Once this matches we can do a full memcmp.
 	if(Object->GetUL()->GetValue()[8] == 3)
 	{
-		const Uint8 FillerKey[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x01, 0x03, 0x01, 0x02, 0x10, 0x01, 0x00, 0x00, 0x00 };
+		const UInt8 FillerKey[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x01, 0x03, 0x01, 0x02, 0x10, 0x01, 0x00, 0x00, 0x00 };
 		if( memcmp(Object->GetUL()->GetValue(), FillerKey, 16) == 0 )
 		{
 			if(FillerHandler) return FillerHandler->HandleData(this, Object);
@@ -1169,7 +1327,7 @@ bool GCReader::HandleData(KLVObjectPtr Object)
 		// but is false for standard GC sets and packs. Once this matches we can do a full memcmp.
 		if(Object->GetUL()->GetValue()[5] == 4)
 		{
-			const Uint8 EncryptedKey[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x04, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x7e, 0x01, 0x00 };
+			const UInt8 EncryptedKey[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x04, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x7e, 0x01, 0x00 };
 			if( memcmp(Object->GetUL()->GetValue(), EncryptedKey, 16) == 0 )
 			{
 				return EncryptionHandler->HandleData(this, Object);
@@ -1180,13 +1338,13 @@ bool GCReader::HandleData(KLVObjectPtr Object)
 	// Get the track-number of this GC item (or zero if not GC)
 	// Note that we don't bother if no handlers have been registered 
 	// because we will have to use the defualt handler whatever!
-	Uint32 TrackNumber; 
+	UInt32 TrackNumber; 
 	if(!Handlers.size()) TrackNumber = 0; else TrackNumber = Object->GetGCTrackNumber();
 
 	if( TrackNumber != 0 )
 	{
 		// See if we have a handler registered for this track
-		std::map<Uint32, GCReadHandlerPtr>::iterator it = Handlers.find(TrackNumber);
+		std::map<UInt32, GCReadHandlerPtr>::iterator it = Handlers.find(TrackNumber);
 
 		// If so use that handler
 		if(it != Handlers.end()) return (*it).second->HandleData(this, Object);
@@ -1250,7 +1408,7 @@ Position BodyReader::Seek(Position Pos /*=0*/)
 //! Seek to a specific byte offset in a given stream
 /*! \return New file offset or -1 on seek error
  */
-Position BodyReader::Seek(Uint32 BodySID, Position Pos)
+Position BodyReader::Seek(UInt32 BodySID, Position Pos)
 {
 	error("BodyReader::Seek() per BodySID not currently supported\n");
 	return -1;
@@ -1306,7 +1464,7 @@ bool BodyReader::Eof(void)
 //! Make a GCReader for the specified BodySID
 /*! \return true on success, false on error (such as there is already a GCReader for this BodySID)
  */
-bool BodyReader::MakeGCReader(Uint32 BodySID, GCReadHandlerPtr DefaultHandler /*=NULL*/, GCReadHandlerPtr FillerHandler /*=NULL*/)
+bool BodyReader::MakeGCReader(UInt32 BodySID, GCReadHandlerPtr DefaultHandler /*=NULL*/, GCReadHandlerPtr FillerHandler /*=NULL*/)
 {
 	// Don't try to make two readers for the same SID
 	if(GetGCReader(BodySID)) return false;
@@ -1356,7 +1514,7 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 			NewPartition = File->ReadPartition();
 			if(!NewPartition) return false;
 
-			CurrentBodySID = NewPartition->GetUint("BodySID");
+			CurrentBodySID = NewPartition->GetUInt("BodySID");
 			if(CurrentBodySID != 0) Reader = GetGCReader(CurrentBodySID);
 		
 			// All done when we have found a supported BodySID
@@ -1371,7 +1529,7 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 		}
 
 		// Set the stream offset
-		Position StreamOffset = NewPartition->GetUint64("BodyOffset");
+		Position StreamOffset = NewPartition->GetUInt64("BodyOffset");
 		
 		// Index the start of the essence data
 		NewPartition->SeekEssence();
@@ -1430,7 +1588,7 @@ bool BodyReader::ReSync()
 		if(!ThisUL) return false;
 
 		// Validate the start of the key (to see if it is a standard MXF key)
-		const Uint8 *Key = ThisUL->GetValue();
+		const UInt8 *Key = ThisUL->GetValue();
 		if((Key[0] == 0x06) && (Key[1] == 0x0e) && (Key[2] == 0x2b) && (Key[3] == 0x34))
 		{
 			// It seems to be a key - is it a partition pack key? If so we are bac in sync
@@ -1459,14 +1617,14 @@ bool BodyReader::ReSync()
 		for(;;)
 		{
 			// Scan 64k at a time
-			const Uint64 BufferLen = 65536;
+			const UInt64 BufferLen = 65536;
 			DataChunkPtr Buffer = File->Read(BufferLen);
 			
 			if(Buffer->Size < 16) return false;
 
 			Int32 i;									// Loop variable
 			Int32 End = Buffer->Size - 15;				// End of loop - 15 bytes early to allow 16-byte compares
-			Uint8 *p = Buffer->Data;						// Use moving pointer for faster compares
+			UInt8 *p = Buffer->Data;						// Use moving pointer for faster compares
 			for(i=0; i<End; i++)
 			{
 				// Only perform full partition key check if it looks promising
@@ -1500,28 +1658,86 @@ bool BodyReader::ReSync()
 // bool BodyReader::InitSeek(void);
 
 
+//! Register an essence key to be treated as a GC essence key
+/*! This allows private or experimental essence keys to be treated as standard GC keys when reading 
+ *  \note If the key specified is less than 
+ */
+void mxflib::RegisterGCElementKey(DataChunkPtr &Key)
+{
+	if((Key->Size < 1) || (Key->Size > 16))
+	{
+		error("Invalid key size %d supplied to RegisterGCElementKey()\n");
+		return;
+	}
+
+	GCEssenceKeyAlternatives.push_back(Key);
+}
+
 
 //! Get a GCElementKind structure
 GCElementKind mxflib::GetGCElementKind(ULPtr TheUL)
 {
 	GCElementKind ret;
 
-	//! Base of all standard GC keys
-	/*! DRAGONS: version number is hard-coded as 1 */
-	const Uint8 DegenerateGCLabel[12] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
-	
+	// Assume it's not a valid key
+	ret.IsValid = false;
+
 	// Note that we first test the 11th byte as this where "Application = MXF Generic Container Keys"
 	// is set and so is the same for all GC keys and different in the majority of non-CG keys
-	if( ( TheUL->GetValue()[10] == DegenerateGCLabel[10] ) && (memcmp(TheUL->GetValue(), DegenerateGCLabel, 12) == 0) )
+	// also, avoid testing the 8th byte (version number)
+	if( ( TheUL->GetValue()[10] == GCEssenceKey[10] )
+	 && ( TheUL->GetValue()[9]  == GCEssenceKey[9]  )
+	 && ( TheUL->GetValue()[8]  == GCEssenceKey[8]  )
+	 && ( memcmp(TheUL->GetValue(), GCEssenceKey, 7 ) == 0) )
 	{
-		ret.IsValid =			true;
-		ret.Item =				(TheUL->GetValue())[12];
-		ret.Count =				(TheUL->GetValue())[13];
-		ret.ElementType = (TheUL->GetValue())[14];
-		ret.Number =			(TheUL->GetValue())[15];
+		ret.IsValid = true;
 	}
 	else
-		ret.IsValid =			false;
+	{
+		// Scan for any registered alternative GC-type essence keys
+		if(GCEssenceKeyAlternatives.size())
+		{
+			DataChunkList::iterator it = GCEssenceKeyAlternatives.begin();
+			while(it != GCEssenceKeyAlternatives.end())
+			{
+				int Size = (*it)->Size;
+				
+				if(Size > 8)
+				{
+					// Compare top bytes first as these are the most likely to differ
+					if(memcmp(&TheUL->GetValue()[8], &(*it)->Data[8], Size - 8) == 0)
+					{
+						if(memcmp(TheUL->GetValue(), (*it)->Data, 8) == 0)
+						{
+							ret.IsValid = true;
+							break;
+						}
+					}
+					else
+					{
+						// There is no point comparing exactly 8 bytes
+						if(Size == 8) Size = 7;
+
+						if(memcmp(TheUL->GetValue(), (*it)->Data, Size) == 0)
+						{
+							ret.IsValid = true;
+							break;
+						}
+					}
+				}
+
+				it++;
+			}
+		}
+	}
+
+	if(ret.IsValid)
+	{
+		ret.Item =				(TheUL->GetValue())[12];
+		ret.Count =				(TheUL->GetValue())[13];
+		ret.ElementType =       (TheUL->GetValue())[14];
+		ret.Number =			(TheUL->GetValue())[15];
+	}
 
 	return ret;
 }
@@ -1531,18 +1747,18 @@ GCElementKind mxflib::GetGCElementKind(ULPtr TheUL)
 //! Get the track number of this essence key (if it is a GC Key)
 /*! \return 0 if not a valid GC Key
  */
-Uint32 mxflib::GetGCTrackNumber(ULPtr TheUL)
+UInt32 mxflib::GetGCTrackNumber(ULPtr TheUL)
 {
 	//! Base of all standard GC keys
 	/*! DRAGONS: version number is hard-coded as 1 */
-	const Uint8 DegenerateGCLabel[12] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
+	const UInt8 DegenerateGCLabel[12] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
 	
 	// Note that we first test the 11th byte as this where "Application = MXF Generic Container Keys"
 	// is set and so is the same for all GC keys and different in the majority of non-CG keys
 	if( ( TheUL->GetValue()[10] == DegenerateGCLabel[10] ) && (memcmp(TheUL->GetValue(), DegenerateGCLabel, 12) == 0) )
 	{
-		return (Uint32(TheUL->GetValue()[12]) << 24) | (Uint32(TheUL->GetValue()[13]) << 16) 
-			 | (Uint32(TheUL->GetValue()[14]) << 8) | Uint32(TheUL->GetValue()[15]);
+		return (UInt32(TheUL->GetValue()[12]) << 24) | (UInt32(TheUL->GetValue()[13]) << 16) 
+			 | (UInt32(TheUL->GetValue()[14]) << 8) | UInt32(TheUL->GetValue()[15]);
 	}
 	else
 		return 0;
@@ -1788,7 +2004,7 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 	GCWriterPtr &Writer = Stream->GetWriter();
 
 	// Work out which KAG to use, either the default one or the stream specific
-	Uint32 UseKAG;
+	UInt32 UseKAG;
 	if(Stream->GetKAG()) UseKAG = Stream->GetKAG(); else UseKAG = KAG;
 
 	// If either setting is to force BER4 we will force it
@@ -1819,15 +2035,6 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 	// Sort clip-wrap if that is what we are doing
 	if(Stream->GetWrapType() == BodyStream::StreamWrapClip)
 	{
-		if(VBRIndex)
-		{
-			// Index the first edit unit of the essence for clip-wrap
-			// FIXME: we need to do proper clip-wrap indexing!!
-			Position EditUnit = IndexMan->AcceptProvisional();
-			if(EditUnit == -1) EditUnit = IndexMan->GetLastNewEditUnit();
-			Stream->SparseList.push_back(EditUnit);
-		}
-
 		// Add essence from each sub-stream to the writer
 		BodyStream::iterator it = Stream->begin();
 		while(it != Stream->end())
@@ -1861,11 +2068,15 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 			// If we are requested to add a "free space" index entry do so here
 			if(Stream->GetFreeSpaceIndex())
 			{
+				// Remove the KLSize if doing ValueRelativeIndexing
+				Position KLSize = 0;
+				if( IndexMan->GetValueRelativeIndexing() ) KLSize = 0x19; // FIXME: don't know how to calculate
+
 				// Add free space entry for each sub-stream
 				BodyStream::iterator it = Stream->begin();
 				while(it != Stream->end())
 				{
-					IndexMan->OfferOffset((*it)->GetIndexStreamID(), EditUnit + 1, Writer->GetStreamOffset());
+					IndexMan->OfferOffset((*it)->GetIndexStreamID(), EditUnit + 1, Writer->GetStreamOffset() - KLSize);
 					it++;
 				}
 			}
@@ -1952,11 +2163,15 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 
 						if(EditUnit >= 0)
 						{
+							// Remove the KLSize if doing ValueRelativeIndexing
+							Position KLSize = 0;
+							if( IndexMan->GetValueRelativeIndexing() ) KLSize = 0x19;  // FIXME: don't know how to calculate
+
 							// Add free space entry for each sub-stream
 							BodyStream::iterator it = Stream->begin();
 							while(it != Stream->end())
 							{
-								IndexMan->OfferOffset((*it)->GetIndexStreamID(), EditUnit + 1, Writer->GetStreamOffset());
+								IndexMan->OfferOffset((*it)->GetIndexStreamID(), EditUnit + 1, Writer->GetStreamOffset() - KLSize);
 								it++;
 							}
 						}
@@ -2296,8 +2511,8 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 			BasePartition->ChangeType("OpenHeader");
 
 	// Initially there is no body data
-	BasePartition->SetUint("BodySID", 0);
-	BasePartition->SetUint("BodyOffset", 0);
+	BasePartition->SetUInt("BodySID", 0);
+	BasePartition->SetUInt("BodyOffset", 0);
 
 	// Initially we haven't written any data
 	PartitionBodySID = 0;
@@ -2363,7 +2578,7 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 					if(HeaderWritten) BasePartition->ChangeType("ClosedCompleteBodyPartition");
 
 					// Set the index SID
-					BasePartition->SetUint("IndexSID",  Stream->GetIndexSID());
+					BasePartition->SetUInt("IndexSID",  Stream->GetIndexSID());
 
 					// Record the index data to write
 					PendingIndexData = IndexChunk;
@@ -2391,7 +2606,7 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 	if(!HeaderWritten)
 	{
 		// Flag no index data
-		BasePartition->SetUint("IndexSID",  0);
+		BasePartition->SetUInt("IndexSID",  0);
 		PendingIndexData = NULL;
 
 		// Queue the write
@@ -2424,7 +2639,7 @@ void mxflib::BodyWriter::EndPartition(void)
 		if((!PendingHeader) && (!PendingFooter))
 		{
 			// If we have a body partition handler call it and allow it to ask us to write metadata
-			if(PartitionHandler) WriteMetadata = PartitionHandler->HandlePartition(BodyWriterPtr(this), CurrentBodySID, BasePartition->GetUint("IndexSID"));
+			if(PartitionHandler) WriteMetadata = PartitionHandler->HandlePartition(BodyWriterPtr(this), CurrentBodySID, BasePartition->GetUInt("IndexSID"));
 		}
 
 		// FIXME: Need to force a separate partition pack if we are about to violate the metadata sharing rules
@@ -2434,7 +2649,7 @@ void mxflib::BodyWriter::EndPartition(void)
 			File->WritePartitionWithIndex(BasePartition, PendingIndexData, WriteMetadata, NULL, MinPartitionFiller, MinPartitionSize);
 			
 			// Clear the index data SID to prevent it being written again next time
-			BasePartition->SetUint("IndexSID",  0);
+			BasePartition->SetUInt("IndexSID",  0);
 			PendingIndexData = NULL;
 		}
 		else
@@ -2553,12 +2768,12 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			BasePartition->ChangeType("ClosedCompleteBodyPartition");
 
 			// There is no body data as we are isolated
-			BasePartition->SetUint("BodySID", 0);
-			BasePartition->SetUint("BodyOffset", 0);
+			BasePartition->SetUInt("BodySID", 0);
+			BasePartition->SetUInt("BodyOffset", 0);
 			PartitionBodySID = 0;
 
 			// Set the index SID
-			BasePartition->SetUint("IndexSID",  Index->IndexSID);
+			BasePartition->SetUInt("IndexSID",  Index->IndexSID);
 
 			// Record the index data to write
 			PendingIndexData = IndexChunk;
@@ -2585,7 +2800,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 				if(PartitionWritePending)
 					if(PendingHeader || PendingMetadata) PartitionDone = true;
 				else
-					if(BasePartition->GetUint64("HeaderByteCount") > 0) PartitionDone = true;
+					if(BasePartition->GetUInt64("HeaderByteCount") > 0) PartitionDone = true;
 			}
 
 			// Fall through to no-index version
@@ -2599,7 +2814,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 				if(PartitionWritePending)
 					if(PendingHeader || PendingMetadata) PartitionDone = true;
 				else
-					if(BasePartition->GetUint64("HeaderByteCount") > 0) PartitionDone = true;
+					if(BasePartition->GetUInt64("HeaderByteCount") > 0) PartitionDone = true;
 			}
 
 			// It's OK to continue with the current partition if:
@@ -2634,8 +2849,8 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			// If there is a partition pending then update it and write it
 			if(PartitionWritePending)
 			{
-				BasePartition->SetUint("BodySID", CurrentBodySID);
-				BasePartition->SetUint64("BodyOffset", Stream->GetWriter()->GetStreamOffset());
+				BasePartition->SetUInt("BodySID", CurrentBodySID);
+				BasePartition->SetUInt64("BodyOffset", Stream->GetWriter()->GetStreamOffset());
 
 				if(StreamState == BodyStream::BodyStreamBodyWithIndex)
 				{
@@ -2677,7 +2892,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 					BasePartition->ChangeType("ClosedCompleteBodyPartition");
 
 					// Set the index SID
-					BasePartition->SetUint("IndexSID",  Index->IndexSID);
+					BasePartition->SetUInt("IndexSID",  Index->IndexSID);
 
 					// Record the index data to write
 					PendingIndexData = IndexChunk;
@@ -2685,7 +2900,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 				else
 				{
 					// No index data
-					BasePartition->SetUint("IndexSID",  0);
+					BasePartition->SetUInt("IndexSID",  0);
 				}
 
 				// Note: The partition will be written by the call to WriteEssence
@@ -2747,12 +2962,12 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			BasePartition->ChangeType("ClosedCompleteBodyPartition");
 
 			// There is no body data as we are isolated
-			BasePartition->SetUint("BodySID", 0);
-			BasePartition->SetUint("BodyOffset", 0);
+			BasePartition->SetUInt("BodySID", 0);
+			BasePartition->SetUInt("BodyOffset", 0);
 			PartitionBodySID = 0;
 
 			// Set the index SID
-			BasePartition->SetUint("IndexSID",  Index->IndexSID);
+			BasePartition->SetUInt("IndexSID",  Index->IndexSID);
 
 			// Record the index data to write
 			PendingIndexData = IndexChunk;
@@ -2810,11 +3025,11 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 	BasePartition->ChangeType("ClosedCompleteBodyPartition");
 
 	// There is no body data in a footer
-	BasePartition->SetUint("BodySID", 0);
-	BasePartition->SetUint("BodyOffset", 0);
+	BasePartition->SetUInt("BodySID", 0);
+	BasePartition->SetUInt("BodyOffset", 0);
 
 	// Initially there is no index data
-	BasePartition->SetUint("IndexSID",  0);
+	BasePartition->SetUInt("IndexSID",  0);
 
 	// There will be no essence data
 	PartitionBodySID = 0;
@@ -2951,7 +3166,7 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		Index->WriteIndex(*IndexChunk);
 
 		// Set the index SID
-		BasePartition->SetUint("IndexSID",  Index->IndexSID);
+		BasePartition->SetUInt("IndexSID",  Index->IndexSID);
 
 		// Record the index data to write
 		PendingIndexData = IndexChunk;
@@ -3113,7 +3328,7 @@ void mxflib::BodyWriter::SetNextStream(void)
 bool mxflib::BodyWriter::AddStream(BodyStreamPtr &Stream, Length StopAfter /*=0*/)
 {
 	// Check if this BodySID is already used
-	Uint32 SID = Stream->GetBodySID();
+	UInt32 SID = Stream->GetBodySID();
 	StreamInfoList::iterator it = StreamList.begin();
 	while(it != StreamList.end())
 	{

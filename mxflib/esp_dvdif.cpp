@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.4 2005/06/17 16:34:09 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -37,10 +37,10 @@ using namespace mxflib;
 namespace
 {
 	//! Modified UUID for raw DV
-	const Uint8 DV_DIF_RAW_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 0xfa, 'R',  'A', 'W', 'D', 'V' };
+	const UInt8 DV_DIF_RAW_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 0xfa, 'R',  'A', 'W', 'D', 'V' };
 
 	//! Modified UUID for AVI-wrapped DV
-	const Uint8 DV_DIF_AVI_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 0xfa, 'A',  'V', 'I', 'D', 'V' };
+	const UInt8 DV_DIF_AVI_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 0xfa, 'A',  'V', 'I', 'D', 'V' };
 }
 
 
@@ -52,7 +52,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	EssenceStreamDescriptorList Ret;
 
 	// Allocate a buffer if we don't have one
-	if(!Buffer) Buffer = new Uint8[DV_DIF_BUFFERSIZE];
+	if(!Buffer) Buffer = new UInt8[DV_DIF_BUFFERSIZE];
 
 	// Read the first 12 bytes of the file to allow us to identify it
 	FileSeek(InFile, 0);
@@ -105,7 +105,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 					ListSize -= 8;
 
 					ReadU32(InFile);
-					Uint32 MediaType = ReadU32(InFile);
+					UInt32 MediaType = ReadU32(InFile);
 					ListSize -= 4;
 
 					if(
@@ -206,7 +206,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
  */
 WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
-	Uint8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x02, 0x7f, 0x01 };
+	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x02, 0x7f, 0x01 };
 	WrappingOptionList Ret;
 
 	// If the source format isn't RAW DV-DIFF then we can't wrap the essence
@@ -256,7 +256,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 
 
 //! Set a wrapping option for future Read and Write calls
-void DV_DIF_EssenceSubParser::Use(Uint32 Stream, WrappingOptionPtr &UseWrapping)
+void DV_DIF_EssenceSubParser::Use(UInt32 Stream, WrappingOptionPtr &UseWrapping)
 {
 	SelectedWrapping = UseWrapping;
 	SelectedEditRate = NativeEditRate;
@@ -345,7 +345,7 @@ Position DV_DIF_EssenceSubParser::GetCurrentPosition(void)
  *  not be the frame rate of this essence
  *	\note This is going to take a lot of memory in clip wrapping! 
  */
-DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/) 
+DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/) 
 { 
 	// Scan the stream and find out how many bytes to read
 	Length Bytes = ReadInternal(InFile, Stream, Count);
@@ -363,10 +363,10 @@ DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uin
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Length DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/)
+Length DV_DIF_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count /*=1*/)
 {
 	const unsigned int BUFFERSIZE = 32768;
-	Uint8 *Buffer = new Uint8[BUFFERSIZE];
+	UInt8 *Buffer = new UInt8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
 	Length Bytes = ReadInternal(InFile, Stream, Count);
@@ -380,7 +380,7 @@ Length DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFileP
 		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
 
 		FileRead(InFile, Buffer, ChunkSize);
-		OutFile->Write(Buffer, (Uint32)ChunkSize);
+		OutFile->Write(Buffer, (UInt32)ChunkSize);
 
 		Bytes -= ChunkSize;
 	}
@@ -391,10 +391,10 @@ Length DV_DIF_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFileP
 
 //! Read the header at the specified position in a DV file to build an essence descriptor
 /*! DRAGONS: Currently rather scrappy */
-MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFile, Uint64 Start /*=0*/)
+MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFile, UInt64 Start /*=0*/)
 {
 	MDObjectPtr Ret;
-	Uint8 Buffer[80];
+	UInt8 Buffer[80];
 
 	// Read the header DIF block
 	FileSeek(InFile, Start);
@@ -440,13 +440,13 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 
 	if(is625)
 	{
-		Ret->SetUint("StoredWidth", 720);
-		Ret->SetUint("StoredHeight", 288);
+		Ret->SetUInt("StoredWidth", 720);
+		Ret->SetUInt("StoredHeight", 288);
 	}
 	else	
 	{
-		Ret->SetUint("StoredWidth", 720);
-		Ret->SetUint("StoredHeight", 240);
+		Ret->SetUInt("StoredWidth", 720);
+		Ret->SetUInt("StoredHeight", 240);
 	}
 
 //DRAGONS: printf("Assumed 4:3...\n");
@@ -462,32 +462,32 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 		if(is625) { F1 = 1; F2 = 313; }
 		else { F1 = 4; F2 = 266; }
 
-		Ptr->AddChild("VideoLineMapEntry", false)->SetUint(F1);
-		Ptr->AddChild("VideoLineMapEntry", false)->SetUint(F2);
+		Ptr->AddChild("VideoLineMapEntry", false)->SetUInt(F1);
+		Ptr->AddChild("VideoLineMapEntry", false)->SetUInt(F2);
 	}
 
-	Ret->SetUint("ComponentDepth", 8);
+	Ret->SetUInt("ComponentDepth", 8);
 
 	if(!is625)
 	{
-		Ret->SetUint("HorizontalSubsampling", 4);
-		Ret->SetUint("VerticalSubsampling", 1);
+		Ret->SetUInt("HorizontalSubsampling", 4);
+		Ret->SetUInt("VerticalSubsampling", 1);
 	}
 	else
 	{
 		if(isS314M)
 		{
-			Ret->SetUint("HorizontalSubsampling", 4);
-			Ret->SetUint("VerticalSubsampling", 1);
+			Ret->SetUInt("HorizontalSubsampling", 4);
+			Ret->SetUInt("VerticalSubsampling", 1);
 		}
 		else
 		{
-			Ret->SetUint("HorizontalSubsampling", 2);
-			Ret->SetUint("VerticalSubsampling", 2);
+			Ret->SetUInt("HorizontalSubsampling", 2);
+			Ret->SetUInt("VerticalSubsampling", 2);
 		}
 	}
 
-	Ret->SetUint("ColorSiting", 0);				// Co-sited
+	Ret->SetUInt("ColorSiting", 0);				// Co-sited
 
 	return Ret;
 }
@@ -501,7 +501,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
  *
  *  TODO: Currently assumes 25Mbit - needs fixing
  */
-Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count)
+Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count)
 {	
 	// Return anything remaining if clip wrapping
 	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip)) Count = ((DIFEnd - DIFStart) / (150 * 80)) - PictureNumber;

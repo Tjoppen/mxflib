@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.3 2004/12/18 20:31:07 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -122,7 +122,7 @@ namespace mxflib
 //		 *  \param Size Number of bytes to be written
 //		 *  \return The count of bytes written
 //		 */
-//		virtual Length WriteData(KLVObjectPtr Object, const Uint8 *Buffer, Position Start = 0, Length Size = 0) = 0;
+//		virtual Length WriteData(KLVObjectPtr Object, const UInt8 *Buffer, Position Start = 0, Length Size = 0) = 0;
 //	};
 //
 //	//! Smart pointer for the base KLVObject read handler
@@ -259,7 +259,7 @@ namespace mxflib
 		virtual GCElementKind GetGCElementKind(void) { return mxflib::GetGCElementKind(TheUL); }
 
 		//! Get the track number of this KLVObject (if it is a GC KLV, else 0)
-		virtual Uint32 GetGCTrackNumber(void) { return mxflib::GetGCTrackNumber(TheUL); };
+		virtual UInt32 GetGCTrackNumber(void) { return mxflib::GetGCTrackNumber(TheUL); };
 
 		//! Get the position of the first byte in the DataChunk as an offset into the file
 		/*! \return -1 if the data has not been read from a file (or the offset cannot be determined) 
@@ -386,7 +386,7 @@ namespace mxflib
 		 *  \note As there may be a need for the implementation to know where within the value field
 		 *        this data lives, there is no WriteData(Buffer, Size) function.
 		 */
-		virtual Length WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size) { return Base_WriteDataTo(Buffer, Offset, Size); }
+		virtual Length WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size) { return Base_WriteDataTo(Buffer, Offset, Size); }
 
 		//! Base verion: Write data from a given buffer to a given location in the destination file
 		/*! \param Buffer Pointer to data to be written
@@ -398,7 +398,7 @@ namespace mxflib
 		 *           It is therefore vital that the function does not call any "virtual" KLVObject
 		 *           functions, directly or indirectly.
 		 */
-		Length Base_WriteDataTo(const Uint8 *Buffer, Position Offset, Length Size);
+		Length Base_WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size);
 
 
 		//! Set a handler to supply data when a read is performed

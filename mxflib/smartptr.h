@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.4 2005/08/16 18:03:47 matt-beard Exp $
+ *	\version $Id: smartptr.h,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -233,7 +233,7 @@ namespace mxflib
 			{
 				char buffer[1024];
 				sprintf(&buffer[0], "Item size = %d :", sizeof(T));
-				for(int i=0; i<min(sizeof(T), 64); i++) sprintf(&buffer[strlen(buffer)], " %02x", ((Uint8*)(this))[i]);
+				for(int i=0; i<min(sizeof(T), 64); i++) sprintf(&buffer[strlen(buffer)], " %02x", ((UInt8*)(this))[i]);
 				return std::string(buffer);
 			}
 

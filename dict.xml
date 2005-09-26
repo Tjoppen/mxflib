@@ -1,8 +1,7 @@
-<!-- Version 11a-r4 by Matt Beard 6th May 2005 -->
-<!-- -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2005/09/26 08:35:58 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
-<!-- Portions Copyright (c) 2003 Metaglue Corporation -->
+<!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
 <!-- 																			 -->
 <!-- This software is provided 'as-is', without any express or implied warranty. -->
 <!-- In no event will the authors be held liable for any damages arising from	 -->
@@ -25,9 +24,17 @@
 <!-- 																			 -->
 <!-- -->
 <!-- Note: All ULs checked as of 10/08/2003 -->
-<!-- 2003-08-09 Oliver added DM_Framework, DM_Set -->
-<!-- 2004-07-06 Matt   corrected PeakEnvelope UL -->
+<!-- 2003-04-09 Oliver added DM_Framework, DM_Set -->
+<!-- 2003-12-18 Matt   Improved Index Table Support -->
+<!-- 2004-04-13 Oliver Added abstract DM superclasses -->
+<!-- 2004-05-21 Oliver Align with updated RAW and DataValue -->
+<!-- 2004-07-06 Matt   Corrected PeakEnvelope UL -->
 <!-- 2005-05-06 Matt   Converted to combined dictionary -->
+<!-- 2005-05-09 Matt   Replaced UintXX with UIntXX -->
+<!-- 2005-06-18 Matt   Added JP2K -->
+<!-- 2005-07-03 Oliver Added extra properties for Avid MXF (extract later) -->
+<!-- 2005-08-03 Oliver Merged in JP2K -->
+<!-- 2005-08-03 Oliver Removed static Tags for JP2K -->
 <MXFDictionary>
 	<MXFTypes>
 		<Basic>
@@ -45,7 +52,6 @@
 			<UInt32 detail="32 bit unsigned integer" size="4" endian="yes"/>
 			<UInt64 detail="64 bit unsigned integer" size="8" endian="yes"/>
 		</Basic>
-		
 		<Interpretation>
 			<VersionType detail="Version number (created from major*256 + minor)" base="UInt16"/>
 			<UTF16 detail="Unicode UTF-16 coded character" base="UInt16"/>
@@ -55,7 +61,6 @@
 			<Position detail="Position measured in Edit Units" base="Int64"/>
 			<RGBACode detail="Enumerated value specifying component in an RGBALayoutItem" base="UInt8"/>
 		</Interpretation>
-
 		<Multiple>
 			<UTF16String detail="Unicode UTF-16 coded string" base="UTF16" type="Array"/>
 			<Int32Array detail="Array of Int32" base="Int32" type="Array"/>
@@ -66,16 +71,13 @@
 			<Int32Batch detail="Batch of Int32 values" base="Int32" type="Batch"/>
 			<UInt32Batch detail="Batch of UInt32 values" base="UInt32" type="Batch"/>
 		</Multiple>
-
 		<Basic>
 			<RAW detail="Raw data bytes, unknown representation" size="0" endian="no"/>
 		</Basic>
-		
 		<Interpretation>
 			<Stream detail="Data mapped to AAF Stream, MXF represents using a SID" base="RAW"/>
 			<DataValue detail="Data represented as AAF varying array of UInt8" base="UInt8Array"/>
 		</Interpretation>
-		
 		<Interpretation>
 			<Identifier detail="Generic Identifier" base="UInt8Array"/>
 			<Opaque detail="Opaque Data" base="UInt8Array"/>
@@ -88,7 +90,6 @@
 			<StrongRef detail="Strong Reference" base="UUID"/>
 			<WeakRef detail="Weak Reference" base="UUID"/>
 		</Interpretation>
-
 		<Multiple>
 			<AUIDArray detail="Array of AUIDs" base="AUID" type="Array"/>
 			<LabelBatch detail="Batch of SMPTE Universal Labels" base="Label" type="Batch"/>
@@ -97,7 +98,6 @@
 			<WeakRefArray detail="Array of WeakRefs" base="StrongRef" type="Array"/>
 			<WeakRefBatch detail="Batch of WeakRefs" base="WeakRef" type="Batch"/>
 		</Multiple>
-
 		<Compound>
 			<Rational detail="Rational">
 				<Numerator detail="Numerator" type="Int32"/>
@@ -128,18 +128,15 @@
 				<Depth detail="Number of bits occupied" type="UInt8"/>
 			</RGBALayoutItem>
 		</Compound>
-
 		<Multiple>
 			<RationalArray detail="Array of Rational" base="Rational" type="Array"/>
-			<RGBALayout detail="Specifies the type, order and size of the components within the pixel" base="RGBALayoutItem" type="Array"/>
+			<RGBALayout detail="Specifies the type, order and size of the components within the pixel" base="RGBALayoutItem" type="Array" size="8"/>
 		</Multiple>
-
 		<!-- TODO 
 	Timecode12M,,,,
 	Timestamp309M,,,,
 	-->
 	</MXFTypes>
-	
 	<MXFClasses>
 		<KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 01 03 01 02 10 01 00 00 00"/>
 		<PartitionMetadata detail="Identifies a Partition Pack" type="fixedPack">
@@ -395,7 +392,7 @@
 			<ComponentDepth detail="Number of active bits per sample (e.g. 8, 10, 16)" type="UInt32" minLength="4" maxLength="4" key="33 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 0A 00 00 00" use="best effort" dvalue="0"/>
 			<HorizontalSubsampling detail="Specifies the H colour subsampling" type="UInt32" minLength="4" maxLength="4" key="33 02" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 05 00 00 00" use="best effort" dvalue="0"/>
 			<VerticalSubsampling detail="Specifies the V colour subsampling" type="UInt32" minLength="4" maxLength="4" key="33 08" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 01 10 00 00 00" use="optional"/>
-			<ColorSiting detail="Enumerated value describing the color siting" type="UInt8" minLength="4" maxLength="4" key="33 03" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 06 00 00 00" use="optional"/>
+			<ColorSiting detail="Enumerated value describing the color siting" type="UInt8" minLength="1" maxLength="1" key="33 03" globalKey="06 0e 2b 34 01 01 01 01  04 01 05 01 06 00 00 00" use="optional"/>
 			<ReversedByteOrder detail="a FALSE value denotes Chroma followed by Luma pexels according to ITU Rec. 601" type="Boolean" minLength="1" maxLength="1" key="33 0b" globalKey="06 0e 2b 34 01 01 01 05  03 01 02 01 0a 00 00 00" use="optional"/>
 			<PaddingBits detail="Bits to round up each pixel to stored size" type="UInt16" minLength="2" maxLength="2" key="33 07" globalKey="06 0e 2b 34 01 01 01 02  04 18 01 04 00 00 00 00" use="optional"/>
 			<AlphaSampleDepth detail="Number of bits per alpha sample" type="UInt32" minLength="4" maxLength="4" key="33 09" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 07 00 00 00" use="optional"/>
@@ -409,9 +406,9 @@
 			<AlphaMaxRef detail="Maximum value for alpha component, e.g. 235 or 940 (8 or 10 bits)" type="UInt32" minLength="4" maxLength="4" key="34 08" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0d 00 00 00" use="optional" default="255"/>
 			<AlphaMinRef detail="Minimum value for alpha component, e.g. 16 or 64 (8 or 10 bits)" type="UInt32" minLength="4" maxLength="4" key="34 09" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0e 00 00 00" use="optional" default="0"/>
 			<ScanningDirection detail="Enumerated Scanning Direction" type="UInt8" minLength="1" maxLength="1" key="34 05" globalKey="06 0e 2b 34 01 01 01 05  04 01 04 04 01 00 00 00" use="optional"/>
-			<PixelLayout detail="Pixel Layout" type="RGBALayout" key="34 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 06 00 00 00" use="best effort" dvalue="{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}"/>
+			<PixelLayout detail="Pixel Layout" type="RGBALayout" minLength="16" maxLength="16" key="34 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 06 00 00 00" use="best effort" dvalue="{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}"/>
 			<Palette detail="Palette" type="DataValue" key="34 03" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 08 00 00 00" use="optional"/>
-			<PaletteLayout detail="Palette Layout" type="RGBALayout" key="34 04" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 09 00 00 00" use="optional"/>
+			<PaletteLayout detail="Palette Layout" type="RGBALayout" minLength="16" maxLength="16" key="34 04" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 09 00 00 00" use="optional"/>
 		</RGBAEssenceDescriptor>
 		<GenericSoundEssenceDescriptor base="FileDescriptor" detail="Defines the Sound Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 42 00">
 			<AudioSamplingRate detail="Sampling rate of the audio essence" type="Rational" minLength="8" maxLength="8" key="3d 03" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 01 01 00 00" use="best effort" default="48000/1" dvalue="0/0"/>
@@ -453,7 +450,6 @@
 		<DM_Framework base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00"/>
 		<DM_Set base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01 0d 01 04 00 00 00 00 00"/>
 	</MXFClasses>
-
 	<MXFTypes>
 		<Interpretation>
 			<ComponentSamplePrecision detail="JPEG 2000 component sample precision" base="UInt8"/>
@@ -500,25 +496,23 @@
 			</QuantizationDefault>
 		</Compound>
 	</MXFTypes>
-
 	<MXFClasses>
 		<JPEG2000PictureSubDescriptor detail="JPEG 2000 Picture Sub Descriptor" base="GenerationInterchangeObject" use="required" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 5a 00">
-			<Rsize detail="An enumerated value that defines the decoder capabilities" use="required" type="UInt16" key="33 41" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 01 00 00 00"/>
-			<Xsize detail="Width of the reference grid" use="required" type="UInt32" key="33 42" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 02 00 00 00"/>
-			<Ysize detail="Height of the reference grid" use="required" type="UInt32" key="33 43" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 03 00 00 00"/>
-			<XOsize detail="Horizontal offset from the origin of the reference grid to the left side of the image area" use="required" type="UInt32" key="33 44" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 04 00 00 00"/>
-			<YOsize detail="Vertical offset from the origin of the reference grid to the top side of the image area" use="required" type="UInt32" key="33 45" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 05 00 00 00"/>
-			<XTsize detail="Width of one reference tile with respect to the reference grid" use="required" type="UInt32" key="33 46" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 06 00 00 00"/>
-			<YTsize detail="Height of one reference tile with respect to the reference grid" use="required" type="UInt32" key="33 47" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 07 00 00 00"/>
-			<XTOsize detail="Horizontal offset from the origin of the reference grid to the left side of the first tile" use="required" type="UInt32" key="33 48" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 08 00 00 00"/>
-			<YTOsize detail="Vertical offset from the origin of the reference grid to the top side of the first tile" use="required" type="UInt32" key="33 49" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 09 00 00 00"/>
-			<Csize detail="The number of components in the picture" use="required" type="UInt16" key="33 4a" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0a 00 00 00"/>
-			<PictureComponentSizing detail="Array of picture components" use="required" type="subVector" key="33 51" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0b 00 00 00">
+			<Rsize detail="An enumerated value that defines the decoder capabilities" use="required" type="UInt16" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 01 00 00 00"/>
+			<Xsize detail="Width of the reference grid" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 02 00 00 00"/>
+			<Ysize detail="Height of the reference grid" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 03 00 00 00"/>
+			<XOsize detail="Horizontal offset from the origin of the reference grid to the left side of the image area" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 04 00 00 00"/>
+			<YOsize detail="Vertical offset from the origin of the reference grid to the top side of the image area" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 05 00 00 00"/>
+			<XTsize detail="Width of one reference tile with respect to the reference grid" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 06 00 00 00"/>
+			<YTsize detail="Height of one reference tile with respect to the reference grid" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 07 00 00 00"/>
+			<XTOsize detail="Horizontal offset from the origin of the reference grid to the left side of the first tile" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 08 00 00 00"/>
+			<YTOsize detail="Vertical offset from the origin of the reference grid to the top side of the first tile" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 09 00 00 00"/>
+			<Csize detail="The number of components in the picture" use="required" type="UInt16" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0a 00 00 00"/>
+			<PictureComponentSizing detail="Array of picture components" use="required" type="subVector" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0b 00 00 00">
 				<PictureComponentSize detail="Picture component" use="required" type="ComponentSizingArray"/>
 			</PictureComponentSizing>
-			<CodingStyleDefault detail="Default coding style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="CodingStyleDefault" key="33 52" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00"/>
-			<QuantizationDefault detail="Default quantization style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="QuantizationDefault" key="33 52" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00"/>
+			<CodingStyleDefault detail="Default coding style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="CodingStyleDefault" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00"/>
+			<QuantizationDefault detail="Default quantization style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="QuantizationDefault" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00"/>
 		</JPEG2000PictureSubDescriptor>
 	</MXFClasses>
-
 </MXFDictionary>

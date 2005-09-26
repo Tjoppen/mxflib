@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.cpp
  *	\brief	AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.cpp,v 1.1 2004/12/18 20:19:36 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.cpp,v 1.2 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -45,10 +45,10 @@ bool ForceKeyMode = false;
  *  - trunc( HMAC-SHA-1( CipherKey, 0x00112233445566778899aabbccddeeff ) )
  *  Where trunc(x) is the first 128 bits of x
  */
-DataChunkPtr BuildHashKey(int Size, const Uint8 *CryptoKey)
+DataChunkPtr BuildHashKey(int Size, const UInt8 *CryptoKey)
 {
 	//! Constant value to be hashed with cypher key to produce the hashing key
-	const Uint8 KeyConst[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff };
+	const UInt8 KeyConst[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff };
 
 	HashPtr Hasher = new HashHMACSHA1();
 
@@ -67,7 +67,7 @@ DataChunkPtr BuildHashKey(int Size, const Uint8 *CryptoKey)
 //! Set the key and start hashing
 /*  \return True if key is accepted
  */
-bool HashHMACSHA1::SetKey(Uint32 Size, const Uint8 *Key)
+bool HashHMACSHA1::SetKey(UInt32 Size, const UInt8 *Key)
 {
 	if(Size > 64)
 	{
@@ -114,7 +114,7 @@ printf("Writing hash data to \"%s\"\n", Name);
 
 
 //! Add the given data to the current hash being calculated
-void HashHMACSHA1::HashData(Uint32 Size, const Uint8 *Data)
+void HashHMACSHA1::HashData(UInt32 Size, const UInt8 *Data)
 {
 //FileWrite(OutFile, Data, Size);
 	if(!KeyInited)
@@ -159,10 +159,10 @@ printf("\n");
 //! Encrypt data and return in a new buffer
 /*! \return NULL pointer if the encryption is unsuccessful
  */
-DataChunkPtr AESEncrypt::Encrypt(Uint32 Size, const Uint8 *Data)
+DataChunkPtr AESEncrypt::Encrypt(UInt32 Size, const UInt8 *Data)
 {
 	// Calculate size of encrypted data (always a multiple of 16-bytes)
-	Uint32 RetSize = (Size + 15) / 16;
+	UInt32 RetSize = (Size + 15) / 16;
 	RetSize *= 16;
 
 	DataChunkPtr Ret = new DataChunk(RetSize);
@@ -174,7 +174,7 @@ DataChunkPtr AESEncrypt::Encrypt(Uint32 Size, const Uint8 *Data)
 
 
 //! Construct a handler for a specified BodySID
-Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, Uint32 BodySID, UUIDPtr &ContextID, DataChunkPtr KeyID, std::string KeyFileName) 
+Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID, UUIDPtr &ContextID, DataChunkPtr KeyID, std::string KeyFileName) 
   : Writer(Writer), OurSID(BodySID), ContextID(ContextID), PlaintextOffset(0)
 {
 	char Buffer[45];
@@ -183,7 +183,7 @@ Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, Uint32 BodySID,
 	int Bytes = 0;
 	if(FileValid(KeyFile))
 	{
-		Bytes = FileRead(KeyFile, (Uint8*)Buffer, 32);
+		Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
 		FileClose(KeyFile);
 
 		if(Bytes != 32) error("Failed to read key from key-file \"%s\"\n", Buffer);
@@ -205,7 +205,7 @@ Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, Uint32 BodySID,
 				FileHandle KeyFile = FileOpenRead(UseName.c_str());
 				if(FileValid(KeyFile))
 				{
-					Bytes = FileRead(KeyFile, (Uint8*)Buffer, 32);
+					Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
 					FileClose(KeyFile);
 				}
 			}
@@ -224,7 +224,7 @@ Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, Uint32 BodySID,
 
 	if(Bytes == 32)
 	{
-		Uint8 KeyBuff[16];
+		UInt8 KeyBuff[16];
 		if(sscanf(Buffer, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
 			   &KeyBuff[0], &KeyBuff[1], &KeyBuff[2], &KeyBuff[3], &KeyBuff[4], &KeyBuff[5], &KeyBuff[6], &KeyBuff[7], 
 			   &KeyBuff[8], &KeyBuff[9], &KeyBuff[10], &KeyBuff[11], &KeyBuff[12], &KeyBuff[13], &KeyBuff[14], &KeyBuff[15] ) == 16)
@@ -271,8 +271,8 @@ bool Encrypt_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 	//          However as the IV is always sent in plaintext there is no advantage doing this.
 	//          In fact it is actually more secure to use sequential IVs starting at some moderately random value
 	// TODO: Make IVs sequential
-	Uint8 IV[16];
-	int i; for(i=0; i<16; i++) IV[i] = (Uint8) rand();
+	UInt8 IV[16];
+	int i; for(i=0; i<16; i++) IV[i] = (UInt8) rand();
 	KLVE->SetEncryptIV(16, IV, true);
 
 	// Write the encrypted data
@@ -285,7 +285,7 @@ bool Encrypt_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 //! Decrypt data and return in a new buffer
 /*! \return NULL pointer if the encryption is unsuccessful
  */
-DataChunkPtr AESDecrypt::Decrypt(Uint32 Size, const Uint8 *Data)
+DataChunkPtr AESDecrypt::Decrypt(UInt32 Size, const UInt8 *Data)
 {
 	DataChunkPtr Ret = new DataChunk(Size);
 
@@ -296,7 +296,7 @@ DataChunkPtr AESDecrypt::Decrypt(Uint32 Size, const Uint8 *Data)
 
 
 //! Construct a handler for a specified BodySID
-Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(Uint32 BodySID, DataChunkPtr KeyID, std::string KeyFileName) : OurSID(BodySID) 
+Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(UInt32 BodySID, DataChunkPtr KeyID, std::string KeyFileName) : OurSID(BodySID) 
 {
 	char Buffer[45];
 
@@ -304,7 +304,7 @@ Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(Uint32 BodySID, DataChu
 	int Bytes = 0;
 	if(FileValid(KeyFile))
 	{
-		Bytes = FileRead(KeyFile, (Uint8*)Buffer, 32);
+		Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
 		FileClose(KeyFile);
 
 		if(Bytes != 32) error("Failed to read key from key-file \"%s\"\n", Buffer);
@@ -326,7 +326,7 @@ Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(Uint32 BodySID, DataChu
 				FileHandle KeyFile = FileOpenRead(UseName.c_str());
 				if(FileValid(KeyFile))
 				{
-					Bytes = FileRead(KeyFile, (Uint8*)Buffer, 32);
+					Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
 					FileClose(KeyFile);
 				}
 			}
@@ -345,7 +345,7 @@ Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(Uint32 BodySID, DataChu
 
 	if(Bytes == 32)
 	{
-		Uint8 KeyBuff[16];
+		UInt8 KeyBuff[16];
 		if(sscanf(Buffer, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
 			   &KeyBuff[0], &KeyBuff[1], &KeyBuff[2], &KeyBuff[3], &KeyBuff[4], &KeyBuff[5], &KeyBuff[6], &KeyBuff[7], 
 			   &KeyBuff[8], &KeyBuff[9], &KeyBuff[10], &KeyBuff[11], &KeyBuff[12], &KeyBuff[13], &KeyBuff[14], &KeyBuff[15] ) == 16)

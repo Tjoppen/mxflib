@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.5 2005/02/05 13:11:59 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.6 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -43,7 +43,7 @@ using namespace std;
 
 
 // Product GUID and version text for this release
-Uint8 ProductGUID_Data[16] = { 0x84, 0x62, 0x40, 0xf1, 0x47, 0xed, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x53 };
+UInt8 ProductGUID_Data[16] = { 0x84, 0x62, 0x40, 0xf1, 0x47, 0xed, 0xde, 0x40, 0x86, 0xdc, 0xe0, 0x99, 0xda, 0x7f, 0xd0, 0x53 };
 string CompanyName = "freeMXF.org";
 string ProductName = "mxfcrypt file de/encrypt utility";
 string ProductVersion = "Based on " + LibraryVersion();
@@ -59,10 +59,10 @@ std::string KeyFileName;
 bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyParser, GCWriterPtr Writer, bool LoadInfo = false);
 
 //! Process the metadata for a given package on an encryption pass
-bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint32 BodySID, PackagePtr ThisPackage, bool LoadInfo = false);
+bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt32 BodySID, PackagePtr ThisPackage, bool LoadInfo = false);
 
 //! Process the metadata for a given package on a decryption pass
-bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint32 BodySID, PackagePtr ThisPackage, bool LoadInfo = false);
+bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt32 BodySID, PackagePtr ThisPackage, bool LoadInfo = false);
 
 
 
@@ -117,86 +117,10 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	LoadTypes("types.xml");
-	MDOType::LoadDict("xmldict.xml");
-	MDOType::LoadDict("DMS_Crypto.xml");
+	// Load the dictionaries
+	LoadDictionary("dict.xml");
+	LoadDictionary("DMS_Crypto.xml");
 
-//############# TEST
-/*
-	DataChunk DecKey(16, (Uint8*)"This is the decode key I'm using");
-	char *TestData = "Now is the time for all good men to come to the aid of thier hashing system to see if it works exactly as expected first time, second time, and the third and final time indeed as well!!";
-	HashPtr Hasher1 = new HashHMACSHA1();
-	Hasher1->SetKey(DecKey);
-	Hasher1->HashData(strlen(TestData), (Uint8*)TestData);
-
-	DataChunkPtr Hash1 = Hasher1->GetHash();
-
-	printf("Hash 1 is:");
-	for(i=0; i<20; i++)
-	{
-	  printf(" %02x", Hash1->Data[i]);
-	}
-	printf("\n");
-
-
-	Uint8 Key2[] = { 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b };
-
-	HashPtr Hasher2 = new HashHMACSHA1();
-	Hasher2->SetKey(16, Key2);
-
-	Hasher2->HashData(8, (Uint8*)"Hi There");
-
-	DataChunkPtr Hash2 = Hasher2->GetHash();
-
-	printf("Hash 2 is:");
-	for(i=0; i<20; i++)
-	{
-	  printf(" %02x", Hash2->Data[i]);
-	}
-	printf("\n");
-
-
-	char Key2b[] = "our little secret";
-
-	HashPtr Hasher2b = new HashHMACSHA1();
-	Hasher2b->SetKey(17, (Uint8*)Key2b);
-
-	Hasher2b->HashData(11, (Uint8*)"hello world");
-
-	DataChunkPtr Hash2b = Hasher2b->GetHash();
-
-	printf("Hash 2b is:");
-	for(i=0; i<20; i++)
-	{
-	  printf(" %02x", Hash2b->Data[i]);
-	}
-	printf("\n");
-	// Should be a7ed9d62819b9788e22171d9108a00c370104526
-
-
-	HashPtr Hasher3 = new HashHMACSHA1();
-	Hasher3->SetKey(DecKey);
-
-	Hasher3->HashData(16, (Uint8*)TestData);
-	Hasher3->HashData(16, (Uint8*)&TestData[16]);
-	Hasher3->HashData(16, (Uint8*)&TestData[32]);
-	Hasher3->HashData(16, (Uint8*)&TestData[48]);
-	Hasher3->HashData(strlen(&TestData[64]), (Uint8*)&TestData[64]);
-
-	DataChunkPtr Hash3 = Hasher3->GetHash();
-
-	printf("Hash 3 is:");
-	for(i=0; i<20; i++)
-	{
-	  printf(" %02x", Hash3->Data[i]);
-	}
-	printf("\n");
-
-
-*/	
-//############# TEST
-	
-	
 	if (argc - num_options < 3)
 	{
 		printf( "\nUsage:  %s [-d] [-h] [-v] [-k=keyfile] [-p=offset] <in-filename> <out-filename>\n\n", argv[0] );
@@ -264,7 +188,7 @@ int main(int argc, char *argv[])
 	if(ClosingHeader)
 	{
 		// If the master partition is not from the header then change it to be a header
-		if(MasterPartition->GetUint64("ThisPartition") > 0)
+		if(MasterPartition->GetUInt64("ThisPartition") > 0)
 		{
 			if(MasterPartition->IsClosed())
 			{
@@ -286,13 +210,13 @@ int main(int argc, char *argv[])
 			PartitionPtr OldHeader = InFile->ReadPartition();
 
 			// Set the header to have the same KAG and BodySID as before
-			MasterPartition->SetKAG(OldHeader->GetUint("KAGSize"));
-			MasterPartition->SetUint("BodySID", OldHeader->GetUint("BodySID"));
-			MasterPartition->SetUint64("FooterPartition", 0);
+			MasterPartition->SetKAG(OldHeader->GetUInt("KAGSize"));
+			MasterPartition->SetUInt("BodySID", OldHeader->GetUInt("BodySID"));
+			MasterPartition->SetUInt64("FooterPartition", 0);
 		}
 
 		// We don't yet know where the footer is...
-		MasterPartition->SetUint64("FooterPosition", 0);
+		MasterPartition->SetUInt64("FooterPosition", 0);
 
 		// Write the new header
 		OutFile->WritePartition(MasterPartition);
@@ -333,16 +257,16 @@ int main(int argc, char *argv[])
 		if(UpdatePartition)
 		{
 			// TODO: We should probably insert updated metadata here if the input file has it
-			CurrentPartition->SetUint64("FooterPartition", 0);
+			CurrentPartition->SetUInt64("FooterPartition", 0);
 			OutFile->WritePartition(CurrentPartition);
 		}
 
 		// Find out what BodySID
-		// DARGONS: ?? What are we doing with this?
-		Uint32 BodySID = CurrentPartition->GetUint("BodySID");
+		// DRAGONS: ?? What are we doing with this?
+		UInt32 BodySID = CurrentPartition->GetUInt("BodySID");
 
 		// Ensure we match the KAG
-		Writer->SetKAG(CurrentPartition->GetUint("KAGSize"));
+		Writer->SetKAG(CurrentPartition->GetUInt("KAGSize"));
 
 		// Parse the file until next partition or an error
 		if (!BodyParser->ReadFromFile()) break;
@@ -370,16 +294,8 @@ int main(int argc, char *argv[])
 	printf("Done\n");
 
 	return 0;
-
-
-	//############ WE NEED TO HAVE ONE WRITER PER BODY-SID!!
-	//############ WE NEED TO HAVE ONE WRITER PER BODY-SID!!
-	//############ WE NEED TO HAVE ONE WRITER PER BODY-SID!!
-	//############ WE NEED TO HAVE ONE WRITER PER BODY-SID!!
-	//############ WE NEED TO HAVE ONE WRITER PER BODY-SID!!
-	//############ WE NEED TO HAVE ONE WRITER PER BODY-SID!!
-	//############ WE NEED TO HAVE ONE WRITER PER BODY-SID!!
-	//############ WE NEED TO HAVE ONE WRITER PER BODY-SID!!
+	
+	// TODO: WE NEED TO HAVE ONE WRITER PER BODY-SID!!
 }
 
 
@@ -409,7 +325,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 	}
 
 	// A map of PackageIDs of all contained essence, indexed by BodySID
-	typedef std::map<Uint32, DataChunkPtr> DataChunkMap;
+	typedef std::map<UInt32, DataChunkPtr> DataChunkMap;
 	DataChunkMap FilePackageMap;
 
 	// Scan the essence containers
@@ -421,7 +337,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 		if(ECDSet)
 		{
 			// Add the package ID to the BodySID map
-			Uint32 BodySID = ECDSet->GetUint("BodySID");
+			UInt32 BodySID = ECDSet->GetUInt("BodySID");
 			MDObjectPtr PackageID = ECDSet["LinkedPackageUID"];
 			if(PackageID) 
 			{
@@ -583,7 +499,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 //! Process the metadata for a given package on an encryption pass
 /*! /ret true if all OK, else false
  */
-bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint32 BodySID, PackagePtr ThisPackage, bool LoadInfo /*=false*/)
+bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt32 BodySID, PackagePtr ThisPackage, bool LoadInfo /*=false*/)
 {
 	MDObjectPtr Descriptor = ThisPackage["Descriptor"];
 	if(Descriptor) Descriptor = Descriptor->GetLink();
@@ -605,7 +521,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint
 	DataChunkPtr EssenceUL = ContainerUL->PutData();
 
 	// Change the essence UL in the descriptor to claim to be encrypted
-	const Uint8 EncryptedEssenceUL[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x0b, 0x01, 0x00 };
+	const UInt8 EncryptedEssenceUL[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x0b, 0x01, 0x00 };
 	ContainerUL->ReadValue(EncryptedEssenceUL, 16);
 
 	// Add a crypto track
@@ -661,13 +577,13 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint
 	if(Ptr) Ptr->ReadValue(EssenceUL);
 
 	// Set the encryption algorithm
-	const Uint8 CypherLabel[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x02, 0x09, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00 };
+	const UInt8 CypherLabel[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x02, 0x09, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00 };
 	Ptr = CryptoContext->AddChild("CipherAlgorithm");
 	if(Ptr) Ptr->ReadValue(CypherLabel, 16);
 
 	// Specify no MIC
-	const Uint8 MICLabel_NULL[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	const Uint8 MICLabel_HMAC_SHA1[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x02, 0x09, 0x02, 0x02, 0x01, 0x00, 0x00, 0x00 };
+	const UInt8 MICLabel_NULL[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	const UInt8 MICLabel_HMAC_SHA1[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x02, 0x09, 0x02, 0x02, 0x01, 0x00, 0x00, 0x00 };
 	Ptr = CryptoContext->AddChild("MICAlgorithm");
 	if(Ptr) 
 	{
@@ -709,10 +625,10 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint
 	}
 
 	// Copy the datat into a byte buffer
-	Uint8 KeyBuffU8[16];
+	UInt8 KeyBuffU8[16];
 	{
 		int i;
-		for(i=0; i<16; i++) KeyBuffU8[i] = (Uint8)KeyBuff[i];
+		for(i=0; i<16; i++) KeyBuffU8[i] = (UInt8)KeyBuff[i];
 	}
 
 	Ptr = CryptoContext->AddChild("CryptographicKeyID");
@@ -739,7 +655,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint
 //! Process the metadata for a given package on a decryption pass
 /*! /ret true if all OK, else false
  */
-bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint32 BodySID, PackagePtr ThisPackage, bool LoadInfo /*=false*/)
+bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt32 BodySID, PackagePtr ThisPackage, bool LoadInfo /*=false*/)
 {
 	// Decryption Key
 	DataChunkPtr Key;
@@ -789,19 +705,6 @@ bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, Uint
 	// Don't validate or set up crypto if not loading data
 	if(!LoadInfo) return true;
 
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
-//## warning("Not checking if this package is actually encrypted or not!!\n");
 //## warning("Not checking if this package is actually encrypted or not!!\n");
 	
 	if(!Key)

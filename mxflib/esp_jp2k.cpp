@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.3 2005/07/22 18:00:11 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.4 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -37,7 +37,7 @@ using namespace mxflib;
 namespace
 {
 	//! Modified UUID for <Source Type>
-	const Uint8 JP2K_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 'j', 'p', '2',  'k', 0x00, 0x00, 0x00 };
+	const UInt8 JP2K_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 'j', 'p', '2',  'k', 0x00, 0x00, 0x00 };
 
 	//! Array of known, or presumed, marker segments
 	/*! All other markers followed by another marker
@@ -111,7 +111,7 @@ EssenceStreamDescriptorList mxflib::JP2K_EssenceSubParser::IdentifyEssence(FileH
 	const UInt8 J2C_Signature[] = { 0xff, 0x4f, 0xff, 0x51 };
 
 	int BufferBytes;
-	Uint8 Buffer[12];
+	UInt8 Buffer[12];
 
 	EssenceStreamDescriptorList Ret;
 
@@ -184,7 +184,7 @@ EssenceStreamDescriptorList mxflib::JP2K_EssenceSubParser::IdentifyEssence(FileH
 WrappingOptionList mxflib::JP2K_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
 	// TODO: Fill in the base wrapping UL
-	Uint8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x0c, 0x01, 0x00 };
+	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x0c, 0x01, 0x00 };
 	WrappingOptionList Ret;
 
 	// If the source format isn't <Source Type> then we can't wrap the essence
@@ -243,7 +243,7 @@ WrappingOptionList mxflib::JP2K_EssenceSubParser::IdentifyWrappingOptions(FileHa
  *  not be the frame rate of this essence
  *	\note This is going to take a lot of memory in clip wrapping! 
  */
-DataChunkPtr mxflib::JP2K_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/)
+DataChunkPtr mxflib::JP2K_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/)
 {
 	// Return value
 	DataChunkPtr Ret;
@@ -261,7 +261,7 @@ DataChunkPtr mxflib::JP2K_EssenceSubParser::Read(FileHandle InFile, Uint32 Strea
 
 	// Make a datachunk with enough space
 	Ret = new DataChunk;
-	Ret->Resize((Uint32)Bytes);
+	Ret->Resize((UInt32)Bytes);
 
 	// Read the data
 	FileRead(InFile, Ret->Data, Bytes);
@@ -284,10 +284,10 @@ DataChunkPtr mxflib::JP2K_EssenceSubParser::Read(FileHandle InFile, Uint32 Strea
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Length mxflib::JP2K_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*/)
+Length mxflib::JP2K_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count /*=1*/)
 {
 	const unsigned int BUFFERSIZE = 32768;
-	Uint8 *Buffer = new Uint8[BUFFERSIZE];
+	UInt8 *Buffer = new UInt8[BUFFERSIZE];
 
 	// Move to the current position
 	if(CurrentPos == 0) CurrentPos = DataStart;
@@ -464,18 +464,18 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 
 	/* Picture Essence Descriptor Items */
 
-	Ret->SetUint("FrameLayout", 0);
+	Ret->SetUInt("FrameLayout", 0);
 
-	Ret->SetUint("StoredWidth", Width-XTOsiz);
-	Ret->SetUint("StoredHeight", Height-YTOsiz);
-	Ret->SetUint("SampledWidth", Width);
-	Ret->SetUint("SampledHeight", Height);
-	Ret->SetUint("SampledXOffset", XTOsiz);
-	Ret->SetUint("SampledYOffset", YTOsiz);
-	Ret->SetUint("DisplayWidth", Width-XOsiz);
-	Ret->SetUint("DisplayHeight", Height-YOsiz);
-	Ret->SetUint("DisplayXOffset", XOsiz);
-	Ret->SetUint("DisplayYOffset", YOsiz);
+	Ret->SetUInt("StoredWidth", Width-XTOsiz);
+	Ret->SetUInt("StoredHeight", Height-YTOsiz);
+	Ret->SetUInt("SampledWidth", Width);
+	Ret->SetUInt("SampledHeight", Height);
+	Ret->SetUInt("SampledXOffset", XTOsiz);
+	Ret->SetUInt("SampledYOffset", YTOsiz);
+	Ret->SetUInt("DisplayWidth", Width-XOsiz);
+	Ret->SetUInt("DisplayHeight", Height-YOsiz);
+	Ret->SetUInt("DisplayXOffset", XOsiz);
+	Ret->SetUInt("DisplayYOffset", YOsiz);
 
 	MDObjectPtr AspectItem = Ret->AddChild("AspectRatio");
 	if(AspectItem)
@@ -555,7 +555,7 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromJP2(FileHandle InF
 /*! \note The file position pointer is left at the start of the chunk at the end of 
  *		  this function
  */
-Length mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Length Count) 
+Length mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, Length Count) 
 { 
 	// TODO: Add better error reporting - it currently just exits on most errors
 	

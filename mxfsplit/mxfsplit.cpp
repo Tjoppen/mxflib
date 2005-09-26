@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.12 2004/12/18 20:16:26 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.13 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -102,8 +102,8 @@ int main_process(int argc, char *argv[])
 {
 	printf("MXFlib File Splitter\n" );
 
-	LoadTypes("types.xml");
-	MDOType::LoadDict("xmldict.xml");
+	// Load the dictionaries
+	LoadDictionary("dict.xml");
 
 	int num_options = 0;
 	for(int i=1; i<argc; i++)
@@ -183,7 +183,7 @@ int main_process(int argc, char *argv[])
 	TestFile->GetRIP();
 
 	RIP::iterator it = TestFile->FileRIP.begin();
-	Uint32 iPart = 0;
+	UInt32 iPart = 0;
 	while(it != TestFile->FileRIP.end())
 	{
 		iPart++;
@@ -287,7 +287,7 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 //			const char* n=Object->Name().c_str();
 			if(Object->Value)
 			{
-//				Uint32 sz=Object->Value->GetData().Size;
+//				UInt32 sz=Object->Value->GetData().Size;
 				if( Object->Value->GetData().Size > MAX_DUMPSIZE )
 				{
 					printf("%s%s = RAW[0x%08x]", Prefix.c_str(), Object->Name().c_str(), Object->Value->GetData().Size );
@@ -370,7 +370,7 @@ static void DumpIndex( PartitionPtr ThisPartition )
 		
 			// Demonstrate this new segment
 			
-			Uint32 Streams = 1;
+			UInt32 Streams = 1;
 			MDObjectPtr DeltaEntryArray = (*it)["DeltaEntryArray"];
 			if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
 			{
@@ -381,8 +381,8 @@ static void DumpIndex( PartitionPtr ThisPartition )
 			Position Start = (*it)->GetInt64("IndexStartPosition");
 			Length Duration = (*it)->GetInt64("IndexDuration");
 			
-			Uint32 IndexSID = (*it)->GetUint("IndexSID");
-			Uint32 BodySID = (*it)->GetUint("BodySID");
+			UInt32 IndexSID = (*it)->GetUInt("IndexSID");
+			UInt32 BodySID = (*it)->GetUInt("BodySID");
 			
 			if(Duration == 0) printf("CBR Index Table Segment (covering whole Essence Container) :\n");
 			else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
@@ -396,7 +396,7 @@ static void DumpIndex( PartitionPtr ThisPartition )
 			printf( "\n Bytestream Order:\n" );
 			for(i=0; i<Duration; i++)
 			{
-				Uint32 j;
+				UInt32 j;
 				for(j=0; j<Streams; j++)
 				{
 					IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
@@ -409,7 +409,7 @@ static void DumpIndex( PartitionPtr ThisPartition )
 			printf( "\n Presentation Order:\n" );
 			for(i=0; i<Duration; i++)
 			{
-				Uint32 j;
+				UInt32 j;
 				for(j=0; j<Streams; j++)
 				{
 					IndexPosPtr Pos = Table->Lookup(Start + i,j);
@@ -431,7 +431,7 @@ static void DumpIndex( PartitionPtr ThisPartition )
 
 static void DumpBody( PartitionPtr ThisPartition )
 {
-	Uint32 BodySID = ThisPartition->GetUint( "BodySID" );
+	UInt32 BodySID = ThisPartition->GetUInt( "BodySID" );
 
 	if( 0==BodySID )
 	{

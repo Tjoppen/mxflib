@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.6 2005/03/25 13:18:12 terabrit Exp $
+ *	\version $Id: helper.cpp,v 1.7 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -41,10 +41,10 @@ using namespace mxflib;
  *	\note If the size is specified it will be overridden for lengths that will not fit in Size,
  *        <b>providing</b> they will fit in MaxSize. However an error message will be produced.
  */
-Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0*/)
+UInt32 mxflib::MakeBER(UInt8 *Data, int MaxSize, UInt64 Length, UInt32 Size /*=0*/)
 {
 	// Mask showing forbidden bits for various sizes
-	static const Uint64 Masks[9] = { UINT64_C(0xffffffffffffff80), UINT64_C(0xffffffffffffff00), 
+	static const UInt64 Masks[9] = { UINT64_C(0xffffffffffffff80), UINT64_C(0xffffffffffffff00), 
 									 UINT64_C(0xffffffffffff0000), UINT64_C(0xffffffffff000000),
 									 UINT64_C(0xffffffff00000000), UINT64_C(0xffffff0000000000),
 									 UINT64_C(0xffff000000000000), UINT64_C(0xff00000000000000), 0 };
@@ -75,7 +75,7 @@ Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0
 		else Size = 9;
 	}
 
-	if(Size >(Uint32) MaxSize)
+	if(Size >(UInt32) MaxSize)
 	{
 		error("Buffer size given to MakeBER() is %d, however length 0x%s will not fit in that size\n",
 			  MaxSize, Int64toHexString(Length).c_str());
@@ -87,7 +87,7 @@ Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0
 	// Shortform encoding
 	if(Size == 1)
 	{
-		Data[0] =(Uint8) Length;
+		Data[0] =(UInt8) Length;
 		return 1;
 	}
 
@@ -100,7 +100,7 @@ Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0
 	// More speed efficient to write backwards as no need to locate the start
 	while(i)
 	{
-		Data[i] = (Uint8)Length & 0xff;
+		Data[i] = (UInt8)Length & 0xff;
 		Length >>= 8;
 		i--;
 	}
@@ -116,7 +116,7 @@ Uint32 mxflib::MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size /*=0
  *  \return The length, or -1 if the data was not a valid BER length
  *  \note MaxSize is signed to allow calling code to end up with -ve available bytes!
  */
-Length mxflib::ReadBER(Uint8 **Data, int MaxSize)
+Length mxflib::ReadBER(UInt8 **Data, int MaxSize)
 {
 	if(MaxSize <= 0) return -1;
 
@@ -148,20 +148,20 @@ Length mxflib::ReadBER(Uint8 **Data, int MaxSize)
 }
 
 
-//! Encode a Uint64 as a BER OID subid (7 bits per byte)
+//! Encode a UInt64 as a BER OID subid (7 bits per byte)
 //! length > 0: length is maximum length of subid
 //! length == 0: as long as necessary
 //! length < 0: -length is EXACT length of subid
 //! returns number of bytes UNUSED (-ve is error)
-int mxflib::EncodeOID( Uint8* presult, Uint64 subid, int length )
+int mxflib::EncodeOID( UInt8* presult, UInt64 subid, int length )
 {
-	Uint8 rev[10];			// intermediate result (reverse byte order)
-	Uint8 *prev = rev;
+	UInt8 rev[10];			// intermediate result (reverse byte order)
+	UInt8 *prev = rev;
 	int count = 0;			// bytes required to represent
 
 	do
 	{
-		*prev++ = (Uint8)(subid & 0x7f) | 0x80; // set msb of every byte
+		*prev++ = (UInt8)(subid & 0x7f) | 0x80; // set msb of every byte
 		subid >>= 7;
 		count++;
 	}
@@ -193,8 +193,8 @@ int mxflib::EncodeOID( Uint8* presult, Uint64 subid, int length )
 //! Build a new UMID
 UMIDPtr mxflib::MakeUMID(int Type, const UUIDPtr AssetID)
 {
-	static const Uint8 UMIDBase[10] = { 0x06, 0x0a, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
-	Uint8 Buffer[32];
+	static const UInt8 UMIDBase[10] = { 0x06, 0x0a, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
+	UInt8 Buffer[32];
 
 	// Set the non-varying base of the UMID
 	memcpy(Buffer, UMIDBase, 10);
@@ -221,7 +221,7 @@ UMIDPtr mxflib::MakeUMID(int Type, const UUIDPtr AssetID)
 	// If no valid AssetID is provided, create a new one
 	if( ( !AssetID ) || ( AssetID->Size() != 16 ) )
 	{
-		Uint8 UUIDbuffer[16];
+		UInt8 UUIDbuffer[16];
 		MakeUUID(UUIDbuffer);
 		memcpy( &Buffer[16], &UUIDbuffer[0], 16 );
 	}
@@ -235,13 +235,13 @@ UMIDPtr mxflib::MakeUMID(int Type, const UUIDPtr AssetID)
 
 
 //! Read a "Chunk" from a non-MXF file
-DataChunkPtr mxflib::FileReadChunk(FileHandle InFile, Uint64 Size)
+DataChunkPtr mxflib::FileReadChunk(FileHandle InFile, UInt64 Size)
 {
 	DataChunkPtr Ret = new DataChunk;
-	Ret->Resize((Uint32)Size);
+	Ret->Resize((UInt32)Size);
 
 	// Read the data (and shrink chunk to fit)
-	Ret->Resize((Uint32)FileRead(InFile, Ret->Data,(Uint32) Size));
+	Ret->Resize((UInt32)FileRead(InFile, Ret->Data,(UInt32) Size));
 
 	return Ret;
 }
@@ -313,7 +313,7 @@ void mxflib::SetDictionaryPath(std::string NewPath)
 }
 
 //! Search for a file of a specified name in the current dictionary search path
-/*! If the filname is either absolute, or relative to "." or ".." then the 
+/*! If the filename is either absolute, or relative to "." or ".." then the 
  *  paths are not searched - just the location specified by that filename.
  *  \return the full path and name of the file, or "" if not found
  */
@@ -427,12 +427,12 @@ std::string mxflib::SearchPath(const char *Path, const char *Filename)
 // Is a given sequence of bytes a partition pack key?
 // We first check if byte 13 == 1 which will be true for all partition packs,
 // but is false for all GC sets and packs. Once this matches we can do a full memcmp.
-bool mxflib::IsPartitionKey(const Uint8 *Key)
+bool mxflib::IsPartitionKey(const UInt8 *Key)
 {
 	if(Key[12] != 1) return false;
 
 	// DRAGONS: This has version 1 hard coded as byte 8
-	const Uint8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
+	const UInt8 DegeneratePartition[13] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x01 };
 	if( memcmp(Key, DegeneratePartition, 13) == 0 )
 	{
 		return true;
@@ -468,7 +468,7 @@ bool mxflib::IsWideString(std::string &String)
 
 //! Read hex values separated by any of 'Sep'
 /*! /ret number of values read */
-int mxflib::ReadHexString(const char **Source, int Max, Uint8 *Dest, const char *Sep)
+int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char *Sep)
 {
 	/* Note - Pointer to pointer used for Source
 	**		  This allows the caller's pointer to be updated to
@@ -479,7 +479,7 @@ int mxflib::ReadHexString(const char **Source, int Max, Uint8 *Dest, const char 
 	*/
 
 	int Count = 0;
-	Uint8 current = 0;
+	UInt8 current = 0;
 	int Started = 0;
 
 	/* Skip leading whitespace (Abort if end of string) */

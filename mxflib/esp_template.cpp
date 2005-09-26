@@ -1,11 +1,11 @@
-/*! \file	esp_wavepcm.cpp
- *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
+/*! \file	esp_template.cpp
+ *	\brief	Implementation of class that handles parsing of <File Type>
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_template.cpp,v 1.1 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
- *	Copyright (c) 2003, Matt Beard
+ *	Copyright (c) 2004, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 #include <math.h>	// For "floor"
 
@@ -36,34 +36,32 @@ using namespace mxflib;
 //! Local definitions
 namespace
 {
-	//! Modified UUID for RIFF-wrapped wave PCM audio
-	const UInt8 WAVE_PCM_RIFF_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 'R', 'I', 'F',  'F', 'W', 'A', 'V' };
+	//! Modified UUID for <Source Type>
+	// TODO: Fill in new UUID here
+	const UInt8 TEMPLATE_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 'x', 'x', 'x',  'x', 'x', 'x', 'x' };
 }
 
 
 //! Examine the open file and return a list of essence descriptors
 /*! \note This call will modify properties SampleRate, DataStart and DataSize */
-EssenceStreamDescriptorList mxflib::WAVE_PCM_EssenceSubParser::IdentifyEssence(FileHandle InFile)
+EssenceStreamDescriptorList mxflib::TEMPLATE_EssenceSubParser::IdentifyEssence(FileHandle InFile)
 {
 	int BufferBytes;
-	UInt8 Buffer[12];
+	UInt8 Buffer[ <xxx> ];
 
 	EssenceStreamDescriptorList Ret;
 
-	// Read the first 12 bytes of the file to allow us to identify it
+	// Read the first <xxx> bytes of the file to allow us to identify it
 	FileSeek(InFile, 0);
-	BufferBytes = (int)FileRead(InFile, Buffer, 12);
+	BufferBytes = (int)FileRead(InFile, Buffer, <xxx>);
 
-	// If the file is smaller than 12 bytes give up now!
-	if(BufferBytes < 12) return Ret;
+	// If the file is smaller than <xxx> bytes give up now!
+	if(BufferBytes < <xxx>) return Ret;
 
-	// If the file doesn't start with "RIFF" if can't be a wave file
-	if((Buffer[0] != 'R') || (Buffer[1] != 'I') || (Buffer[2] != 'F') || (Buffer[3] != 'F')) return Ret;
+	// If the file doesn't start with <...> if can't be a <File Type> file
+	if( <Not our type> ) return Ret;
 
-	// Just because the file is a RIFF file doesn't mean it's a wave file!
-	if((Buffer[8] != 'W') || (Buffer[9] != 'A') || (Buffer[10] != 'V') || (Buffer[11] != 'E')) return Ret;
-
-	MDObjectPtr DescObj = BuildWaveAudioDescriptor(InFile, 0);
+	MDObjectPtr DescObj = BuildDescriptor(InFile, 0);
 
 	// Quit here if we couldn't build an essence descriptor
 	if(!DescObj) return Ret;
@@ -71,8 +69,8 @@ EssenceStreamDescriptorList mxflib::WAVE_PCM_EssenceSubParser::IdentifyEssence(F
 	// Build a descriptor with a zero ID (we only support single stream files)
 	EssenceStreamDescriptor Descriptor;
 	Descriptor.ID = 0;
-	Descriptor.Description = "Wave audio essence";
-	Descriptor.SourceFormat.Set(WAVE_PCM_RIFF_Format);
+	Descriptor.Description = <File Type>;
+	Descriptor.SourceFormat.Set(TEMPLATE_Format);
 	Descriptor.Descriptor = DescObj;
 
 	// Record a pointer to the descriptor so we can check if we are asked to process this source
@@ -91,27 +89,30 @@ EssenceStreamDescriptorList mxflib::WAVE_PCM_EssenceSubParser::IdentifyEssence(F
  *		   of the essence stream requiring wrapping
  *	\note The options should be returned in an order of preference as the caller is likely to use the first that it can support
  */
-WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
+WrappingOptionList mxflib::TEMPLATE_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
-	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x02, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x06, 0x01, 0x00 };
+	// TODO: Fill in the base wrapping UL
+	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 	WrappingOptionList Ret;
 
-	// If the source format isn't RIFF-wrapped wave PCM then we can't wrap the essence
-	if(memcmp(Descriptor.SourceFormat.GetValue(), WAVE_PCM_RIFF_Format, 16) != 0) return Ret;
+	// If the source format isn't <Source Type> then we can't wrap the essence
+	if(memcmp(Descriptor.SourceFormat.GetValue(), TEMPLATE_Format, 16) != 0) return Ret;
 
 	// The identify step configures some member variables so we can only continue if we just identified this very source
 	if((!CurrentDescriptor) || (Descriptor.Descriptor != CurrentDescriptor)) return Ret;
+
+	// TODO: Only fill in the supported wrapping types
 
 	// Build a WrappingOption for clip wrapping
 	WrappingOptionPtr ClipWrap = new WrappingOption;
 
 	ClipWrap->Handler = this;							// Set us as the handler
-	ClipWrap->Description = "SMPTE 382M clip wrapping of wave audio";
+	ClipWrap->Description = "SMPTE xxxM clip wrapping of <File Type>";
 
 	BaseUL[14] = 0x02;									// Clip wrapping
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
-	ClipWrap->GCEssenceType = 0x16;						// GP Sound wrapping type
-	ClipWrap->GCElementType = 0x02;						// Wave clip wrapped elemenet
+	ClipWrap->GCEssenceType = 0x<yy>;					// <xx> wrapping type
+	ClipWrap->GCElementType = 0x<zz>;					// Clip wrapped elemenet
 	ClipWrap->ThisWrapType = WrappingOption::Clip;		// Clip wrapping
 	ClipWrap->CanSlave = true;							// Can use non-native edit rate
 	ClipWrap->CanIndex = false;							// We CANNOT currently index this essence
@@ -122,12 +123,12 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	WrappingOptionPtr FrameWrap = new WrappingOption;
 
 	FrameWrap->Handler = this;							// Set us as the handler
-	FrameWrap->Description = "SMPTE 382M frame wrapping of wave audio";
+	FrameWrap->Description = "SMPTE xxxM frame wrapping of <File Type>";
 
 	BaseUL[14] = 0x01;									// Frame wrapping
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
-	FrameWrap->GCEssenceType = 0x16;					// GP Sound wrapping type
-	FrameWrap->GCElementType = 0x01;					// Wave frame wrapped elemenet
+	FrameWrap->GCEssenceType = 0x<yy>;					// <xx> wrapping type
+	FrameWrap->GCElementType = 0x<zz>;					// Frame wrapped elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = true;							// Can use non-native edit rate
 	FrameWrap->CanIndex = false;						// We CANNOT currently index this essence
@@ -135,14 +136,13 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	FrameWrap->BERSize = 0;								// No BER size forcing
 
 	// Add the two wrapping options 
-	// Note: clip wrapping is preferred as this works best for audio-only files
-	Ret.push_back(ClipWrap);
+	// Note: <aaa> wrapping is preferred as this works best for <This type>
+	// TODO: Select the appropriate order for wrapping
 	Ret.push_back(FrameWrap);
+	Ret.push_back(ClipWrap);
 
 	return Ret;
 }
-
-
 
 
 //! Read a number of wrapping items from the specified stream and return them in a data chunk
@@ -152,7 +152,7 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
  *  not be the frame rate of this essence
  *	\note This is going to take a lot of memory in clip wrapping! 
  */
-DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/ /*, IndexTablePtr Index */ /*=NULL*/)
+DataChunkPtr mxflib::TEMPLATE_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/)
 {
 	// Move to the current position
 	if(CurrentPos == 0) CurrentPos = DataStart;
@@ -184,7 +184,7 @@ DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, UInt32 S
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Length mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count /*=1*/ /*, IndexTablePtr Index*/ /*=NULL*/)
+Length mxflib::TEMPLATE_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count /*=1*/)
 {
 	const unsigned int BUFFERSIZE = 32768;
 	UInt8 *Buffer = new UInt8[BUFFERSIZE];
@@ -220,11 +220,14 @@ Length mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream
 //! Get the preferred edit rate (if one is known)
 /*! \return The prefered edit rate or 0/0 if note known
  */
-Rational mxflib::WAVE_PCM_EssenceSubParser::GetPreferredEditRate(void)
+Rational mxflib::TEMPLATE_EssenceSubParser::GetPreferredEditRate(void)
 {
+	// TODO: This code is designed for audio essence (probably the hardest case) 
+	//       Rewrite or simplify for other essence types - generally it will be obvious what to use
+
 	/* Pick a sensible edit rate */
 	/*****************************/
-	
+
 	/* Try 24ms first */
 
 	// Calculate the number of samples in a 24ms frame
@@ -250,14 +253,15 @@ Rational mxflib::WAVE_PCM_EssenceSubParser::GetPreferredEditRate(void)
 		return Rational(1000,100);
 	}
 
-	// 1Hz will always work for Wave audio
+	// 1Hz will always work for <File Type>
+	// TODO: Check this is true
 	return Rational(1,1);
 }
 
 
 //! Work out wrapping sequence
 /*! \return true if a sequence was found, otherwise false */
-bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
+bool mxflib::TEMPLATE_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 {
 	// Delete any previous sequence data
 	if(SampleSequence != NULL) 
@@ -290,7 +294,7 @@ bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 	// Put a reasonable upper limit on the sequence length
 	if(SampleSequenceSize >= 10000)
 	{
-		error("WAVE_EssenceSubParser::CalcWrappingSequence could not find a sequence < 10000 edit units long!\n");
+		error("TEMPLATE_EssenceSubParser::CalcWrappingSequence could not find a sequence < 10000 edit units long!\n");
 		return false;
 	}
 
@@ -317,7 +321,7 @@ bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 //! Get the current position in SetEditRate() sized edit units
 /*! \return 0 if position not known
  */
-Position WAVE_PCM_EssenceSubParser::GetCurrentPosition(void)
+Position TEMPLATE_EssenceSubParser::GetCurrentPosition(void)
 {
 	if(SampleSize == 0) return 0;
 
@@ -363,92 +367,13 @@ Position WAVE_PCM_EssenceSubParser::GetCurrentPosition(void)
 
 
 
-//! Read the sequence header at the specified position in a Wave file to build an essence descriptor
+//! Read the essence information at the specified position in the source file and build an essence descriptor
 /*! \note This call will modify properties SampleRate, DataStart and DataSize */
-MDObjectPtr mxflib::WAVE_PCM_EssenceSubParser::BuildWaveAudioDescriptor(FileHandle InFile, UInt64 Start /*=0*/)
+MDObjectPtr mxflib::TEMPLATE_EssenceSubParser::BuildDescriptor(FileHandle InFile, UInt64 Start /*=0*/)
 {
-	const unsigned int ID_RIFF = 0x52494646;		//! "RIFF"
-	const unsigned int ID_fmt  = 0x666d7420;		//! "fmt "
-	const unsigned int ID_data = 0x64617461;		//! "data"
-
 	MDObjectPtr Ret;
 
-	FileSeek(InFile, Start);
-	U32Pair Header = ReadRIFFHeader(InFile);
-
-	// Can't build a descriptor if it isn't a RIFF file!
-	if(Header.first != ID_RIFF) return Ret;
-	if(Header.second < 4) return Ret;
-
-	// Read the RIFF file type (always 4 bytes)
-	DataChunkPtr ChunkData = FileReadChunk(InFile, 4);
-	
-	// Can't build a descriptor if it isn't a WAVE file!
-	if(memcmp(ChunkData->Data, "WAVE", 4) != 0) return Ret;
-
-	// Scan the chunks within the RIFF file
-	// DRAGONS: To do this properly we would check the file size in the RIFF chunk
-	// DRAGONS: "LIST" chunks are "sets" and are not yet supported
-	for(;;)
-	{
-		Header = ReadRIFFHeader(InFile);
-
-		// End of file?
-		if((Header.first == 0) && (Header.second == 0)) break;
-
-		if(Header.first == ID_fmt)
-		{
-			ChunkData = FileReadChunk(InFile, Header.second);
-			if(ChunkData->Size < 16) return Ret;
-
-			UInt16 AudioFormat = GetU16_LE(&ChunkData->Data[0]);
-			if(AudioFormat != 1) return Ret;
-
-			Ret = new MDObject("WaveAudioDescriptor");
-			if(!Ret) return Ret;
-
-			// Set the sample rate
-			char Buffer[32];
-			SampleRate = GetU32_LE(&ChunkData->Data[4]);
-			sprintf(Buffer, "%d/1", SampleRate);
-			Ret->SetString("SampleRate", Buffer);
-			Ret->SetString("AudioSamplingRate", Buffer);
-
-			// Must assume not locked!
-			Ret->SetUInt("Locked", 0);
-
-			// Set channel count
-			UInt16 Chan = GetU16_LE(&ChunkData->Data[2]);
-			Ret->SetUInt("ChannelCount", Chan);
-
-			// Set quantization bits
-			UInt16 Quant = GetU16_LE(&ChunkData->Data[14]);
-			Ret->SetUInt("QuantizationBits", Quant);
-
-			// Calculate the number of bytes per sample
-			SampleSize = ((Quant+7) / 8) * Chan;
-
-			// Set the block alignment
-			Ret->SetUInt("BlockAlign", GetU16_LE(&ChunkData->Data[12]));
-
-			// Set the byte-rate
-			Ret->SetUInt("AvgBps", GetU32_LE(&ChunkData->Data[8]));
-		}
-		else if(Header.first == ID_data)
-		{
-			// Record the location of the audio data
-			DataStart = FileTell(InFile);
-			DataSize = Header.second;
-
-			// ...and skip the chunk value
-			FileSeek(InFile, FileTell(InFile) + Header.second);
-		}
-		else
-		{
-			// Skip the chunk value
-			FileSeek(InFile, FileTell(InFile) + Header.second);
-		}
-	}
+	// TODO: Build an essence descriptor
 
 	return Ret;
 }
@@ -458,7 +383,7 @@ MDObjectPtr mxflib::WAVE_PCM_EssenceSubParser::BuildWaveAudioDescriptor(FileHand
 /*! \note The file position pointer is left at the start of the chunk at the end of 
  *		  this function
  */
-Length mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count) 
+Length mxflib::TEMPLATE_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count) 
 { 
 	Length Ret;
 	UInt32 SamplesPerEditUnit;

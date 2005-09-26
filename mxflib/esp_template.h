@@ -1,11 +1,11 @@
-/*! \file	esp_jp2k.h
- *	\brief	Definition of class that handles parsing of JPEG 2000 files
+/*! \file	esp_template.h
+ *	\brief	Definition of class that handles parsing of <File Type>
  *
- *	\version $Id: esp_jp2k.h,v 1.2 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_template.h,v 1.1 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
- *	Copyright (c) 2005, Matt Beard
+ *	Copyright (c) 2004, Matt Beard
  *
  *	This software is provided 'as-is', without any express or implied warranty.
  *	In no event will the authors be held liable for any damages arising from
@@ -27,21 +27,19 @@
  *	     distribution.
  */
 
-#ifndef MXFLIB__ESP_JP2K_H
-#define MXFLIB__ESP_JP2K_H
+#ifndef MXFLIB__ESP_TEMPLATE_H
+#define MXFLIB__ESP_TEMPLATE_H
 
 #include <math.h>	// For "floor"
 
 
 namespace mxflib
 {
-	class JP2K_EssenceSubParser : public EssenceSubParserBase
+	class TEMPLATE_EssenceSubParser : public EssenceSubParserBase
 	{
 	protected:
 		UInt32 SampleRate;									//!< The sample rate of this essence
 		Rational UseEditRate;								//!< The edit rate to use for wrapping this essence
-
-		Position PictureNumber;								//!< The picture number of the last picture read, zero before any read
 
 		Position DataStart;									//!< Start of essence data within the file
 		Length DataSize;									//!< Total size of the essence data within the file
@@ -52,6 +50,12 @@ namespace mxflib
 															 *	 \note Other functions may move the file
 															 *         pointer between calls to our functions */
 
+		int SampleSize;										//!< Size of each sample in bytes (if constant)
+		UInt32 ConstSamples;								//!< Number of samples per edit unit (if constant, else zero)
+		int SampleSequenceSize;								//!< Size of SampleSequence if used
+		UInt32 *SampleSequence;								//!< Array of counts of samples per edit unit for non integer relationships between edit rate and sample rate
+		int SequencePos;									//!< Current position in the sequence (i.e. next entry to use)
+
 		MDObjectParent CurrentDescriptor;					//!< Pointer to the last essence descriptor we built
 															/*!< This is used as a quick-and-dirty check that we know how to process this source */
 
@@ -60,16 +64,17 @@ namespace mxflib
 		class ESP_EssenceSource : public EssenceSubParserBase::ESP_EssenceSource
 		{
 		protected:
-			Position EssenceBytePos;						//!< The current byte offset within the input file
-			bool CountSet;									//!< Set true once we know the size of the current item
-			Length ByteCount;								//!< The size of the current essence item (if known)
+			Position EssenceBytePos;
+			bool CountSet;
+			Length ByteCount;
+			Position Offset;
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
-				JP2K_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, JP2K_EssenceSubParser);
+				TEMPLATE_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, TEMPLATE_EssenceSubParser);
 				EssenceBytePos = pCaller->CurrentPos;
 				if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
 
@@ -82,7 +87,8 @@ namespace mxflib
 			virtual Length GetEssenceDataSize(void) 
 			{
 				CountSet = true;
-				JP2K_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, JP2K_EssenceSubParser);
+				Offset = 0;
+				TEMPLATE_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, TEMPLATE_EssenceSubParser);
 				ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
 				return ByteCount;
 			};
@@ -100,7 +106,7 @@ namespace mxflib
 				{
 					Started = true;
 
-					JP2K_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, JP2K_EssenceSubParser);
+					TEMPLATE_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, TEMPLATE_EssenceSubParser);
 
 					// Move to the selected position
 					if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
@@ -112,14 +118,16 @@ namespace mxflib
 		};
 
 		// Give our essence source class privilaged access
-		friend class JP2K_EssenceSubParser::ESP_EssenceSource;
+		friend class TEMPLATE_EssenceSubParser::ESP_EssenceSource;
 
 	public:
-		JP2K_EssenceSubParser()
+		TEMPLATE_EssenceSubParser()
 		{
-			PictureNumber = 0;
-
 			SampleRate = 1;
+			ConstSamples = 0;
+			SampleSequenceSize = 0;
+			SampleSequence = NULL;
+			SequencePos = 0;
 			DataStart = 0;
 			DataSize = 0;
 			CurrentPos = 0;
@@ -131,7 +139,7 @@ namespace mxflib
 		}
 
 		//! Build a new parser of this type and return a pointer to it
-		virtual EssenceSubParserPtr NewParser(void) const { return new JP2K_EssenceSubParser; }
+		virtual EssenceSubParserPtr NewParser(void) const { return new TEMPLATE_EssenceSubParser; }
 
 		//! Report the extensions of files this sub-parser is likely to handle
 		virtual StringList HandledExtensions(void)
@@ -142,7 +150,7 @@ namespace mxflib
 			//       This is used as a hint to the overall essence parser to decide which sub-parsers to try.
 			//       Calls may still be made to this sub-parser for files of different extensions, but this is a starting point.
 
-			ExtensionList.push_back("JP2");
+			// ExtensionList.push_back("XXX");
 
 			return ExtensionList;
 		}
@@ -162,36 +170,68 @@ namespace mxflib
 			CurrentPos = 0;
 		}
 
+
 		//! Set a non-native edit rate
 		/*! Must be called <b>after</b> Use()
 		 *	\return true if this rate is acceptable 
 		 */
 		virtual bool SetEditRate(Rational EditRate)
 		{
-			UseEditRate = EditRate;
+			// See if we can figure out a sequence for this rate
+			bool Ret = CalcWrappingSequence(EditRate);
 
-			// Pretend that the essence is sampled at whatever rate we are wrapping at
-			MDObjectPtr Ptr;
-			if(CurrentDescriptor) Ptr = CurrentDescriptor->AddChild("SampleRate");
-			if(Ptr)
+			// If we can then set the rate
+			if(Ret)
 			{
-				Ptr->SetInt("Numerator", UseEditRate.Numerator);
-				Ptr->SetInt("Denominator", UseEditRate.Denominator);
+				SequencePos = 0;
+				UseEditRate = EditRate;
 			}
-			
-			return true;
+
+			return Ret;
 		}
 
 		//! Get the current edit rate
 		virtual Rational GetEditRate(void) { return UseEditRate; }
 
-		//! Get the preferred edit rate
-		/*! \return The prefered edit rate which is currently 24/1
+		//! Get the preferred edit rate (if one is known)
+		/*! \return The prefered edit rate or 0/0 if note known
 		 */
-		virtual Rational GetPreferredEditRate(void) { return Rational(24, 1); };
+		virtual Rational GetPreferredEditRate(void);
+
+		//! Get BytesPerEditUnit, if Constant
+		virtual UInt32 GetBytesPerEditUnit(UInt32 KAGSize = 1)
+		{
+			// If we haven't determined the sample sequence we do it now
+			if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
+
+			UInt32 Ret = SampleSize*ConstSamples;
+
+			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 
+			{
+				// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
+				Ret += 16 + 4;
+
+				// Adjust for whole KAGs if required
+				if(KAGSize > 1)
+				{
+					// Work out how much short of the next KAG boundary we would be
+					UInt32 Remainder = Ret % KAGSize;
+					if(Remainder) Remainder = KAGSize - Remainder;
+
+					// Round up to the start of the next KAG
+					Ret += Remainder;
+
+					// If there is not enough space to fit a filler in the remaining space an extra KAG will be required
+					if((Remainder > 0) && (Remainder < 17)) Ret++;
+				}
+			}
+
+			return Ret;
+		}
+
 
 		//! Get the current position in SetEditRate() sized edit units
-		virtual Position GetCurrentPosition(void) { return PictureNumber; }
+		virtual Position GetCurrentPosition(void);
 
 		//! Read a number of wrapping items from the specified stream and return them in a data chunk
 		virtual DataChunkPtr Read(FileHandle InFile, UInt32 Stream, UInt64 Count = 1);
@@ -207,72 +247,15 @@ namespace mxflib
 
 
 	protected:
-		//! Type for multimap holding contents of the jp2 file header
-		typedef std::multimap<std::string, DataChunkPtr> HeaderType;
-
-		//! Multimap holding contents of the jp2 file header
-		HeaderType Header;
-
 		//! Work out wrapping sequence
 		bool CalcWrappingSequence(Rational EditRate);
 
-		//! Read the essence information from the codestream at the specified position in the source file and build an essence descriptor
-		/*! \note This call will modify properties SampleRate, DataStart and DataSize */
-		MDObjectPtr BuildDescriptorFromCodeStream(FileHandle InFile, Position Offset = 0 );
-
-		//! Read the essence information at the start of the "JP2" format source file and build an essence descriptor
-		/*! \note This call will modify properties SampleRate, DataStart and DataSize */
-		MDObjectPtr BuildDescriptorFromJP2(FileHandle InFile);
+		//! Read the essence information at the specified position in the source file and build an essence descriptor
+		MDObjectPtr BuildDescriptor(FileHandle InFile, UInt64 Start = 0);
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
-		Length ReadInternal(FileHandle InFile, UInt32 Stream, Length Count);
-
-		//! Parse a JP2 header at the start of the specified file into items in the Header multimap
-		bool ParseJP2Header(FileHandle InFile);
-
-		//! Parse a JPEG 2000 header at the specified offset in a file into items in the Header multimap
-		/*! This parsing includes the first tile-part header
-		 */
-		bool ParseJP2KCodestreamHeader(FileHandle InFile, Position Offset);
-
-
-		//! Return the greatest common divisor of two numbers
-		UInt32 GreatestCommonDivisor(UInt32 Large, UInt32 Small)
-		{
-			// Zero is never the GCD
-			if(Large == 0) return 1;
-
-			UInt32 Temp;
-
-			// The rest of the algorithm assumes Large >= Small
-			if(Large < Small)
-			{
-				Temp = Large;
-				Large = Small;
-				Small = Temp;
-			}
-
-			while (Small > 0)
-			{
-				Temp = Large % Small;
-				Large = Small;
-				Small = Temp;
-			}
-			
-			return Large;
-		}
-
-		//! Reduce the complexity of a given rational made from a pair of UInt32s
-		void ReduceRational(UInt32 &Numerator, UInt32 &Denominator)
-		{
-			if(Denominator == 1) return;
-
-			UInt32 GCD = GreatestCommonDivisor(Numerator, Denominator);
-			
-			Numerator /= GCD;
-			Denominator /= GCD;
-		}
+		Length ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count);
 	};
 }
 
-#endif // MXFLIB__ESP_JP2K_H
+#endif // MXFLIB__ESP_TEMPLATE_H

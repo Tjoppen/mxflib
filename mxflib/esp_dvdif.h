@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.4 2005/06/17 16:34:09 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -54,10 +54,10 @@ namespace mxflib
 		int SeqCount;										//!< Number of DIF sequences in a frame
 
 		// File buffering
-		Uint8 *Buffer;										//!< Buffer for efficient file reading
+		UInt8 *Buffer;										//!< Buffer for efficient file reading
 
 		int BuffCount;										//!< Count of bytes still unread in Buffer
-		Uint8 *BuffPtr;										//!< Pointer to next byte to read from Buffer
+		UInt8 *BuffPtr;										//!< Pointer to next byte to read from Buffer
 
 		MDObjectParent CurrentDescriptor;					//!< Pointer to the last essence descriptor we built
 															/*!< This is used as a quick-and-dirty check that we know how to process this source */
@@ -74,7 +74,7 @@ namespace mxflib
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
-			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, Uint32 UseStream, Uint64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
+			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
 				DV_DIF_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, DV_DIF_EssenceSubParser);
@@ -96,7 +96,7 @@ namespace mxflib
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 			 */
-			virtual DataChunkPtr GetEssenceData(Uint64 Size = 0, Uint64 MaxSize = 0)
+			virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0)
 			{
 				// Allow us to differentiate the first call
 				if(!Started)
@@ -152,7 +152,7 @@ namespace mxflib
 		virtual WrappingOptionList IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor);
 
 		//! Set a wrapping option for future Read and Write calls
-		virtual void Use(Uint32 Stream, WrappingOptionPtr &UseWrapping);
+		virtual void Use(UInt32 Stream, WrappingOptionPtr &UseWrapping);
 
 		//! Set a non-native edit rate
 		virtual bool SetEditRate(Rational EditRate);
@@ -161,10 +161,10 @@ namespace mxflib
 		virtual Rational GetEditRate(void) { return SelectedEditRate; }
 
 		//! Get BytesPerEditUnit, if Constant
-		virtual Uint32 GetBytesPerEditUnit(Uint32 KAGSize = 1)
+		virtual UInt32 GetBytesPerEditUnit(UInt32 KAGSize = 1)
 		{
 			// FIXME: Assumes 25Mbps
-			Uint32 Ret = (150 * 80 * SeqCount);
+			UInt32 Ret = (150 * 80 * SeqCount);
 
 			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 
 			{
@@ -175,7 +175,7 @@ namespace mxflib
 				if(KAGSize > 1)
 				{
 					// Work out how much short of the next KAG boundary we would be
-					Uint32 Remainder = Ret % KAGSize;
+					UInt32 Remainder = Ret % KAGSize;
 					if(Remainder) Remainder = KAGSize - Remainder;
 
 					// Round up to the start of the next KAG
@@ -193,16 +193,16 @@ namespace mxflib
 		virtual Position GetCurrentPosition(void);
 
 		//! Read a number of wrapping items from the specified stream and return them in a data chunk
-		virtual DataChunkPtr Read(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
+		virtual DataChunkPtr Read(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, Uint32 Stream, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/)
+		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/)
 		{
 			return new ESP_EssenceSource(this, InFile, Stream, Count/*, Index*/);
 		};
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
-		virtual Length Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count = 1/*, IndexTablePtr Index = NULL*/);
+		virtual Length Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Set a parser specific option
 		/*! \return true if the option was successfully set */
@@ -210,10 +210,10 @@ namespace mxflib
 
 	protected:
 		//! Read the header at the specified position in a DV file to build an essence descriptor
-		MDObjectPtr BuildCDCIEssenceDescriptor(FileHandle InFile, Uint64 Start = 0);
+		MDObjectPtr BuildCDCIEssenceDescriptor(FileHandle InFile, UInt64 Start = 0);
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
-		Length ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count/*, IndexTablePtr Index = NULL*/);
+		Length ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count/*, IndexTablePtr Index = NULL*/);
 	};
 }
 

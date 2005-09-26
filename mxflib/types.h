@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.3 2005/08/05 14:39:56 matt-beard Exp $
+ *	\version $Id: types.h,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -46,10 +46,10 @@ namespace mxflib
 	typedef Int64 Length;				//!< Lenth of an item in bytes
 	typedef Int64 Position;				//!< Position within an MXF file
 
-	typedef Uint16 Tag;					//!< 2-byte tag for local sets
+	typedef UInt16 Tag;					//!< 2-byte tag for local sets
 
-	//! Pair of Uint32 values
-	typedef std::pair<Uint32, Uint32> U32Pair;
+	//! Pair of UInt32 values
+	typedef std::pair<UInt32, UInt32> U32Pair;
 }
 
 
@@ -71,19 +71,19 @@ namespace mxflib
 	template <int SIZE> class Identifier /*: public RefCount<Identifier<SIZE> >*/
 	{
 	protected:
-		Uint8 Ident[SIZE];
+		UInt8 Ident[SIZE];
 	public:
-		Identifier(const Uint8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
+		Identifier(const UInt8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
 		Identifier(const SmartPtr<Identifier> ID) { ASSERT(SIZE == ID->Size()); if(!ID) memset(Ident,0,SIZE); else memcpy(Ident,ID->Ident, SIZE); };
 		
 		//! Set the value of the Identifier
-		void Set(const Uint8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
+		void Set(const UInt8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
 
 		//! Set an individual byte of the identifier
-		void Set(int Index, Uint8 Value) { if(Index < SIZE) Ident[Index] = Value; };
+		void Set(int Index, UInt8 Value) { if(Index < SIZE) Ident[Index] = Value; };
 
 		//! Get a read-only pointer to the identifier value
-		const Uint8 *GetValue(void) const { return Ident; };
+		const UInt8 *GetValue(void) const { return Ident; };
 
 		//! Get the size of the identifier
 		int Size(void) const { return SIZE; };
@@ -142,7 +142,7 @@ namespace mxflib
 		//! Construct a UL from a sequence of bytes
 		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
 		 */
-		UL(const Uint8 *ID) : Identifier16(ID) {};
+		UL(const UInt8 *ID) : Identifier16(ID) {};
 
 		//! Construct a UL as a copy of another UL
 		UL(const SmartPtr<UL> ID) { if(!ID) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
@@ -157,8 +157,8 @@ namespace mxflib
 		bool operator==(const UL RHS) 
 		{
 			// Most differences are in the second 8 bytes so we check those first
-			Uint8 const *pLHS = &Ident[8];
-			Uint8 const *pRHS = &RHS.Ident[8];
+			UInt8 const *pLHS = &Ident[8];
+			UInt8 const *pRHS = &RHS.Ident[8];
 			
 			if(*pLHS++ != *pRHS++) return false;		// Test byte 8
 			if(*pLHS++ != *pRHS++) return false;		// Test byte 9
@@ -236,7 +236,7 @@ namespace mxflib
 		//! Construct a UUID from a sequence of bytes
 		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
 		 */
-		UUID(const Uint8 *ID) : Identifier16(ID) {};
+		UUID(const UInt8 *ID) : Identifier16(ID) {};
 
 		//! Construct a UUID as a copy of another UUID
 		UUID(const SmartPtr<UUID> ID) { if(!ID) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
@@ -289,7 +289,7 @@ namespace mxflib
 		//! Construct a new UMID either from a sequence of bytes, or as a NULL UMID (32 zero bytes)
 		/*! \note The byte string must contain at least 32 bytes or errors will be produced when it is used
 		 */
-		UMID(const Uint8 *ID = NULL) : Identifier32(ID) {};
+		UMID(const UInt8 *ID = NULL) : Identifier32(ID) {};
 
 		//! Construct a UMID from a sequence of bytes
 		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
@@ -301,7 +301,7 @@ namespace mxflib
 
 		//! Get the UMID's instance number
 		/*! \note The number returned interprets the instance number as big-endian */
-		Uint32 GetInstance(void) const
+		UInt32 GetInstance(void) const
 		{
 			return (Ident[13] << 16) | (Ident[14] << 8) | Ident[15];
 		}
@@ -311,7 +311,7 @@ namespace mxflib
 		//	DRAGONS: Should add an option to generate a random instance number
 		void SetInstance(int Instance, int Method = -1)
 		{
-			Uint8 Buffer[4];
+			UInt8 Buffer[4];
 			PutU32(Instance, Buffer);
 
 			// Set the instance number

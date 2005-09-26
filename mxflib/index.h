@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.4 2004/11/15 14:46:51 matt-beard Exp $
+ *	\version $Id: index.h,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -53,7 +53,7 @@ namespace mxflib
 	class IndexPos : public RefCount<IndexPos>
 	{
 	public:
-		Uint64 ThisPos;			//!< The position (in file package edit units) of the data of which Location indexes the start
+		UInt64 ThisPos;			//!< The position (in file package edit units) of the data of which Location indexes the start
 								/*!< \note If Exact = false and OtherPos = true this will be the <b>un-reordered</b> or bytestream
 								 *         position of a different edit unit of data whose location is returned in Location.
 								 *         This happens if the exact location is not indexed for some reason such as a 
@@ -71,7 +71,7 @@ namespace mxflib
 		bool Offset;			//!< true if there is a temporal offset (stored in PosOffset, only set if Exact = true)
 		Int8 KeyFrameOffset;	//!< The offset in edit units to the previous key frame
 		Int64 KeyLocation;		//!< The location of the start of the keyframe edit unit in the essence container
-		Uint8 Flags;			//!< The flags for this edit unit (zero if ThisPos is not the requested edit unit)
+		UInt8 Flags;			//!< The flags for this edit unit (zero if ThisPos is not the requested edit unit)
 	};
 
 	//! Smart pointer to an IndexPos
@@ -82,8 +82,8 @@ namespace mxflib
 	struct DeltaEntry
 	{
 		Int8	PosTableIndex;
-		Uint8	Slice;
-		Uint8	ElementDelta[4];		//!< Must be a Uint8 array to allow the struct to be exactly 6 bytes (otherwise compilers add padding!) 
+		UInt8	Slice;
+		UInt8	ElementDelta[4];		//!< Must be a UInt8 array to allow the struct to be exactly 6 bytes (otherwise compilers add padding!) 
 	};
 
 	//! Map of edit unit positions to index table segemnts
@@ -95,8 +95,8 @@ namespace mxflib
 	public:
 		int TemporalOffset;
 		int AnchorOffset;
-		Uint8 Flags;
-		Uint64 StreamOffset;
+		UInt8 Flags;
+		UInt64 StreamOffset;
 	};
 
 	//! Smart pointer to index entry
@@ -124,7 +124,7 @@ namespace mxflib
 											 *	 both contain a temporal offset then CompleteEntryCount = 1 and EntryCount = 3
 											 */
 		Position FirstPosition;				//!< The edit unit number of the first position in this index table
-		Uint32 IndexEntrySize;				//!< The size of each index entry
+		UInt32 IndexEntrySize;				//!< The size of each index entry
 
 	public:
 		//! Initialise the ReorderIndex
@@ -141,7 +141,7 @@ namespace mxflib
 		}
 
 		//! Add a new entry to the table (setting flags and anchor offset)
-		bool SetEntry(Position Pos, Uint8 Flags, Int8 AnchorOffset, Uint8 *Tables = NULL);
+		bool SetEntry(Position Pos, UInt8 Flags, Int8 AnchorOffset, UInt8 *Tables = NULL);
 
 		//! Add a new entry to the table
 		bool SetStreamOffset(Position Pos, Position StreamOffset);
@@ -157,19 +157,19 @@ namespace mxflib
 	};
 
 	typedef SmartPtr<ReorderIndex> ReorderIndexPtr;
-	typedef std::map<Uint32, ReorderIndexPtr> ReorderMap;
+	typedef std::map<UInt32, ReorderIndexPtr> ReorderMap;
 
 
 	//! Class that holds an index table
 	class IndexTable : public RefCount<IndexTable>
 	{
 	public:
-		Uint32 IndexSID;
-		Uint32 BodySID;
+		UInt32 IndexSID;
+		UInt32 BodySID;
 		Rational EditRate;
 
 		//! Byte count for each and every edit unit, if CBR, else zero
-		Uint32 EditUnitByteCount;
+		UInt32 EditUnitByteCount;
 
 		//! Number of entries in BaseDeltaArray
 		int BaseDeltaCount;
@@ -239,7 +239,7 @@ namespace mxflib
 		 *	all PosTableIndex entries are set to 0. Whenever an element size has the
 		 *	value zero a new slice is started
 		 */
-		void DefineDeltaArray(int DeltaCount, Uint32 *ElementSizes)
+		void DefineDeltaArray(int DeltaCount, UInt32 *ElementSizes)
 		{
 			if(BaseDeltaCount) delete[] BaseDeltaArray;
 
@@ -252,7 +252,7 @@ namespace mxflib
 			// Slice numbers start at zero, PosTable numbers start at 1
 			NSL = 0;
 			NPE = 0;
-			Uint32 Delta = 0;			//!< Running delta value for current slice
+			UInt32 Delta = 0;			//!< Running delta value for current slice
 			int i;
 			for(i=0; i<DeltaCount; i++)
 			{
@@ -284,8 +284,8 @@ namespace mxflib
 		IndexSegmentPtr GetSegment(Position EditUnit);
 
 		//! Add a single index entry creating segments as required
-		bool AddIndexEntry(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags, Uint64 StreamOffset, 
-						   int SliceCount = 0, Uint32 *SliceOffsets = NULL, 
+		bool AddIndexEntry(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8 Flags, UInt64 StreamOffset, 
+						   int SliceCount = 0, UInt32 *SliceOffsets = NULL, 
 						   int PosCount = 0, Rational *PosTable = NULL);
 
 //#####
@@ -295,13 +295,13 @@ namespace mxflib
 		IndexPosPtr Lookup(Position EditUnit, int SubItem = 0, bool Reorder = true);
 
 		//! Fudge to correct index entry
-		void Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags);
+		void Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8 Flags);
 
 		//! Free memory by purging the specified range from the index
-		void Purge(Uint64 FirstPosition, Uint64 LastPosition);
+		void Purge(UInt64 FirstPosition, UInt64 LastPosition);
 
 		//! Write this index table to a memory buffer
-		Uint32 WriteIndex(DataChunk &Buffer);
+		UInt32 WriteIndex(DataChunk &Buffer);
 
 		//! Get a pointer to the reorder index object (if one has been enabled)
 		ReorderIndexPtr GetReorder(void)
@@ -360,12 +360,12 @@ namespace mxflib
 		static IndexSegmentPtr AddIndexSegmentToIndexTable(IndexTablePtr ParentTable, Int64 IndexStartPosition);
 
 		//! Add a single index entry
-		bool AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, Uint8 Flags, Uint64 StreamOffset, 
-						   int SliceCount = 0, Uint32 *SliceOffsets = NULL, 
+		bool AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8 Flags, UInt64 StreamOffset, 
+						   int SliceCount = 0, UInt32 *SliceOffsets = NULL, 
 						   int PosCount = 0, Rational *PosTable = NULL);
 
 		//! Add multiple - pre-formed index entries
-		bool AddIndexEntries(int Count, int Size, Uint8 *Entries);
+		bool AddIndexEntries(int Count, int Size, UInt8 *Entries);
 	};
 }
 
@@ -382,7 +382,7 @@ namespace mxflib
 		int StreamCount;					//!< Number of streams (including the main stream)
 		int StreamListSize;					//!< Size of PosTableList and ElementSizeList arrays
 		int *PosTableList;					//!< PosTableIndex for each stream
-		Uint32 *ElementSizeList;			//!< ElementSize for each stream
+		UInt32 *ElementSizeList;			//!< ElementSize for each stream
 
 		struct IndexData
 		{
@@ -397,7 +397,7 @@ namespace mxflib
 											 *   and TemporalDiff give the offset from the entry holding an edit unit's stream offset to
 											 *   the entry indexed by that edit unit.
 											 */
-			Uint64		StreamOffset[1];	//!< Array of stream offsets, one for the main stream and one per sub-stream
+			UInt64		StreamOffset[1];	//!< Array of stream offsets, one for the main stream and one per sub-stream
 											/*!< \note This array is variable length so the entire structure is also variable length */
 		};
 
@@ -415,8 +415,8 @@ namespace mxflib
 		std::map<Position, int> UnsatisfiedTemporalDiffs;
 											//!< Temporal diffs for unknown (possibly future) entries
 
-		Uint32 BodySID;						//!< The BodySID of the data being indexed
-		Uint32 IndexSID;					//!< The IndexSID of any index table generated
+		UInt32 BodySID;						//!< The BodySID of the data being indexed
+		UInt32 IndexSID;					//!< The IndexSID of any index table generated
 		Rational EditRate;					//!< The edit rate of the indexed data
 
 		std::map<int, Position> EntryLog;	//!< Log of edit units of entries of interest
@@ -428,9 +428,12 @@ namespace mxflib
 
 		Position LastNewEditUnit;			//!< Edit unit of the last entry added
 
+		bool ValueRelativeIndexing;			//!< Flag to allow value-relative indexing
+											/*!< \note This is NOT implemented in the IndexManager, but must be handled by the caller */
+
 	public:
 		//! Construct with main stream details
-		IndexManager(int PosTableIndex, Uint32 ElementSize);
+		IndexManager(int PosTableIndex, UInt32 ElementSize);
 
 		//! Free any memory used
 		~IndexManager()
@@ -441,7 +444,7 @@ namespace mxflib
 			std::map<Position, IndexData*>::iterator it = ManagedData.begin();
 			while ( ! ManagedData.empty() )
 			{
-				delete[] (Uint8*)(*it).second;
+				delete[] (UInt8*)(*it).second;
 				ManagedData.erase(it);
 				it = ManagedData.begin();
 			}
@@ -450,10 +453,10 @@ namespace mxflib
 		}
 
 		//! Set the BodySID
-		void SetBodySID(Uint32 SID) { BodySID = SID; };
+		void SetBodySID(UInt32 SID) { BodySID = SID; };
 
 		//! Set the IndexSID
-		void SetIndexSID(Uint32 SID) { IndexSID = SID; };
+		void SetIndexSID(UInt32 SID) { IndexSID = SID; };
 
 		//! Set the edit rate from a rational
 		void SetEditRate(Rational Rate) { EditRate = Rate; };
@@ -462,17 +465,17 @@ namespace mxflib
 		void SetEditRate(Int32 Rate_n, Int32 Rate_d) { EditRate.Numerator = Rate_n;  EditRate.Denominator = Rate_d;};
 
 		//! Get the BodySID
-		Uint32 GetBodySID(void) { return BodySID; };
+		UInt32 GetBodySID(void) { return BodySID; };
 
 		//! Get the IndexSID
-		Uint32 GetIndexSID(void) { return IndexSID; };
+		UInt32 GetIndexSID(void) { return IndexSID; };
 
 		//! Get the edit rate
 		Rational GetEditRate(void) { return EditRate; };
 
 		//! Add a sub-stream
 		/*! \return Sub-stream ID or 0 if error */
-		int AddSubStream(int PosTableIndex, Uint32 ElementSize);
+		int AddSubStream(int PosTableIndex, UInt32 ElementSize);
 
 		//! Update the PosTableIndex for a given stream
 		void SetPosTableIndex(int StreamID, int PosTableIndex)
@@ -484,13 +487,13 @@ namespace mxflib
 		void AddEditUnit(int SubStream, Position EditUnit, int KeyOffset = 0, int Flags = -1);
 
 		//! Set the offset for a particular edit unit of a stream
-		void SetOffset(int SubStream, Position EditUnit, Uint64 Offset, int KeyOffset = 0, int Flags = -1);
+		void SetOffset(int SubStream, Position EditUnit, UInt64 Offset, int KeyOffset = 0, int Flags = -1);
 
 		//! Accept or decline an offered edit unit (of a stream) without a known offset
 		bool OfferEditUnit(int SubStream, Position EditUnit, int KeyOffset = 0, int Flags = -1);
 
 		//! Accept or decline an offered offset for a particular edit unit of a stream
-		bool OfferOffset(int SubStream, Position EditUnit, Uint64 Offset, int KeyOffset = 0, int Flags = -1);
+		bool OfferOffset(int SubStream, Position EditUnit, UInt64 Offset, int KeyOffset = 0, int Flags = -1);
 
 		//! Set the temporal offset for a particular edit unit
 		void SetTemporalOffset(Position EditUnit, int Offset);
@@ -551,11 +554,11 @@ namespace mxflib
 		void Flush(Position FirstEditUnit, Position LastEditUnit);
 
 		//! Get the edit unit of the first available entry
-		Uint64 GetFirstAvailable(void);
+		UInt64 GetFirstAvailable(void);
 
 		//! Get the edit unit of the last available entry
 		/*! In a reordered index this returns the last of the contiguous completed entries */
-		Uint64 GetLastAvailable(void);
+		UInt64 GetLastAvailable(void);
 
 		//! Generate a CBR index table or empty VBR index table for the managed index
 		IndexTablePtr MakeIndex(void);
@@ -576,6 +579,18 @@ namespace mxflib
 
 		//! Access function to read CBR flag
 		bool IsCBR(void) { return DataIsCBR; };
+
+		//! Set value-relative indexing flag
+		/*! Value-relative indexing will produce index tables that count from the first byte of the KLV 
+		 *  of clip-wrapped essence rather than the key. These tables can be used internally but must not
+		 *  be written to a file as they are not 377M complient */
+		void SetValueRelativeIndexing(bool Val) { ValueRelativeIndexing = Val; }
+
+		//! Get value-relative indexing flag
+		/*! Value-relative indexing will produce index tables that count from the first byte of the KLV 
+		 *  of clip-wrapped essence rather than the key. These tables can be used internally but must not
+		 *  be written to a file as they are not 377M complient */
+		bool GetValueRelativeIndexing(void) { return ValueRelativeIndexing; }
 
 	protected:
 		//! Access an entry in the managed data array - creating or extending the array as required

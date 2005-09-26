@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.14 2005/08/05 14:31:19 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.15 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -47,6 +47,14 @@ bool MDObject::ParseDark = false;
 //! Static primer to use for index tables
 PrimerPtr MDOType::StaticPrimer;
 
+//! List of all existing symbol spaces to allow full searching
+SymbolSpaceMap SymbolSpace::AllSymbolSpaces;
+
+//! Global SymbolSpace for all MXFLib's normal symbols
+SymbolSpacePtr mxflib::MXFLibSymbols = new SymbolSpace("http://www.freemxf.org/MXFLibSymbols");
+
+//! Translator function to translate unknown ULs to object names
+MDObject::ULTranslator MDObject::UL2NameFunc = NULL;
 
 
 //! Build a Primer object for the current dictionary
@@ -89,7 +97,7 @@ PrimerPtr MDOType::MakePrimer(bool SetStatic /*=false*/)
 
 //! Builds an MDOType
 /*! This constructor is private so the ONLY way to create
- *	new MDOTypes from outside this class is via AddDict()
+ *	new MDOTypes from outside this class is via member methods
 */
 MDOType::MDOType(void)
 {
@@ -206,9 +214,10 @@ MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 /*! Builds a "blank" metadata object of a named type
  *	\note packs are built with defaut values
  */
-MDObject::MDObject(std::string BaseType)
+MDObject::MDObject(std::string BaseType, SymbolSpacePtr &SymSpace /*=MXFLibSymbols*/ )
 {
-	Type = MDOType::Find(BaseType);
+	ULPtr ThisUL = SymSpace->Find(BaseType);
+	if(ThisUL) Type = MDOType::Find(ThisUL);
 	if(Type)
 	{
 		ObjectName = Type->Name();
@@ -221,8 +230,7 @@ MDObject::MDObject(std::string BaseType)
 
 		ASSERT(Type);
 
-		// TODO: Needs to have a more complete name
-		ObjectName = "Unknown"; // add " g:type=\"" + BaseType + "\"";
+		ObjectName = "Unknown " + BaseType;
 	}
 
 	IsConstructed = true;
@@ -265,9 +273,9 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 
 //! MDObject typed constructor
 /*! Builds a "blank" metadata object of a specified type
- *	\note packs are built with defaut values
+ *	\note packs are built with default values
  */
-MDObject::MDObject(ULPtr BaseUL) 
+MDObject::MDObject(const ULPtr &BaseUL) 
 {
 	Type = MDOType::Find(BaseUL);
 	if(Type)
@@ -278,17 +286,23 @@ MDObject::MDObject(ULPtr BaseUL)
 	{
 		Type = MDOType::Find("Unknown");
 
-		// TODO: Needs to have a more complete name
-		ObjectName = "Unknown"; // add " g:uid=\"" + BaseUL->GetString() + "\"";
+		if(UL2NameFunc)
+		{
+			ObjectName = UL2NameFunc(BaseUL,NULL);
+		}
+		else
+		{
+			// TODO: Needs to have a more complete name
+			ObjectName = "Unknown " + BaseUL->GetString();
+		}
 
 		ASSERT(Type);
 
 		// Shall we try and parse this?
-		bool ParseDark = false;
-
 		if(ParseDark)
 		{
-			const Uint8 Set2x2[6] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53 };
+
+			const UInt8 Set2x2[6] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53 };
 			if(memcmp(Set2x2, BaseUL->GetValue(), 6) == 0)
 			{
 				MDOTypePtr DefaultType = MDOType::Find("DefaultObject");
@@ -355,17 +369,24 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 
 		ASSERT(Type);
 
-		if(TheUL)
+		if(UL2NameFunc)
 		{
-			// Tag found, but UL unknown
-			// FIXME: Needs to have a more complete name
-			ObjectName = "Unknown"; // add " g:tag=\"" + Tag2String(BaseTag) + "\" g:uid=\"" + TheUL->GetString() + "\"";
+			ObjectName = UL2NameFunc(TheUL, &BaseTag);
 		}
 		else
 		{
-			// Tag not found, build a blank UL
-			// FIXME: Needs to have a more complete name
-			ObjectName = "Unknown"; // add " g:tag=\"" + Tag2String(BaseTag) + "\"";
+			if(TheUL)
+			{
+				// Tag found, but UL unknown
+				// FIXME: Needs to have a more complete name
+				ObjectName = "Unknown " + Tag2String(BaseTag) + std::string(" ") + TheUL->GetString();
+			}
+			else
+			{
+				// Tag not found, build a blank UL
+				// FIXME: Needs to have a more complete name
+				ObjectName = "Unknown " + Tag2String(BaseTag);
+			}
 		}
 	}
 	else
@@ -400,14 +421,20 @@ void MDObject::Init(void)
 	case NONE:
 		// If it isn't a container build the basic item
 		{
-			Value = new MDValue(Type->GetValueType());
+			// If we are trying to build a type that is not defined, build it as an "Unknown"
+			MDTypePtr ValType = Type->GetValueType();
+			if(!ValType) ValType = MDType::Find("Unknown");
+			ASSERT(ValType);
 
-			if(Type->GetValueType()->EffectiveClass() == TYPEARRAY)
+			Value = new MDValue(ValType);
+
+			if(ValType->EffectiveClass() == TYPEARRAY)
 			{
 				// Build the minimum size array
 				Value->Resize(Type->GetMinLength());
 			}
 		}
+
 		break;
 
 	case PACK:
@@ -453,7 +480,7 @@ void MDObject::Init(void)
 /*!	\return NULL if this object does not take numbered children
  *	\note If a child with this index already exists it is returned rather than adding a new one
  */
-MDObjectPtr MDObject::AddChild(Uint32 ChildIndex)
+MDObjectPtr MDObject::AddChild(UInt32 ChildIndex)
 {
 	MDObjectPtr Ret;
 
@@ -487,12 +514,13 @@ MDObjectPtr MDObject::AddChild(Uint32 ChildIndex)
 //! Add an empty named child to an MDObject continer and return a pointer to it
 /*! If Replace is true (or not supplied) and a child of this name already 
  *	exists a pointer to that child is returned but the value is not changed.
+ *  ChildName is a symbol to be located in the given SymbolSpace - if no SymbolSpace is specifed the default MXFLib space is used 
  *  \return NULL if it is not a valid child to add to this type of container
  *	\note If you want to add an child that is non-standard (i.e. not listed
  *        as a child in the container's MDOType then you must build the child
  *        then add it with AddChild(MDObjectPtr)
  */
-MDObjectPtr MDObject::AddChild(std::string ChildName, bool Replace /*=true*/)
+MDObjectPtr MDObject::AddChild(std::string ChildName, SymbolSpacePtr &SymSpace /*=MXFLibSymbols*/, bool Replace /*=true*/)
 {
 	MDObjectPtr Ret;
 
@@ -507,12 +535,24 @@ MDObjectPtr MDObject::AddChild(std::string ChildName, bool Replace /*=true*/)
 		// Find the child definition
 		MDOType::iterator it = Type->find(ChildName);
 
-		// Return NULL if not found
-		if(it == Type->end()) return Ret;
+		// If not a known child of this type try and add the named item anyway
+		if(it == Type->end())
+		{
+			ULPtr ChildUL = SymSpace->Find(ChildName, false);
 
-		// Insert a new item of the correct type
-		Ret = new MDObject((*it).second);
-		insert(Ret);
+			// If not a known name return NULL
+			if(!ChildUL) return Ret;
+
+			// Insert a new item of the correct type
+			Ret = new MDObject(ChildUL);
+		}
+		else
+		{
+			// Insert a new item of the correct type
+			Ret = new MDObject((*it).second);
+		}
+
+		if(Ret) insert(Ret);
 	}
 
 	// Return smart pointer to the new object
@@ -540,14 +580,8 @@ MDObjectPtr MDObject::AddChild(MDOTypePtr ChildType, bool Replace /*=true*/)
 	// Only add a new one if we didn't find it
 	if(!Ret)
 	{
-		// Find the child definition
-		MDOType::iterator it = Type->find(ChildType->Name());
-
-		// Return NULL if not found
-		if(it == Type->end()) return Ret;
-
 		// Insert a new item of the correct type
-		Ret = new MDObject((*it).second);
+		Ret = new MDObject(ChildType);
 		insert(Ret);
 	}
 
@@ -561,7 +595,7 @@ MDObjectPtr MDObject::AddChild(MDOTypePtr ChildType, bool Replace /*=true*/)
  *  \return NULL if there was an error
  *  \note If there is already a child of this type it is replaces if Replace = true
  */
-MDObjectPtr MDObject::AddChild(MDObjectPtr ChildObject, bool Replace /* = false */)
+MDObjectPtr MDObject::AddChild(MDObjectPtr &ChildObject, bool Replace /* = false */)
 {
 	SetModified(true); 
 
@@ -611,7 +645,7 @@ void MDObject::RemoveChild(std::string ChildName)
 
 
 //! Remove any children of a specified type from an MDObject continer
-void MDObject::RemoveChild(MDOTypePtr ChildType)
+void MDObject::RemoveChild(MDOTypePtr &ChildType)
 {
 	// Note that we cannot rely on removing by name as names are changeable
 	
@@ -759,11 +793,11 @@ MDObjectListPtr MDObject::ChildList(MDOTypePtr ChildType)
  *
  *  \return Number of bytes read
  */
-Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer /*=NULL*/)
+UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer /*=NULL*/)
 {
-	Uint32 Bytes = 0;
-	Uint32 Count = 0;
-	Uint32 ItemSize = 0;
+	UInt32 Bytes = 0;
+	UInt32 Count = 0;
+	UInt32 ItemSize = 0;
 
 	SetModified(false); 
 
@@ -774,15 +808,42 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 
 	case BATCH:
 		{
-			ASSERT(Size >= 8);
+			if( Size >= 4 )
+			{
+				Count = GetU32(Buffer);
+				Buffer += 4;
+				Bytes = 4;
+				Size -= 4;
+			}
+			else
+			{
+				error("Malformed batch found in %s at 0x%s in %s - total bytes = %u\n", 
+					  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str(),
+					  Size);
 
-			Count = GetU32(Buffer);
-			Buffer += 4;
+				Count = 0;
+				Bytes = Size;
+				Size = 0;
+			}
 
-			ItemSize = GetU32(Buffer);
-			Buffer += 4;
+			if( Size >= 4 )
+			{
+				ItemSize = GetU32(Buffer);
+				Buffer += 4;
+				Bytes += 4;
+				Size -= 4;
+			}
+			else
+			{
+				error("Malformed batch found in %s at 0x%s in %s - total bytes = %u\n", 
+					  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str(),
+					  Bytes + Size);
 
-			if(Size <= 8) Size = 0; else Size -= 8;
+				ItemSize = 0;
+				Bytes += Size;
+				Size = 0;
+			}
+
 			if((ItemSize*Count) != Size)
 			{
 				error("Malformed batch found in %s at 0x%s in %s - item size = %u, count = %u, but bytes = %u\n", 
@@ -793,7 +854,6 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				if(Size < (ItemSize*Count))	Count = Size / ItemSize;
 			}
 
-			Bytes = 8;
 			if(Count) Size = ItemSize; else Size = 0;
 
 			// Don't try and read an empty batch
@@ -830,7 +890,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				NewItem->ParentOffset = Bytes;
 				NewItem->KLSize = 0;
 
-				Uint32 ThisBytes = NewItem->ReadValue(Buffer, Size);
+				UInt32 ThisBytes = NewItem->ReadValue(Buffer, Size);
 
 				Bytes += ThisBytes;
 				Buffer += ThisBytes;
@@ -877,7 +937,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			if( Type->GetLenFormat() == DICT_LEN_NONE )
 			{
 				// Fixed pack - items know their own length
-				Uint32 Bytes = 0;
+				UInt32 Bytes = 0;
 				MDObjectNamedList::iterator it = begin();
 				if(Size) for(;;)
 				{
@@ -898,7 +958,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 					// are some cases where MXF packs have arrays that are not the last entry
 					// This section deals with each in turn (Nasty!!)
 
-					Uint32 ValueSize = Size;
+					UInt32 ValueSize = Size;
 					if((*it).second->Type->GetContainerType() == ARRAY)
 					{
 						std::string FullName = (*it).second->FullName();
@@ -911,12 +971,12 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 						}
 						else if(FullName == "RandomIndexMetadata/PartitionArray")
 						{
-							// RandomIndexMetadata/PartitionArray is followed by a Uint32
+							// RandomIndexMetadata/PartitionArray is followed by a UInt32
 							if(ValueSize >4) ValueSize = ValueSize - 4; else ValueSize = 0;
 						}
 					}
 
-					Uint32 ThisBytes = (*it).second->ReadValue(Buffer, ValueSize);
+					UInt32 ThisBytes = (*it).second->ReadValue(Buffer, ValueSize);
 
 //					debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
 //						  (*it).first.c_str(), (*it).second->GetString().c_str());
@@ -942,7 +1002,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			else
 			{
 				// Variable pack - each item has a length
-				Uint32 Bytes = 0;
+				UInt32 Bytes = 0;
 				MDObjectNamedList::iterator it = begin();
 				if(Size) for(;;)
 				{
@@ -958,8 +1018,8 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 					(*it).second->KLSize = 0;
 
 					// Read Length
-					Uint32 Length;
-					Uint32 ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
+					UInt32 Length;
+					UInt32 ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
 
 					// Advance counters and pointers past Length
 					Size -= ThisBytes;
@@ -1014,7 +1074,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 		{
 			debug("Reading set at 0x%s\n", Int64toHexString(GetLocation(), 8).c_str());
 
-			Uint32 Bytes = 0;
+			UInt32 Bytes = 0;
 
 			// Start with an empty list
 			clear();
@@ -1022,10 +1082,10 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 			// Scan until out of data
 			while(Size)
 			{
-				Uint32 BytesAtItemStart = Bytes;
+				UInt32 BytesAtItemStart = Bytes;
 
 				DataChunk Key;
-				Uint32 ThisBytes = ReadKey(Type->GetKeyFormat(), Size, Buffer, Key);
+				UInt32 ThisBytes = ReadKey(Type->GetKeyFormat(), Size, Buffer, Key);
 
 				// Abort if we can't read the key
 				// this prevents us looping for ever if we
@@ -1037,7 +1097,7 @@ Uint32 MDObject::ReadValue(const Uint8 *Buffer, Uint32 Size, PrimerPtr UsePrimer
 				Buffer += ThisBytes;
 				Bytes += ThisBytes;
 
-				Uint32 Length;
+				UInt32 Length;
 				ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
 
 				// Advance counters and pointers passed Length
@@ -1180,9 +1240,9 @@ bool MDObject::SetGenerationUID(UUIDPtr NewGen)
 
 
 //! Read a key from a memory buffer
-Uint32 MDObject::ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer, DataChunk& Key)
+UInt32 MDObject::ReadKey(DictKeyFormat Format, UInt32 Size, const UInt8 *Buffer, DataChunk& Key)
 {
-	Uint32 KeySize;
+	UInt32 KeySize;
 
 	switch(Format)
 	{
@@ -1214,7 +1274,7 @@ Uint32 MDObject::ReadKey(DictKeyFormat Format, Uint32 Size, const Uint8 *Buffer,
 
 
 //! Read a length field from a memory buffer
-Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buffer, Uint32& Length)
+UInt32 MDObject::ReadLength(DictLenFormat Format, UInt32 Size, const UInt8 *Buffer, UInt32& Length)
 {
 //	int LenSize;
 
@@ -1230,7 +1290,7 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 	case DICT_LEN_BER:
 		{
 			if( Size <1 ) break;
-			Uint8 LenLen = GetU8(Buffer);
+			UInt8 LenLen = GetU8(Buffer);
 
 			if( LenLen < 0x80 )
 			{
@@ -1243,10 +1303,10 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 				// Long form
 				LenLen &= 0x7f;
 
-				Uint32 RetLen = LenLen + 1;
+				UInt32 RetLen = LenLen + 1;
 				if( RetLen > Size) break;
 
-				// DRAGONS: ReadLength should return Uint64, BER length up to 7
+				// DRAGONS: ReadLength should return UInt64, BER length up to 7
 				if(LenLen > 8)
 				{
 					error("Excessive BER length field in MDObject::ReadLength()\n");
@@ -1260,8 +1320,8 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 					// support metadata values > 4Gb in size so we ensure they are
 					// not that big by reading the length and validating
 
-					Uint64 Length64 = 0;
-					const Uint8* LenBuff = (Buffer+1);
+					UInt64 Length64 = 0;
+					const UInt8* LenBuff = (Buffer+1);
 					while(LenLen--) Length64 = (Length64<<8) + *LenBuff++;
 
 					if((Length64 >> 32) != 0)
@@ -1271,13 +1331,13 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 						return 0;
 					}
 					
-					Length =(Uint32) Length64;
+					Length =(UInt32) Length64;
 				}
 				else
 				{
 					// Handle sane sized BER lengths
 					Length = 0;
-					const Uint8* LenBuff = (Buffer+1);
+					const UInt8* LenBuff = (Buffer+1);
 					while(LenLen--) Length = (Length<<8) + *LenBuff++;
 				}
 
@@ -1329,9 +1389,9 @@ Uint32 MDObject::ReadLength(DictLenFormat Format, Uint32 Size, const Uint8 *Buff
 
 
 //! Get the location within the ultimate parent
-Uint64 mxflib::MDObject::GetLocation(void)
+UInt64 mxflib::MDObject::GetLocation(void)
 {
-	Uint64 Ret = ParentOffset;
+	UInt64 Ret = ParentOffset;
 
 	if(Parent) Ret += Parent->KLSize + Parent->GetLocation();
 
@@ -1373,9 +1433,9 @@ const DataChunkPtr MDObject::PutData(PrimerPtr UsePrimer /* =NULL */)
  *	The objects are appended to the buffer
  *	\return The number of bytes written
  */
-Uint32 MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*=NULL*/)
+UInt32 MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*=NULL*/)
 {
-	Uint32 Bytes = 0;
+	UInt32 Bytes = 0;
 
 	Bytes = WriteObject(Buffer, NULL, UsePrimer);
 
@@ -1420,9 +1480,9 @@ Uint32 MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*
  */
 #define DEBUG_WRITEOBJECT(x)
 //#define DEBUG_WRITEOBJECT(x) x
-Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer /*=NULL*/)
+UInt32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer /*=NULL*/, UInt32 BERSize /*=0*/)
 {
-	Uint32 Bytes = 0;
+	UInt32 Bytes = 0;
 
 	DictLenFormat LenFormat;
 
@@ -1443,7 +1503,9 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 		if(ParentObject->Type->GetContainerType() == SET)
 		{
 			Bytes = WriteKey(Buffer, ParentObject->Type->GetKeyFormat(), UsePrimer);
-			DEBUG_WRITEOBJECT( debug("Key = %s, ", Buffer->GetString().c_str()); )
+
+			DEBUG_WRITEOBJECT( DataChunk Key; Key.Set(Buffer, Buffer->Size - Bytes); )
+			DEBUG_WRITEOBJECT( debug("Key = %s, ", Key.GetString().c_str()); )
 		}
 
 		if((ParentObject->Type->GetContainerType() == BATCH) || (ParentObject->Type->GetContainerType() == ARRAY))
@@ -1466,17 +1528,17 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 	// Build value
 	if(CType == BATCH || CType == ARRAY)
 	{
-		Uint32 Count = 0;
-		Uint32 Size = 0;
+		UInt32 Count = 0;
+		UInt32 Size = 0;
 
 		// DRAGONS: Pre-allocating a buffer could speed things up
 		DataChunkPtr Val = new DataChunk();
 
 		// Work out how many sub-items per child 
-		Uint32 SubCount = Type->GetChildOrder().size();
+		UInt32 SubCount = Type->GetChildOrder().size();
 		
 		// Count of remaining subs for this item
-		Uint32 Subs = 0;
+		UInt32 Subs = 0;
 
 		MDObjectNamedList::iterator it = begin();
 
@@ -1489,7 +1551,8 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 				Size = 0;
 				Count++;
 			}
-			Uint32 ThisBytes = (*it).second->WriteObject(Val, this, UsePrimer);
+			// DRAGONS: do NOT force embedded objects to inherit BERSize
+			UInt32 ThisBytes = (*it).second->WriteObject(Val, this, UsePrimer);
 			//Bytes += ThisBytes;
 			Size += ThisBytes;
 			
@@ -1512,7 +1575,7 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 				ASSERT(ChildType);
 
 				MDObjectPtr Ptr = new MDObject(ChildType);
-				Ptr->WriteObject(Temp, this, UsePrimer);
+				Ptr->WriteObject(Temp, this, UsePrimer, BERSize);
 				it++;
 			}
 			Size = Temp->Size;
@@ -1521,8 +1584,8 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 		if(CType == BATCH)
 		{
 			// Write the length and batch header
-			Bytes += WriteLength(Buffer, Val->Size+8, LenFormat);
-			Uint8 Buff[4];
+			Bytes += WriteLength(Buffer, Val->Size+8, LenFormat, BERSize);
+			UInt8 Buff[4];
 			PutU32(Count, Buff);
 			Buffer->Append(4, Buff);
 			PutU32(Size, Buff);
@@ -1531,7 +1594,7 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 		}
 		else
 		{
-			Bytes += WriteLength(Buffer, Val->Size, LenFormat);
+			Bytes += WriteLength(Buffer, Val->Size, LenFormat, BERSize);
 		}
 
 		// Append this data
@@ -1559,12 +1622,13 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 			}
 			else
 			{
-				Bytes += Ptr->WriteObject(Val, this, UsePrimer);
+				Bytes += Ptr->WriteObject(Val, this, UsePrimer, BERSize);
 			}
 			it++;
 		}
 
 		// Write the length of the value
+		// DRAGONS: do NOT force embedded objects to inherit BERSize
 		Bytes += WriteLength(Buffer, Val->Size, LenFormat);
 
 		// Append this data
@@ -1584,12 +1648,14 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 
 		while(it != end())
 		{
-			Bytes += (*it).second->WriteObject(Val, this, UsePrimer);
+			// DRAGONS: do NOT force embedded objects to inherit BERSize
+			// don't double-count the bytes! 
+			(*it).second->WriteObject(Val, this, UsePrimer);
 			it++;
 		}
 
 		// Write the length of the value
-		Bytes += WriteLength(Buffer, Val->Size, LenFormat);
+		Bytes += WriteLength(Buffer, Val->Size, LenFormat, BERSize);
 
 		// Append this data
 		Buffer->Append(Val);
@@ -1602,7 +1668,7 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 		DEBUG_WRITEOBJECT( debug("  *Value*\n"); )
 
 		DataChunkPtr Val = Value->PutData();
-		Bytes += WriteLength(Buffer, Val->Size, LenFormat);
+		Bytes += WriteLength(Buffer, Val->Size, LenFormat, BERSize);
 		Buffer->Append(Val);
 		Bytes += Val->Size;
 
@@ -1612,7 +1678,7 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 	{
 		DEBUG_WRITEOBJECT( debug("  *Empty!*\n"); )
 
-		Bytes += WriteLength(Buffer, 0, LenFormat);
+		Bytes += WriteLength(Buffer, 0, LenFormat, BERSize);
 	}
 
 	return Bytes;
@@ -1629,7 +1695,7 @@ Uint32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
  *	\note If the format is BER and a size is specified it will be overridden for
  *		  lengths that will not fit. However an error message will be produced.
  */
-Uint32 MDObject::WriteLength(DataChunkPtr &Buffer, Uint64 Length, DictLenFormat Format, Uint32 Size /*=0*/)
+UInt32 MDObject::WriteLength(DataChunkPtr &Buffer, UInt64 Length, DictLenFormat Format, UInt32 Size /*=0*/)
 {
 	switch(Format)
 	{
@@ -1646,8 +1712,8 @@ Uint32 MDObject::WriteLength(DataChunkPtr &Buffer, Uint64 Length, DictLenFormat 
 
 	case DICT_LEN_1_BYTE:		
 		{ 
-			Uint8 Buff;
-			PutU8((Uint8)Length, &Buff);
+			UInt8 Buff;
+			PutU8((UInt8)Length, &Buff);
 
 			Buffer->Append(1, &Buff);
 			return 1;
@@ -1655,8 +1721,8 @@ Uint32 MDObject::WriteLength(DataChunkPtr &Buffer, Uint64 Length, DictLenFormat 
 
 	case DICT_LEN_2_BYTE:
 		{ 
-			Uint8 Buff[2];
-			PutU16((Uint16)Length, Buff);
+			UInt8 Buff[2];
+			PutU16((UInt16)Length, Buff);
 
 			Buffer->Append(2, Buff);
 			return 2;
@@ -1664,8 +1730,8 @@ Uint32 MDObject::WriteLength(DataChunkPtr &Buffer, Uint64 Length, DictLenFormat 
 
 	case DICT_LEN_4_BYTE:
 		{ 
-			Uint8 Buff[4];
-			PutU32((Uint32)Length, Buff);
+			UInt8 Buff[4];
+			PutU32((UInt32)Length, Buff);
 
 			Buffer->Append(4, Buff);
 			return 4;
@@ -1682,7 +1748,7 @@ Uint32 MDObject::WriteLength(DataChunkPtr &Buffer, Uint64 Length, DictLenFormat 
  *	\note If a 2-byte local tag is used the primer UsePrimer is used to determine
  *		  the correct tag. UsePrimer will be updated if it doesn't yet incude the tag
  */
-Uint32 MDObject::WriteKey(DataChunkPtr &Buffer, DictKeyFormat Format, PrimerPtr UsePrimer /*=NULL*/)
+UInt32 MDObject::WriteKey(DataChunkPtr &Buffer, DictKeyFormat Format, PrimerPtr UsePrimer /*=NULL*/)
 {
 	switch(Format)
 	{
@@ -1715,7 +1781,7 @@ Uint32 MDObject::WriteKey(DataChunkPtr &Buffer, DictKeyFormat Format, PrimerPtr 
 			if(UsePrimer) UseTag = UsePrimer->Lookup(TheUL, TheTag);
 			else UseTag = MDOType::GetStaticPrimer()->Lookup(TheUL, TheTag);
 
-			Uint8 Buff[2];
+			UInt8 Buff[2];
 			PutU16(UseTag, Buff);
 
 			Buffer->Append(2, Buff);
@@ -1746,7 +1812,7 @@ Uint32 MDObject::WriteKey(DataChunkPtr &Buffer, DictKeyFormat Format, PrimerPtr 
  */
 bool MDObject::MakeLink(MDObjectPtr &TargetSet, bool ForceLink /*=false*/)
 {
-	Uint8 TheUID[16];
+	UInt8 TheUID[16];
 
 	// Does the target set already have an InstanceUID?
 	MDObjectPtr InstanceUID = TargetSet["InstanceUID"];
@@ -1812,10 +1878,10 @@ bool MDObject::IsDValue(void)
 {
 	if(Type->GetDValue().Size == 0) return false;
 
-	DataChunk DVal = PutData();
-	if(DVal.Size != Type->GetDValue().Size) return false;
+	DataChunkPtr DVal = PutData();
+	if(DVal->Size != Type->GetDValue().Size) return false;
 	
-	if(memcmp(DVal.Data, Type->GetDValue().Data, DVal.Size) == 0) return true;
+	if(memcmp(DVal->Data, Type->GetDValue().Data, DVal->Size) == 0) return true;
 
 	return false;
 }
@@ -1873,16 +1939,20 @@ typedef struct
 {
 	DictStateState	State;					//!< State-machine current state
 	std::list<MDOTypePtr> Parents;			//!< List of pointers to parents, empty if currently at the top level
-	std::list<std::string> ParentNames;		//!< List of parent names, empty if currently at the top level
+//	std::list<std::string> ParentNames;		//!< List of parent names, empty if currently at the top level
+	SymbolSpacePtr DefaultSymbolSpace;		//!< Default symbol space to use for all classes
+	SymbolSpaceList SymbolSpaces;			//!< List of symbol spaces for each level, empty if currently at the top level
 } DictState;
 
 
 //! Load the dictionary from the specified file
-void MDOType::LoadDict(const char *DictFile)
+void MDOType::LoadDict(const char *DictFile, SymbolSpacePtr DefaultSymbolSpace /*=MXFLibSymbols*/)
 {
 	DictState State;
+
 	// Set start state
 	State.State = DICT_STATE_START;
+	State.DefaultSymbolSpace = DefaultSymbolSpace;
 
 	// Parse the file
 	XMLParserHandler XMLHandler = {
@@ -1983,6 +2053,31 @@ void MDOType::XML_startElement(void *user_data, const char *name, const char **a
 			{
 				/* Start above outer layer of MXF dictionary */
 				State->State = DICT_STATE_DICT;
+
+				/* Check for symSpace */
+				if(attrs != NULL)
+				{
+					this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "symSpace") == 0)
+						{
+							// See if this symbol space already exists
+							SymbolSpacePtr DefaultSymbolSpace = SymbolSpace::FindSymbolSpace(val);
+
+							// If it doesn't exist we must create it
+							if(!DefaultSymbolSpace)
+							{
+								DefaultSymbolSpace = new SymbolSpace(val);
+							}
+
+							State->DefaultSymbolSpace = DefaultSymbolSpace;
+						}
+					}
+				}
 			}
 
 			break;
@@ -1993,6 +2088,14 @@ void MDOType::XML_startElement(void *user_data, const char *name, const char **a
 			std::string default_text;
 			std::string dvalue_text;
 
+			SymbolSpacePtr ThisSymbolSpace;
+			if(State->SymbolSpaces.empty()) ThisSymbolSpace = State->DefaultSymbolSpace;
+			else 
+			{
+				SymbolSpaceList::iterator it = State->SymbolSpaces.end();
+				ThisSymbolSpace = *(--it);
+			}
+	
 			/* Grab a new dictionary entry */
 			MDOTypePtr Dict = new MDOType;
 
@@ -2081,7 +2184,7 @@ void MDOType::XML_startElement(void *user_data, const char *name, const char **a
 					{
 						int Size;
 						const char *p = val;
-						Uint8 Buffer[32];
+						UInt8 Buffer[32];
 
 						Size = ReadHexString(&p, 32, Buffer, " \t.");
 
@@ -2091,7 +2194,7 @@ void MDOType::XML_startElement(void *user_data, const char *name, const char **a
 					{
 						int Size;
 						const char *p = val;
-						Uint8 Buffer[32];
+						UInt8 Buffer[32];
 
 						Size = ReadHexString(&p, 32, Buffer, " \t.");
 
@@ -2294,12 +2397,30 @@ void MDOType::XML_startElement(void *user_data, const char *name, const char **a
 					{
 						/* Do nothing here as base attribute is handled first! */
 					}
+					else if(strcmp(attr, "symSpace") == 0)
+					{
+						/* Process symbol space attribute */
+
+						// See if this symbol space already exists
+						ThisSymbolSpace = SymbolSpace::FindSymbolSpace(val);
+
+						// If it doesn't exist we must create it
+						if(!ThisSymbolSpace)
+						{
+							ThisSymbolSpace = new SymbolSpace(val);
+						}
+
+						State->DefaultSymbolSpace = ThisSymbolSpace;
+					}
 					else
 					{
 						XML_warning(State, "Unexpected attribute '%s' in <%s/>", attr, name);
 					}
 				}
 			}
+
+			// Once all attributes are stored we can record our symbol space to act as the default for any child items
+			State->SymbolSpaces.push_back(ThisSymbolSpace);
 
 			/* If only a 'key' is given index it with global key as well */
 			if(!HasGlobalKey)
@@ -2316,20 +2437,10 @@ void MDOType::XML_startElement(void *user_data, const char *name, const char **a
 			else
 			{
 				Dict->TypeUL = new UL(Dict->GlobalKey.Data);
-				if(Dict->TypeUL)
-				{
-					// Add the given UL
-					ULLookup[UL(Dict->TypeUL)] = Dict;
+				if(Dict->TypeUL) ULLookup[UL(Dict->TypeUL)] = Dict;
 
-					// Add a version 1 copy of the UL for version-less lookups (but only if this is a boda-fide UL
-					const UInt8 ULStart[] = { 0x06, 0x0e, 0x2b, 0x34 };
-					if(memcmp(Dict->TypeUL->GetValue(), ULStart, 4) == 0)
-					{
-						UL Ver1UL = *Dict->TypeUL;
-						Ver1UL.Set(7, 1);
-						ULLookupVer1[UL(Dict->TypeUL)] = Dict;
-					}
-				}
+				//! Ensure that the name is added to the correct symbol space
+				if(Dict->TypeUL) ThisSymbolSpace->AddSymbol(Dict->FullName(), Dict->TypeUL);
 			}
 
 			/* We process the default at the end so we are certain to know the type! */
@@ -2397,6 +2508,10 @@ void MDOType::XML_endElement(void *user_data, const char *name)
 	// Remove the last parent from the stack
 	std::list<MDOTypePtr>::iterator it = State->Parents.end();
 	if(--it != State->Parents.end()) State->Parents.erase(it);
+
+	// Remove the last symbol space from the stack
+	SymbolSpaceList::iterator sym_it = State->SymbolSpaces.end();
+	if(--sym_it != State->SymbolSpaces.end()) State->SymbolSpaces.erase(sym_it);
 }
 
 
@@ -2472,6 +2587,7 @@ void MDOType::Derive(MDOTypePtr BaseEntry)
 		it++;
 	}
 
+
 	// Copy the base type's ref target setting
 	RefTarget = Base->RefTarget;
 	RefTargetName = Base->RefTargetName;
@@ -2494,7 +2610,7 @@ bool MDObject::IsA(std::string BaseType)
 
 
 //! Determine if this object is derived from a specified type (directly or indirectly)
-bool MDObject::IsA(MDOTypePtr BaseType)
+bool MDObject::IsA(MDOTypePtr &BaseType)
 {
 	MDOTypePtr TestType = Type;
 
@@ -2626,7 +2742,8 @@ MDOTypePtr MDOType::BuildTypeFromDict(std::string Name, std::string Base, MDOTyp
 									  std::string TypeName, MDContainerType ContainerType, 
 									  unsigned int minLength, unsigned int maxLength, DictKeyFormat KeyFormat, 
 									  DictLenFormat LenFormat, std::string RefTargetName,
-									  std::string Default, std::string DValue, UInt32 Items)
+									  std::string Default, std::string DValue, UInt32 Items,
+									  SymbolSpacePtr ThisSymbolSpace)
 {
 	/* Grab a new dictionary entry */
 	MDOTypePtr Dict = new MDOType;
@@ -2771,6 +2888,10 @@ MDOTypePtr MDOType::BuildTypeFromDict(std::string Name, std::string Base, MDOTyp
 		}
 	}
 
+	//! Ensure that the name is added to the correct symbol space
+	if(Dict->TypeUL) ThisSymbolSpace->AddSymbol(Dict->FullName(), Dict->TypeUL);
+
 	// Return the new type
 	return Dict;
 }
+

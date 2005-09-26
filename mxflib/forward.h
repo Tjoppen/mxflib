@@ -1,7 +1,7 @@
 /*! \file	forward.h
  *	\brief	Various forward declarations
  *
- *	\version $Id: forward.h,v 1.3 2005/03/25 13:18:12 terabrit Exp $
+ *	\version $Id: forward.h,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -71,6 +71,29 @@ namespace mxflib
 
 	//! A list of smart pointers to MDValue objects
 	typedef std::list<MDValuePtr> MDValueList;
+
+
+	/* SymbolSpace pointer types */
+
+	class SymbolSpace;
+
+	//! A smart pointer to an SymbolSpace object
+	typedef SmartPtr<SymbolSpace> SymbolSpacePtr;
+
+	//! A parent pointer to an SymbolSpace object
+	typedef ParentPtr<SymbolSpace> SymbolSpaceParent;
+
+	//! A list of smart pointers to SymbolSpace objects
+	typedef std::list<SymbolSpacePtr> SymbolSpaceList;
+
+	//! A list of parent pointers to SymbolSpace objects
+	typedef std::list<SymbolSpaceParent> SymbolSpaceParentList;
+
+	//! A map of names to symbol space pointers
+	typedef std::map<std::string, SymbolSpaceParent> SymbolSpaceMap;
+
+	//! Global SymbolSpace for all MXFLib's normal symbols
+	extern SymbolSpacePtr MXFLibSymbols;
 }
 
 

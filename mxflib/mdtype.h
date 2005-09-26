@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.4 2005/03/25 13:18:12 terabrit Exp $
+ *	\version $Id: mdtype.h,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -81,12 +81,12 @@ namespace mxflib
 	{
 	public:
 		bool IsNum;
-		Uint32 Number;
+		UInt32 Number;
 		std::string String;
 
 	public:
 //		MapIndex() { ASSERT(0); };
-		MapIndex(Uint32 Num) { IsNum = true; Number = Num; String = Int2String(Num); };
+		MapIndex(UInt32 Num) { IsNum = true; Number = Num; String = Int2String(Num); };
 		MapIndex(std::string Str) { IsNum = false; String = Str; };
 		MapIndex(const MapIndex& Map) 
 		{ IsNum = Map.IsNum; 
@@ -104,7 +104,7 @@ namespace mxflib
 		}
 
 		//! Allocator which does not change underlying type
-		MapIndex& operator=(Uint32 Num) 
+		MapIndex& operator=(UInt32 Num) 
 		{ 
 			if(IsNum) { Number = Num; String = Int2String(Num); } 
 			return *this;
@@ -222,7 +222,7 @@ namespace mxflib
 		//! Report the effective size of this type
 		/*! /ret The size in bytes of a single instance of this type, or 0 if variable size
 		 */
-		Uint32 EffectiveSize(void) const;
+		UInt32 EffectiveSize(void) const;
 
 		//! Does this value's trait take control of all sub-data and build values in the our own DataChunk?
 		/*! Normally any contained sub-types (such as array items or compound members) hold their own data */
@@ -245,7 +245,7 @@ namespace mxflib
 		MDArrayClass GetArrayClass(void) { return ArrayClass; };
 
 		//! Get the name of this type
-		std::string &Name(void) { return TypeName; }
+		const std::string &Name(void) const { return TypeName; }
 
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
@@ -298,7 +298,7 @@ namespace mxflib
 		MDTypePtr Type;
 		DataChunk Data;
 //		int Size;
-//		Uint8 *Data;				// DRAGONS: This should be a DataChunk
+//		UInt8 *Data;				// DRAGONS: This should be a DataChunk
 
 	public:
 //		MDValueList Children;
@@ -311,7 +311,7 @@ namespace mxflib
 ~MDValue() {}; // ## DRAGONS: For debug ONLY!!
 
 		void AddChild(MDValuePtr Child, int Index = -1);
-		void Resize(Uint32 Index);
+		void Resize(UInt32 Index);
 
 		MDValuePtr operator[](int Index);
 		MDValuePtr Child(int Index) { return operator[](Index); };
@@ -324,34 +324,34 @@ namespace mxflib
 
 		void SetInt(Int32 Val) { Type->Traits->SetInt(this, Val); };
 		void SetInt64(Int64 Val) { Type->Traits->SetInt64(this, Val); };
-		void SetUInt(Uint32 Val) { Type->Traits->SetUInt(this, Val); };
-		void SetUInt64(Uint64 Val) { Type->Traits->SetUInt64(this, Val); };
-		void SetUint(Uint32 Val) { Type->Traits->SetUInt(this, Val); };
-		void SetUint64(Uint64 Val) { Type->Traits->SetUInt64(this, Val); };
+		void SetUInt(UInt32 Val) { Type->Traits->SetUInt(this, Val); };
+		void SetUInt64(UInt64 Val) { Type->Traits->SetUInt64(this, Val); };
+		void SetUint(UInt32 Val) { Type->Traits->SetUInt(this, Val); };
+		void SetUint64(UInt64 Val) { Type->Traits->SetUInt64(this, Val); };
 		void SetString(std::string Val)	{ Type->Traits->SetString(this, Val); };
 		Int32 GetInt(void) { return Type->Traits->GetInt(this); };
 		Int64 GetInt64(void) { return Type->Traits->GetInt64(this); };
-		Uint32 GetUInt(void) { return Type->Traits->GetUInt(this); };
-		Uint64 GetUInt64(void) { return Type->Traits->GetUInt64(this); };
-		Uint32 GetUint(void) { return Type->Traits->GetUInt(this); };
-		Uint64 GetUint64(void) { return Type->Traits->GetUInt64(this); };
+		UInt32 GetUInt(void) { return Type->Traits->GetUInt(this); };
+		UInt64 GetUInt64(void) { return Type->Traits->GetUInt64(this); };
+		UInt32 GetUint(void) { return Type->Traits->GetUInt(this); };
+		UInt64 GetUint64(void) { return Type->Traits->GetUInt64(this); };
 		std::string GetString(void)	{ return Type->Traits->GetString(this); };
 
 		// Child value access
 		// DRAGONS: May need to add code to check inside "optimised" compounds
 		Int32 GetInt(const char *ChildName, Int32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt(); else return Default; };
 		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt64(); else return Default; };
-		Uint32 GetUInt(const char *ChildName, Uint32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt(); else return Default; };
-		Uint64 GetUInt64(const char *ChildName, Uint64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt64(); else return Default; };
-		Uint32 GetUint(const char *ChildName, Uint32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt(); else return Default; };
-		Uint64 GetUint64(const char *ChildName, Uint64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt64(); else return Default; };
+		UInt32 GetUInt(const char *ChildName, UInt32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt(); else return Default; };
+		UInt64 GetUInt64(const char *ChildName, UInt64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt64(); else return Default; };
+		UInt32 GetUint(const char *ChildName, UInt32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt(); else return Default; };
+		UInt64 GetUint64(const char *ChildName, UInt64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt64(); else return Default; };
 		std::string GetString(const char *ChildName, std::string Default = "") { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetString(); else return Default; };
 		void SetInt(const char *ChildName, Int32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt(Val); };
 		void SetInt64(const char *ChildName, Int64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt64(Val); };
-		void SetUInt(const char *ChildName, Uint32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt(Val); };
-		void SetUInt64(const char *ChildName, Uint64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
-		void SetUint(const char *ChildName, Uint32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt(Val); };
-		void SetUint64(const char *ChildName, Uint64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
+		void SetUInt(const char *ChildName, UInt32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt(Val); };
+		void SetUInt64(const char *ChildName, UInt64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
+		void SetUint(const char *ChildName, UInt32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt(Val); };
+		void SetUint64(const char *ChildName, UInt64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
 		void SetString(const char *ChildName, std::string Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetString(Val); };
 		
 		void ReadValue(const char *ChildName, const DataChunk &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
@@ -360,11 +360,11 @@ namespace mxflib
 
 		// DRAGONS: These should probably be private and give access via MDTraits
 		// to prevent users tinkering!
-		Uint32 MakeSize(Uint32 NewSize);
+		UInt32 MakeSize(UInt32 NewSize);
 
-		Uint32 ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
-		Uint32 ReadValue(DataChunkPtr &Chunk) { return ReadValue(Chunk->Data, Chunk->Size); };
-		Uint32 ReadValue(const Uint8 *Buffer, Uint32 Size, int Count=0);
+		UInt32 ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
+		UInt32 ReadValue(DataChunkPtr &Chunk) { return ReadValue(Chunk->Data, Chunk->Size); };
+		UInt32 ReadValue(const UInt8 *Buffer, UInt32 Size, int Count=0);
 
 		//! Get a reference to the data chunk (const to prevent setting!!)
 		const DataChunk& GetData(void) { return (const DataChunk&) Data; };
@@ -374,14 +374,14 @@ namespace mxflib
 
 		//! Set data into the datachunk
 		// DRAGONS: This is dangerous!!
-		void SetData(Uint32 MemSize, const Uint8 *Buffer) 
+		void SetData(UInt32 MemSize, const UInt8 *Buffer) 
 		{ 
 			Data.Resize(MemSize); 
 			Data.Set(MemSize, Buffer); 
 		};
 
 		// Report the name of this item (the name of its type)
-		std::string &Name(void) { ASSERT(Type); return Type->TypeName; };
+		const std::string &Name(void) const { ASSERT(Type); return Type->TypeName; };
 
 		// Type access function
 		MDTypePtr GetType(void) { return Type; };

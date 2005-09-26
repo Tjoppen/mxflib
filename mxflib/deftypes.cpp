@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.11 2005/08/05 14:28:15 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.12 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -33,7 +33,6 @@
 
 
 using namespace mxflib;
-
 
 /* XML parsing functions - with file scope */
 namespace
@@ -89,6 +88,7 @@ namespace
 	}
 }
 
+
 namespace
 {
 	//! Our XML handler
@@ -127,6 +127,7 @@ namespace
 	//! Map of type names to thair handling traits
 	static TraitsMapType TraitsMap;
 
+	
 	//! Build the map of all known traits
 	static void DefineTraits(void)
 	{
@@ -142,26 +143,26 @@ namespace
 		TraitsMap.insert(TraitsMapType::value_type("RAW", new MDTraits_Raw));
 
 		TraitsMap.insert(TraitsMapType::value_type("Int8", new MDTraits_Int8));
-		TraitsMap.insert(TraitsMapType::value_type("Uint8", new MDTraits_Uint8));
-		TraitsMap.insert(TraitsMapType::value_type("UInt8", new MDTraits_Uint8));
-		TraitsMap.insert(TraitsMapType::value_type("Internal-UInt8", new MDTraits_Uint8));
+		TraitsMap.insert(TraitsMapType::value_type("UInt8", new MDTraits_UInt8));
+		TraitsMap.insert(TraitsMapType::value_type("Uint8", new MDTraits_UInt8));
+		TraitsMap.insert(TraitsMapType::value_type("Internal-UInt8", new MDTraits_UInt8));
 		TraitsMap.insert(TraitsMapType::value_type("Int16", new MDTraits_Int16));
-		TraitsMap.insert(TraitsMapType::value_type("Uint16", new MDTraits_Uint16));
-		TraitsMap.insert(TraitsMapType::value_type("UInt16", new MDTraits_Uint16));
+		TraitsMap.insert(TraitsMapType::value_type("UInt16", new MDTraits_UInt16));
+		TraitsMap.insert(TraitsMapType::value_type("Uint16", new MDTraits_UInt16));
 		TraitsMap.insert(TraitsMapType::value_type("Int32", new MDTraits_Int32));
-		TraitsMap.insert(TraitsMapType::value_type("Uint32", new MDTraits_Uint32));
-		TraitsMap.insert(TraitsMapType::value_type("UInt32", new MDTraits_Uint32));
+		TraitsMap.insert(TraitsMapType::value_type("UInt32", new MDTraits_UInt32));
+		TraitsMap.insert(TraitsMapType::value_type("Uint32", new MDTraits_UInt32));
 		TraitsMap.insert(TraitsMapType::value_type("Int64", new MDTraits_Int64));
-		TraitsMap.insert(TraitsMapType::value_type("Uint64", new MDTraits_Uint64));
-		TraitsMap.insert(TraitsMapType::value_type("UInt64", new MDTraits_Uint64));
+		TraitsMap.insert(TraitsMapType::value_type("UInt64", new MDTraits_UInt64));
+		TraitsMap.insert(TraitsMapType::value_type("Uint64", new MDTraits_UInt64));
 
 		TraitsMap.insert(TraitsMapType::value_type("ISO7", new MDTraits_ISO7));
 		TraitsMap.insert(TraitsMapType::value_type("UTF16", new MDTraits_UTF16));
 
 		TraitsMap.insert(TraitsMapType::value_type("ISO7String", new MDTraits_BasicStringArray));
 		TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_UTF16String));
-		TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
 		TraitsMap.insert(TraitsMapType::value_type("UInt8Array", new MDTraits_RawArray));
+		TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
 
 		TraitsMap.insert(TraitsMapType::value_type("UUID", new MDTraits_UUID));
 		TraitsMap.insert(TraitsMapType::value_type("Label", new MDTraits_Label));
@@ -173,8 +174,20 @@ namespace
 		TraitsMap.insert(TraitsMapType::value_type("Rational", new MDTraits_Rational));
 		TraitsMap.insert(TraitsMapType::value_type("Timestamp", new MDTraits_TimeStamp));
 	}
+
+	//! Set true once the basic required classes have been loaded
+	static bool BasicClassesDefined = false;
 }
 
+#ifdef TRAITS_HACK
+//FIXME
+//This is only needed for the moment until user extensions to the traits are implemented
+//It is not recommended that you use the function as it will be unceremoniously removed when it can be.
+//! Lookup a Trait by name
+const MDTraits*  mxflib::LookupTraits(const char* TraitsName) { return TraitsMap[TraitsName]; };
+
+
+#endif
 
 //! Load types from the specified XML definitions
 /*! \return 0 if all OK
@@ -421,6 +434,10 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 
 				break;
 			}
+
+			// Should never be possible to get here
+			default:
+				ASSERT(0);
 		}
 	
 		it++;
@@ -428,11 +445,11 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 
 
 	// Resolve any remaining entries
-	int UnresolvedCount = Unresolved.size();
+	int UnresolvedCount = (int)Unresolved.size();
 	if(UnresolvedCount)
 	{
 		// Unless we were stuck this time (cannot resolve any more)
-		if(UnresolvedCount == TypesData.size())
+		if(UnresolvedCount == (int)TypesData.size())
 		{
 			error("Undefined base class or circular reference in types definitions\n");
 			return -1;
@@ -769,6 +786,7 @@ namespace
 }
 
 
+
 namespace
 {
 	//! XML callback - Deal with end tag of an element
@@ -838,15 +856,15 @@ namespace mxflib
 /*! \return 0 if all OK
  *  \return -1 on error
  */
-int mxflib::LoadClasses(ClassRecordList &ClassesData)
+int mxflib::LoadClasses(ClassRecordList &ClassesData, SymbolSpacePtr DefaultSymbolSpace /*=MXFLibSymbols*/)
 {
 	// Define the basic "internally required" classes (enough to hold an "Unknown")
-	static bool BasicClassesDefined = false;
 	if(!BasicClassesDefined)
 	{
 		BasicClassesDefined = true;
-		LoadClasses(BasicInternalClasses);
+		LoadClasses(BasicInternalClasses, MXFLibSymbols);
 	}
+
 	//! List to hold any entries that are not resolved during this pass (we will recurse to resolve them at the end of the pass)
 	ClassRecordList Unresolved;
 
@@ -854,27 +872,40 @@ int mxflib::LoadClasses(ClassRecordList &ClassesData)
 	ClassRecordList::iterator it = ClassesData.begin();
 	while(it != ClassesData.end())
 	{
-		MDOTypePtr ThisType = MDOType::DefineClass(*it);
+		ClassRecordPtr Dat = (*it);
+		if((*it)->Class == ClassSymbolSpace)
+		{
+			// A symbol space has been specified - look it up
+			DefaultSymbolSpace = SymbolSpace::FindSymbolSpace((*it)->SymSpace);
 
-		// If anything went wrong with this definition stack it for later
-		if(!ThisType) Unresolved.push_back(*it);
+			// If it does not already exist, create it
+			if(!DefaultSymbolSpace) DefaultSymbolSpace = new SymbolSpace((*it)->SymSpace);
+		}
+		else
+		{
+			// All other entries are used to build classes
+			MDOTypePtr ThisType = MDOType::DefineClass(*it, DefaultSymbolSpace);
+
+			// If anything went wrong with this definition stack it for later
+			if(!ThisType) Unresolved.push_back(*it);
+		}
 
 		it++;
 	}
 
 	// Resolve any remaining entries
-	int UnresolvedCount = Unresolved.size();
+	int UnresolvedCount = (int)Unresolved.size();
 	if(UnresolvedCount)
 	{
 		// Unless we were stuck this time (cannot resolve any more)
-		if(UnresolvedCount == ClassesData.size())
+		if(UnresolvedCount == (int)ClassesData.size())
 		{
 			error("Undefined base class or circular reference in class definitions\n");
 			return -1;
 		}
 
 		// Recurse...
-		LoadClasses(Unresolved);
+		LoadClasses(Unresolved, DefaultSymbolSpace);
 	}
 
 	// Build a static primer (for use in index tables)
@@ -908,7 +939,7 @@ namespace
 		ThisClass->Base = ClassData->Base;
 		ThisClass->Tag = ClassData->Tag;
 		
-		Uint8 ULBuffer[16];
+		UInt8 ULBuffer[16];
 		int Count = mxflib::ReadHexString(ClassData->UL, 16, ULBuffer, " \t.");
 
 		if(Count == 16) 
@@ -936,6 +967,9 @@ namespace
 
 		ThisClass->RefType = ClassData->RefType;
 		ThisClass->RefTarget = ClassData->RefTarget;
+
+		if(ClassData->SymSpace == NULL) ThisClass->SymSpace = "";
+		else ThisClass->SymSpace = ClassData->SymSpace;
 
 		// Add any children
 		if((ClassData->Class == ClassSet) || (ClassData->Class == ClassPack) 
@@ -968,11 +1002,8 @@ namespace
  *  \return 0 if all OK
  *  \return -1 on error
  */
-int mxflib::LoadClasses(const ConstClassRecord *ClassData)
+int mxflib::LoadClasses(const ConstClassRecord *ClassData, SymbolSpacePtr DefaultSymbolSpace /*=MXFLibSymbols*/)
 {
-	// Pointer to walk through the array
-	const ConstClassRecord *CurrentClass = ClassData;
-
 	// Run-time list of classes
 	ClassRecordList Classes;
 
@@ -989,12 +1020,12 @@ int mxflib::LoadClasses(const ConstClassRecord *ClassData)
 	}
 
 	// Load the classes from the new in-memory list
-	return LoadClasses(Classes);
+	return LoadClasses(Classes, DefaultSymbolSpace);
 }
 
 
 //! Define a class from an in-memory dictionary definition
-MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, MDOTypePtr Parent /*=NULL*/)
+MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr DefaultSymbolSpace, MDOTypePtr Parent /*=NULL*/)
 {
 	//! Lookup-table to convert key size to key format enum
 	static const DictKeyFormat KeyConvert[] =
@@ -1154,6 +1185,22 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, MDOTypePtr Parent /*=
 		PutU16(ThisClass->Tag, Ret->Key.Data);
 	}
 
+	// Determine the symbol space to use for this and any children - this is done irrespective of
+	// whether a UL exists for this item as thier may be children that have a UL defined
+	SymbolSpacePtr ThisSymbolSpace;
+	if(ThisClass->SymSpace.size())
+	{
+		/* A symbol space has been specified - look it up */
+		ThisSymbolSpace = SymbolSpace::FindSymbolSpace(ThisClass->SymSpace);
+
+		// If it does not already exist, create it
+		if(!ThisSymbolSpace) ThisSymbolSpace = new SymbolSpace(ThisClass->SymSpace);
+	}
+	else 
+	{
+		ThisSymbolSpace = DefaultSymbolSpace;
+	}
+
 	// Set the global key (if one exists)
 	if(ThisClass->UL)
 	{
@@ -1165,6 +1212,9 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, MDOTypePtr Parent /*=
 		Ret->TypeUL = ThisClass->UL;
 		ULLookup[UL(Ret->TypeUL)] = Ret;
 		// printf("CLASS %s UL set\n", Ret->DictName.c_str());
+
+		// Add the name and UL to the symbol space
+		ThisSymbolSpace->AddSymbol(Ret->FullName(), Ret->TypeUL);
 	}
 	// else printf("CLASS %s has no UL\n", Ret->DictName.c_str());
 
@@ -1202,7 +1252,7 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, MDOTypePtr Parent /*=
 	ClassRecordList::iterator it = ThisClass->Children.begin();
 	while(it != ThisClass->Children.end())
 	{
-		MDOTypePtr Child = DefineClass(*it, Ret);
+		MDOTypePtr Child = DefineClass(*it, Ret, ThisSymbolSpace);
 
 		// If the child was not added quit this attempt (deliberately returning the NULL)
 		if(!Child) return Child;
@@ -1219,7 +1269,7 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, MDOTypePtr Parent /*=
  *  \return -1 on error
  *  \note If any part of the dictionary loading fails the loading will continue unless FastFail is set to true
  */
-int mxflib::LoadDictionary(DictionaryPtr &DictionaryData, bool FastFail /*=false*/)
+int mxflib::LoadDictionary(DictionaryPtr &DictionaryData, SymbolSpacePtr DefaultSymbolSpace, bool FastFail /*=false*/)
 {
 	int Ret = 0;
 
@@ -1236,7 +1286,7 @@ int mxflib::LoadDictionary(DictionaryPtr &DictionaryData, bool FastFail /*=false
 	ClassRecordListList::iterator Classes_it = DictionaryData->Classes.begin();
 	while(Classes_it != DictionaryData->Classes.end())
 	{
-		if(LoadClasses(*Classes_it) != 0) Ret = -1;
+		if(LoadClasses((*Classes_it), DefaultSymbolSpace) != 0) Ret = -1;
 		if(FastFail && (Ret != 0)) return Ret;
 		Classes_it++;
 	}
@@ -1254,7 +1304,7 @@ int mxflib::LoadDictionary(DictionaryPtr &DictionaryData, bool FastFail /*=false
  *  \return -1 on error
  *  \note If any part of the dictionary loading fails the loading will continue unless FastFail is set to true
  */
-int mxflib::LoadDictionary(const ConstDictionaryRecord *DictionaryData, bool FastFail /*=false*/)
+int mxflib::LoadDictionary(const ConstDictionaryRecord *DictionaryData, SymbolSpacePtr DefaultSymbolSpace, bool FastFail /*=false*/)
 {
 	int Ret = 0;
 
@@ -1267,7 +1317,7 @@ int mxflib::LoadDictionary(const ConstDictionaryRecord *DictionaryData, bool Fas
 		}
 		else
 		{
-			if(LoadClasses((const ConstClassRecord *)DictionaryData->Dict) != 0) Ret = -1;
+			if(LoadClasses((const ConstClassRecord *)DictionaryData->Dict, DefaultSymbolSpace) != 0) Ret = -1;
 			if(FastFail && (Ret != 0)) return Ret;
 		}
 
@@ -1308,24 +1358,23 @@ namespace
 		DictCurrentState State;				//!< Current state of the parser state-machine
 		MDOTypeList Parents;				//!< List of pointers to parents, empty if currently at the top level
 		TypesParserState ClassState;		//!< Parser state for types sub-parser
+		SymbolSpacePtr DefaultSymbolSpace;	//!< Default symbol space to use for all classes
+		SymbolSpaceList SymbolSpaces;		//!< List of symbol spaces for each level, empty if currently at the top level
 	};
 }
 
 //! Load dictionary from the specified XML definitions
 /*! \return 0 if all OK
  *  \return -1 on error
- *  \note At the moment this call simply identifies which type of dictionary
- *        it is and calls the old functions
  */
-int mxflib::LoadDictionary(char *DictFile, bool FastFail /*=false*/)
+int mxflib::LoadDictionary(const char *DictFile, SymbolSpacePtr DefaultSymbolSpace, bool FastFail /*=false*/)
 {
-	int Ret = 0;
-
 	// State data block passed through XML parser
 	DictParserState State;
 
 	// Initialize the state
 	State.State = DictStateIdle;
+	State.DefaultSymbolSpace = DefaultSymbolSpace;
 
 	std::string XMLFilePath = LookupDictionaryPath(DictFile);
 
@@ -1338,20 +1387,17 @@ int mxflib::LoadDictionary(char *DictFile, bool FastFail /*=false*/)
 		XML_fatalError(NULL, "Failed to load dictionary \"%s\"\n", XMLFilePath.size() ? XMLFilePath.c_str() : DictFile);
 		return -1;
 	}
-/*
-	if(State.State == DictStateTypes)
+
+	// Define the basic "internally required" classes (enough to hold an "Unknown")
+	if(!BasicClassesDefined)
 	{
-		// Load the types using the old function
-		Ret = LoadTypes(DictFile);
+		BasicClassesDefined = true;
+		LoadClasses(BasicInternalClasses, MXFLibSymbols);
 	}
-	else if(State.State == DictStateClasses)
-	{
-		// Load the classes using the old function
-		MDOType::LoadDict(DictFile);
-	}
-*/
-	return -1;
+
+	return 0;
 }
+
 
 
 namespace
@@ -1370,9 +1416,35 @@ namespace
 				if(strcmp(name, "MXFDictionary") == 0)
 				{
 					State->State = DictStateDictionary;
+
+					/* Check for symSpace */
+					if(attrs != NULL)
+					{
+						int this_attr = 0;
+						while(attrs[this_attr])
+						{
+							char const *attr = attrs[this_attr++];
+							char const *val = attrs[this_attr++];
+							
+							if(strcmp(attr, "symSpace") == 0)
+							{
+								// See if this symbol space already exists
+								SymbolSpacePtr DefaultSymbolSpace = SymbolSpace::FindSymbolSpace(val);
+
+								// If it doesn't exist we must create it
+								if(!DefaultSymbolSpace)
+								{
+									DefaultSymbolSpace = new SymbolSpace(val);
+								}
+
+								State->DefaultSymbolSpace = DefaultSymbolSpace;
+							}
+						}
+					}
+
 					break;
 				}
-				// Start of old-style classes dictionary
+				// Start of old-style types dictionary
 				else if(strcmp(name, "MXFTypes") == 0)
 				{
 					State->State = DictStateDictionary;
@@ -1381,9 +1453,13 @@ namespace
 				}
 				else
 				{
-					XML_fatalError(user_data, "Outer tag <MXFTypes> or <MXFDictionary> expected - <%s> found\n", name);
-					State->State = DictStateError;
-					return;
+					// Allow MXF dictionaries to be wrapped inside other XML files
+					debug("Stepping into outer level <%s>\n", name);
+					break;
+					
+//					XML_fatalError(user_data, "Outer tag <MXFTypes> or <MXFDictionary> expected - <%s> found\n", name);
+//					State->State = DictStateError;
+//					return;
 				}
 			}
 
@@ -1416,6 +1492,35 @@ namespace
 				if(strcmp(name, "MXFClasses") == 0)
 				{
 					// Found an indicator that we are starting new-style unified dictionary classes
+
+					/* Check for symSpace */
+					if(attrs != NULL)
+					{
+						int this_attr = 0;
+						while(attrs[this_attr])
+						{
+							char const *attr = attrs[this_attr++];
+							char const *val = attrs[this_attr++];
+							
+							if(strcmp(attr, "symSpace") == 0)
+							{
+								// See if this symbol space already exists
+								SymbolSpacePtr DefaultSymbolSpace = SymbolSpace::FindSymbolSpace(val);
+
+								// If it doesn't exist we must create it
+								if(!DefaultSymbolSpace)
+								{
+									DefaultSymbolSpace = new SymbolSpace(val);
+								}
+
+								// We push this symbol space on to the SymbolSpaces list
+								// so that we can revert back to the default is we have
+								// more than one MXFClasses section in the dictionary file
+								State->SymbolSpaces.push_back(DefaultSymbolSpace);
+							}
+						}
+					}
+
 					break;
 				}
 
@@ -1446,6 +1551,7 @@ namespace
 		}
 	}
 }
+
 
 
 namespace
@@ -1495,6 +1601,7 @@ namespace
 		MDOTypePtr Parent;
 		std::string Default;
 		std::string DValue;
+		std::string SymSpace;
 
 		// Record the parent
 		if(State->Parents.size())
@@ -1516,7 +1623,7 @@ namespace
 				{
 					int Size;
 					const char *p = val;
-					Uint8 Buffer[32];
+					UInt8 Buffer[32];
 
 					Size = ReadHexString(&p, 32, Buffer, " \t.");
 
@@ -1526,7 +1633,7 @@ namespace
 				{
 					int Size;
 					const char *p = val;
-					Uint8 Buffer[32];
+					UInt8 Buffer[32];
 
 					Size = ReadHexString(&p, 32, Buffer, " \t.");
 
@@ -1623,7 +1730,6 @@ namespace
 							DICT_TYPE_RGBALAYOUT,
 
 						} DictType;
-
 
 						DictType DType = DICT_TYPE_NONE;
 						if(strcasecmp(val,"universalSet") == 0) DType = DICT_TYPE_UNIVERSAL_SET;
@@ -1723,6 +1829,10 @@ namespace
 				{
 					Base = std::string(val);
 				}
+				else if(strcmp(attr, "symSpace") == 0)
+				{
+					SymSpace = std::string(val);
+				}
 				else
 				{
 					XML_warning(user_data, "Unexpected attribute '%s' in <%s/>", attr, name);
@@ -1740,13 +1850,39 @@ namespace
 		// Build this item
 		if(Ret)
 		{
+			// First determine the symbol space to use
+			SymbolSpacePtr ThisSymbolSpace;
+			if(SymSpace.size())
+			{
+				/* A symbol space has been specified - look it up */
+				ThisSymbolSpace = SymbolSpace::FindSymbolSpace(SymSpace);
+
+				// If it does not already exist, create it
+				if(!ThisSymbolSpace) ThisSymbolSpace = new SymbolSpace(SymSpace);
+			}
+			else if(State->SymbolSpaces.empty())
+			{
+				/* Not specified - and we are at the top level */
+				ThisSymbolSpace = State->DefaultSymbolSpace;
+			}
+			else
+			{
+				/* Not specified - we will inherit from our parent */
+				SymbolSpaceList::iterator it = State->SymbolSpaces.end();
+				ThisSymbolSpace = *(--it);
+			}
+
 			MDOTypePtr Dict = MDOType::BuildTypeFromDict(std::string(name), Base, Parent, Key, GlobalKey, Detail,
 														 Use, RefType, ValueType, TypeName, ContainerType, 
 														 minLength, maxLength, KeyFormat, LenFormat,
-														 RefTargetName, Default, DValue, Items);
+														 RefTargetName, Default, DValue, Items, ThisSymbolSpace);
 
 			// Add us as parent to any following entries
-			if(Dict) State->Parents.push_back(Dict);
+			if(Dict)
+			{
+				State->Parents.push_back(Dict);
+				State->SymbolSpaces.push_back(ThisSymbolSpace);
+			}
 			else Ret = false;
 		}
 
@@ -1766,12 +1902,21 @@ namespace
 		if(State->State == DictStateClasses)
 		{
 			if(strcmp(name, "MXFDictionary") == 0) State->State = DictStateIdle;
-			else if(strcmp(name, "MXFClasses") == 0) State->State = DictStateDictionary;
+			else if(strcmp(name, "MXFClasses") == 0) 
+			{
+				State->State = DictStateDictionary;
+				State->Parents.clear();
+				State->SymbolSpaces.clear();
+			}
 			else
 			{
 				// Remove the last parent from the stack
 				std::list<MDOTypePtr>::iterator it = State->Parents.end();
 				if(--it != State->Parents.end()) State->Parents.erase(it);
+
+				// Remove the last symbol space from the stack
+				SymbolSpaceList::iterator sym_it = State->SymbolSpaces.end();
+				if(--sym_it != State->SymbolSpaces.end()) State->SymbolSpaces.erase(sym_it);
 			}
 
 			// Tidy up at end of class parsing if we have finished processing classes
@@ -1780,6 +1925,8 @@ namespace
 				// Build a static primer (for use in index tables)
 				MDOType::MakePrimer(true);
 			}
+
+			return;
 		}
 
 		if(State->State == DictStateTypes)
@@ -1795,6 +1942,20 @@ namespace
 				// Back to the outer level of the dictionary
 				State->State = DictStateDictionary;
 			}
+
+			return;
+		}
+
+		if(State->State == DictStateDictionary)
+		{
+			if(strcmp(name, "MXFDictionary") == 0) State->State = DictStateIdle;
+			return;
+		}
+
+		if(State->State != DictStateDictionary)
+		{
+			// Allow MXF dictionaries to be wrapped inside other XML files
+			debug("Stepping out of outer level <%s>\n", name);
 		}
 	}
 }

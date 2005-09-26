@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.cpp,v 1.4 2005/03/26 18:08:34 terabrit Exp $
+ *	\version $Id: primer.cpp,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -39,7 +39,7 @@ using namespace mxflib;
 //! Read the primer from a buffer
 /*!	\return Number of bytes read
  */
-Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
+UInt32 Primer::ReadValue(const UInt8 *Buffer, UInt32 Size)
 {
 	debug("Reading Primer\n");
 
@@ -53,7 +53,7 @@ Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
 	}
 
 	// Each entry in the primer is 18 bytes
-	Uint32 Items = (Size-8) / 18;
+	UInt32 Items = (Size-8) / 18;
 
 	// Validate the size and only read whole items
 	if((Items * 18) != (Size-8))
@@ -63,8 +63,8 @@ Uint32 Primer::ReadValue(const Uint8 *Buffer, Uint32 Size)
 	}
 
 	// Read the vector header
-	Uint32 ClaimedItems = GetU32(Buffer);
-	Uint32 ClaimedItemSize = GetU32(&Buffer[4]);
+	UInt32 ClaimedItems = GetU32(Buffer);
+	UInt32 ClaimedItemSize = GetU32(&Buffer[4]);
 	Buffer += 8;
 
 	if(ClaimedItemSize != 18)
@@ -175,15 +175,15 @@ Tag Primer::Lookup(ULPtr ItemUL, Tag TryTag /*=0*/)
 
 //! Write this primer to a memory buffer
 /*! The primer will be <b>appended</b> to the DataChunk */
-Uint32 Primer::WritePrimer(DataChunkPtr &Buffer)
+UInt32 Primer::WritePrimer(DataChunkPtr &Buffer)
 {
-	Uint32 Bytes;
+	UInt32 Bytes;
 
 	// Work out the primer value size first (to allow us to pre-allocate)
-	Uint64 PrimerLen = Uint64(size()) * 18 + 8;
+	UInt64 PrimerLen = UInt64(size()) * 18 + 8;
 
 	// Re-size buffer to the probable final size
-	Buffer->ResizeBuffer((Uint32)(Buffer->Size + 16 + 4 + PrimerLen));
+	Buffer->ResizeBuffer((UInt32)(Buffer->Size + 16 + 4 + PrimerLen));
 
 	// Lookup the type to get the key - Static so only need to lookup once
 	static MDOTypePtr PrimerType = MDOType::Find("Primer");
@@ -198,7 +198,7 @@ Uint32 Primer::WritePrimer(DataChunkPtr &Buffer)
 	Bytes += BER->Size;
 
 	// Add the vector header
-	Uint8 Temp[4];
+	UInt8 Temp[4];
 	PutU32(size(), Temp);
 	Buffer->Append(4, Temp);
 	Bytes += 4;

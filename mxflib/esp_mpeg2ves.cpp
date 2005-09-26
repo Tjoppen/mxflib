@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.3 2005/06/17 16:34:09 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.4 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -37,7 +37,7 @@ using namespace mxflib;
 namespace
 {
 	//! Modified UUID for MPEG2-VES
-	const Uint8 MPEG2_VES_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 'M', 'P',  'E', 'G', '2', 'V' };
+	const UInt8 MPEG2_VES_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 'M', 'P',  'E', 'G', '2', 'V' };
 }
 
 
@@ -61,8 +61,8 @@ StringList MPEG2_VES_EssenceSubParser::HandledExtensions(void)
 EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHandle InFile)
 {
 	int BufferBytes;
-	Uint8 Buffer[512];
-	Uint8 *BuffPtr;
+	UInt8 Buffer[512];
+	UInt8 *BuffPtr;
 
 	EssenceStreamDescriptorList Ret;
 
@@ -126,7 +126,7 @@ EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHand
  */
 WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
-	Uint8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x02, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x04, 0x60, 0x01 };
+	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x02, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x04, 0x60, 0x01 };
 	WrappingOptionList Ret;
 
 	// If the source format isn't MPEG2-VES then we can't wrap the essence
@@ -176,7 +176,7 @@ WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandl
 
 
 //! Set a wrapping option for future Read and Write calls
-void MPEG2_VES_EssenceSubParser::Use(Uint32 Stream, WrappingOptionPtr &UseWrapping)
+void MPEG2_VES_EssenceSubParser::Use(UInt32 Stream, WrappingOptionPtr &UseWrapping)
 {
 	SelectedWrapping = UseWrapping;
 	SelectedEditRate = NativeEditRate;
@@ -259,14 +259,14 @@ Position MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
  *  not be the frame rate of this essence
  *	\note This is going to take a lot of memory in clip wrapping! 
  */
-DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, Uint64 Count /*=1*/ /*, IndexTablePtr Index *//*=NULL*/) 
+DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/ /*, IndexTablePtr Index *//*=NULL*/) 
 { 
 	// Scan the stream and find out how many bytes to read
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
+	UInt64 Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
 
 	// Make a datachunk with enough space
 	DataChunkPtr Ret = new DataChunk;
-	Ret->Resize((Uint32)Bytes);
+	Ret->Resize((UInt32)Bytes);
 
 	// Read the data
 	FileRead(InFile, Ret->Data, Bytes);
@@ -283,14 +283,14 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, Uint32 Stream, 
  *	\note This is the only safe option for clip wrapping
  *	\return Count of bytes transferred
  */
-Length MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFilePtr OutFile, Uint64 Count /*=1*//*, IndexTablePtr Index *//*=NULL*/)
+Length MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count /*=1*//*, IndexTablePtr Index *//*=NULL*/)
 {
-	const Uint64 BUFFERSIZE = 32768;
-	Uint8 *Buffer = new Uint8[BUFFERSIZE];
+	const UInt64 BUFFERSIZE = 32768;
+	UInt8 *Buffer = new UInt8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
-	Uint64 Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
-	Uint64 Ret = Bytes;
+	UInt64 Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
+	UInt64 Ret = Bytes;
 
 	while(Bytes)
 	{
@@ -311,17 +311,17 @@ Length MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, Uint32 Stream, MXFFi
 
 //! Read the sequence header at the specified position in an MPEG2 file to build an essence descriptor
 /*! DRAGONS: Currently rather scrappy */
-MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InFile, Uint64 Start /*=0*/)
+MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InFile, UInt64 Start /*=0*/)
 {
 	MDObjectPtr Ret;
-	Uint8 Buffer[12];
+	UInt8 Buffer[12];
 
 	// Read the sequence header
 	FileSeek(InFile, Start);
 	if(FileRead(InFile, Buffer, 12) < 12) return Ret;
 
-	Uint32 HSize = (Buffer[4] << 4) | (Buffer[5] >> 4);
-	Uint32 VSize = ((Buffer[5] & 0x0f) << 8) | (Buffer[6]);
+	UInt32 HSize = (Buffer[4] << 4) | (Buffer[5] >> 4);
+	UInt32 VSize = ((Buffer[5] & 0x0f) << 8) | (Buffer[6]);
 
 	char *Aspect;
 	switch(Buffer[7] & 0xf0)
@@ -349,19 +349,19 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 
 	if(FrameRate == 0) error("Unknown frame rate!\n");
 
-	Uint32 BitRate = (Buffer[8] << 10) | (Buffer[9] << 2) | (Buffer[10] >> 6);
+	UInt32 BitRate = (Buffer[8] << 10) | (Buffer[9] << 2) | (Buffer[10] >> 6);
 
 	if(BitRate == 0x3ffff) warning("Building MPEG2VideoDescriptor - bit_rate = -1\n");
 
 	// Assume some values if no extension found
-	Uint8 PandL = 0;
+	UInt8 PandL = 0;
 	bool Progressive = true;
 	int HChromaSub = 2;
 	int VChromaSub = 2;
 	bool LowDelay = false;
 
-	Uint8 LoadIntra = Buffer[11] & 0x02;
-	Uint8 LoadNonIntra;
+	UInt8 LoadIntra = Buffer[11] & 0x02;
+	UInt8 LoadNonIntra;
 	if(LoadIntra == 0)
 	{
 		LoadNonIntra = Buffer[11] & 0x01;
@@ -370,7 +370,7 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 	{
 		// Skip over the intra buffer and read the non-intra flag
 		FileSeek(InFile, Start + 11 + 64);
-		Uint8 Flags;
+		UInt8 Flags;
 		FileRead(InFile, &Flags, 1);
 
 		LoadNonIntra = Flags & 0x01;
@@ -450,8 +450,8 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 
 	if(Progressive) Ret->SetInt("FrameLayout", 0); else Ret->SetInt("FrameLayout", 1);
 
-	Ret->SetUint("StoredWidth", HSize);
-	Ret->SetUint("StoredHeight", VSize);
+	Ret->SetUInt("StoredWidth", HSize);
+	Ret->SetUInt("StoredHeight", VSize);
 
 	if(Aspect) Ret->SetString("AspectRatio", Aspect); else Ret->SetDValue("AspectRatio");
 
@@ -474,37 +474,37 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 		}
 		else
 		{
-			Ptr->AddChild("VideoLineMapEntry", false)->SetUint(F1);
-			Ptr->AddChild("VideoLineMapEntry", false)->SetUint(F2);
+			Ptr->AddChild("VideoLineMapEntry", false)->SetUInt(F1);
+			Ptr->AddChild("VideoLineMapEntry", false)->SetUInt(F2);
 		}
 	}
 
-	Ret->SetUint("ComponentDepth", 8);
+	Ret->SetUInt("ComponentDepth", 8);
 
-	Ret->SetUint("HorizontalSubsampling", HChromaSub);
-	Ret->SetUint("VerticalSubsampling", VChromaSub);
+	Ret->SetUInt("HorizontalSubsampling", HChromaSub);
+	Ret->SetUInt("VerticalSubsampling", VChromaSub);
 
 	if((HChromaSub == 2) && (VChromaSub == 2))
-		Ret->SetUint("ColorSiting", 3);				// Quincunx 4:2:0
+		Ret->SetUInt("ColorSiting", 3);				// Quincunx 4:2:0
 	else if((HChromaSub == 2) && (VChromaSub == 1))
-		Ret->SetUint("ColorSiting", 4);				// Rec 601 style 4:2:2
+		Ret->SetUInt("ColorSiting", 4);				// Rec 601 style 4:2:2
 	if((HChromaSub == 1) && (VChromaSub == 1))
-		Ret->SetUint("ColorSiting", 0);				// 4:4:4
+		Ret->SetUInt("ColorSiting", 0);				// 4:4:4
 
-	if(Progressive)	Ret->SetUint("CodedContentType", 1); else 	Ret->SetUint("CodedContentType", 2);
-	if(LowDelay)	Ret->SetUint("LowDelay", 1); else	Ret->SetUint("LowDelay", 0);
+	if(Progressive)	Ret->SetUInt("CodedContentType", 1); else 	Ret->SetUInt("CodedContentType", 2);
+	if(LowDelay)	Ret->SetUInt("LowDelay", 1); else	Ret->SetUInt("LowDelay", 0);
 
-	if(BitRate != 0x3ffff) Ret->SetUint("BitRate", BitRate * 400);
+	if(BitRate != 0x3ffff) Ret->SetUInt("BitRate", BitRate * 400);
 
-	Ret->SetUint("ProfileAndLevel", PandL);
+	Ret->SetUInt("ProfileAndLevel", PandL);
 
 #if defined(AS_CNN)
 	// AS-CNN only - default values
 	//! DRAGONS: should be evaluated while wrapping and set when rewriting Header
-	Ret->SetUint("ClosedGOP",			1);				// from IBP Descriptor, check while parsing
-	Ret->SetUint("IdenticalGOP",	1);				// from IBP Descriptor, check while parsing
-	Ret->SetUint("MaxGOP",				15);			// from IBP Descriptor, check while parsing
-	Ret->SetUint("BPictureCount", 2);				// evaluate while parsing
+	Ret->SetUInt("ClosedGOP",			1);				// from IBP Descriptor, check while parsing
+	Ret->SetUInt("IdenticalGOP",	1);				// from IBP Descriptor, check while parsing
+	Ret->SetUInt("MaxGOP",				15);			// from IBP Descriptor, check while parsing
+	Ret->SetUInt("BPictureCount", 2);				// evaluate while parsing
 #endif
 
 	return Ret;
@@ -517,12 +517,12 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
  *
  *	\note PictureNumber is incremented for each picture found
  */
-Length MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream, Uint64 Count)
+Length MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count)
 {
 	// Don't bother if there is no more data
 	if(EndOfStream) return 0;
 
-	Uint64 CurrentStart = CurrentPos;
+	UInt64 CurrentStart = CurrentPos;
 
 	// Apply any edit rate factor for integer multiples of native edit rate 
 	Count *= EditRatio;
@@ -534,7 +534,7 @@ Length MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, Uint32 Stream
 	{
 		EditPoint = false;
 
-		Uint32 Scan = 0xffffffff;
+		UInt32 Scan = 0xffffffff;
 		FileSeek(InFile, CurrentPos);
 		BuffCount = 0;
 

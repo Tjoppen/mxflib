@@ -1,6 +1,6 @@
 
 	// Types definitions converted from file dict.xml
-	MXFLIB_TYPE_START(DictData_Types)
+	MXFLIB_TYPE_START(CompileTimeDict_Types)
 		MXFLIB_TYPE_BASIC("Float32", "32 bit IEEE Floating Point", 4, false)
 		MXFLIB_TYPE_BASIC("Float64", "64 bit IEEE Floating Point", 8, false)
 		MXFLIB_TYPE_BASIC("Float80", "80 bit IEEE Floating Point", 10, false)
@@ -77,11 +77,11 @@
 			MXFLIB_TYPE_COMPOUND_ITEM("Depth", "Number of bits occupied", "UInt8", 0)
 		MXFLIB_TYPE_COMPOUND_END
 		MXFLIB_TYPE_MULTIPLE("RationalArray", "Array of Rational", "Rational", false, 0)
-		MXFLIB_TYPE_MULTIPLE("RGBALayout", "Specifies the type, order and size of the components within the pixel", "RGBALayoutItem", false, 0)
+		MXFLIB_TYPE_MULTIPLE("RGBALayout", "Specifies the type, order and size of the components within the pixel", "RGBALayoutItem", false, 8)
 	MXFLIB_TYPE_END
 
 	// Class definitions converted from file dict.xml
-	MXFLIB_CLASS_START(DictData_Classes)
+	MXFLIB_CLASS_START(CompileTimeDict_Classes)
 		MXFLIB_CLASS_ITEM("KLVFill", "KLV Filler packet", ClassUsageOptional, "RAW", 0, 0, 0x0000, "06 0E 2B 34 01 01 01 01 03 01 02 10 01 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_FIXEDPACK("PartitionMetadata", "Identifies a Partition Pack", "", "")
 			MXFLIB_CLASS_ITEM("MajorVersion", "Major Version number of MXF byte-level format (non-backwards compatible version number)", ClassUsageRequired, "UInt16", 2, 2, 0x0000, "06 0e 2b 34 01 01 01 04  03 01 02 01 06 00 00 00", "0001h", NULL)
@@ -365,9 +365,9 @@
 			MXFLIB_CLASS_ITEM("AlphaMaxRef", "Maximum value for alpha component, e.g. 235 or 940 (8 or 10 bits)", ClassUsageOptional, "UInt32", 4, 4, 0x3408, "06 0e 2b 34 01 01 01 05  04 01 05 03 0d 00 00 00", "255", NULL)
 			MXFLIB_CLASS_ITEM("AlphaMinRef", "Minimum value for alpha component, e.g. 16 or 64 (8 or 10 bits)", ClassUsageOptional, "UInt32", 4, 4, 0x3409, "06 0e 2b 34 01 01 01 05  04 01 05 03 0e 00 00 00", "0", NULL)
 			MXFLIB_CLASS_ITEM("ScanningDirection", "Enumerated Scanning Direction", ClassUsageOptional, "UInt8", 1, 1, 0x3405, "06 0e 2b 34 01 01 01 05  04 01 04 04 01 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("PixelLayout", "Pixel Layout", ClassUsageBestEffort, "RGBALayout", 0, 0, 0x3401, "06 0e 2b 34 01 01 01 02  04 01 05 03 06 00 00 00", NULL, "{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}")
+			MXFLIB_CLASS_ITEM("PixelLayout", "Pixel Layout", ClassUsageBestEffort, "RGBALayout", 16, 16, 0x3401, "06 0e 2b 34 01 01 01 02  04 01 05 03 06 00 00 00", NULL, "{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}")
 			MXFLIB_CLASS_ITEM("Palette", "Palette", ClassUsageOptional, "DataValue", 0, 0, 0x3403, "06 0e 2b 34 01 01 01 02  04 01 05 03 08 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("PaletteLayout", "Palette Layout", ClassUsageOptional, "RGBALayout", 0, 0, 0x3404, "06 0e 2b 34 01 01 01 02  04 01 05 03 09 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PaletteLayout", "Palette Layout", ClassUsageOptional, "RGBALayout", 16, 16, 0x3404, "06 0e 2b 34 01 01 01 02  04 01 05 03 09 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_SET("GenericSoundEssenceDescriptor", "Defines the Sound Essence Descriptor set", "FileDescriptor", "06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 42 00")
 			MXFLIB_CLASS_ITEM("AudioSamplingRate", "Sampling rate of the audio essence", ClassUsageBestEffort, "Rational", 8, 8, 0x3d03, "06 0e 2b 34 01 01 01 05  04 02 03 01 01 01 00 00", "48000/1", "0/0")

@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.5 2005/03/25 13:18:12 terabrit Exp $
+ *	\version $Id: helper.h,v 1.6 2005/09/26 08:35:59 matt-beard Exp $
  *
  */
 /*
@@ -46,7 +46,7 @@ namespace mxflib
 	}
 
 	//! Make a string containing an unsigned number
-	inline std::string Uint2String(int Num, int Digits = 0)
+	inline std::string UInt2String(int Num, int Digits = 0)
 	{
 		char Buffer[18];
 		if(Digits > 16) Digits = 16;
@@ -101,7 +101,7 @@ namespace mxflib
 	 *	\note If the size is specified it will be overridden for lengths that will not fit in Size,
 	 *        <b>providing</b> they will fit in MaxSize. However an error message will be produced.
 	 */
-	Uint32 MakeBER(Uint8 *Data, int MaxSize, Uint64 Length, Uint32 Size = 0);
+	UInt32 MakeBER(UInt8 *Data, int MaxSize, UInt64 Length, UInt32 Size = 0);
 
 
 	//! Build a BER length
@@ -110,36 +110,36 @@ namespace mxflib
 	 *	\note If the size is specified it will be overridden for lengths
 	 *		  that will not fit. However an error message will be produced.
 	 */
-	inline DataChunkPtr MakeBER(Uint64 Length, Uint32 Size = 0)
+	inline DataChunkPtr MakeBER(UInt64 Length, UInt32 Size = 0)
 	{
 		// Buffer for building BER
-		Uint8 Buff[9];
+		UInt8 Buff[9];
 
-		Uint32 Bytes = MakeBER(Buff, 9, Length, Size);
+		UInt32 Bytes = MakeBER(Buff, 9, Length, Size);
 
 		// Return as a DataChunk
 		return new DataChunk(Bytes, Buff);
 	}
 
 	//! Read a BER length
-	Length ReadBER(Uint8 **Data, int MaxSize);
+	Length ReadBER(UInt8 **Data, int MaxSize);
 
 
-	//! Encode a Uint64 as a BER OID subid (7 bits per byte)
+	//! Encode a UInt64 as a BER OID subid (7 bits per byte)
 	//! length > 0: length is maximum length of subid
 	//! length == 0: as long as necessary
 	//! length < 0: -length is exact length of subid
 	//! returns number of bytes used
-	int EncodeOID( Uint8* presult, Uint64 subid, int length );
+	int EncodeOID( UInt8* presult, UInt64 subid, int length );
 
 	//! Build a new UMID
 	UMIDPtr MakeUMID(int Type, const UUIDPtr AssetID = NULL);
 
 	//! Read a "Chunk" from a non-MXF file
-	DataChunkPtr FileReadChunk(FileHandle InFile, Uint64 Size);
+	DataChunkPtr FileReadChunk(FileHandle InFile, UInt64 Size);
 
 	//! Read a RIFF chunk header (from an open file)
-	/*! The Chunk ID is read as a big-endian Uint32 and returned as the first
+	/*! The Chunk ID is read as a big-endian UInt32 and returned as the first
 	 *	part of the returned pair. The chunk size is read as a little-endian
 	 *	number and returned as the second part of the returned pair
 	 *	\return <0,0> if the header counld't be read
@@ -148,7 +148,7 @@ namespace mxflib
 	{
 		U32Pair Ret;
 
-		Uint8 Buffer[8];
+		UInt8 Buffer[8];
 		if(FileRead(InFile, Buffer, 8) < 8)
 		{
 			Ret.first = 0;
@@ -195,16 +195,16 @@ namespace mxflib
 	// File read primitives
 
 	//! Read 8-bit unsigned integer
-	inline Uint8 ReadU8(FileHandle Handle) { unsigned char Buffer[1]; if(FileRead(Handle, Buffer, 1) == 1) return GetU8(Buffer); else return 0; }
+	inline UInt8 ReadU8(FileHandle Handle) { unsigned char Buffer[1]; if(FileRead(Handle, Buffer, 1) == 1) return GetU8(Buffer); else return 0; }
 
 	//! Read 16-bit unsigned integer
-	inline Uint16 ReadU16(FileHandle Handle) { unsigned char Buffer[2]; if(FileRead(Handle, Buffer, 2) == 2) return GetU16(Buffer); else return 0; }
+	inline UInt16 ReadU16(FileHandle Handle) { unsigned char Buffer[2]; if(FileRead(Handle, Buffer, 2) == 2) return GetU16(Buffer); else return 0; }
 
 	//! Read 32-bit unsigned integer
-	inline Uint32 ReadU32(FileHandle Handle) { unsigned char Buffer[4]; if(FileRead(Handle, Buffer, 4) == 4) return GetU32(Buffer); else return 0; }
+	inline UInt32 ReadU32(FileHandle Handle) { unsigned char Buffer[4]; if(FileRead(Handle, Buffer, 4) == 4) return GetU32(Buffer); else return 0; }
 
 	//! Read 64-bit unsigned integer
-	inline Uint64 ReadU64(FileHandle Handle) { unsigned char Buffer[8]; if(FileRead(Handle, Buffer, 8) == 8) return GetU64(Buffer); else return 0; }
+	inline UInt64 ReadU64(FileHandle Handle) { unsigned char Buffer[8]; if(FileRead(Handle, Buffer, 8) == 8) return GetU64(Buffer); else return 0; }
 
 	//! Read 8-bit signed integer (casts from unsigned version)
 	inline Int8 ReadI8(FileHandle Handle) { return (Int8)ReadU8(Handle); }
@@ -220,7 +220,7 @@ namespace mxflib
 
 
 	//! Is a given sequence of bytes a partition pack key?
-	bool IsPartitionKey(const Uint8 *Key);
+	bool IsPartitionKey(const UInt8 *Key);
 
 	//! Does a given std::string contain a "wide" string in UTF8?
 	/*! /note This currently only checks if any bytes contain >127 so it is only safe to test strings that are either 7-bit ASCII or UTF-8 */
@@ -229,12 +229,12 @@ namespace mxflib
 	//! Read hex values separated by any of 'Sep'
 	/*! /note Modifies the value of Source to point to the following byte
 	 *  /ret number of values read */
-	int ReadHexString(const char **Source, int Max, Uint8 *Dest, const char *Sep);
+	int ReadHexString(const char **Source, int Max, UInt8 *Dest, const char *Sep);
 
 	//! Read hex values separated by any of 'Sep'
 	/*! /note This version does not modify the value of parameter Source
 	 *  /ret number of values read */
-	inline int ReadHexString(const char *Source, int Max, Uint8 *Dest, const char *Sep)
+	inline int ReadHexString(const char *Source, int Max, UInt8 *Dest, const char *Sep)
 	{
 		const char *p = Source;
 		return ReadHexString(&p, Max, Dest, Sep);

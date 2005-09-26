@@ -1,7 +1,7 @@
 /*! \file	datachunk.cpp
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.cpp,v 1.2 2004/11/12 09:20:44 matt-beard Exp $
+ *	\version $Id: datachunk.cpp,v 1.3 2005/09/26 08:35:58 matt-beard Exp $
  *
  */
 /*
@@ -33,7 +33,7 @@ using namespace mxflib;
 
 
 //! Resize the data chunk, preserving contents if requested
-void mxflib::DataChunk::Resize(Uint32 NewSize, bool PreserveContents /*=true*/)
+void mxflib::DataChunk::Resize(UInt32 NewSize, bool PreserveContents /*=true*/)
 {
 	if(Size == NewSize) return;
 
@@ -44,7 +44,7 @@ void mxflib::DataChunk::Resize(Uint32 NewSize, bool PreserveContents /*=true*/)
 		return;
 	}
 
-	Uint32 AllocSize = NewSize;
+	UInt32 AllocSize = NewSize;
 	if(AllocationGranularity)
 	{
 //debug("AllocGran = %u, NewSize = %u, ", AllocationGranularity, NewSize);
@@ -55,7 +55,7 @@ void mxflib::DataChunk::Resize(Uint32 NewSize, bool PreserveContents /*=true*/)
 //debug("AllocSize = %u\n", AllocSize);
 	}
 
-	Uint8 *NewData = new Uint8[AllocSize];
+	UInt8 *NewData = new UInt8[AllocSize];
 	if(PreserveContents && (Size != 0)) memcpy(NewData, Data, Size);
 
 //debug("Changing Buffer @ 0x%08x -> 0x%08x (0x%04x)\n", (int)Data, (int)NewData, (int)AllocSize);
@@ -70,7 +70,7 @@ void mxflib::DataChunk::Resize(Uint32 NewSize, bool PreserveContents /*=true*/)
 
 //! Resize the data buffer, preserving contents if requested
 /*! The buffer is resized to <b>at least</b> NewSize, but Size remains unchanged */
-void mxflib::DataChunk::ResizeBuffer(Uint32 NewSize, bool PreserveContents /*=true*/)
+void mxflib::DataChunk::ResizeBuffer(UInt32 NewSize, bool PreserveContents /*=true*/)
 {
 	if(DataSize >= NewSize) return;
 
@@ -81,7 +81,7 @@ void mxflib::DataChunk::ResizeBuffer(Uint32 NewSize, bool PreserveContents /*=tr
 		NewSize = (NewSize+1) * AllocationGranularity;
 	}
 
-	Uint8 *NewData = new Uint8[NewSize];
+	UInt8 *NewData = new UInt8[NewSize];
 	if(PreserveContents && (Size != 0)) memcpy(NewData, Data, Size);
 
 //debug("Changing Buffer @ 0x%08x -> 0x%08x (0x%04x)+\n", (int)Data, (int)NewData, (int)NewSize);
@@ -116,7 +116,7 @@ std::string mxflib::DataChunk::GetString(void)
  *		  important that the value of property <tt><b>Data</b></tt> is checked
  *		  before assuming the external buffer is still in use.
  */
-void mxflib::DataChunk::SetBuffer(Uint8 *Buffer, Uint32 BuffSize, Uint32 AllocatedSize /*=0*/)
+void mxflib::DataChunk::SetBuffer(UInt8 *Buffer, UInt32 BuffSize, UInt32 AllocatedSize /*=0*/)
 {
 //debug("Setting Buffer @ 0x%08x -> 0x%08x\n", (int)Data, (int)Buffer);
 	if((!ExternalBuffer) && (Data)) delete[] Data;
@@ -138,12 +138,12 @@ void mxflib::DataChunk::SetBuffer(Uint8 *Buffer, Uint32 BuffSize, Uint32 Allocat
  */
 bool mxflib::DataChunk::TakeBuffer(DataChunk &OldOwner, bool MakeEmpty /*=false*/ )
 {
-	Uint32 BuffSize = OldOwner.Size;
-	Uint32 AllocatedSize = OldOwner.DataSize;
+	UInt32 BuffSize = OldOwner.Size;
+	UInt32 AllocatedSize = OldOwner.DataSize;
 	bool ExtBuff = OldOwner.ExternalBuffer;
 
 	// Steal the old buffer
-	Uint8 *Buffer = OldOwner.StealBuffer(MakeEmpty);
+	UInt8 *Buffer = OldOwner.StealBuffer(MakeEmpty);
 
 	// Fail if the old owner does not own its buffer!
 	if(!Buffer) return false;
@@ -168,12 +168,12 @@ bool mxflib::DataChunk::TakeBuffer(DataChunk &OldOwner, bool MakeEmpty /*=false*
  */
 bool mxflib::DataChunk::TakeBuffer(DataChunkPtr &OldOwner, bool MakeEmpty /*=false*/ )
 {
-	Uint32 BuffSize = OldOwner->Size;
-	Uint32 AllocatedSize = OldOwner->DataSize;
+	UInt32 BuffSize = OldOwner->Size;
+	UInt32 AllocatedSize = OldOwner->DataSize;
 	bool ExtBuff = OldOwner->ExternalBuffer;
 
 	// Steal the old buffer
-	Uint8 *Buffer = OldOwner->StealBuffer(MakeEmpty);
+	UInt8 *Buffer = OldOwner->StealBuffer(MakeEmpty);
 
 	// Fail if the old owner does not own its buffer!
 	if(!Buffer) return false;
