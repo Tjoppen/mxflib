@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.6 2005/10/08 15:41:19 matt-beard Exp $
  *
  */
 /*
@@ -53,6 +53,8 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 }
 
@@ -71,6 +73,8 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
 	//! A parent pointer to a Package object (with operator[] overload)
@@ -83,6 +87,8 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
 	//! A list of package pointers
@@ -100,6 +106,8 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
 	//! A list of smart pointers to track objects
@@ -122,6 +130,8 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with ParentPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
 
@@ -138,7 +148,8 @@ namespace mxflib
 	public:
 		Component(std::string BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
 		Component(MDOTypePtr BaseType) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
-		Component(ULPtr BaseUL) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
+		Component(const UL &BaseUL) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
+		Component(ULPtr &BaseUL) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
 
 		//! Get the track containing this component
 		TrackParent GetParent(void) { return Parent; };
@@ -175,6 +186,8 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
 	class TimecodeComponent;
@@ -192,6 +205,8 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
 	class DMSegment;
@@ -209,6 +224,8 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 }
 
@@ -226,7 +243,8 @@ namespace mxflib
 	public:
 		SourceClip(std::string BaseType) : Component(BaseType) {};
 		SourceClip(MDOTypePtr BaseType) : Component(BaseType) {};
-		SourceClip(ULPtr BaseUL) : Component(BaseUL) {};
+		SourceClip(const UL &BaseUL) : Component(BaseUL) {};
+		SourceClip(ULPtr &BaseUL) : Component(BaseUL) {};
 
 		//! Set the duration for this SourceClip and update the track's sequence duration
 		/*! \param Duration The duration of this SourceClip, -1 or omitted for unknown */
@@ -261,7 +279,8 @@ namespace mxflib
 	public:
 		TimecodeComponent(std::string BaseType) : Component(BaseType) {};
 		TimecodeComponent(MDOTypePtr BaseType) : Component(BaseType) {};
-		TimecodeComponent(ULPtr BaseUL) : Component(BaseUL) {};
+		TimecodeComponent(const UL &BaseUL) : Component(BaseUL) {};
+		TimecodeComponent(ULPtr &BaseUL) : Component(BaseUL) {};
 
 		//! Set the duration for this Timecode Component and update the track's sequence duration
 		/*! \param Duration The duration of this Timecode Component, -1 or omitted for unknown */
@@ -289,7 +308,8 @@ namespace mxflib
 	public:
 		DMSegment(std::string BaseType) : Component(BaseType) {};
 		DMSegment(MDOTypePtr BaseType) : Component(BaseType) {};
-		DMSegment(ULPtr BaseUL) : Component(BaseUL) {};
+		DMSegment(const UL &BaseUL) : Component(BaseUL) {};
+		DMSegment(ULPtr &BaseUL) : Component(BaseUL) {};
 
 		//! Set the duration for this DMSegment and update the track's sequence duration
 		/*! \param Duration The duration of this DMSegment, -1 or omitted for unknown */
@@ -362,7 +382,8 @@ namespace mxflib
 	public:
 		Track(std::string BaseType) { Object = new MDObject(BaseType); ThisTrackType = TypeUndetermined; }
 		Track(MDOTypePtr BaseType) { Object = new MDObject(BaseType); ThisTrackType = TypeUndetermined; }
-		Track(ULPtr BaseUL) { Object = new MDObject(BaseUL); ThisTrackType = TypeUndetermined; }
+		Track(const UL &BaseUL) { Object = new MDObject(BaseUL); ThisTrackType = TypeUndetermined; }
+		Track(ULPtr &BaseUL) { Object = new MDObject(BaseUL); ThisTrackType = TypeUndetermined; }
 
 		//! Add a SourceClip to a track
 		SourceClipPtr AddSourceClip(Int64 Duration = -1);
@@ -474,7 +495,8 @@ namespace mxflib
 	public:
 		Package(std::string BaseType) : LastTrackID(0) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
 		Package(MDOTypePtr BaseType) : LastTrackID(0) { Object = new MDObject(BaseType); if(Object) Object->SetOuter(this); }
-		Package(ULPtr BaseUL) : LastTrackID(0) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
+		Package(const UL &BaseUL) : LastTrackID(0) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
+		Package(ULPtr &BaseUL) : LastTrackID(0) { Object = new MDObject(BaseUL); if(Object) Object->SetOuter(this); }
 
 		//! Add a timeline track to the package
 		TrackPtr AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate, std::string TrackName = "", UInt32 TrackID = 0);
@@ -580,7 +602,7 @@ namespace mxflib
 		//! Add a DMScheme to the listed schemes
 		void AddDMScheme(ULPtr Scheme)
 		{
-			Object->Child("DMSchemes")->AddChild("DMScheme",false)->ReadValue(Scheme->GetValue(), 16);
+			Object->Child(DMSchemes_UL)->AddChild()->ReadValue(Scheme->GetValue(), 16);
 		}
 
 		//! Add an essence type UL to the listed essence types
@@ -591,38 +613,38 @@ namespace mxflib
 			ECTypeValue.Set(16, ECType->GetValue());
 
 			// Get a list of known containers
-			MDObjectListPtr ECTypeList = Object->Child("EssenceContainers")->ChildList("EssenceContainer");
+			MDObjectPtr ECTypeList = Object->Child(EssenceContainers_UL);
 
 			// Scan the list to see if we already have this type
-			MDObjectList::iterator it = ECTypeList->begin();
+			MDObjectULList::iterator it = ECTypeList->begin();
 			while(it != ECTypeList->end())
 			{
-				if(ECTypeValue == *((*it)->PutData())) return;
+				if(ECTypeValue == *((*it).second->PutData())) return;
 				it++;
 			}
 
 			// New type, so add it
-			Object->Child("EssenceContainers")->AddChild("EssenceContainer",false)->SetValue(ECTypeValue);
+			Object->Child(EssenceContainers_UL)->AddChild()->SetValue(ECTypeValue);
 		}
 
 		//! Set the operational pattern property of the preface
 		void SetOP(ULPtr OP)
 		{
-			MDObjectPtr Ptr = Object->AddChild("OperationalPattern");
+			MDObjectPtr Ptr = Object->AddChild(OperationalPattern_UL);
 			Ptr->ReadValue(OP->GetValue(), 16);
 		}
 
 		// Add a material package to the metadata
-		PackagePtr AddMaterialPackage(UMIDPtr PackageUMID) { return AddPackage("MaterialPackage", "", PackageUMID); }
-		PackagePtr AddMaterialPackage(std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("MaterialPackage", PackageName, PackageUMID); }
+		PackagePtr AddMaterialPackage(UMIDPtr PackageUMID) { return AddPackage(MaterialPackage_UL, "", PackageUMID); }
+		PackagePtr AddMaterialPackage(std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage(MaterialPackage_UL, PackageName, PackageUMID); }
 
 		// Add a top-level file package to the metadata
-		PackagePtr AddFilePackage(UInt32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); }
-		PackagePtr AddFilePackage(UInt32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("SourcePackage", PackageName, PackageUMID, BodySID); }
+		PackagePtr AddFilePackage(UInt32 BodySID, UMIDPtr PackageUMID) { return AddPackage(SourcePackage_UL, "", PackageUMID, BodySID); }
+		PackagePtr AddFilePackage(UInt32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage(SourcePackage_UL, PackageName, PackageUMID, BodySID); }
 
 		// Add a lower-level source package to the metadata
-		PackagePtr AddSourcePackage(UInt32 BodySID, UMIDPtr PackageUMID) { return AddPackage("SourcePackage", "", PackageUMID, BodySID); }
-		PackagePtr AddSourcePackage(UInt32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage("SourcePackage", PackageName, PackageUMID, BodySID); }
+		PackagePtr AddSourcePackage(UInt32 BodySID, UMIDPtr PackageUMID) { return AddPackage(SourcePackage_UL, "", PackageUMID, BodySID); }
+		PackagePtr AddSourcePackage(UInt32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage(SourcePackage_UL, PackageName, PackageUMID, BodySID); }
 
 		bool AddEssenceContainerData(UMIDPtr TheUMID, UInt32 BodySID, UInt32 IndexSID = 0);
 
@@ -632,8 +654,8 @@ namespace mxflib
 		//! Set the primary package property of the preface
 		void SetPrimaryPackage(MDObjectPtr Package)
 		{
-			MDObjectPtr Ptr = Object->Child("PrimaryPackage");
-			if(!Ptr) Ptr = Object->AddChild("PrimaryPackage");
+			MDObjectPtr Ptr = Object->Child(PrimaryPackage_UL);
+			if(!Ptr) Ptr = Object->AddChild(PrimaryPackage_UL);
 			Ptr->MakeLink(Package);
 		}
 
@@ -653,7 +675,7 @@ namespace mxflib
 
 	private:
 		//! Add a package of the specified type to the matadata
-		PackagePtr AddPackage(std::string PackageType, std::string PackageName, UMIDPtr PackageUMID, UInt32 BidySID = 0);
+		PackagePtr AddPackage(const UL &PackageType, std::string PackageName, UMIDPtr PackageUMID, UInt32 BidySID = 0);
 
 		//! Update the Generation UID of a set if modified - then iterate through strongly linked sets
 		bool UpdateGenerations_Internal(MDObjectPtr Obj, UUIDPtr ThisGeneration);
@@ -671,18 +693,32 @@ namespace mxflib
 {
 inline MDObjectPtr PackagePtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
 inline MDObjectPtr PackagePtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr PackagePtr::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr PackagePtr::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
 inline MDObjectPtr PackageParent::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
 inline MDObjectPtr PackageParent::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr PackageParent::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr PackageParent::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
 inline MDObjectPtr TrackPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
 inline MDObjectPtr TrackPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr TrackPtr::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr TrackPtr::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
 inline MDObjectPtr TrackParent::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
 inline MDObjectPtr TrackParent::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr TrackParent::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr TrackParent::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
 inline MDObjectPtr SourceClipPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
 inline MDObjectPtr SourceClipPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr SourceClipPtr::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr SourceClipPtr::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
 inline MDObjectPtr MetadataPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
 inline MDObjectPtr MetadataPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr MetadataPtr::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr MetadataPtr::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
 inline MDObjectPtr DMSegmentPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
 inline MDObjectPtr DMSegmentPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr DMSegmentPtr::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr DMSegmentPtr::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
 }
 
 #endif // MXFLIB__METADATA_H

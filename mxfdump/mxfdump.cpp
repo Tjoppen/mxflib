@@ -197,7 +197,9 @@ int main_process(int argc, char *argv[])
 			if(ThisPartition)
 			{
 				// Don't dump the last partition unless it is a footer or we are dumping all
-				if(FullBody || (PartitionNumber == 1) || (PartitionNumber != TestFile->FileRIP.size()) || (ThisPartition->Name().find("Footer") != std::string::npos))
+				// DRAGONS: What is the PartitionNumber != RIP-Size thing about?
+				if(FullBody || (PartitionNumber == 1) || (PartitionNumber != TestFile->FileRIP.size()) 
+				            || (ThisPartition->IsA(CompleteFooter_UL)) || (ThisPartition->IsA(Footer_UL)) )
 				{
 					DumpObject(ThisPartition->Object,"");
 
@@ -237,17 +239,17 @@ int main_process(int argc, char *argv[])
 							// Demonstrate this new segment
 							
 							UInt32 Streams = 1;
-							MDObjectPtr DeltaEntryArray = (*it)["DeltaEntryArray"];
+							MDObjectPtr DeltaEntryArray = (*it)[DeltaEntryArray_UL];
 							if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
 							{
 								Streams = DeltaEntryArray->size() / DeltaEntryArray->GetType()->size();
 								if(Streams == 0) Streams = 1;	// Fix for bad DeltaEntryArray
 							}
 
-							Position Start = (*it)->GetInt64("IndexStartPosition");
-							Length Duration = (*it)->GetInt64("IndexDuration");
-							UInt32 IndexSID = (*it)->GetUInt("IndexSID");
-							UInt32 BodySID = (*it)->GetUInt("BodySID");
+							Position Start = (*it)->GetInt64(IndexStartPosition_UL);
+							Length Duration = (*it)->GetInt64(IndexDuration_UL);
+							UInt32 IndexSID = (*it)->GetUInt(IndexSID_UL);
+							UInt32 BodySID = (*it)->GetUInt(BodySID_UL);
 							
 							if(Duration == 0) printf("CBR Index Table Segment (covering whole Essence Container) :\n");
 							else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
@@ -413,7 +415,7 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 				printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 		}
 
-		MDObjectNamedList::iterator it = Object->begin();
+		MDObjectULList::iterator it = Object->begin();
 		while(it != Object->end())
 		{
 			DumpObject((*it).second, Prefix + "  ");

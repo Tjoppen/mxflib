@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.6 2005/10/08 15:35:33 matt-beard Exp $
  *
  */
 /*
@@ -412,12 +412,12 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 
 	// Build the essence descriptor, filling in all known values
 
-	Ret = new MDObject("CDCIEssenceDescriptor");
+	Ret = new MDObject(CDCIEssenceDescriptor_UL);
 	if(!Ret) return Ret;
 
 	if(!is625)
 	{
-		Ret->SetString("SampleRate", "30000/1001");
+		Ret->SetString(SampleRate_UL, "30000/1001");
 
 		NativeEditRate.Numerator = 30000;
 		NativeEditRate.Denominator = 1001;
@@ -426,7 +426,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 	}
 	else
 	{
-		Ret->SetString("SampleRate", "25/1");
+		Ret->SetString(SampleRate_UL, "25/1");
 
 		NativeEditRate.Numerator = 25;
 		NativeEditRate.Denominator = 1;
@@ -436,24 +436,24 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 
 //DRAGONS: printf("Assumed interleaved...\n");
 //	if(Progressive) Ret->SetInt("FrameLayout", 0); else Ret->SetInt("FrameLayout", 1);
-	Ret->SetInt("FrameLayout", 1);
+	Ret->SetInt(FrameLayout_UL, 1);
 
 	if(is625)
 	{
-		Ret->SetUInt("StoredWidth", 720);
-		Ret->SetUInt("StoredHeight", 288);
+		Ret->SetUInt(StoredWidth_UL, 720);
+		Ret->SetUInt(StoredHeight_UL, 288);
 	}
 	else	
 	{
-		Ret->SetUInt("StoredWidth", 720);
-		Ret->SetUInt("StoredHeight", 240);
+		Ret->SetUInt(StoredWidth_UL, 720);
+		Ret->SetUInt(StoredHeight_UL, 240);
 	}
 
 //DRAGONS: printf("Assumed 4:3...\n");
 //	if(Aspect) Ret->SetString("AspectRatio", Aspect); else Ret->SetDValue("AspectRatio");
-	Ret->SetString("AspectRatio", "4/3");
+	Ret->SetString(AspectRatio_UL, "4/3");
 
-	MDObjectPtr Ptr = Ret->AddChild("VideoLineMap");
+	MDObjectPtr Ptr = Ret->AddChild(VideoLineMap_UL);
 	if(Ptr)
 	{
 		int F1 = 0;
@@ -462,32 +462,32 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 		if(is625) { F1 = 1; F2 = 313; }
 		else { F1 = 4; F2 = 266; }
 
-		Ptr->AddChild("VideoLineMapEntry", false)->SetUInt(F1);
-		Ptr->AddChild("VideoLineMapEntry", false)->SetUInt(F2);
+		Ptr->AddChild()->SetUInt(F1);
+		Ptr->AddChild()->SetUInt(F2);
 	}
 
-	Ret->SetUInt("ComponentDepth", 8);
+	Ret->SetUInt(ComponentDepth_UL, 8);
 
 	if(!is625)
 	{
-		Ret->SetUInt("HorizontalSubsampling", 4);
-		Ret->SetUInt("VerticalSubsampling", 1);
+		Ret->SetUInt(HorizontalSubsampling_UL, 4);
+		Ret->SetUInt(VerticalSubsampling_UL, 1);
 	}
 	else
 	{
 		if(isS314M)
 		{
-			Ret->SetUInt("HorizontalSubsampling", 4);
-			Ret->SetUInt("VerticalSubsampling", 1);
+			Ret->SetUInt(HorizontalSubsampling_UL, 4);
+			Ret->SetUInt(VerticalSubsampling_UL, 1);
 		}
 		else
 		{
-			Ret->SetUInt("HorizontalSubsampling", 2);
-			Ret->SetUInt("VerticalSubsampling", 2);
+			Ret->SetUInt(HorizontalSubsampling_UL, 2);
+			Ret->SetUInt(VerticalSubsampling_UL, 2);
 		}
 	}
 
-	Ret->SetUInt("ColorSiting", 0);				// Co-sited
+	Ret->SetUInt(ColorSiting_UL, 0);				// Co-sited
 
 	return Ret;
 }

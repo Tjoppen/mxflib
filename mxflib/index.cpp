@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.8 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.9 2005/10/08 15:37:03 matt-beard Exp $
  *
  */
 /*
@@ -340,26 +340,26 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 	// DRAGONS: Must complete this!
 //	warning("Index table reading not complete!\n");
 
-	EditUnitByteCount = Segment->GetUInt("EditUnitByteCount");
+	EditUnitByteCount = Segment->GetUInt(EditUnitByteCount_UL);
 
 	// Set the index and body SIDs if not yet known
 	// DRAGONS: Should we check that they match when loading later segments?
 	if( IndexSID == 0 )
 	{
-		IndexSID = Segment->GetUInt("IndexSID");
-		BodySID = Segment->GetUInt("BodySID");
+		IndexSID = Segment->GetUInt(IndexSID_UL);
+		BodySID = Segment->GetUInt(BodySID_UL);
 	}
 
 	if( EditUnitByteCount ) // CBR
 	{
-		MDObjectPtr	pEditRate = Segment["IndexEditRate"];
+		MDObjectPtr	pEditRate = Segment[IndexEditRate_UL];
 		if(pEditRate)
 		{
 			EditRate.Numerator = pEditRate->GetInt("Numerator");
 			EditRate.Denominator = pEditRate->GetInt("Denominator");
 		}
 
-		MDObjectPtr Ptr = Segment["DeltaEntryArray"];
+		MDObjectPtr Ptr = Segment[DeltaEntryArray_UL];
 		if(Ptr)
 		{
 			// Free any old delta array
@@ -370,7 +370,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 			BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 
 			int Delta = 0;
-			MDObjectNamedList::iterator it = Ptr->begin();
+			MDObjectULList::iterator it = Ptr->begin();
 			while(it != Ptr->end())
 			{
 				BaseDeltaArray[Delta].PosTableIndex = (*it).second->GetInt();
@@ -391,11 +391,11 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 	}
 	else // VBR
 	{
-		Int64 StartPosition = Segment->GetInt64("IndexStartPosition");
+		Int64 StartPosition = Segment->GetInt64(IndexStartPosition_UL);
 		Ret = AddSegment(StartPosition);
 		SegmentMap.insert(IndexSegmentMap::value_type(StartPosition, Ret));
 
-		MDObjectPtr Ptr = Segment["DeltaEntryArray"];
+		MDObjectPtr Ptr = Segment[DeltaEntryArray_UL];
 		if(!Ptr)
 		{
 			Ret->DeltaCount = 0;
@@ -407,7 +407,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 			Ret->DeltaArray = new DeltaEntry[Ret->DeltaCount];
 			
 			int Delta = 0;
-			MDObjectNamedList::iterator it = Ptr->begin();
+			MDObjectULList::iterator it = Ptr->begin();
 			while(it != Ptr->end())
 			{
 				Ret->DeltaArray[Delta].PosTableIndex = (*it).second->GetInt();
@@ -427,8 +427,8 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		}
 
 		// Copy index entry bits...
-		NSL = Segment->GetUInt("SliceCount");
-		NPE = Segment->GetUInt("PosTableCount");
+		NSL = Segment->GetUInt(SliceCount_UL);
+		NPE = Segment->GetUInt(PosTableCount_UL);
 		// Calculate the size of each IndexEntry
 		IndexEntrySize = (11 + 4*NSL + 8*NPE);
 
@@ -448,7 +448,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 			//#############################################################
 		}
 
-		Ptr = Segment["IndexEntryArray"];
+		Ptr = Segment[IndexEntryArray_UL];
 		if(!Ptr)
 		{
 			Ret->EntryCount = 0;
@@ -632,7 +632,7 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 	if( EditUnitByteCount ) // CBR Index Table
 	{
-		MDObjectPtr ThisSegment = new MDObject("IndexTableSegment");
+		MDObjectPtr ThisSegment = new MDObject(IndexTableSegment_UL);
 		if(!ThisSegment)
 		{
 			error("Couldn't build \"IndexTableSegment\" - index table not written\n");
@@ -641,23 +641,23 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 		// Even though it isn't used IndexTableSegments need an InstanceUID
 		// as it is derived from InterchangeObject (A minor bug in the spec)
-		MDObjectPtr Instance = ThisSegment->AddChild("InstanceUID");
+		MDObjectPtr Instance = ThisSegment->AddChild(InstanceUID_UL);
 		UUIDPtr ThisInstance = new UUID;
 		if(Instance) Instance->ReadValue(DataChunk(16, ThisInstance->GetValue()));
 
 		MDObjectPtr Ptr;
-		Ptr = ThisSegment->AddChild("IndexEditRate");
+		Ptr = ThisSegment->AddChild(IndexEditRate_UL);
 		if(Ptr)
 		{
 			Ptr->SetInt("Numerator", EditRate.Numerator);
 			Ptr->SetInt("Denominator", EditRate.Denominator);
 		}
 
-		ThisSegment->SetInt64("IndexStartPosition", 0);
-		ThisSegment->SetInt64("IndexDuration", 0);
-		ThisSegment->SetUInt("EditUnitByteCount", EditUnitByteCount);
-		ThisSegment->SetUInt("IndexSID", IndexSID);
-		ThisSegment->SetUInt("BodySID", BodySID);
+		ThisSegment->SetInt64(IndexStartPosition_UL, 0);
+		ThisSegment->SetInt64(IndexDuration_UL, 0);
+		ThisSegment->SetUInt(EditUnitByteCount_UL, EditUnitByteCount);
+		ThisSegment->SetUInt(IndexSID_UL, IndexSID);
+		ThisSegment->SetUInt(BodySID_UL, BodySID);
 
 		// Add a delta entry array if we have anything meaningful
 		if((BaseDeltaCount > 1) && (BaseDeltaArray != NULL))
@@ -672,7 +672,7 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 			Deltas.Set(8, Buf);
 			Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (UInt8*)BaseDeltaArray, 8);
 
-			ThisSegment->SetValue("DeltaEntryArray", Deltas);
+			ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
 		}
 		else
 		{
@@ -681,7 +681,7 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 			PutU32(0, Buf);
 			PutU32(sizeof(DeltaEntry), &Buf[4]);
 			Deltas.Set(8, Buf);
-			ThisSegment->SetValue("DeltaEntryArray", Deltas);
+			ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
 		}
 
 		// Add this segment to the buffer
@@ -697,7 +697,7 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 		{
 			IndexSegmentPtr Segment = (*it).second;
 
-			MDObjectPtr ThisSegment = new MDObject("IndexTableSegment");
+			MDObjectPtr ThisSegment = new MDObject(IndexTableSegment_UL);
 			if(!ThisSegment)
 			{
 				error("Couldn't build \"IndexTableSegment\" - index table not written\n");
@@ -706,27 +706,27 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 
 			// Even though it isn't used IndexTableSegments need an InstanceUID
 			// as it is derived from InterchangeObject (A minor bug in the spec)
-			MDObjectPtr Instance = ThisSegment->AddChild("InstanceUID");
+			MDObjectPtr Instance = ThisSegment->AddChild(InstanceUID_UL);
 			UUIDPtr ThisInstance = new UUID;
 			if(Instance) Instance->ReadValue(DataChunk(16, ThisInstance->GetValue()));
 
 			MDObjectPtr Ptr;
-			Ptr = ThisSegment->AddChild("IndexEditRate");
+			Ptr = ThisSegment->AddChild(IndexEditRate_UL);
 			if(Ptr)
 			{
 				Ptr->SetInt("Numerator", EditRate.Numerator);
 				Ptr->SetInt("Denominator", EditRate.Denominator);
 			}
 
-			ThisSegment->SetInt64("IndexStartPosition", Segment->StartPosition);
-			ThisSegment->SetInt64("IndexDuration", Segment->EntryCount);
-			ThisSegment->SetUInt("EditUnitByteCount", EditUnitByteCount);
-			ThisSegment->SetUInt("IndexSID", IndexSID);
-			ThisSegment->SetUInt("BodySID", BodySID);
+			ThisSegment->SetInt64(IndexStartPosition_UL, Segment->StartPosition);
+			ThisSegment->SetInt64(IndexDuration_UL, Segment->EntryCount);
+			ThisSegment->SetUInt(EditUnitByteCount_UL, EditUnitByteCount);
+			ThisSegment->SetUInt(IndexSID_UL, IndexSID);
+			ThisSegment->SetUInt(BodySID_UL, BodySID);
 
 			// DRAGONS: This assumes constant NSL and NPE...
-			ThisSegment->SetUInt("SliceCount", NSL);
-			ThisSegment->SetUInt("PosTableCount", NPE);
+			ThisSegment->SetUInt(SliceCount_UL, NSL);
+			ThisSegment->SetUInt(PosTableCount_UL, NPE);
 
 			// DRAGONS: A bit clunky!
 			// DRAGONS: What if on this platform sizeof(DeltaEntry) != 6 ?
@@ -738,7 +738,7 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 			Deltas.Set(8, Buf);
 			Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (UInt8*)Segment->DeltaArray, 8);
 
-			ThisSegment->SetValue("DeltaEntryArray", Deltas);
+			ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
 
 			// DRAGONS: A bit clunky!
 			DataChunk Entries;
@@ -747,7 +747,7 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 			Entries.Set(8, Buf);
 			Entries.Set(IndexEntrySize * Segment->EntryCount, Segment->IndexEntryArray.Data, 8);
 
-			ThisSegment->SetValue("IndexEntryArray", Entries);
+			ThisSegment->SetValue(IndexEntryArray_UL, Entries);
 
 			// Add this segment to the buffer
 			{

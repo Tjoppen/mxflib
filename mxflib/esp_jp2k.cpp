@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.4 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.5 2005/10/08 15:35:33 matt-beard Exp $
  *
  */
 /*
@@ -346,7 +346,7 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 	if(Size < 34) return Ret;
 
 	// Start to build the sub-descriptor
-	MDObjectPtr SubDescriptor = new MDObject("JPEG2000PictureSubDescriptor");
+	MDObjectPtr SubDescriptor = new MDObject(JPEG2000PictureSubDescriptor_UL);
 	if(!SubDescriptor) return Ret;
 
 	// Image properties
@@ -357,20 +357,20 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 	UInt32 XTOsiz = GetU32(&p[26]);
 	UInt32 YTOsiz = GetU32(&p[30]);
 
-	SubDescriptor->SetInt("Rsize", GetU16(&p[0]));
-	SubDescriptor->SetInt("Xsize", Width);
-	SubDescriptor->SetInt("Ysize", Height);
-	SubDescriptor->SetInt("XOsize", XOsiz);
-	SubDescriptor->SetInt("YOsize", YOsiz);
-	SubDescriptor->SetInt("XTsize", GetU32(&p[18]));
-	SubDescriptor->SetInt("YTsize", GetU32(&p[22]));
-	SubDescriptor->SetInt("XTOsize", XTOsiz);
-	SubDescriptor->SetInt("YTOsize", YTOsiz);
+	SubDescriptor->SetInt(Rsiz_UL, GetU16(&p[0]));
+	SubDescriptor->SetInt(Xsiz_UL, Width);
+	SubDescriptor->SetInt(Ysiz_UL, Height);
+	SubDescriptor->SetInt(XOsiz_UL, XOsiz);
+	SubDescriptor->SetInt(YOsiz_UL, YOsiz);
+	SubDescriptor->SetInt(XTsiz_UL, GetU32(&p[18]));
+	SubDescriptor->SetInt(YTsiz_UL, GetU32(&p[22]));
+	SubDescriptor->SetInt(XTOsiz_UL, XTOsiz);
+	SubDescriptor->SetInt(YTOsiz_UL, YTOsiz);
 
 	int Components = GetU16(&p[34]);
-	SubDescriptor->SetInt("Csize", Components);
+	SubDescriptor->SetInt(Csiz_UL, Components);
 
-	if((Size - 36) < (Components * 3)) return Ret;
+	if((Size - 36) < (size_t)(Components * 3)) return Ret;
 
 	// Index the start of the components
 	p += 36;
@@ -384,11 +384,11 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 	if(Components > MaxComponents) error("Maximum number of supported JPEG 2000 image components is %d. This image contains %d\n", MaxComponents, Components);
 
 	// Add the component data
-	MDObjectPtr Array = SubDescriptor->AddChild("PictureComponentSizing");
+	MDObjectPtr Array = SubDescriptor->AddChild(PictureComponentSizing_UL);
 	int ComponentsRemaining = Components;
 	while(ComponentsRemaining)
 	{
-		MDObjectPtr Item = Array->AddChild("PictureComponentSize", false);
+		MDObjectPtr Item = Array->AddChild();
 		if(Item) 
 		{
 			// If any component is signed we assume it is CDCI rather than RGB
@@ -410,13 +410,13 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 
 	if(IsRGB)
 	{
-		Ret = new MDObject("RGBAEssenceDescriptor");
+		Ret = new MDObject(RGBAEssenceDescriptor_UL);
 		if(!Ret) return Ret;
 
-		if(Components < 1) Ret->SetInt("ComponentDepth", 0);
+		if(Components < 1) Ret->SetInt(ComponentDepth_UL, 0);
 		else Ret->SetInt("ComponentDepth", CDepth[0] + 1);
 
-		MDObjectPtr PixelLayout = Ret->AddChild("PixelLayout");
+		MDObjectPtr PixelLayout = Ret->AddChild(PixelLayout_UL);
 		if(PixelLayout)
 		{
 			DataChunk Buffer(ComponentCount*2);
@@ -440,44 +440,44 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 	}
 	else
 	{
-		Ret = new MDObject("CDCIEssenceDescriptor");
+		Ret = new MDObject(CDCIEssenceDescriptor_UL);
 		if(!Ret) return Ret;
 
-		if(Components < 1) Ret->SetInt("ComponentDepth", 0);
-		else Ret->SetInt("ComponentDepth", CDepth[0] + 1);
+		if(Components < 1) Ret->SetInt(ComponentDepth_UL, 0);
+		else Ret->SetInt(ComponentDepth_UL, CDepth[0] + 1);
 
-		if((Components < 2) || (XRsiz[0] == 0)) Ret->SetInt("HorizontalSubsampling", 0);
-		else Ret->SetInt("HorizontalSubsampling", XRsiz[1] / XRsiz[0]);
+		if((Components < 2) || (XRsiz[0] == 0)) Ret->SetInt(HorizontalSubsampling_UL, 0);
+		else Ret->SetInt(HorizontalSubsampling_UL, XRsiz[1] / XRsiz[0]);
 
-		if((Components >= 2) && (XRsiz[0] != 0)) Ret->SetInt("VerticalSubsampling", XRsiz[1] / XRsiz[0]);
+		if((Components >= 2) && (XRsiz[0] != 0)) Ret->SetInt(VerticalSubsampling_UL, XRsiz[1] / XRsiz[0]);
 
 		// Assume component 4 is alpha
-		if(Components >= 4) Ret->SetInt("AlphaSampleDepth", CDepth[3] + 1);
+		if(Components >= 4) Ret->SetInt(AlphaSampleDepth_UL, CDepth[3] + 1);
 	}
 
 
 	/* File Descriptor items */
 
 	// Set 24Hz as the default sample rate
-	Ret->SetString("SampleRate", "24/1");
+	Ret->SetString(SampleRate_UL, "24/1");
 
 
 	/* Picture Essence Descriptor Items */
 
-	Ret->SetUInt("FrameLayout", 0);
+	Ret->SetUInt(FrameLayout_UL, 0);
 
-	Ret->SetUInt("StoredWidth", Width-XTOsiz);
-	Ret->SetUInt("StoredHeight", Height-YTOsiz);
-	Ret->SetUInt("SampledWidth", Width);
-	Ret->SetUInt("SampledHeight", Height);
-	Ret->SetUInt("SampledXOffset", XTOsiz);
-	Ret->SetUInt("SampledYOffset", YTOsiz);
-	Ret->SetUInt("DisplayWidth", Width-XOsiz);
-	Ret->SetUInt("DisplayHeight", Height-YOsiz);
-	Ret->SetUInt("DisplayXOffset", XOsiz);
-	Ret->SetUInt("DisplayYOffset", YOsiz);
+	Ret->SetUInt(StoredWidth_UL, Width-XTOsiz);
+	Ret->SetUInt(StoredHeight_UL, Height-YTOsiz);
+	Ret->SetUInt(SampledWidth_UL, Width);
+	Ret->SetUInt(SampledHeight_UL, Height);
+	Ret->SetUInt(SampledXOffset_UL, XTOsiz);
+	Ret->SetUInt(SampledYOffset_UL, YTOsiz);
+	Ret->SetUInt(DisplayWidth_UL, Width-XOsiz);
+	Ret->SetUInt(DisplayHeight_UL, Height-YOsiz);
+	Ret->SetUInt(DisplayXOffset_UL, XOsiz);
+	Ret->SetUInt(DisplayYOffset_UL, YOsiz);
 
-	MDObjectPtr AspectItem = Ret->AddChild("AspectRatio");
+	MDObjectPtr AspectItem = Ret->AddChild(AspectRatio_UL);
 	if(AspectItem)
 	{
 		// TODO: Find a way to compensate for non-square pixels
@@ -491,17 +491,17 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 		AspectItem->SetInt("Denominator", (Int32)Aspect_d);
 	}
 
-	MDObjectPtr VLMItem = Ret->AddChild("VideoLineMap");
+	MDObjectPtr VLMItem = Ret->AddChild(VideoLineMap_UL);
 	if(VLMItem)
 	{
-		VLMItem->SetInt("VideoLineMapEntry",1);
+		VLMItem->AddChild()->SetInt(1);
 	}
 
 	// TODO: Add alpha transparency?
 
 	
 	// Link the sub-descrioptor to the file descriptor
-	MDObjectPtr Link = Ret->AddChild("SubDescriptor");
+	MDObjectPtr Link = Ret->AddChild(SubDescriptor_UL);
 	if(Link) Link->MakeLink(SubDescriptor);
 
 	return Ret;

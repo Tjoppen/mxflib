@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.h
  *	\brief	Definition of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.h,v 1.2 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_jp2k.h,v 1.3 2005/10/08 15:35:33 matt-beard Exp $
  *
  */
 /*
@@ -172,7 +172,7 @@ namespace mxflib
 
 			// Pretend that the essence is sampled at whatever rate we are wrapping at
 			MDObjectPtr Ptr;
-			if(CurrentDescriptor) Ptr = CurrentDescriptor->AddChild("SampleRate");
+			if(CurrentDescriptor) Ptr = CurrentDescriptor->AddChild(SampleRate_UL);
 			if(Ptr)
 			{
 				Ptr->SetInt("Numerator", UseEditRate.Numerator);

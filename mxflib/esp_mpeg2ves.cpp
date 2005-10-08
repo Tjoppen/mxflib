@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.4 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.5 2005/10/08 15:35:33 matt-beard Exp $
  *
  */
 /*
@@ -427,14 +427,14 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 
 	// Build the essence descriptor, filling in all known values
 
-	Ret = new MDObject("MPEG2VideoDescriptor");
+	Ret = new MDObject(MPEG2VideoDescriptor_UL);
 	if(!Ret) return Ret;
 
 	char Buff[32];
 	if(DropFrame)
 	{
 		sprintf(Buff, "%d000/1001", FrameRate);
-		Ret->SetString("SampleRate", Buff);
+		Ret->SetString(SampleRate_UL, Buff);
 		
 		NativeEditRate.Numerator = FrameRate * 1000;
 		NativeEditRate.Denominator = 1001;
@@ -442,20 +442,20 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 	else
 	{
 		sprintf(Buff, "%d/1", FrameRate);
-		Ret->SetString("SampleRate", Buff);
+		Ret->SetString(SampleRate_UL, Buff);
 
 		NativeEditRate.Numerator = FrameRate;
 		NativeEditRate.Denominator = 1;
 	}
 
-	if(Progressive) Ret->SetInt("FrameLayout", 0); else Ret->SetInt("FrameLayout", 1);
+	if(Progressive) Ret->SetInt(FrameLayout_UL, 0); else Ret->SetInt(FrameLayout_UL, 1);
 
-	Ret->SetUInt("StoredWidth", HSize);
-	Ret->SetUInt("StoredHeight", VSize);
+	Ret->SetUInt(StoredWidth_UL, HSize);
+	Ret->SetUInt(StoredHeight_UL, VSize);
 
-	if(Aspect) Ret->SetString("AspectRatio", Aspect); else Ret->SetDValue("AspectRatio");
+	if(Aspect) Ret->SetString(AspectRatio_UL, Aspect); else Ret->SetDValue(AspectRatio_UL);
 
-	MDObjectPtr Ptr = Ret->AddChild("VideoLineMap");
+	MDObjectPtr Ptr = Ret->AddChild(VideoLineMap_UL);
 	if(Ptr)
 	{
 		int F1 = 0;
@@ -469,42 +469,42 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 
 		if((F1 == 0) & (F2 == 0))
 		{
-			Ptr->AddChild("VideoLineMapEntry", false)->SetDValue();
-			Ptr->AddChild("VideoLineMapEntry", false)->SetDValue();
+			Ptr->AddChild()->SetDValue();
+			Ptr->AddChild()->SetDValue();
 		}
 		else
 		{
-			Ptr->AddChild("VideoLineMapEntry", false)->SetUInt(F1);
-			Ptr->AddChild("VideoLineMapEntry", false)->SetUInt(F2);
+			Ptr->AddChild()->SetUInt(F1);
+			Ptr->AddChild()->SetUInt(F2);
 		}
 	}
 
-	Ret->SetUInt("ComponentDepth", 8);
+	Ret->SetUInt(ComponentDepth_UL, 8);
 
-	Ret->SetUInt("HorizontalSubsampling", HChromaSub);
-	Ret->SetUInt("VerticalSubsampling", VChromaSub);
+	Ret->SetUInt(HorizontalSubsampling_UL, HChromaSub);
+	Ret->SetUInt(VerticalSubsampling_UL, VChromaSub);
 
 	if((HChromaSub == 2) && (VChromaSub == 2))
-		Ret->SetUInt("ColorSiting", 3);				// Quincunx 4:2:0
+		Ret->SetUInt(ColorSiting_UL, 3);				// Quincunx 4:2:0
 	else if((HChromaSub == 2) && (VChromaSub == 1))
-		Ret->SetUInt("ColorSiting", 4);				// Rec 601 style 4:2:2
+		Ret->SetUInt(ColorSiting_UL, 4);				// Rec 601 style 4:2:2
 	if((HChromaSub == 1) && (VChromaSub == 1))
-		Ret->SetUInt("ColorSiting", 0);				// 4:4:4
+		Ret->SetUInt(ColorSiting_UL, 0);				// 4:4:4
 
-	if(Progressive)	Ret->SetUInt("CodedContentType", 1); else 	Ret->SetUInt("CodedContentType", 2);
-	if(LowDelay)	Ret->SetUInt("LowDelay", 1); else	Ret->SetUInt("LowDelay", 0);
+	if(Progressive)	Ret->SetUInt(CodedContentType_UL, 1); else 	Ret->SetUInt(CodedContentType_UL, 2);
+	if(LowDelay)	Ret->SetUInt(LowDelay_UL, 1); else	Ret->SetUInt(LowDelay_UL, 0);
 
-	if(BitRate != 0x3ffff) Ret->SetUInt("BitRate", BitRate * 400);
+	if(BitRate != 0x3ffff) Ret->SetUInt(BitRate_UL, BitRate * 400);
 
-	Ret->SetUInt("ProfileAndLevel", PandL);
+	Ret->SetUInt(ProfileAndLevel_UL, PandL);
 
 #if defined(AS_CNN)
 	// AS-CNN only - default values
 	//! DRAGONS: should be evaluated while wrapping and set when rewriting Header
-	Ret->SetUInt("ClosedGOP",			1);				// from IBP Descriptor, check while parsing
-	Ret->SetUInt("IdenticalGOP",	1);				// from IBP Descriptor, check while parsing
-	Ret->SetUInt("MaxGOP",				15);			// from IBP Descriptor, check while parsing
-	Ret->SetUInt("BPictureCount", 2);				// evaluate while parsing
+	Ret->SetUInt(ClosedGOP_UL,			1);				// from IBP Descriptor, check while parsing
+	Ret->SetUInt(IdenticalGOP_UL,	1);				// from IBP Descriptor, check while parsing
+	Ret->SetUInt(MaxGOP_UL,				15);			// from IBP Descriptor, check while parsing
+	Ret->SetUInt(BPictureCount_UL, 2);				// evaluate while parsing
 #endif
 
 	return Ret;

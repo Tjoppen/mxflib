@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.9 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.10 2005/10/08 15:41:19 matt-beard Exp $
  *
  */
 /*
@@ -135,7 +135,7 @@ bool mxflib::MXFFile::ReadRunIn()
 	if(Key->Size != 16) return false;
 
 	// Locate a closed header type for key compares
-	MDOTypePtr BaseHeader = MDOType::Find("ClosedHeader");
+	MDOTypePtr BaseHeader = MDOType::Find(ClosedHeader_UL);
 
 	if(!BaseHeader)
 	{
@@ -338,9 +338,9 @@ bool mxflib::MXFFile::ReadRIP(void)
 	Seek(RIPStart);
 	MDObjectPtr RIPObject = ReadObject();
 
-	MDObjectPtr PartitionArray = RIPObject["PartitionArray"];
+	MDObjectPtr PartitionArray = RIPObject[PartitionArray_UL];
 	
-	MDObjectNamedList::iterator it = PartitionArray->begin();
+	MDObjectULList::iterator it = PartitionArray->begin();
 	while(it != PartitionArray->end())
 	{
 		UInt32 BodySID = (*it).second->GetUInt();
@@ -409,7 +409,7 @@ bool mxflib::MXFFile::ScanRIP(Length MaxScan /* = 1024*1024 */ )
 	// Header not found (might not be an error - the file could be empty)
 	if(!Header) return false;
 
-	UInt64 FooterPos = Header->GetInt64("FooterPartition");
+	UInt64 FooterPos = Header->GetInt64(FooterPartition_UL);
 	
 	if(FooterPos == 0)
 	{
@@ -439,7 +439,7 @@ bool mxflib::MXFFile::ScanRIP(Length MaxScan /* = 1024*1024 */ )
 			continue;
 		}
 
-		UInt32 BodySID = ThisPartition->GetUInt("BodySID");
+		UInt32 BodySID = ThisPartition->GetUInt(BodySID_UL);
 
 		debug("Adding %s for BodySID 0x%04x at 0x%s\n", ThisPartition->Name().c_str(), BodySID, Int64toHexString(PartitionPos, 8).c_str());
 
@@ -449,7 +449,7 @@ bool mxflib::MXFFile::ScanRIP(Length MaxScan /* = 1024*1024 */ )
 		// Stop once we have added the header
 		if(PartitionPos == 0) break;
 
-		UInt64 NewPos = ThisPartition->GetUInt64("PreviousPartition");
+		UInt64 NewPos = ThisPartition->GetUInt64(PreviousPartition_UL);
 		if(NewPos >= PartitionPos)
 		{
 			error("%s/PreviousPartition in partition pack at %s is 0x%s, but this cannot be the location of the previous partition\n", 
@@ -532,7 +532,7 @@ UInt64 MXFFile::ScanRIP_FindFooter(Length MaxScan)
 						MDOTypePtr Type = MDOType::Find(UL(Key->Data));
 						if(Type)
 						{
-							if(Type->Name().find("Footer") != std::string::npos)
+							if(Type->IsA(CompleteFooter_UL) || Type->IsA(Footer_UL))
 							{
 								debug("Found %s at 0x%s\n", Type->Name().c_str(), Int64toHexString(Location, 8).c_str());
 								
@@ -576,14 +576,6 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 	UInt64 Location = 0;
 
-	// Locate a closed header type for key compares
-	MDOTypePtr BaseHeader = MDOType::Find("ClosedHeader");
-	if(!BaseHeader)
-	{
-		error("Cannot find \"ClosedHeader\" in current dictionary\n");
-		return false;
-	}
-
 	// Read the first partition pack in the file
 	PartitionPtr ThisPartition = ReadPartition();
 
@@ -593,8 +585,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 	// Check that the first KLV is a partition pack
 	// DRAGONS: What if the first KLV is a filler? - This shouldn't be valid as it would look like a run-in!
-	if(!(ThisPartition->GetType()->Base)
-		|| ( ThisPartition->GetType()->Base->Name() != "PartitionMetadata") )
+	if(!(ThisPartition->IsA(PartitionMetadata_UL)) )
 	{
 		error("First KLV in file \"%s\" is not a known partition type\n", Name.c_str());
 		return false;
@@ -603,7 +594,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 	for(;;)
 	{
 		UInt32 BodySID = 0;
-		MDObjectPtr Ptr = ThisPartition["BodySID"];
+		MDObjectPtr Ptr = ThisPartition[BodySID_UL];
 		if(Ptr) BodySID = Ptr->Value->GetInt();
 
 		FileRIP.AddPartition(ThisPartition, Location, BodySID);
@@ -611,9 +602,9 @@ bool mxflib::MXFFile::BuildRIP(void)
 		Length Skip = 0;
 
 		// Work out how far to skip ahead
-		Ptr = ThisPartition["HeaderByteCount"];
+		Ptr = ThisPartition[HeaderByteCount_UL];
 		if(Ptr) Skip = Ptr->Value->GetInt64();
-		Ptr = ThisPartition["IndexByteCount"];
+		Ptr = ThisPartition[IndexByteCount_UL];
 		if(Ptr) Skip += Ptr->Value->GetInt64();
 
 		if(Skip)
@@ -629,7 +620,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 			// In this case we are probably in a Version 10 HeaderByteCount bug situation...
 
 			UInt16 Ver = 0;
-			Ptr = ThisPartition["MinorVersion"];
+			Ptr = ThisPartition[MinorVersion_UL];
 			Ver = Ptr->Value->GetUInt();
 
 			bool SkipFiller = true;		// Version 11 behaviour
@@ -637,11 +628,11 @@ bool mxflib::MXFFile::BuildRIP(void)
 			if(Ver == 1)				// Ver = 1 for version 10 files
 			{
 				UInt32 KAGSize = 0;
-				Ptr = ThisPartition["KAGSize"];
+				Ptr = ThisPartition[KAGSize_UL];
 				if(Ptr) KAGSize = Ptr->GetInt();
 
 				UInt64 HeaderByteCount = 0;
-				Ptr = ThisPartition["HeaderByteCount"];
+				Ptr = ThisPartition[HeaderByteCount_UL];
 				if(Ptr) HeaderByteCount = Ptr->GetInt();
 
 				if((KAGSize > 16) && (HeaderByteCount > 0))
@@ -657,7 +648,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 							SkipFiller = true;
 							Seek(Pos);
 						}
-						else if(First->Name() == "KLVFill")
+						else if(First->IsA(KLVFill_UL))
 						{
 							U = Tell() / KAGSize;
 							if( (U * KAGSize) == (UInt64)Tell() )
@@ -690,9 +681,9 @@ bool mxflib::MXFFile::BuildRIP(void)
 					return false;
 				}
 
-				if(First->Name() == "KLVFill")
+				if(First->IsA(KLVFill_UL))
 					PreSkip = Tell();
-				else if(First->Name() != "Primer")
+				else if(First->IsA(Primer_UL))
 				{
 					error("First KLV following a partition pack (and any trailing filler) must be a Primer, however %s found at 0x%s in %s\n", 
 						  ThisPartition->FullName().c_str(), Int64toHexString(ThisPartition->GetLocation(),8).c_str(), 
@@ -749,7 +740,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 			{
 				if(ThisType->Base)
 				{
-					if(ThisType->Base->Name() == "PartitionMetadata")
+					if(ThisType->IsA(PartitionMetadata_UL))
 					{
 						break;
 					}
@@ -777,7 +768,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 		// Read it ...
 		Seek(Location);
 		ThisPartition = ReadPartition();
-		
+
 		// ... then loop back to add it
 		continue;
 	}
@@ -852,14 +843,14 @@ ULPtr mxflib::MXFFile::ReadKey(void)
 void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer /*=NULL*/) 
 { 
 	Int64 CurrentPosition = Tell();
-	ThisPartition->SetInt64("ThisPartition", CurrentPosition);
+	ThisPartition->SetInt64(ThisPartition_UL, CurrentPosition);
 
 	// Adjust properties for a footer
-	if(ThisPartition->Name().find("Footer") != std::string::npos)
+	if(ThisPartition->IsA(CompleteFooter_UL) || ThisPartition->IsA(Footer_UL))
 	{
-		ThisPartition->SetInt64("FooterPartition", CurrentPosition);
-		ThisPartition->SetUInt("BodySID", 0);
-		ThisPartition->SetUInt64("BodyOffset", 0);
+		ThisPartition->SetInt64(FooterPartition_UL, CurrentPosition);
+		ThisPartition->SetUInt(BodySID_UL, 0);
+		ThisPartition->SetUInt64(BodyOffset_UL, 0);
 	}
 
 	// Find the current partition at this location, or the nearest after it
@@ -870,12 +861,12 @@ void MXFFile::WritePartitionPack(PartitionPtr ThisPartition, PrimerPtr UsePrimer
 
 	// Set the position of the previous partition
 	// DRAGONS: Is there some way to know that we don't know the previous position?
-	if(it == FileRIP.end()) ThisPartition->SetInt64("PreviousPartition", 0);
-	else ThisPartition->SetInt64("PreviousPartition", (*it).first);
+	if(it == FileRIP.end()) ThisPartition->SetInt64(PreviousPartition_UL, 0);
+	else ThisPartition->SetInt64(PreviousPartition_UL, (*it).first);
 
 	// Add this partition to the RIP, but don't store the partition as we don't
 	// own it and therefore cannot prevent changes after writing
-	FileRIP.AddPartition(NULL, CurrentPosition, ThisPartition->GetUInt("BodySID"));
+	FileRIP.AddPartition(NULL, CurrentPosition, ThisPartition->GetUInt(BodySID_UL));
 
 	DataChunkPtr Buffer = ThisPartition->WriteObject(UsePrimer);
 
@@ -1004,7 +995,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	DataChunkPtr MetaBuffer = new DataChunk;
 
 	// Is this a footer?
-	bool IsFooter = (ThisPartition->Name().find("Footer") != std::string::npos);
+	bool IsFooter = (ThisPartition->IsA(CompleteFooter_UL) || ThisPartition->IsA(Footer_UL));
 
 	// Write all objects
 	MDObjectList::iterator it = ThisPartition->TopLevelMetadata.begin();
@@ -1031,26 +1022,26 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 			//	if( *(*it)->GetType()->GetTypeUL() == PrefaceUL )
 
 			// Update OP label
-			MDObjectPtr DstPtr = ThisPartition["OperationalPattern"];
-			MDObjectPtr SrcPtr = (*it)["OperationalPattern"];
+			MDObjectPtr DstPtr = ThisPartition[OperationalPattern_UL];
+			MDObjectPtr SrcPtr = (*it)[OperationalPattern_UL];
 			if((SrcPtr) && (DstPtr))
 			{
 				DstPtr->ReadValue(SrcPtr->Value->PutData());
 			}
 
 			// Update essence containers
-			DstPtr = ThisPartition["EssenceContainers"];
+			DstPtr = ThisPartition[EssenceContainers_UL];
 			if(DstPtr)
 			{
 				DstPtr->clear();
-				SrcPtr = (*it)["EssenceContainers"];
+				SrcPtr = (*it)[EssenceContainers_UL];
 
 				if(SrcPtr)
 				{
-					MDObjectNamedList::iterator it2 = SrcPtr->begin();
+					MDObjectULList::iterator it2 = SrcPtr->begin();
 					while(it2 != SrcPtr->end())
 					{
-						DstPtr->AddChild("EssenceContainer", false)->ReadValue((*it2).second->Value->PutData());
+						DstPtr->AddChild()->ReadValue((*it2).second->Value->PutData());
 						it2++;
 					}
 				}
@@ -1060,7 +1051,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	}
 
 	// Get the KAG size
-	UInt32 KAGSize = ThisPartition->GetUInt("KAGSize");
+	UInt32 KAGSize = ThisPartition->GetUInt(KAGSize_UL);
 
 	// Align if required (not if re-writing)
 	if((!ReWrite) && (KAGSize > 1)) Align(KAGSize);
@@ -1101,7 +1092,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		Seek(CurrentPos);
 
 		// Read the partition's body SID so we know if there is essence in this partition
-		BodySID = ThisPartition->GetUInt("BodySID");
+		BodySID = ThisPartition->GetUInt(BodySID_UL);
 	}
 
 	if(IncludeMetadata)
@@ -1116,9 +1107,9 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		if(ReWrite)
 		{
 			// Old sizes in existing partition
-			UInt64 OldHeaderByteCount = OldPartition->GetUInt64("HeaderByteCount");
+			UInt64 OldHeaderByteCount = OldPartition->GetUInt64(HeaderByteCount_UL);
 			UInt64 OldIndexByteCount = 0;
-			if(IndexByteCount) OldIndexByteCount = OldPartition->GetUInt64("IndexByteCount");
+			if(IndexByteCount) OldIndexByteCount = OldPartition->GetUInt64(IndexByteCount_UL);
 
 			// Minimum new sizes to obey KAG rules
 			UInt64 NewHeaderByteCount = HeaderByteCount + FillerSize(HeaderByteCount, KAGSize);
@@ -1167,11 +1158,11 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 			}
 		}
 
-		ThisPartition->SetUInt64("HeaderByteCount", HeaderByteCount);
+		ThisPartition->SetUInt64(HeaderByteCount_UL, HeaderByteCount);
 	}
 	else
 	{
-		ThisPartition->SetUInt64("HeaderByteCount", 0);
+		ThisPartition->SetUInt64(HeaderByteCount_UL, 0);
 	}
 
 	// Some systems can run more efficiently if the essence and index data start on a block boundary in addition to any alignment provided by KAG
@@ -1292,20 +1283,20 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 			IndexByteCount += FillerSize(IndexByteCount, KAGSize, Padding);
 		}
 
-		ThisPartition->SetUInt64("IndexByteCount", IndexByteCount);
+		ThisPartition->SetUInt64(IndexByteCount_UL, IndexByteCount);
 	}
 	else
 	{
 		// If we are re-writing, but not writing an index, keep the old index settings
 		if(ReWrite)
 		{
-			ThisPartition->SetUInt("IndexSID", OldPartition->GetUInt("IndexSID"));
-			ThisPartition->SetUInt64("IndexByteCount", OldPartition->GetUInt64("IndexByteCount"));
+			ThisPartition->SetUInt(IndexSID_UL, OldPartition->GetUInt(IndexSID_UL));
+			ThisPartition->SetUInt64(IndexByteCount_UL, OldPartition->GetUInt64(IndexByteCount_UL));
 		}
 		else
 		{
-			ThisPartition->SetUInt("IndexSID", 0);
-			ThisPartition->SetUInt64("IndexByteCount", 0);
+			ThisPartition->SetUInt(IndexSID_UL, 0);
+			ThisPartition->SetUInt64(IndexByteCount_UL, 0);
 		}
 
 	}
@@ -1326,7 +1317,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	}
 
 	// Write a filler of the required size for block alignment (note the forced KAG of 1 in this case)
-	if(BlockAlignHeaderBytes) Align((UInt32)1, BlockAlignHeaderBytes); 
+	if(BlockAlignHeaderBytes) Align((UInt32)1, (UInt32)BlockAlignHeaderBytes); 
 
 	if(IndexData)
 	{
@@ -1337,7 +1328,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		Write(IndexData);
 
 		// Write a filler of the required size for block alignment (note the forced KAG of 1 in this case)
-		if(BlockAlignIndexBytes) Align((UInt32)1, BlockAlignIndexBytes); 
+		if(BlockAlignIndexBytes) Align((UInt32)1, (UInt32)BlockAlignIndexBytes); 
 	}
 
 	// If not a footer align to the KAG (add padding if requested even if it is a footer)
@@ -1392,7 +1383,7 @@ UInt32 MXFFile::MemoryRead(UInt8 *Data, UInt32 Size)
 	// Limit our read to the max available
 	if(Size > MaxBytes) Size = MaxBytes;
 
-debug("Copy %d bytes from 0x%08x to 0x%08x\n", Size, &Buffer->Data[BufferCurrentPos - BufferOffset], Data);
+//debug("Copy %d bytes from 0x%08x to 0x%08x\n", Size, &Buffer->Data[BufferCurrentPos - BufferOffset], Data);
 	// Copy the data from the buffer
 if(Buffer->Data != 0)
 	memcpy(Data, &Buffer->Data[BufferCurrentPos - BufferOffset], Size);
@@ -1438,13 +1429,13 @@ PartitionPtr MXFFile::ReadMasterPartition(Length MaxScan /*=1024*1024*/)
 	if(!Ret) return Ret;
 
 	// If the header is closed return it
-	if(Ret->IsA("ClosedCompleteHeader") || Ret->IsA("ClosedHeader")) return Ret;
+	if(Ret->IsA(ClosedCompleteHeader_UL) || Ret->IsA(ClosedHeader_UL)) return Ret;
 
 	/* The header is open - so we must locate the footer */
 	Position FooterPos = 0;
 
 	// First we see if the header partition tells us where the footer is
-	FooterPos = Ret->GetInt64("FooterPartition");
+	FooterPos = Ret->GetInt64(FooterPartition_UL);
 
 	// If the footer position is not specified in the header we must look for it
 	if(FooterPos == 0)
@@ -1477,7 +1468,7 @@ PartitionPtr MXFFile::ReadMasterPartition(Length MaxScan /*=1024*1024*/)
 	// If it is a footer, and it contains metadata, return it
 	if(Ret)
 	{
-		if((Ret->IsA("CompleteFooter") || Ret->IsA("Footer")) && Ret->GetInt64("HeaderByteCount"))
+		if((Ret->IsA(CompleteFooter_UL) || Ret->IsA(Footer_UL)) && Ret->GetInt64(HeaderByteCount_UL))
 		{
 			return Ret;
 		}
@@ -1506,7 +1497,7 @@ PartitionPtr MXFFile::ReadFooterPartition(Length MaxScan /*=1024*1024*/)
 	Position FooterPos = 0;
 
 	// First we see if the header partition tells us where the footer is
-	FooterPos = Ret->GetInt64("FooterPartition");
+	FooterPos = Ret->GetInt64(FooterPartition_UL);
 
 	// If the footer position is not specified in the header we must look for it
 	if(FooterPos == 0)

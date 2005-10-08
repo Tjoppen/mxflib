@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.8 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.9 2005/10/08 15:41:19 matt-beard Exp $
  *
  */
 /*
@@ -226,12 +226,12 @@ namespace mxflib
 		//! Write the RIP
 		void WriteRIP(void)
 		{
-			MDObjectPtr RIPObject = new MDObject("RandomIndexMetadata");
+			MDObjectPtr RIPObject = new MDObject(RandomIndexMetadata_UL);
 			ASSERT(RIPObject);
 
 			if(RIPObject)
 			{
-				MDObjectPtr PA = RIPObject->AddChild("PartitionArray");
+				MDObjectPtr PA = RIPObject->AddChild(PartitionArray_UL);
 
 				ASSERT(PA);
 				if(PA)
@@ -239,14 +239,14 @@ namespace mxflib
 					RIP::iterator it = FileRIP.begin();
 					while(it != FileRIP.end())
 					{
-						PA->AddChild("BodySID", false)->SetUInt((*it).second->BodySID);
-						PA->AddChild("ByteOffset", false)->SetUInt64((*it).second->ByteOffset);
+						PA->AddChild(BodySID_UL, false)->SetUInt((*it).second->BodySID);
+						PA->AddChild(ByteOffset_UL, false)->SetUInt64((*it).second->ByteOffset);
 						it++;
 					}
 				}
 				
 				// Calculate the pack length
-				RIPObject->SetUInt("Length", 16 + 4 + (FileRIP.size() * 12) + 4);
+				RIPObject->SetUInt(Length_UL, 16 + 4 + (FileRIP.size() * 12) + 4);
 
 				DataChunkPtr Buffer = RIPObject->WriteObject();
 

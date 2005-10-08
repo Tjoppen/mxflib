@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.13 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.14 2005/10/08 15:32:30 matt-beard Exp $
  *
  */
 /*
@@ -311,7 +311,7 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 				printf("%s%s\n", Prefix.c_str(), Object->Name().c_str());
 		}
 
-		MDObjectNamedList::iterator it = Object->begin();
+		MDObjectULList::iterator it = Object->begin();
 		while(it != Object->end())
 		{
 			DumpObject((*it).second, Prefix + "  ");
@@ -371,18 +371,18 @@ static void DumpIndex( PartitionPtr ThisPartition )
 			// Demonstrate this new segment
 			
 			UInt32 Streams = 1;
-			MDObjectPtr DeltaEntryArray = (*it)["DeltaEntryArray"];
+			MDObjectPtr DeltaEntryArray = (*it)[DeltaEntryArray_UL];
 			if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
 			{
 				Streams = DeltaEntryArray->size() / DeltaEntryArray->GetType()->size();
 				if(Streams == 0) Streams = 1;	// Fix for bad DeltaEntryArray
 			}
 
-			Position Start = (*it)->GetInt64("IndexStartPosition");
-			Length Duration = (*it)->GetInt64("IndexDuration");
+			Position Start = (*it)->GetInt64(IndexStartPosition_UL);
+			Length Duration = (*it)->GetInt64(IndexDuration_UL);
 			
-			UInt32 IndexSID = (*it)->GetUInt("IndexSID");
-			UInt32 BodySID = (*it)->GetUInt("BodySID");
+			UInt32 IndexSID = (*it)->GetUInt(IndexSID_UL);
+			UInt32 BodySID = (*it)->GetUInt(BodySID_UL);
 			
 			if(Duration == 0) printf("CBR Index Table Segment (covering whole Essence Container) :\n");
 			else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());

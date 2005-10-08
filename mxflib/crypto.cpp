@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.6 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.7 2005/10/08 15:35:01 matt-beard Exp $
  *
  */
 /*
@@ -829,7 +829,8 @@ Length KLVEObject::WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size
 		Length Ret = Base_WriteDataTo(Buffer, DataOffset + Offset, Size);
 		
 		// Update the current hash if we are calculating one
-		if(WriteHasher) WriteHasher->HashData(Size, Buffer);
+		// TODO: Sort the possible overflow here
+		if(WriteHasher) WriteHasher->HashData((UInt32)Size, Buffer);
 
 		// Update the write pointer (note that random access is possible within the plaintext area)
 		CurrentWriteOffset = Offset + Ret;
@@ -875,7 +876,8 @@ Length KLVEObject::WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size
 	}
 
 	// Update the current hash if we are calculating one
-	if(WriteHasher) WriteHasher->HashData(Size, Buffer);
+	// TODO: Sort the possible overflow here
+	if(WriteHasher) WriteHasher->HashData((UInt32)Size, Buffer);
 
 	// Update the write pointer after the plaintext write
 	CurrentWriteOffset = Offset + PlainBytes;
@@ -975,7 +977,8 @@ Length KLVEObject::WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, Lengt
 			Base_WriteDataTo(NewData->Data, DataOffset + Offset, StartSize);
 
 			// Update the current hash if we are calculating one
-			if(WriteHasher) WriteHasher->HashData(StartSize, NewData->Data);
+			// TODO: Sort the possible overflow here
+			if(WriteHasher) WriteHasher->HashData((UInt32)StartSize, NewData->Data);
 		}
 
 		// Buffer for last data to be encrypted
@@ -1033,7 +1036,8 @@ Length KLVEObject::WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, Lengt
 	Size = Base_WriteDataTo(NewData->Data, DataOffset + Offset, BytesToEncrypt);
 
 	// Update the current hash if we are calculating one
-	if(WriteHasher) WriteHasher->HashData(Size, NewData->Data);
+	// TODO: Sort the possible overflow here
+	if(WriteHasher) WriteHasher->HashData((UInt32)Size, NewData->Data);
 
 	// Chain the IV for next time...
 	EncryptionIV = Encrypt->GetIV();
@@ -1069,31 +1073,7 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 	Dest.File->Seek(Dest.Offset);
 
 	// As we are writing an encrypted KLV we know that the key should be the KLVE key
-	static bool InitedKey = false;
-	static ULPtr TripletKey;
-
-	if(InitedKey)
-	{
-		TheUL = TripletKey;
-	}
-	else
-	{
-		MDOTypePtr TripletType = MDOType::Find("EncryptedTriplet");
-		if(!TripletType)
-		{
-			warning("EncryptedTriplet type not known\n");
-			const UInt8 TripletData[] =  { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x04, 0x01, 0x07, 0x0f, 0x01, 0x03, 0x7f, 0x01, 0x00, 0x00, 0x00 };
-			TripletKey = new UL(TripletData);
-			TheUL = TripletKey;
-			InitedKey = true;
-		}
-		else
-		{
-			TripletKey = TripletType->GetUL();
-			TheUL = TripletKey;
-			InitedKey = true;
-		}
-	}
+	TheUL = new UL(EncryptedTriplet_UL);
 	
 	// Small buffer for header (note: max valid size of header should be 116 bytes)
 	UInt8 Buffer[128];

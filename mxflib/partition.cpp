@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.7 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.8 2005/10/08 15:44:51 matt-beard Exp $
  *
  */
 /*
@@ -53,7 +53,7 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 	// linked from this object (before this function was called) are added as well
 	// Note: although nothing currently does it it is theoretically possible to
 	//       have more than one target entry in a set
-	MDObjectNamedList::iterator it = NewObject->begin();
+	MDObjectULList::iterator it = NewObject->begin();
 	while(it != NewObject->end())
 	{
 		DictRefType RefType = (*it).second->GetRefType();
@@ -113,8 +113,8 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 		} 
 		else if(!((*it).second->empty()))
 		{
-			MDObjectNamedList::iterator it2 = (*it).second->begin();
-			MDObjectNamedList::iterator itend2 = (*it).second->end();
+			MDObjectULList::iterator it2 = (*it).second->begin();
+			MDObjectULList::iterator itend2 = (*it).second->end();
 			while(it2 != itend2)
 			{
 				if((*it2).second->GetRefType() == DICT_REF_STRONG)
@@ -152,7 +152,7 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 //! Satisfy, or record as un-matched, all outgoing references
 void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 {
-	MDObjectNamedList::iterator it = ThisObject->begin();
+	MDObjectULList::iterator it = ThisObject->begin();
 	while(it != ThisObject->end())
 	{
 		// Only try to match references if not already matched
@@ -207,7 +207,7 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
  */
 Length mxflib::Partition::ReadMetadata(void)
 {
-	Length MetadataSize = GetInt64("HeaderByteCount");
+	Length MetadataSize = GetInt64(HeaderByteCount_UL);
 	if(MetadataSize == 0) return 0;
 
 	MXFFilePtr ParentFile = Object->GetParentFile();
@@ -403,7 +403,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 //! Read any index table segments from this partition's source file
 MDObjectListPtr mxflib::Partition::ReadIndex(void)
 {
-	UInt64 IndexSize = GetInt64("IndexByteCount");
+	UInt64 IndexSize = GetInt64(IndexByteCount_UL);
 	if(IndexSize == 0) return new MDObjectList;
 
 	MXFFilePtr ParentFile = Object->GetParentFile();
@@ -414,7 +414,7 @@ MDObjectListPtr mxflib::Partition::ReadIndex(void)
 		return new MDObjectList;
 	}
 
-	UInt64 MetadataSize = GetInt64("HeaderByteCount");
+	UInt64 MetadataSize = GetInt64(HeaderByteCount_UL);
 
 	// Find the start of the index table
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the metadata
@@ -496,7 +496,7 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 {
 	DataChunkPtr Ret;
 
-	UInt64 IndexSize = GetInt64("IndexByteCount");
+	UInt64 IndexSize = GetInt64(IndexByteCount_UL);
 	if(IndexSize == 0) return Ret;
 
 	MXFFilePtr ParentFile = Object->GetParentFile();
@@ -507,7 +507,7 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 		return Ret;
 	}
 
-	UInt64 MetadataSize = GetInt64("HeaderByteCount");
+	UInt64 MetadataSize = GetInt64(HeaderByteCount_UL);
 
 	// Find the start of the index table
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the metadata
@@ -546,19 +546,12 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 		UInt32 Count = Ret->Size - 16;
 		UInt8 *p = &Ret->Data[Count - 16];
 
-		// Find the KLVFill key for comparison
-		// TODO: This should use the UL headerfile when available
-		MDOTypePtr FillType = MDOType::Find("KLVFill");
-		ASSERT(FillType);
-		UInt8 FillKey[16];
-		memcpy(FillKey, FillType->GetGlobalKey().Data, 16);
-
 		// Do the scan (slightly optimized)
 		while(Count--)
 		{
 			if(*p == 0x06)
 			{
-				if(memcmp(p, FillKey, 16) == 0)
+				if(memcmp(p, KLVFill_UL.GetValue(), 16) == 0)
 				{
 					Ret->Resize((UInt32)(p - Ret->Data));
 					break;
@@ -584,8 +577,8 @@ bool mxflib::Partition::SeekEssence(void)
 
 	Position BodyLocation = 0;
 
-	Length MetadataSize = GetInt64("HeaderByteCount");
-	Length IndexSize = GetInt64("IndexByteCount");
+	Length MetadataSize = GetInt64(HeaderByteCount_UL);
+	Length IndexSize = GetInt64(IndexByteCount_UL);
 
 	// Skip over Partition Pack (and any trailing filler)
 	File->Seek( Object->GetLocation() + 16 );
@@ -619,8 +612,8 @@ bool mxflib::Partition::StartElements()
 
 	MXFFilePtr PF = Object->GetParentFile();
 
-	UInt64 MetadataSize = GetInt64("HeaderByteCount");
-	UInt64 IndexSize = GetInt64("IndexByteCount");
+	UInt64 MetadataSize = GetInt64(HeaderByteCount_UL);
+	UInt64 IndexSize = GetInt64(IndexByteCount_UL);
 
 	// skip over Partition Pack (and any leading Fill on Header)
 	PF->Seek( Object->GetLocation() + 16 );
@@ -748,7 +741,7 @@ MetadataPtr Partition::ParseMetadata(void)
 	while(it != TopLevelMetadata.end())
 	{
 		// If we find the preface, parse it
-		if((*it)->IsA("Preface"))
+		if((*it)->IsA(Preface_UL))
 		{
 			Ret = Metadata::Parse(*it);
 			break;
@@ -765,8 +758,8 @@ MetadataPtr Partition::ParseMetadata(void)
 //! Determine if the partition object is currently set as complete
 bool Partition::IsComplete(void)
 {
-	if(    Object->IsA("OpenCompleteHeader")        || Object->IsA("ClosedCompleteHeader") || Object->IsA("CompleteFooter")
-		|| Object->IsA("OpenCompleteBodyPartition") || Object->IsA("ClosedCompleteBodyPartition") ) return true;
+	if(    Object->IsA(OpenCompleteHeader_UL)        || Object->IsA(ClosedCompleteHeader_UL) || Object->IsA(CompleteFooter_UL)
+		|| Object->IsA(OpenCompleteBodyPartition_UL) || Object->IsA(ClosedCompleteBodyPartition_UL) ) return true;
 
 	return false;
 }
@@ -774,9 +767,9 @@ bool Partition::IsComplete(void)
 //! Determine if the partition object is currently set as closed
 bool Partition::IsClosed(void)
 {
-	if(    Object->IsA("ClosedHeader")        || Object->IsA("ClosedCompleteHeader") 
-		|| Object->IsA("Footer")			  || Object->IsA("CompleteFooter")
-		|| Object->IsA("ClosedBodyPartition") || Object->IsA("ClosedCompleteBodyPartition") ) return true;
+	if(    Object->IsA(ClosedHeader_UL)        || Object->IsA(ClosedCompleteHeader_UL) 
+		|| Object->IsA(Footer_UL)			   || Object->IsA(CompleteFooter_UL)
+		|| Object->IsA(ClosedBodyPartition_UL) || Object->IsA(ClosedCompleteBodyPartition_UL) ) return true;
 
 	return false;
 }

@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.6 2005/10/08 15:35:33 matt-beard Exp $
  *
  */
 /*
@@ -404,35 +404,35 @@ MDObjectPtr mxflib::WAVE_PCM_EssenceSubParser::BuildWaveAudioDescriptor(FileHand
 			UInt16 AudioFormat = GetU16_LE(&ChunkData->Data[0]);
 			if(AudioFormat != 1) return Ret;
 
-			Ret = new MDObject("WaveAudioDescriptor");
+			Ret = new MDObject(WaveAudioDescriptor_UL);
 			if(!Ret) return Ret;
 
 			// Set the sample rate
 			char Buffer[32];
 			SampleRate = GetU32_LE(&ChunkData->Data[4]);
 			sprintf(Buffer, "%d/1", SampleRate);
-			Ret->SetString("SampleRate", Buffer);
-			Ret->SetString("AudioSamplingRate", Buffer);
+			Ret->SetString(SampleRate_UL, Buffer);
+			Ret->SetString(AudioSamplingRate_UL, Buffer);
 
 			// Must assume not locked!
-			Ret->SetUInt("Locked", 0);
+			Ret->SetUInt(Locked_UL, 0);
 
 			// Set channel count
 			UInt16 Chan = GetU16_LE(&ChunkData->Data[2]);
-			Ret->SetUInt("ChannelCount", Chan);
+			Ret->SetUInt(ChannelCount_UL, Chan);
 
 			// Set quantization bits
 			UInt16 Quant = GetU16_LE(&ChunkData->Data[14]);
-			Ret->SetUInt("QuantizationBits", Quant);
+			Ret->SetUInt(QuantizationBits_UL, Quant);
 
 			// Calculate the number of bytes per sample
 			SampleSize = ((Quant+7) / 8) * Chan;
 
 			// Set the block alignment
-			Ret->SetUInt("BlockAlign", GetU16_LE(&ChunkData->Data[12]));
+			Ret->SetUInt(BlockAlign_UL, GetU16_LE(&ChunkData->Data[12]));
 
 			// Set the byte-rate
-			Ret->SetUInt("AvgBps", GetU32_LE(&ChunkData->Data[8]));
+			Ret->SetUInt(AvgBps_UL, GetU32_LE(&ChunkData->Data[8]));
 		}
 		else if(Header.first == ID_data)
 		{

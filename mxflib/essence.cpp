@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.9 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.10 2005/10/08 15:37:03 matt-beard Exp $
  *
  */
 /*
@@ -1514,7 +1514,7 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 			NewPartition = File->ReadPartition();
 			if(!NewPartition) return false;
 
-			CurrentBodySID = NewPartition->GetUInt("BodySID");
+			CurrentBodySID = NewPartition->GetUInt(BodySID_UL);
 			if(CurrentBodySID != 0) Reader = GetGCReader(CurrentBodySID);
 		
 			// All done when we have found a supported BodySID
@@ -1823,7 +1823,7 @@ EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle 
 				EssenceParser::WrappingConfigPtr Config = new WrappingConfig;
 
 				Config->EssenceDescriptor = (*it).Descriptor;
-				MDObjectPtr SampleRate = Config->EssenceDescriptor["SampleRate"];
+				MDObjectPtr SampleRate = Config->EssenceDescriptor[SampleRate_UL];
 
 				// Work out what edit rate to use
 				if((!SampleRate) || (ForceEditRate.Numerator != 0))
@@ -1906,7 +1906,7 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 
 				// DRAGONS: Default to the first valid option!
 				Ret->EssenceDescriptor = (*it).Descriptor;
-				MDObjectPtr SampleRate = Ret->EssenceDescriptor["SampleRate"];
+				MDObjectPtr SampleRate = Ret->EssenceDescriptor[SampleRate_UL];
 
 				if((!SampleRate) || (ForceEditRate.Numerator != 0))
 				{
@@ -1939,7 +1939,7 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 					// All OK, including requested edit rate
 
 					// Update the SampleRate in the Descriptor to the rate in use (which may be different than its native rate)
-					if(!SampleRate) SampleRate = Ret->EssenceDescriptor->AddChild("SampleRate");
+					if(!SampleRate) SampleRate = Ret->EssenceDescriptor->AddChild(SampleRate_UL);
 					if(SampleRate)
 					{
 						SampleRate->SetInt("Numerator", Ret->EditRate.Numerator);
@@ -1974,8 +1974,8 @@ void EssenceParser::SelectWrappingOption(EssenceParser::WrappingConfigPtr Config
 	Config->Parser->SetEditRate(Config->EditRate);
 
 	// Update the SampleRate in the Descriptor to the rate in use (which may be different than its native rate)
-	MDObjectPtr SampleRate = Config->EssenceDescriptor["SampleRate"];
-	if(!SampleRate) SampleRate = Config->EssenceDescriptor->AddChild("SampleRate");
+	MDObjectPtr SampleRate = Config->EssenceDescriptor[SampleRate_UL];
+	if(!SampleRate) SampleRate = Config->EssenceDescriptor->AddChild(SampleRate_UL);
 	if(SampleRate)
 	{
 		SampleRate->SetInt("Numerator", Config->EditRate.Numerator);
@@ -2501,18 +2501,18 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 	// Turn the partition into the correct type of header
 	if(IsClosed)
 		if(IsComplete)
-			BasePartition->ChangeType("ClosedCompleteHeader");
+			BasePartition->ChangeType(ClosedCompleteHeader_UL);
 		else
-			BasePartition->ChangeType("ClosedHeader");
+			BasePartition->ChangeType(ClosedHeader_UL);
 	else
 		if(IsComplete)
-			BasePartition->ChangeType("OpenCompleteHeader");
+			BasePartition->ChangeType(OpenCompleteHeader_UL);
 		else
-			BasePartition->ChangeType("OpenHeader");
+			BasePartition->ChangeType(OpenHeader_UL);
 
 	// Initially there is no body data
-	BasePartition->SetUInt("BodySID", 0);
-	BasePartition->SetUInt("BodyOffset", 0);
+	BasePartition->SetUInt(BodySID_UL, 0);
+	BasePartition->SetUInt(BodyOffset_UL, 0);
 
 	// Initially we haven't written any data
 	PartitionBodySID = 0;
@@ -2575,10 +2575,10 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 					PartitionBodySID = Stream->GetBodySID();
 
 					// If we have already written the header partition this will be an isolated index
-					if(HeaderWritten) BasePartition->ChangeType("ClosedCompleteBodyPartition");
+					if(HeaderWritten) BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
 
 					// Set the index SID
-					BasePartition->SetUInt("IndexSID",  Stream->GetIndexSID());
+					BasePartition->SetUInt(IndexSID_UL,  Stream->GetIndexSID());
 
 					// Record the index data to write
 					PendingIndexData = IndexChunk;
@@ -2606,7 +2606,7 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 	if(!HeaderWritten)
 	{
 		// Flag no index data
-		BasePartition->SetUInt("IndexSID",  0);
+		BasePartition->SetUInt(IndexSID_UL,  0);
 		PendingIndexData = NULL;
 
 		// Queue the write
@@ -2639,7 +2639,7 @@ void mxflib::BodyWriter::EndPartition(void)
 		if((!PendingHeader) && (!PendingFooter))
 		{
 			// If we have a body partition handler call it and allow it to ask us to write metadata
-			if(PartitionHandler) WriteMetadata = PartitionHandler->HandlePartition(BodyWriterPtr(this), CurrentBodySID, BasePartition->GetUInt("IndexSID"));
+			if(PartitionHandler) WriteMetadata = PartitionHandler->HandlePartition(BodyWriterPtr(this), CurrentBodySID, BasePartition->GetUInt(IndexSID_UL));
 		}
 
 		// FIXME: Need to force a separate partition pack if we are about to violate the metadata sharing rules
@@ -2649,7 +2649,7 @@ void mxflib::BodyWriter::EndPartition(void)
 			File->WritePartitionWithIndex(BasePartition, PendingIndexData, WriteMetadata, NULL, MinPartitionFiller, MinPartitionSize);
 			
 			// Clear the index data SID to prevent it being written again next time
-			BasePartition->SetUInt("IndexSID",  0);
+			BasePartition->SetUInt(IndexSID_UL,  0);
 			PendingIndexData = NULL;
 		}
 		else
@@ -2765,15 +2765,15 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			Index->WriteIndex(*IndexChunk);
 
 			// Isolated index tables live in closed complete body partitions
-			BasePartition->ChangeType("ClosedCompleteBodyPartition");
+			BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
 
 			// There is no body data as we are isolated
-			BasePartition->SetUInt("BodySID", 0);
-			BasePartition->SetUInt("BodyOffset", 0);
+			BasePartition->SetUInt(BodySID_UL, 0);
+			BasePartition->SetUInt(BodyOffset_UL, 0);
 			PartitionBodySID = 0;
 
 			// Set the index SID
-			BasePartition->SetUInt("IndexSID",  Index->IndexSID);
+			BasePartition->SetUInt(IndexSID_UL,  Index->IndexSID);
 
 			// Record the index data to write
 			PendingIndexData = IndexChunk;
@@ -2800,7 +2800,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 				if(PartitionWritePending)
 					if(PendingHeader || PendingMetadata) PartitionDone = true;
 				else
-					if(BasePartition->GetUInt64("HeaderByteCount") > 0) PartitionDone = true;
+					if(BasePartition->GetUInt64(HeaderByteCount_UL) > 0) PartitionDone = true;
 			}
 
 			// Fall through to no-index version
@@ -2814,7 +2814,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 				if(PartitionWritePending)
 					if(PendingHeader || PendingMetadata) PartitionDone = true;
 				else
-					if(BasePartition->GetUInt64("HeaderByteCount") > 0) PartitionDone = true;
+					if(BasePartition->GetUInt64(HeaderByteCount_UL) > 0) PartitionDone = true;
 			}
 
 			// It's OK to continue with the current partition if:
@@ -2840,7 +2840,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 				if(PartitionWritePending) EndPartition();
 
 				// Assume a closed complete body partition - may be changed by handler if metadata added
-				BasePartition->ChangeType("ClosedCompleteBodyPartition");
+				BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
 
 				// We now have a new partition pending
 				PartitionWritePending = true;
@@ -2849,8 +2849,8 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			// If there is a partition pending then update it and write it
 			if(PartitionWritePending)
 			{
-				BasePartition->SetUInt("BodySID", CurrentBodySID);
-				BasePartition->SetUInt64("BodyOffset", Stream->GetWriter()->GetStreamOffset());
+				BasePartition->SetUInt(BodySID_UL, CurrentBodySID);
+				BasePartition->SetUInt64(BodyOffset_UL, Stream->GetWriter()->GetStreamOffset());
 
 				if(StreamState == BodyStream::BodyStreamBodyWithIndex)
 				{
@@ -2889,10 +2889,10 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 					Index->WriteIndex(*IndexChunk);
 
 					// We will be a closed complete body partition unless the partition handler adds metadata
-					BasePartition->ChangeType("ClosedCompleteBodyPartition");
+					BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
 
 					// Set the index SID
-					BasePartition->SetUInt("IndexSID",  Index->IndexSID);
+					BasePartition->SetUInt(IndexSID_UL,  Index->IndexSID);
 
 					// Record the index data to write
 					PendingIndexData = IndexChunk;
@@ -2900,7 +2900,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 				else
 				{
 					// No index data
-					BasePartition->SetUInt("IndexSID",  0);
+					BasePartition->SetUInt(IndexSID_UL,  0);
 				}
 
 				// Note: The partition will be written by the call to WriteEssence
@@ -2959,15 +2959,15 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			Index->WriteIndex(*IndexChunk);
 
 			// Isolated index tables generally live in closed complete body partitions
-			BasePartition->ChangeType("ClosedCompleteBodyPartition");
+			BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
 
 			// There is no body data as we are isolated
-			BasePartition->SetUInt("BodySID", 0);
-			BasePartition->SetUInt("BodyOffset", 0);
+			BasePartition->SetUInt(BodySID_UL, 0);
+			BasePartition->SetUInt(BodyOffset_UL, 0);
 			PartitionBodySID = 0;
 
 			// Set the index SID
-			BasePartition->SetUInt("IndexSID",  Index->IndexSID);
+			BasePartition->SetUInt(IndexSID_UL,  Index->IndexSID);
 
 			// Record the index data to write
 			PendingIndexData = IndexChunk;
@@ -3022,14 +3022,14 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 	}
 
 	// Turn the partition into a closed complete body or any pre-footer index only partitions
-	BasePartition->ChangeType("ClosedCompleteBodyPartition");
+	BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
 
 	// There is no body data in a footer
-	BasePartition->SetUInt("BodySID", 0);
-	BasePartition->SetUInt("BodyOffset", 0);
+	BasePartition->SetUInt(BodySID_UL, 0);
+	BasePartition->SetUInt(BodyOffset_UL, 0);
 
 	// Initially there is no index data
-	BasePartition->SetUInt("IndexSID",  0);
+	BasePartition->SetUInt(IndexSID_UL,  0);
 
 	// There will be no essence data
 	PartitionBodySID = 0;
@@ -3166,7 +3166,7 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		Index->WriteIndex(*IndexChunk);
 
 		// Set the index SID
-		BasePartition->SetUInt("IndexSID",  Index->IndexSID);
+		BasePartition->SetUInt(IndexSID_UL,  Index->IndexSID);
 
 		// Record the index data to write
 		PendingIndexData = IndexChunk;
@@ -3193,9 +3193,9 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 
 	// Turn the partition into the correct type of footer
 	if(IsComplete)
-		BasePartition->ChangeType("CompleteFooter");
+		BasePartition->ChangeType(CompleteFooter_UL);
 	else
-		BasePartition->ChangeType("Footer");
+		BasePartition->ChangeType(Footer_UL);
 
 	// Flag that we have a partition to write
 	PartitionWritePending = true;
