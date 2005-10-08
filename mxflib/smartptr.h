@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: smartptr.h,v 1.6 2005/10/08 15:45:17 matt-beard Exp $
  *
  */
 /*
@@ -117,8 +117,9 @@ namespace mxflib
 
 		typedef ParentPtr<T> LocalParent;					//!< Parent pointer to this type
 		typedef std::list<LocalParent*> LocalParentList;	//!< List of pointers to parent pointers
-		LocalParentList ParentPointers;						//!< List of parent pointers to this object
+		LocalParentList *ParentPointers;					//!< List of parent pointers to this object
 
+	protected:
 		//! Increment the number of references
 		virtual void __IncRefCount()
 		{
@@ -184,22 +185,27 @@ namespace mxflib
 		virtual void AddRef(ParentPtr<T> &Ptr)
 		{
 			PTRDEBUG( debug("Adding ParentPtr(0x%08x) to 0x%08x\n", (int)&Ptr, (int)this); )
-			ParentPointers.push_back(&Ptr);
+			
+			if(!ParentPointers) ParentPointers = new LocalParentList;
+			ParentPointers->push_back(&Ptr);
 		}
 
 		//! Delete a parent pointer to this object
 		virtual void DeleteRef(ParentPtr<T> &Ptr)
 		{
-			typename LocalParentList::iterator it = ParentPointers.begin();
-			while(it != ParentPointers.end())
+			if(ParentPointers)
 			{
-				if((*it) == &Ptr)
+				typename LocalParentList::iterator it = ParentPointers->begin();
+				while(it != ParentPointers->end())
 				{
-					PTRDEBUG( debug("Deleting ParentPtr(0x%08x) from 0x%08x\n", (int)&Ptr, (int)this); )
-					ParentPointers.erase(it);
-					return;
+					if((*it) == &Ptr)
+					{
+						PTRDEBUG( debug("Deleting ParentPtr(0x%08x) from 0x%08x\n", (int)&Ptr, (int)this); )
+						ParentPointers->erase(it);
+						return;
+					}
+					it++;
 				}
-				it++;
 			}
 			error("Tried to clear ParentPtr(0x%08x) from 0x%08x but that ParentPtr does not exist\n", (int)&Ptr, (int)this);
 		}
@@ -216,12 +222,18 @@ namespace mxflib
 			// No references yet!
 			__m_counter = 0;
 
+			// No parent pointers (yet) reference this item
+			ParentPointers = NULL;
+
 			PTRDEBUG( debug("0x%08x Build new (zero) count\n", (int)this); )
 		}
 
 
 		//! Clear all parent pointers when we are destroyed
-		virtual ~RefCount() { if(ParentPointers.size()) ClearParents(); }
+		virtual ~RefCount() 
+		{
+			if(ParentPointers) ClearParents(); 
+		}
 
 		//! Clear all parent pointers
 		virtual void ClearParents(void);
@@ -257,11 +269,16 @@ namespace mxflib
 	// Clear all parent pointers
 	template <class T> void mxflib::RefCount<T>::ClearParents(void)
 	{
-		typename LocalParentList::iterator it = ParentPointers.begin();
-		while(it != ParentPointers.end())
+		if(ParentPointers)
 		{
-			(*it)->ClearFromParent();
-			it++;
+			typename LocalParentList::iterator it = ParentPointers->begin();
+			while(it != ParentPointers->end())
+			{
+				(*it)->ClearFromParent();
+				it++;
+			}
+
+			delete ParentPointers;
 		}
 	}
 }
