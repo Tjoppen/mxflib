@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.15 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.16 2005/10/08 15:38:08 matt-beard Exp $
  *
  */
 /*
@@ -271,13 +271,15 @@ MDObject::MDObject(MDOTypePtr BaseType) : Type(BaseType)
 }
 
 
-//! MDObject typed constructor
+//! MDObject UL based constructor body
 /*! Builds a "blank" metadata object of a specified type
  *	\note packs are built with default values
+ *
+ *  \note TheUL must be set before calling
  */
-MDObject::MDObject(const ULPtr &BaseUL) 
+void MDObject::ULCtor(void) 
 {
-	Type = MDOType::Find(BaseUL);
+	Type = MDOType::Find(TheUL);
 	if(Type)
 	{
 		ObjectName = Type->Name();
@@ -288,12 +290,12 @@ MDObject::MDObject(const ULPtr &BaseUL)
 
 		if(UL2NameFunc)
 		{
-			ObjectName = UL2NameFunc(BaseUL,NULL);
+			ObjectName = UL2NameFunc(TheUL,NULL);
 		}
 		else
 		{
 			// TODO: Needs to have a more complete name
-			ObjectName = "Unknown " + BaseUL->GetString();
+			ObjectName = "Unknown " + TheUL->GetString();
 		}
 
 		ASSERT(Type);
@@ -301,9 +303,8 @@ MDObject::MDObject(const ULPtr &BaseUL)
 		// Shall we try and parse this?
 		if(ParseDark)
 		{
-
 			const UInt8 Set2x2[6] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53 };
-			if(memcmp(Set2x2, BaseUL->GetValue(), 6) == 0)
+			if(memcmp(Set2x2, TheUL->GetValue(), 6) == 0)
 			{
 				MDOTypePtr DefaultType = MDOType::Find("DefaultObject");
 				if(DefaultType) Type = DefaultType;
@@ -316,7 +317,6 @@ MDObject::MDObject(const ULPtr &BaseUL)
 	KLSize = 0;
 	Parent = NULL;
 	ParentFile = NULL;
-	TheUL = BaseUL;
 	TheTag = 0;
 
 	Outer = NULL;
@@ -590,6 +590,82 @@ MDObjectPtr MDObject::AddChild(MDOTypePtr ChildType, bool Replace /*=true*/)
 }
 
 
+//! Add a new child MDObject of the specified type
+/*! DRAGONS: This code searches for child entries that match rather than simply doing a full UL-lookup as there
+ *           may be cases where the same UL is used somewhere else but is not compatible (such as in a pack definition
+ *           whereas are adding to a local set to need a valid local tag)
+ */
+MDObjectPtr MDObject::AddChild(const UL &ChildType, bool Replace /*=true*/)
+{
+	MDObjectPtr Ret;
+
+	SetModified(true); 
+
+	// Try and find an existing child (if replacing)
+	if(Replace) Ret = Child(ChildType); else Ret = NULL;
+
+	// Only add a new one if we didn't find it
+	if(!Ret)
+	{
+		// Find the child definition
+		MDOType::iterator it = Type->begin();
+		while(it != Type->end())
+		{
+			if(((*it).second->GetUL()) && (*((*it).second->GetUL()) == ChildType)) break;
+			it++;
+		}
+
+		// If not a known child of this type try and add the specified item anyway
+		if(it == Type->end())
+		{
+			// Insert a new item of the correct type
+			Ret = new MDObject(ChildType);
+		}
+		else
+		{
+			// Insert a new item of the correct type
+			Ret = new MDObject((*it).second);
+		}
+
+		if(Ret) insert(Ret);
+	}
+
+	// Return smart pointer to the new object
+	return Ret;
+}
+		
+//! Add a new child MDObject to a vector
+/*! \note The type of the object added is automatic. 
+ *        If the vector is of multiple members the next type will be chosen by the number of members currently
+ *        in the array, so if there are 3 sub member types the 7th entry will be type 1 [ 7 = (2*3) + 1 ]
+ *
+ *  \note This version of AddChild will <b>not</b> replace duplicates, it always appends
+ */
+MDObjectPtr MDObject::AddChild(void)
+{
+	// Number of sub items types declares
+	int SubCount = (int)Type->size();
+
+	if(!SubCount)
+	{
+		error("Attempted to AddChild() to %s which has no child types declared\n", FullName().c_str());
+		return NULL;
+	}
+
+	// Number sub items currently existing
+	int ItemCount = (int)size();
+
+	// The sub-type number (zero based) for the next item to add
+	int ItemType = ItemCount % SubCount;
+
+	// Get an iterator that points at the required type
+	MDOType::iterator it = Type->begin();
+	while(ItemType--) it++;
+
+	// Add a child of this type
+	return AddChild((*it).second, false);
+}
+
 //! Add a given MDObject to an MDObject continer
 /*! \return pointer to the object added (for compatibility with other ADDChild funcs)
  *  \return NULL if there was an error
@@ -626,10 +702,10 @@ void MDObject::RemoveChild(std::string ChildName)
 {
 	SetModified(true); 
 
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 	while(it != end())
 	{
-		if((*it).first == ChildName)
+		if((*it).second->Name() == ChildName)
 		{
 			erase(it);
 
@@ -651,7 +727,7 @@ void MDObject::RemoveChild(MDOTypePtr &ChildType)
 	
 	SetModified(true); 
 
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 	while(it != end())
 	{
 		if((*it).second->Type == ChildType)
@@ -676,7 +752,7 @@ void MDObject::RemoveChild(MDObjectPtr ChildObject)
 {
 	SetModified(true); 
 
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 	while(it != end())
 	{
 		if((*it).second == ChildObject)
@@ -708,10 +784,10 @@ MDObject::~MDObject()
 */
 MDObjectPtr MDObject::operator[](std::string ChildName)
 {
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 	while(it != end())
 	{
-		if((*it).first == ChildName)
+		if((*it).second->Name() == ChildName)
 		{
 			return (*it).second;
 		}
@@ -731,10 +807,33 @@ MDObjectPtr MDObject::operator[](std::string ChildName)
 */
 MDObjectPtr MDObject::operator[](MDOTypePtr ChildType)
 {
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 	while(it != end())
 	{
 		if((*it).second->Type == ChildType)
+		{
+			return (*it).second;
+		}
+		it++;
+	}
+
+	return NULL;
+}
+
+
+//! Access sub-item of the specified type within a compound MDObject
+/*! If the child does not exist in this item then NULL is returned
+ *  even if it is a valid child to have in this type of container
+ *
+ *  DRAGONS: This doesn't work well with SmartPtrs
+ *           so member function Child() is also available
+*/
+MDObjectPtr MDObject::operator[](const UL &ChildType)
+{
+	MDObjectULList::iterator it = begin();
+	while(it != end())
+	{
+		if((*it).first == ChildType)
 		{
 			return (*it).second;
 		}
@@ -749,11 +848,11 @@ MDObjectPtr MDObject::operator[](MDOTypePtr ChildType)
 MDObjectListPtr MDObject::ChildList(std::string ChildName)
 {
 	MDObjectListPtr Ret = new MDObjectList;
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 
 	while(it != end())
 	{
-		if((*it).first == ChildName)
+		if((*it).second->Name() == ChildName)
 		{
 			// Add this object to the list
 			Ret->push_back((*it).second);
@@ -769,11 +868,31 @@ MDObjectListPtr MDObject::ChildList(std::string ChildName)
 MDObjectListPtr MDObject::ChildList(MDOTypePtr ChildType)
 {
 	MDObjectListPtr Ret = new MDObjectList;
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 
 	while(it != end())
 	{
 		if((*it).second->Type == ChildType)
+		{
+			// Add this object to the list
+			Ret->push_back((*it).second);
+		}
+		it++;
+	}
+
+	return Ret;
+}
+
+
+//! Find all sub-items within a compound MDObject of a specified type
+MDObjectListPtr MDObject::ChildList(const UL &ChildType)
+{
+	MDObjectListPtr Ret = new MDObjectList;
+	MDObjectULList::iterator it = begin();
+
+	while(it != end())
+	{
+		if((*it).first == ChildType)
 		{
 			// Add this object to the list
 			Ret->push_back((*it).second);
@@ -938,7 +1057,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 			{
 				// Fixed pack - items know their own length
 				UInt32 Bytes = 0;
-				MDObjectNamedList::iterator it = begin();
+				MDObjectULList::iterator it = begin();
 				if(Size) for(;;)
 				{
 					// If we are already at the end of the list, we have too many bytes!
@@ -967,7 +1086,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 							// DRAGONS: Does this ever get called these days?
 							// Number of entries in SliceOffsetArray is in IndexTableSegment/SliceCount
 							// Each entry is 4 bytes long
-							ValueSize = Parent->GetInt("SliceCount") * 4;
+							ValueSize = Parent->GetInt(SliceCount_UL) * 4;
 						}
 						else if(FullName == "RandomIndexMetadata/PartitionArray")
 						{
@@ -1003,7 +1122,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 			{
 				// Variable pack - each item has a length
 				UInt32 Bytes = 0;
-				MDObjectNamedList::iterator it = begin();
+				MDObjectULList::iterator it = begin();
 				if(Size) for(;;)
 				{
 					// If we are already at the end of the list, we have too many bytes!
@@ -1180,7 +1299,7 @@ bool MDObject::IsModified(void)
 
 	if(!empty())
 	{
-		MDObjectNamedList::iterator it = begin();
+		MDObjectULList::iterator it = begin();
 
 		while(it != end())
 		{
@@ -1200,7 +1319,7 @@ void MDObject::ClearModified(void)
 
 	if(!empty())
 	{
-		MDObjectNamedList::iterator it = begin();
+		MDObjectULList::iterator it = begin();
 
 		while(it != end())
 		{
@@ -1223,12 +1342,16 @@ bool MDObject::SetGenerationUID(UUIDPtr NewGen)
 	MDContainerType CType = Type->GetContainerType();
 	if((CType != SET) && (CType != PACK)) return false;
 
-	// Quit if this object type doesn't have a GenerationUID
-	if(Type->find("GenerationUID") == Type->end()) return false;
-
 	// Find (or add) the GenerationUID property
 	MDObjectPtr GenUID = Child("GenerationUID");
-	if(!GenUID) GenUID = AddChild("GenerationUID");
+	if(!GenUID)
+	{
+		// If we don't currenly have a GenerationUID, forst check if this is because we shouldn't have one
+		if(!IsA(GenerationInterchangeObject_UL)) return false;
+
+		// Otherwise go ahead and add one
+		GenUID = AddChild(GenerationUID_UL);
+	}
 
 	ASSERT(GenUID);
 
@@ -1416,7 +1539,7 @@ const DataChunkPtr MDObject::PutData(PrimerPtr UsePrimer /* =NULL */)
 	// DRAGONS: Pre-allocating a buffer could speed things up
 	DataChunkPtr Ret = new DataChunk; 
 
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 
 	while(it != end())
 	{
@@ -1439,7 +1562,7 @@ UInt32 MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*
 
 	Bytes = WriteObject(Buffer, NULL, UsePrimer);
 
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 	while(it != end())
 	{
 		if((*it).second->Link)
@@ -1448,8 +1571,8 @@ UInt32 MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*
 		}
 		else if(!((*it).second->empty()))
 		{
-			MDObjectNamedList::iterator it2 = (*it).second->begin();
-			MDObjectNamedList::iterator itend2 = (*it).second->end();
+			MDObjectULList::iterator it2 = (*it).second->begin();
+			MDObjectULList::iterator itend2 = (*it).second->end();
 			while(it2 != itend2)
 			{
 				if((*it2).second->Link)
@@ -1540,8 +1663,7 @@ UInt32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 		// Count of remaining subs for this item
 		UInt32 Subs = 0;
 
-		MDObjectNamedList::iterator it = begin();
-
+		MDObjectULList::iterator it = begin();
 		while(it != end())
 		{
 			// Start of an item
@@ -1644,8 +1766,7 @@ UInt32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 		// DRAGONS: Pre-allocating a buffer could speed things up
 		DataChunkPtr Val = new DataChunk;
 
-		MDObjectNamedList::iterator it = begin();
-
+		MDObjectULList::iterator it = begin();
 		while(it != end())
 		{
 			// DRAGONS: do NOT force embedded objects to inherit BERSize
@@ -1815,12 +1936,12 @@ bool MDObject::MakeLink(MDObjectPtr &TargetSet, bool ForceLink /*=false*/)
 	UInt8 TheUID[16];
 
 	// Does the target set already have an InstanceUID?
-	MDObjectPtr InstanceUID = TargetSet["InstanceUID"];
+	MDObjectPtr InstanceUID = TargetSet[InstanceUID_UL];
 
 	// If not add one
 	if(!InstanceUID)
 	{
-		InstanceUID = TargetSet->AddChild("InstanceUID");
+		InstanceUID = TargetSet->AddChild(InstanceUID_UL);
 
 		// If this failed then chances are the set is not a reference target
 		if(!InstanceUID)
@@ -1892,7 +2013,7 @@ MDObjectPtr MDObject::MakeCopy(void)
 {
 	MDObjectPtr Ret = new MDObject(Type);
 
-	MDObjectNamedList::iterator it = begin();
+	MDObjectULList::iterator it = begin();
 	while(it != end())
 	{
 		Ret->insert((*it).second->MakeCopy());
@@ -2623,6 +2744,68 @@ bool MDObject::IsA(MDOTypePtr &BaseType)
 	return false;
 }
 		
+
+//! Determine if this object is derived from a specified type (directly or indirectly)
+bool MDObject::IsA(const UL &BaseType)
+{
+	MDOTypePtr TestType = Type;
+
+	while(TestType)
+	{
+		if(*(TestType->GetTypeUL()) == BaseType) return true;
+		TestType = TestType->Base;
+	}
+
+	return false;
+}
+		
+
+//! Determine if this type is derived from a specified type (directly or indirectly)
+bool MDOType::IsA(std::string BaseType)
+{
+	MDOTypePtr TestType = this;
+
+	while(TestType)
+	{
+		if(TestType->Name() == BaseType) return true;
+		TestType = TestType->Base;
+	}
+
+	return false;
+}
+
+
+//! Determine if this type is derived from a specified type (directly or indirectly)
+bool MDOType::IsA(MDOTypePtr &BaseType)
+{
+	MDOTypePtr TestType = this;
+
+	while(TestType)
+	{
+		if(TestType == BaseType) return true;
+		TestType = TestType->Base;
+	}
+
+	return false;
+}
+		
+
+//! Determine if this type is derived from a specified type (directly or indirectly)
+bool MDOType::IsA(const UL &BaseType)
+{
+	MDOTypePtr TestType = this;
+
+	while(TestType)
+	{
+		if(*(TestType->GetTypeUL()) == BaseType) return true;
+		TestType = TestType->Base;
+	}
+
+	return false;
+}
+		
+
+
 
 
 /*

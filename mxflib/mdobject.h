@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.14 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.15 2005/10/08 15:38:08 matt-beard Exp $
  *
  */
 /*
@@ -418,6 +418,19 @@ namespace mxflib
 		//! Get the usage for this type
 		ClassUsage GetUse(void) { return (ClassUsage)Use; }
 
+		//! Determine if this type is derived from a specified type (directly or indirectly)
+		bool IsA(std::string BaseType);
+
+		//! Determine if this type is derived from a specified type (directly or indirectly)
+		bool IsA(MDOTypePtr &BaseType);
+		
+		//! Determine if this type is derived from a specified type (directly or indirectly)
+		bool IsA(const UL &BaseType);
+
+		//! Determine if this type is derived from a specified type (directly or indirectly)
+		bool IsA(ULPtr &BaseType) { return IsA(*BaseType); }
+
+
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
 	protected:
@@ -524,6 +537,7 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr &ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
 		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
@@ -545,6 +559,7 @@ namespace mxflib
 		//! Child access operators that overcome dereferencing problems with SmartPtrs
 		MDObjectPtr operator[](const char *ChildName);
 		MDObjectPtr operator[](MDOTypePtr &ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
 		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
@@ -555,13 +570,17 @@ namespace mxflib
 	//! A list of smart pointers to MDObject objects with names
 	typedef std::pair<std::string,MDObjectPtr> MDObjectNamedListItem;
 	typedef std::list<MDObjectNamedListItem> MDObjectNamedList;
+
+	//! A list of smart pointers to MDObject objects with ULs
+	typedef std::pair<UL,MDObjectPtr> MDObjectULListItem;
+	typedef std::list<MDObjectULListItem> MDObjectULList;
 }
 
 
 namespace mxflib
 {
 	//! Metadata Object class
-	class MDObject : public RefCount<MDObject>, public MDObjectNamedList
+	class MDObject : public RefCount<MDObject>, public MDObjectULList
 	{
 	protected:
 		MDOTypePtr Type;
@@ -599,6 +618,15 @@ namespace mxflib
 	public:
 		MDValuePtr Value;
 
+	protected:
+		//! MDObject UL based constructor body
+		/*! Builds a "blank" metadata object of a specified type
+		 *	\note packs are built with default values
+		 *
+		 *  \note TheUL must be set before calling
+		 */
+		void ULCtor(void);
+
 	public:
 		//! Construct a new MDObject of the specified type
 		/*! BaseType is a symbol to be located in the given SymbolSpace - if no SymbolSpace is specifed the default MXFLib space is used 
@@ -609,7 +637,10 @@ namespace mxflib
 		MDObject(MDOTypePtr BaseType);
 
 		//! Construct a new MDObject of the type with the specified UL
-		MDObject(const ULPtr &BaseUL);
+		MDObject(const UL &BaseUL) { TheUL = new UL(BaseUL); ULCtor(); }
+
+		//! Construct a new MDObject of the type with the specified UL
+		MDObject(const ULPtr &BaseUL) { TheUL = BaseUL; ULCtor(); }
 
 		//! Construct a new MDObject of the type with the specified UL
 		MDObject(Tag BaseTag, PrimerPtr BasePrimer);
@@ -634,9 +665,21 @@ namespace mxflib
 		//! Add a new child MDObject of the specified type
 		MDObjectPtr AddChild(MDOTypePtr ChildType, bool Replace = true);
 		
+		//! Add a new child MDObject to a vector
+		/*! \note The type of the object added is automatic. 
+		 *        If the vector is of multiple members the next type will be chosen by the number of members currently
+		 *        in the array, so if there are 3 sub member types the 7th entry will be type 1 [ 7 = (2*3) + 1 ]
+		 *
+		 *  \note This version of AddChild will <b>not</b> replace duplicates, it always appends
+		 */
+		MDObjectPtr AddChild(void);
+
 		//! Add a new child MDObject of the specified type
-		MDObjectPtr AddChild(ULPtr &ChildType, bool Replace = true);
+		MDObjectPtr AddChild(const UL &ChildType, bool Replace = true);
 		
+		//! Add a new child MDObject of the specified type
+		MDObjectPtr AddChild(ULPtr &ChildType, bool Replace = true) { return AddChild(*ChildType, Replace); }
+
 		//! Add a new child MDObject of the specified type
 		MDObjectPtr AddChild(MDObjectPtr &ChildObject, bool Replace = false);
 
@@ -664,11 +707,15 @@ namespace mxflib
 		MDObjectPtr operator[](std::string ChildName);
 		MDObjectPtr Child(std::string ChildName) { return operator[](ChildName); };
 		MDObjectListPtr ChildList(std::string ChildName);
+		MDObjectListPtr ChildList(const UL &ChildType);
+		MDObjectListPtr ChildList(const ULPtr &ChildType) { return ChildList(*ChildType); };
 		MDObjectPtr operator[](MDOTypePtr ChildType);
 		MDObjectPtr Child(MDOTypePtr ChildType) { return operator[](ChildType); };
 		MDObjectListPtr ChildList(MDOTypePtr ChildType);
-		MDObjectPtr operator[](ULPtr &ChildType);
-		MDObjectPtr Child(ULPtr &ChildType) { return operator[](ChildType); };
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType) { return operator[](*ChildType); };
+		MDObjectPtr Child(const UL &ChildType) { return operator[](ChildType); };
+		MDObjectPtr Child(ULPtr &ChildType) { return operator[](*ChildType); };
 		MDObjectListPtr ChildList(ULPtr &ChildType);
 
 		void SetInt(Int32 Val) { SetModified(true); if (Value) Value->SetInt(Val); };
@@ -802,91 +849,99 @@ namespace mxflib
 			if (Ptr) return Ptr->IsDValue(); else return false; 
 		};
 
-		void SetInt(ULPtr &ChildType, Int32 Val) 
+		void SetInt(const UL &ChildType, Int32 Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildType);
 			if (Ptr) Ptr->SetInt(Val);
 		};
+		void SetInt(ULPtr &ChildType, Int32 Val) { SetInt(*ChildType, Val); }
 
-		void SetInt64(ULPtr &ChildType, Int64 Val) 
+		void SetInt64(const UL &ChildType, Int64 Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildType);
 			if (Ptr) Ptr->SetInt64(Val);
 		};
+		void SetInt64(ULPtr &ChildType, Int64 Val) { SetInt64(*ChildType, Val); }
 
-		void SetUInt(ULPtr &ChildType, UInt32 Val) 
+		void SetUInt(const UL &ChildType, UInt32 Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildType);
 			if (Ptr) Ptr->SetUInt(Val);
 		};
+		void SetUInt(ULPtr &ChildType, UInt32 Val) { SetUInt(*ChildType, Val); }
 
-		void SetUInt64(ULPtr &ChildType, UInt64 Val) 
+		void SetUInt64(const UL &ChildType, UInt64 Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildType);
 			if (Ptr) Ptr->SetUInt64(Val);
 		};
+		void SetUInt64(ULPtr &ChildType, UInt64 Val) { SetUInt(*ChildType, Val); }
 
-		void SetUint(ULPtr &ChildType, UInt32 Val) { SetUInt(ChildType, Val); }
-		void SetUint64(ULPtr &ChildType, UInt64 Val) { SetUInt64(ChildType, Val); }
-
-		void SetString(ULPtr &ChildType, std::string Val) 
+		void SetString(const UL &ChildType, std::string Val) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildType);
 			if (Ptr) Ptr->SetString(Val);
 		};
+		void SetString(ULPtr &ChildType, std::string Val) { SetString(*ChildType, Val); }
 
-		bool SetDValue(ULPtr &ChildType) 
+		bool SetDValue(const UL &ChildType) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildType); 
-			if (Ptr) return Ptr->SetDValue(); 
+			if (Ptr) return Ptr->SetDValue(); else return false;
 		};
+		bool SetDValue(ULPtr &ChildType) { return SetDValue(*ChildType); }
 		
-		void SetValue(ULPtr &ChildType, const DataChunk &Source) 
+		void SetValue(const UL &ChildType, const DataChunk &Source) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildType); 
 			if (Ptr) Ptr->ReadValue(Source);
 		};
+		void SetValue(ULPtr &ChildType, const DataChunk &Source) { SetValue(*ChildType, Source); }
 
-		void SetValue(ULPtr &ChildType, MDObjectPtr Source) 
+		void SetValue(const UL &ChildType, MDObjectPtr Source) 
 		{ 
 			MDObjectPtr Ptr = AddChild(ChildType); 
 			if (Ptr) Ptr->ReadValue(Source->Value->PutData());
 		};
+		void SetValue(ULPtr &ChildType, MDObjectPtr Source) { SetValue(*ChildType, Source); }
 		
-		Int32 GetInt(ULPtr &ChildType, Int32 Default = 0) 
+		Int32 GetInt(const UL &ChildType, Int32 Default = 0)
 		{ 
 			MDObjectPtr Ptr = operator[](ChildType);
-			if (Ptr) return Ptr->GetInt();
+			if (Ptr) return Ptr->GetInt(); else return Default;
 		};
+		Int32 GetInt(ULPtr &ChildType, Int32 Default = 0) { return GetInt(*ChildType, Default); }
 
-		Int64 GetInt64(ULPtr &ChildType, Int64 Default = 0) 
+		Int64 GetInt64(const UL &ChildType, Int64 Default = 0) 
 		{ 
 			MDObjectPtr Ptr = operator[](ChildType); 
-			if (Ptr) return Ptr->GetInt64();
+			if (Ptr) return Ptr->GetInt64(); else return Default;
 		};
+		Int64 GetInt64(ULPtr &ChildType, Int64 Default = 0) { return GetInt64(*ChildType, Default); }
 
-		UInt32 GetUInt(ULPtr &ChildType, UInt32 Default = 0) 
+		UInt32 GetUInt(const UL &ChildType, UInt32 Default = 0) 
 		{ 
 			MDObjectPtr Ptr = operator[](ChildType); 
-			if (Ptr) return Ptr->GetUInt();
+			if (Ptr) return Ptr->GetUInt(); else return Default;
 		};
+		UInt32 GetUInt(ULPtr &ChildType, UInt32 Default = 0) { return GetUInt(*ChildType, Default); }
 
-		UInt64 GetUInt64(ULPtr &ChildType, UInt64 Default = 0) 
+		UInt64 GetUInt64(const UL &ChildType, UInt64 Default = 0) 
 		{ 
 			MDObjectPtr Ptr = operator[](ChildType); 
-			if (Ptr) return Ptr->GetUInt64();
+			if (Ptr) return Ptr->GetUInt64(); else return Default;
 		};
+		UInt64 GetUInt64(ULPtr &ChildType, UInt64 Default = 0) { return GetUInt64(*ChildType, Default); }
 
-		UInt32 GetUint(ULPtr &ChildType, UInt32 Default = 0) { return GetUInt(ChildType, Default); }
-		UInt64 GetUint64(ULPtr &ChildType, UInt64 Default = 0)  { return GetUInt64(ChildType, Default); }
-
-		std::string GetString(ULPtr &ChildType, std::string Default = "")
+		std::string GetString(const UL &ChildType, std::string Default = "")
 		{ 
 			MDObjectPtr Ptr = operator[](ChildType); 
-			if (Ptr) return Ptr->GetString();
+			if (Ptr) return Ptr->GetString(); else return Default;
 		};
+		std::string GetString(ULPtr &ChildType, std::string Default = "") { return GetString(*ChildType, Default); }
 
-		bool IsDValue(ULPtr &ChildType) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->IsDValue(); else return false; };
+		bool IsDValue(const UL &ChildType) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) return Ptr->IsDValue(); else return false; };
+		bool IsDValue(ULPtr &ChildType) { return IsDValue(*ChildType); }
 
 		void SetInt(MDOTypePtr ChildType, Int32 Val) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt(Val); };
 		void SetInt64(MDOTypePtr ChildType, Int64 Val) { MDObjectPtr Ptr = operator[](ChildType); if (Ptr) Ptr->SetInt64(Val); };
@@ -969,7 +1024,13 @@ namespace mxflib
 		//! Inset a new child object - overloads the existing MDObjectList version
 		void insert(MDObjectPtr NewObject)
 		{
-			push_back(MDObjectNamedList::value_type(NewObject->Name(), NewObject));
+			const UInt8 Null_UL_Data[16] = { 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0 };
+			const UL Null_UL(Null_UL_Data);
+			
+			if(NewObject->TheUL)
+				push_back(MDObjectULList::value_type(*(NewObject->TheUL), NewObject));
+			else
+				push_back(MDObjectULList::value_type(Null_UL, NewObject));
 		}
 
 		//! Type access function
@@ -982,7 +1043,10 @@ namespace mxflib
 		bool IsA(MDOTypePtr &BaseType);
 		
 		//! Determine if this object is derived from a specified type (directly or indirectly)
-		bool IsA(ULPtr &BaseType);
+		bool IsA(const UL &BaseType);
+
+		//! Determine if this object is derived from a specified type (directly or indirectly)
+		bool IsA(ULPtr &BaseType) { return IsA(*BaseType); }
 
 		//! Link access functions
 		MDObjectPtr GetLink(void) const { return Link; };
@@ -1039,6 +1103,27 @@ namespace mxflib
 
 		//! Change the type of an MDObject
 		/*! \note This may result in very wrong data - exercise great care! */
+		bool ChangeType(const UL &NewType)
+		{
+			MDOTypePtr Ptr = MDOType::Find(NewType);
+
+			if(!Ptr) return false;
+
+			Type = Ptr;
+			ObjectName = Type->Name();
+			TheUL = Type->GetUL();
+			if(TheUL) TheTag = MDOType::GetStaticPrimer()->Lookup(TheUL);
+			else TheTag = 0;
+
+			return true;
+		}
+
+		//! Change the type of an MDObject
+		/*! \note This may result in very wrong data - exercise great care! */
+		bool ChangeType(ULPtr &NewType) { return ChangeType(*NewType); }
+
+		//! Change the type of an MDObject
+		/*! \note This may result in very wrong data - exercise great care! */
 		bool ChangeType(std::string NewType)
 		{
 			MDOTypePtr Ptr = MDOType::Find(NewType);
@@ -1048,7 +1133,8 @@ namespace mxflib
 			Type = Ptr;
 			ObjectName = Type->Name();
 			TheUL = Type->GetUL();
-			TheTag = 0;
+			if(TheUL) TheTag = MDOType::GetStaticPrimer()->Lookup(TheUL);
+			else TheTag = 0;
 
 			return true;
 		}
@@ -1139,16 +1225,23 @@ namespace mxflib
 		MDObjectPtr Child(std::string ChildName) { return Object->operator[](ChildName); };
 		MDObjectListPtr ChildList(std::string ChildName) { return Object->ChildList(ChildName); };
 		
-		MDObjectPtr operator[](ULPtr &ChildType) { return Object->operator[](ChildType); };
-		MDObjectPtr Child(ULPtr &ChildType) { return Object->operator[](ChildType); };
-		MDObjectListPtr ChildList(ULPtr &ChildType) { return Object->ChildList(ChildType); };
+		MDObjectPtr operator[](const UL &ChildType) { return Object->operator[](ChildType); };
+		MDObjectPtr Child(const UL &ChildType) { return Object->operator[](ChildType); };
+		MDObjectListPtr ChildList(const UL &ChildType) { return Object->ChildList(ChildType); };
 		
+		MDObjectPtr operator[](ULPtr &ChildType) { return Object->operator[](*ChildType); };
+		MDObjectPtr Child(ULPtr &ChildType) { return Object->operator[](*ChildType); };
+		MDObjectListPtr ChildList(ULPtr &ChildType) { return Object->ChildList(*ChildType); };
+
 		MDObjectPtr operator[](MDOTypePtr ChildType) { return Object->operator[](ChildType); };
 		MDObjectPtr Child(MDOTypePtr ChildType) { return Object->operator[](ChildType); };
 		MDObjectListPtr ChildList(MDOTypePtr ChildType) { return Object->ChildList(ChildType); };
 
+		MDObjectPtr AddChild(void) { return Object->AddChild(); }
 		MDObjectPtr AddChild(std::string ChildName, bool Replace = true) { return Object->AddChild(ChildName, Replace); };
 		MDObjectPtr AddChild(MDObjectPtr ChildObject, bool Replace = false) { return Object->AddChild(ChildObject, Replace); };
+		MDObjectPtr AddChild(const UL &ChildType, bool Replace = true) { return Object->AddChild(ChildType, Replace); };
+		MDObjectPtr AddChild(ULPtr &ChildType, bool Replace = true) { return Object->AddChild(*ChildType, Replace); };
 
 		void RemoveChild(std::string ChildName) { Object->RemoveChild(ChildName); };
 		void RemoveChild(MDOTypePtr ChildType) { Object->RemoveChild(ChildType); };
@@ -1173,24 +1266,34 @@ namespace mxflib
 		std::string GetString(const char *ChildName, std::string Default = "") { return Object->GetString(ChildName, Default); };
 		bool IsDValue(const char *ChildName) { return Object->IsDValue(ChildName); };
 		
-		void SetInt(ULPtr &ChildType, Int32 Val) { Object->SetInt(ChildType, Val); };
-		void SetInt64(ULPtr &ChildType, Int64 Val) { Object->SetInt64(ChildType, Val); };
-		void SetUInt(ULPtr &ChildType, UInt32 Val) { Object->SetUInt(ChildType, Val); };
-		void SetUInt64(ULPtr &ChildType, UInt64 Val) { Object->SetUInt64(ChildType, Val); };
-		void SetUint(ULPtr &ChildType, UInt32 Val) { Object->SetUInt(ChildType, Val); };
-		void SetUint64(ULPtr &ChildType, UInt64 Val) { Object->SetUInt64(ChildType, Val); };
-		void SetString(ULPtr &ChildType, std::string Val) { Object->SetString(ChildType, Val); };
-		bool SetDValue(ULPtr &ChildType) { return Object->SetDValue(ChildType); };
-		void SetValue(ULPtr &ChildType, const DataChunk &Source) { Object->SetValue(ChildType, Source); }
-		void SetValue(ULPtr &ChildType, MDObjectPtr Source) { Object->SetValue(ChildType, Source); }
-		Int32 GetInt(ULPtr &ChildType, Int32 Default = 0) { return Object->GetInt(ChildType, Default); };
-		Int64 GetInt64(ULPtr &ChildType, Int64 Default = 0) { return Object->GetInt64(ChildType, Default); };
-		UInt32 GetUInt(ULPtr &ChildType, UInt32 Default = 0) { return Object->GetUInt(ChildType, Default); };
-		UInt64 GetUInt64(ULPtr &ChildType, UInt64 Default = 0) { return Object->GetUInt64(ChildType, Default); };
-		UInt32 GetUint(ULPtr &ChildType, UInt32 Default = 0) { return Object->GetUInt(ChildType, Default); };
-		UInt64 GetUint64(ULPtr &ChildType, UInt64 Default = 0) { return Object->GetUInt64(ChildType, Default); };
-		std::string GetString(ULPtr &ChildType, std::string Default = "") { return Object->GetString(ChildType, Default); };
-		bool IsDValue(ULPtr &ChildType) { return Object->IsDValue(ChildType); };
+		void SetInt(const UL &ChildType, Int32 Val) { Object->SetInt(ChildType, Val); };
+		void SetInt(ULPtr &ChildType, Int32 Val) { Object->SetInt(*ChildType, Val); };
+		void SetInt64(const UL &ChildType, Int64 Val) { Object->SetInt64(ChildType, Val); };
+		void SetInt64(ULPtr &ChildType, Int64 Val) { Object->SetInt64(*ChildType, Val); };
+		void SetUInt(const UL &ChildType, UInt32 Val) { Object->SetUInt(ChildType, Val); };
+		void SetUInt(ULPtr &ChildType, UInt32 Val) { Object->SetUInt(*ChildType, Val); };
+		void SetUInt64(const UL &ChildType, UInt64 Val) { Object->SetUInt64(ChildType, Val); };
+		void SetUInt64(ULPtr &ChildType, UInt64 Val) { Object->SetUInt64(*ChildType, Val); };
+		void SetString(const UL &ChildType, std::string Val) { Object->SetString(ChildType, Val); };
+		void SetString(ULPtr &ChildType, std::string Val) { Object->SetString(*ChildType, Val); };
+		bool SetDValue(const UL &ChildType) { return Object->SetDValue(ChildType); };
+		bool SetDValue(ULPtr &ChildType) { return Object->SetDValue(*ChildType); };
+		void SetValue(const UL &ChildType, const DataChunk &Source) { Object->SetValue(ChildType, Source); }
+		void SetValue(ULPtr &ChildType, const DataChunk &Source) { Object->SetValue(*ChildType, Source); }
+		void SetValue(const UL &ChildType, MDObjectPtr Source) { Object->SetValue(ChildType, Source); }
+		void SetValue(ULPtr &ChildType, MDObjectPtr Source) { Object->SetValue(*ChildType, Source); }
+		Int32 GetInt(const UL &ChildType, Int32 Default = 0) { return Object->GetInt(ChildType, Default); };
+		Int32 GetInt(ULPtr &ChildType, Int32 Default = 0) { return Object->GetInt(*ChildType, Default); };
+		Int64 GetInt64(const UL &ChildType, Int64 Default = 0) { return Object->GetInt64(ChildType, Default); };
+		Int64 GetInt64(ULPtr &ChildType, Int64 Default = 0) { return Object->GetInt64(*ChildType, Default); };
+		UInt32 GetUInt(const UL &ChildType, UInt32 Default = 0) { return Object->GetUInt(ChildType, Default); };
+		UInt32 GetUInt(ULPtr &ChildType, UInt32 Default = 0) { return Object->GetUInt(*ChildType, Default); };
+		UInt64 GetUInt64(const UL &ChildType, UInt64 Default = 0) { return Object->GetUInt64(ChildType, Default); };
+		UInt64 GetUInt64(ULPtr &ChildType, UInt64 Default = 0) { return Object->GetUInt64(*ChildType, Default); };
+		std::string GetString(const UL &ChildType, std::string Default = "") { return Object->GetString(ChildType, Default); };
+		std::string GetString(ULPtr &ChildType, std::string Default = "") { return Object->GetString(*ChildType, Default); };
+		bool IsDValue(const UL &ChildType) { return Object->IsDValue(ChildType); };
+		bool IsDValue(ULPtr &ChildType) { return Object->IsDValue(*ChildType); };
 
 		void SetInt(MDOTypePtr ChildType, Int32 Val) { Object->SetInt(ChildType, Val); };
 		void SetInt64(MDOTypePtr ChildType, Int64 Val) { Object->SetInt64(ChildType, Val); };
@@ -1261,6 +1364,12 @@ namespace mxflib
 		//! Determine if this object is derived from a specified type (directly or indirectly)
 		bool IsA(MDOTypePtr BaseType) { return Object->IsA(BaseType); }
 
+		//! Determine if this object is derived from a specified type (directly or indirectly)
+		bool IsA(const UL &BaseType) { return Object->IsA(BaseType); }
+
+		//! Determine if this object is derived from a specified type (directly or indirectly)
+		bool IsA(ULPtr &BaseType) { return Object->IsA(*BaseType); }
+
 		//! Set the parent details when an object has been read from a file
 		void SetParent(MXFFilePtr File, UInt64 Location, UInt32 NewKLSize) { Object->SetParent(File, Location, NewKLSize); };
 
@@ -1276,7 +1385,18 @@ namespace mxflib
 		std::string GetSource(void) { return Object->GetSource(); }
 		std::string GetSourceLocation(void) { return Object->GetSourceLocation(); }
 
+		//! Change the type of an MDObject
+		/*! \note This may result in very wrong data - exercise great care! */
 		bool ChangeType(std::string NewType) { return Object->ChangeType(NewType); };
+
+		//! Change the type of an MDObject
+		/*! \note This may result in very wrong data - exercise great care! */
+		bool ChangeType(const UL &NewType) { return Object->ChangeType(NewType); }
+
+		//! Change the type of an MDObject
+		/*! \note This may result in very wrong data - exercise great care! */
+		bool ChangeType(ULPtr &NewType) { return Object->ChangeType(*NewType); }
+
 	};
 }
 
@@ -1286,9 +1406,11 @@ namespace mxflib
 {
 inline MDObjectPtr MDObjectPtr::operator[](const char *ChildName) { return GetPtr()->operator[](ChildName); }
 inline MDObjectPtr MDObjectPtr::operator[](MDOTypePtr &ChildType) { return GetPtr()->operator[](ChildType); }
+inline MDObjectPtr MDObjectPtr::operator[](const UL &ChildType) { return GetPtr()->operator[](ChildType); }
 inline MDObjectPtr MDObjectPtr::operator[](ULPtr &ChildType) { return GetPtr()->operator[](ChildType); }
 inline MDObjectPtr MDObjectParent::operator[](const char *ChildName) { return GetPtr()->operator[](ChildName); }
 inline MDObjectPtr MDObjectParent::operator[](MDOTypePtr &ChildType) { return GetPtr()->operator[](ChildType); }
+inline MDObjectPtr MDObjectParent::operator[](const UL &ChildType) { return GetPtr()->operator[](ChildType); }
 inline MDObjectPtr MDObjectParent::operator[](ULPtr &ChildType) { return GetPtr()->operator[](ChildType); }
 }
 
