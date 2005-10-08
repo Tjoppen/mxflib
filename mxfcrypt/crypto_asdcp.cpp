@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.cpp
  *	\brief	AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.cpp,v 1.2 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.cpp,v 1.3 2005/10/08 14:55:49 matt-beard Exp $
  *
  */
 /*
@@ -183,7 +183,7 @@ Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID,
 	int Bytes = 0;
 	if(FileValid(KeyFile))
 	{
-		Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
+		Bytes = (int)FileRead(KeyFile, (UInt8*)Buffer, 32);
 		FileClose(KeyFile);
 
 		if(Bytes != 32) error("Failed to read key from key-file \"%s\"\n", Buffer);
@@ -205,7 +205,7 @@ Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID,
 				FileHandle KeyFile = FileOpenRead(UseName.c_str());
 				if(FileValid(KeyFile))
 				{
-					Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
+					Bytes = (int)FileRead(KeyFile, (UInt8*)Buffer, 32);
 					FileClose(KeyFile);
 				}
 			}
@@ -304,7 +304,7 @@ Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(UInt32 BodySID, DataChu
 	int Bytes = 0;
 	if(FileValid(KeyFile))
 	{
-		Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
+		Bytes = (int)FileRead(KeyFile, (UInt8*)Buffer, 32);
 		FileClose(KeyFile);
 
 		if(Bytes != 32) error("Failed to read key from key-file \"%s\"\n", Buffer);
@@ -326,7 +326,7 @@ Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(UInt32 BodySID, DataChu
 				FileHandle KeyFile = FileOpenRead(UseName.c_str());
 				if(FileValid(KeyFile))
 				{
-					Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
+					Bytes = (int)FileRead(KeyFile, (UInt8*)Buffer, 32);
 					FileClose(KeyFile);
 				}
 			}
