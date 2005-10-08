@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.26 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.27 2005/10/08 15:34:06 matt-beard Exp $
  *
  */
 /*
@@ -220,7 +220,7 @@ namespace
 // ==========================
 
 // OP-Atom - #### DRAGONS: Qualifiers need work later!
-UInt8 OPAtom_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
+UInt8 OPAtom_Data[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x02, 0x0d, 0x01, 0x02, 0x01, 0x10, 0x00, 0x00, 0x00 };
 ULPtr OPAtomUL = new UL(OPAtom_Data);
 
 // OP1a - #### DRAGONS: Qualifiers may need work!
@@ -355,7 +355,7 @@ int main_process(int argc, char *argv[])
 			else WCList = EssParse.ListWrappingOptions(InFile[i], PDList, ForceEditRate);
 
 			// Ensure that there are enough wrapping options
-			if(SelectedWrappingOption > WCList.size())
+			if(SelectedWrappingOption > (int)WCList.size())
 			{
 				error("Wrapping option %d not available\n", SelectedWrappingOption);
 				SelectedWrappingOption = 0;
@@ -395,7 +395,7 @@ int main_process(int argc, char *argv[])
 		}
 
 		// Ensure the essence descriptor reflects the new wrapping
-		WCP->EssenceDescriptor->SetValue("EssenceContainer", DataChunk(16,WCP->WrapOpt->WrappingUL->GetValue()));
+		WCP->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16,WCP->WrapOpt->WrappingUL->GetValue()));
 
 		// Add this wrapping option
 		WrappingList.push_back(WCP);
@@ -1413,8 +1413,8 @@ int Process(	int OutFileNum,
 			// Write a File Descriptor only on the internally ref'ed Track 
 			if( WriteFP ) // (iTrack == OutFileNum)
 			{
-				(*WrapCfgList_it)->EssenceDescriptor->SetUInt("LinkedTrackID", FPTrack[iTrack]->GetUInt("TrackID"));
-				FilePackage->AddChild("Descriptor")->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+				(*WrapCfgList_it)->EssenceDescriptor->SetUInt(LinkedTrackID_UL, FPTrack[iTrack]->GetUInt(TrackID_UL));
+				FilePackage->AddChild(Descriptor_UL)->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
 
 				MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
 
@@ -1433,22 +1433,22 @@ int Process(	int OutFileNum,
 			// write a MultipleDescriptor only on the first Iteration
 			if( iTrack == 0 )
 			{
-					MDObjectPtr MuxDescriptor = new MDObject("MultipleDescriptor");
-					MuxDescriptor->AddChild("SampleRate")->SetInt("Numerator",(*WrapCfgList_it)->EssenceDescriptor["SampleRate"]->GetInt("Numerator"));
-					MuxDescriptor->AddChild("SampleRate")->SetInt("Denominator",(*WrapCfgList_it)->EssenceDescriptor["SampleRate"]->GetInt("Denominator"));
+					MDObjectPtr MuxDescriptor = new MDObject(MultipleDescriptor_UL);
+					MuxDescriptor->AddChild(SampleRate_UL)->SetInt("Numerator",(*WrapCfgList_it)->EssenceDescriptor[SampleRate_UL]->GetInt("Numerator"));
+					MuxDescriptor->AddChild(SampleRate_UL)->SetInt("Denominator",(*WrapCfgList_it)->EssenceDescriptor[SampleRate_UL]->GetInt("Denominator"));
 
-					MuxDescriptor->AddChild("EssenceContainer",false)->SetValue(DataChunk(16,mxflib::GCMulti_Data));
+					MuxDescriptor->AddChild(EssenceContainer_UL,false)->SetValue(DataChunk(16,mxflib::GCMulti_Data));
 
-					MuxDescriptor->AddChild("SubDescriptorUIDs");
-					FilePackage->AddChild("Descriptor")->MakeLink(MuxDescriptor);
+					MuxDescriptor->AddChild(SubDescriptorUIDs_UL);
+					FilePackage->AddChild(Descriptor_UL)->MakeLink(MuxDescriptor);
 			}
 
 			// Write a SubDescriptor
-			(*WrapCfgList_it)->EssenceDescriptor->SetUInt("LinkedTrackID", FPTrack[iTrack]->GetUInt("TrackID"));
+			(*WrapCfgList_it)->EssenceDescriptor->SetUInt(LinkedTrackID_UL, FPTrack[iTrack]->GetUInt(TrackID_UL));
 			
-			MDObjectPtr MuxDescriptor = FilePackage["Descriptor"]->GetLink();
+			MDObjectPtr MuxDescriptor = FilePackage[Descriptor_UL]->GetLink();
 
-			MuxDescriptor["SubDescriptorUIDs"]->AddChild("SubDescriptorUID", false)->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+			MuxDescriptor[SubDescriptorUIDs_UL]->AddChild()->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
 
 			MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
 
@@ -1459,8 +1459,8 @@ int Process(	int OutFileNum,
 		{
 			// Write a FileDescriptor
 			// DRAGONS Can we ever need a MultipleDescriptor?
-			(*WrapCfgList_it)->EssenceDescriptor->SetUInt("LinkedTrackID", FPTrack[iTrack]->GetUInt("TrackID"));
-			FilePackage->AddChild("Descriptor")->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+			(*WrapCfgList_it)->EssenceDescriptor->SetUInt(LinkedTrackID_UL, FPTrack[iTrack]->GetUInt(TrackID_UL));
+			FilePackage->AddChild(Descriptor_UL)->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
 
 			MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
 
@@ -1477,25 +1477,25 @@ int Process(	int OutFileNum,
 	// ** Set up the base partition pack **
 	//
 
-	PartitionPtr ThisPartition = new Partition("OpenHeader");
+	PartitionPtr ThisPartition = new Partition(OpenHeader_UL);
 	ASSERT(ThisPartition);
 	ThisPartition->SetKAG(KAGSize);			// Everything else can stay at default
-	ThisPartition->SetUInt("BodySID", 1);
+	ThisPartition->SetUInt(BodySID_UL, 1);
 
 	ThisPartition->AddMetadata(MData);
 
 	// Build an Ident set describing us and link into the metadata
-	MDObjectPtr Ident = new MDObject("Identification");
-	Ident->SetString("CompanyName", CompanyName);
-	Ident->SetString("ProductName", ProductName);
-	Ident->SetString("VersionString", ProductVersion);
-	Ident->SetString("ToolkitVersion", LibraryProductVersion());
+	MDObjectPtr Ident = new MDObject(Identification_UL);
+	Ident->SetString(CompanyName_UL, CompanyName);
+	Ident->SetString(ProductName_UL, ProductName);
+	Ident->SetString(VersionString_UL, ProductVersion);
+	Ident->SetString(ToolkitVersion_UL, LibraryProductVersion());
 	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
 
 	// DRAGONS: -- Need to set a proper GUID per released version
 	//             Non-released versions currently use a random GUID
 	//			   as they are not a stable version...
-	Ident->SetValue("ProductUID", DataChunk(16,ProductUID->GetValue()));
+	Ident->SetValue(ProductUID_UL, DataChunk(16,ProductUID->GetValue()));
 
 	// Link the new Ident set with all new metadata
 	// Note that this is done even for OP-Atom as the 'dummy' header written first
@@ -1514,11 +1514,9 @@ int Process(	int OutFileNum,
 	if(UseIndex || SparseIndex || SprinkledIndex)
 	{
 		// Find all essence container data sets so we can update "IndexSID"
-		MDObjectListPtr ECDataSets;
-		MDObjectPtr Ptr = MData["ContentStorage"];
-		if(Ptr) Ptr = Ptr->GetLink();
-		if(Ptr) Ptr = Ptr["EssenceContainerData"];
-		if(Ptr) ECDataSets = Ptr->ChildList("EssenceContainer");
+		MDObjectPtr ECDataSets = MData[ContentStorage_UL];
+		if(ECDataSets) ECDataSets = ECDataSets->GetLink();
+		if(ECDataSets) ECDataSets = ECDataSets[EssenceContainerDataBatch_UL];
 
 		WrapCfgList_it = WrapCfgList.begin();
 		iTrack=0;
@@ -1552,14 +1550,14 @@ int Process(	int OutFileNum,
 					// Update IndexSID in essence container data set
 					if(ECDataSets)
 					{
-						MDObjectList::iterator ECD_it = ECDataSets->begin();
+						MDObject::iterator ECD_it = ECDataSets->begin();
 						while(ECD_it != ECDataSets->end())
 						{
-							if((*ECD_it)->GetLink())
+							if((*ECD_it).second->GetLink())
 							{
-								if((*ECD_it)->GetLink()->GetUInt("BodySID") == BodySID)
+								if((*ECD_it).second->GetLink()->GetUInt(BodySID_UL) == BodySID)
 								{
-									(*ECD_it)->GetLink()->SetUInt("IndexSID", IndexSID);
+									(*ECD_it).second->GetLink()->SetUInt(IndexSID_UL, IndexSID);
 									break;
 								}
 							}
@@ -1585,6 +1583,17 @@ int Process(	int OutFileNum,
 	if(HeaderPadding) Writer->SetPartitionFiller(HeaderPadding);
 	Writer->WriteHeader(false, false);
 
+	// If we are writing OP-Atom update the OP label so that body partition packs claim to be OP-Atom
+	// The header will remain as a generalized OP until it is re-written after the footer
+	if(OPAtom) 
+	{
+		MData->SetOP(OPAtomUL);
+
+		// Set top-level file package correctly for OP-Atom
+		// DRAGONS: This will need to be changed if we ever write more than one File Package for OP-Atom!
+		MData->SetPrimaryPackage(FilePackage);
+	}
+
 	// Write the body
 	if(BodyMode == BodyWrapping::Body_None)
 	{
@@ -1603,16 +1612,6 @@ int Process(	int OutFileNum,
 
 
 	/** Write the footer **/
-
-	// If we are writing OP-Atom this is the first place we can claim it
-	if(OPAtom) 
-	{
-		MData->SetOP(OPAtomUL);
-
-		// Set top-level file package correctly for OP-Atom
-		// DRAGONS: This will need to be changed if we ever write more than one File Package for OP-Atom!
-		MData->SetPrimaryPackage(FilePackage);
-	}
 
 	// Update the modification time
 	MData->SetTime();
@@ -1637,7 +1636,7 @@ int Process(	int OutFileNum,
 			if(PutTCTrack)
 				if((iTrack==0) || (!FrameGroup)) FPTimecodeComponent[iTrack]->SetDuration(EssenceDuration);
 			FPClip[iTrack]->SetDuration(EssenceDuration);
-			(*WrapCfgList_it)->EssenceDescriptor->SetInt64("ContainerDuration",EssenceDuration);
+			(*WrapCfgList_it)->EssenceDescriptor->SetInt64(ContainerDuration_UL,EssenceDuration);
 		}
 			
 		WrapCfgList_it++;
@@ -1664,7 +1663,7 @@ int Process(	int OutFileNum,
 	// For OP-Atom re-write the entire header
 	//
 
-	UInt64 FooterPos = ThisPartition->GetUInt64("FooterPartition");
+	UInt64 FooterPos = ThisPartition->GetUInt64(FooterPartition_UL);
 	Out->Seek(0);
 
 	if(UpdateHeader)
@@ -1676,11 +1675,11 @@ int Process(	int OutFileNum,
 		DataChunkPtr IndexData = OldHeader->ReadIndexChunk();
 
 		// Now update the partition we are about to write (the one with the metadata)
-		ThisPartition->ChangeType("ClosedCompleteHeader");
-		ThisPartition->SetUInt64("FooterPartition", FooterPos);
-		ThisPartition->SetKAG(OldHeader->GetUInt("KAGSize"));
-		ThisPartition->SetUInt("IndexSID", OldHeader->GetUInt("IndexSID"));
-		ThisPartition->SetUInt64("BodySID", OldHeader->GetUInt("BodySID"));
+		ThisPartition->ChangeType(ClosedCompleteHeader_UL);
+		ThisPartition->SetUInt64(FooterPartition_UL, FooterPos);
+		ThisPartition->SetKAG(OldHeader->GetUInt(KAGSize_UL));
+		ThisPartition->SetUInt(IndexSID_UL, OldHeader->GetUInt(IndexSID_UL));
+		ThisPartition->SetUInt64(BodySID_UL, OldHeader->GetUInt(BodySID_UL));
 
 		Out->Seek(0);
 		if(IndexData)
@@ -1691,7 +1690,7 @@ int Process(	int OutFileNum,
 	else
 	{
 		ThisPartition = Out->ReadPartition();
-		ThisPartition->SetUInt64("FooterPartition", FooterPos);
+		ThisPartition->SetUInt64(FooterPartition_UL, FooterPos);
 		Out->Seek(0);
 		Out->WritePartitionPack(ThisPartition);
 	}
