@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.10 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mxflib.h,v 1.11 2005/10/08 15:43:15 matt-beard Exp $
  *
  */
 /*
@@ -49,8 +49,8 @@ namespace mxflib
 {
 #define MXFLIB_VERSION_MAJOR "0"
 #define MXFLIB_VERSION_MINOR "5"
-#define MXFLIB_VERSION_TWEAK "2"
-#define MXFLIB_VERSION_BUILD "3"
+#define MXFLIB_VERSION_TWEAK "3"
+#define MXFLIB_VERSION_BUILD "5"
 #define MXFLIB_VERSION_REL   2
 #define MXFLIB_VERSION_RELTEXT(REL) (REL==1?"-Release":(REL==2?"-Development":(REL==3?"-Patched":(REL==4?"-Beta":(REL==5?"-Private":"")))))
 #define MXFLIB_VERSION_RELNUMBER(REL) (REL==1?"1":(REL==2?"2":(REL==3?"3":(REL==4?"4":(REL==5?"5":"0")))))
@@ -80,6 +80,8 @@ namespace mxflib
 
 #include <mxflib/debug.h>
 
+#include <mxflib/features.h>
+
 #include <mxflib/smartptr.h>
 
 #include <mxflib/endian.h>
@@ -90,11 +92,9 @@ namespace mxflib
 
 #include <mxflib/forward.h>
 
-
-
-
 #include <mxflib/helper.h>
 
+#include <mxflib/ulmap.h>
 
 #include <mxflib/mdtraits.h>
 #include <mxflib/mdtype.h>
