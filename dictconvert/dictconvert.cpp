@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.4 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: dictconvert.cpp,v 1.5 2005/10/08 14:18:47 matt-beard Exp $
  *
  */
 /*
@@ -60,6 +60,19 @@ int ClassesCount = 0;
 //! Name of the file to be converted
 char *InputFile = "";
 
+//! Should we output UL consts?
+bool ULConsts = true;
+
+//! Should we only output UL consts?
+bool OnlyConsts = true;
+
+//! Should UL consts always be long-form?
+bool LongFormConsts = false;
+
+//! Namespace for defining UL constants
+std::string ULNamespace = "mxflib";
+
+
 // Declare main process function
 int main_process(int argc, char *argv[]);
 
@@ -93,7 +106,7 @@ enum CurrentState
 struct ConvertState
 {
 	CurrentState State;							//!< Current state of the parser state-machine
-	std::string Compound;						//!< The name of the current compound being built
+	std::string Parent;							//!< The name of the current compound or set/pack being built
 	FILE *OutFile;								//!< The file being written
 	int Depth;									//!< Nesting depth in class parsing
 	std::list<std::string> EndTagText;			//!< Text to be output at the next class end tag
@@ -101,6 +114,28 @@ struct ConvertState
 	bool FoundType;								//!< Set true once we have determined the dictionary type (old or new)
 	bool FoundMulti;							//!< Found new multi-style dictionary
 	std::string SymSpace;						//!< The symbol space attribute of the classes tag (stored if deferring the header line)
+};
+
+
+namespace
+{
+	struct ULData
+	{
+		std::string Name;
+		std::string Detail;
+		std::string Parent;
+		bool IsSet;
+		bool IsPack;
+		bool IsMulti;
+		ULPtr UL;
+		Tag LocalTag;
+	};
+
+	typedef std::map<std::string, ULData> ULDataMap;
+	typedef std::list<ULData> ULDataList;
+
+	ULDataMap ULMap;
+	ULDataList ULFixupList;
 };
 
 
@@ -121,6 +156,10 @@ int main_process(int argc, char *argv[])
 			num_options++;
 			if((argv[i][1] == 'v') || (argv[i][1] == 'V'))
 				DebugMode = true;
+			if((argv[i][1] == 'c') || (argv[i][1] == 'C'))
+				OnlyConsts = true;
+			if((argv[i][1] == 'l') || (argv[i][1] == 'L'))
+				LongFormConsts = true;
 			else if((argv[i][1] == 'n') || (argv[i][1] == 'N'))
 			{
 				if((argv[i][2] == ':') || (argv[i][2] == '=')) UseName = &argv[i][3];
@@ -131,6 +170,18 @@ int main_process(int argc, char *argv[])
 					num_options++;
 				}
 			}
+			else if((argv[i][1] == 's') || (argv[i][1] == 'S'))
+			{
+				if((argv[i][2] == ':') || (argv[i][2] == '=')) UseName = &argv[i][3];
+				else if(argv[i][2]) ULNamespace = &argv[i][2];
+				else if(argc > (i+1))
+				{
+					ULNamespace = argv[++i];
+					num_options++;
+				}
+			}
+			if((argv[i][1] == 'x') || (argv[i][1] == 'X'))
+				ULConsts = false;
 			else if((argv[i][1] == 'z') || (argv[i][1] == 'Z'))
 				PauseBeforeExit = true;
 		}
@@ -142,9 +193,16 @@ int main_process(int argc, char *argv[])
 		printf("\nUsage:   %s [options] <inputfile> <outputfile>\n\n", argv[0]);
 		printf("Converts input XML dictionary file to a C++ source file containing the same\n");
 		printf("items as a compile-time structure for passeing to function LoadDictionary\n\n");
-		printf("Options: -n=name    Use \"name\" as the name of the structure built\n");
+		printf("Options: -c         Only output UL consts\n");
+		printf("         -n=name    Use \"name\" as the name of the structure built\n");
+		printf("         -l         Always use long-form names for UL consts\n");
+		printf("         -s=name    Use \"name\" as the namespace for UL consts\n");
 		printf("         -v         Verbose mode - shows lots of debug info\n");
+		printf("         -x         Don't output UL consts\n");
 		printf("         -z         Pause for input before final exit\n");
+		printf("\nNote: It is recommended that supplementary dictionaries either use long-form\n");
+		printf("      const names, or define them in a different namespace than \"mxflib\"\n");
+
 		return 1;
 	}
 
@@ -202,6 +260,177 @@ int main_process(int argc, char *argv[])
 		fprintf(outfile, "\tMXFLIB_DICTIONARY_END\n", UseName.c_str());
 	}
 
+	// DRAGONS: We currently cheat with "OnlyConsts" and output everything, but close and reopen the file
+	//          before writing the UL consts, which causes the dictionary definitions to be lost!
+	if(OnlyConsts)
+	{
+		fclose(outfile);
+		outfile = fopen(argv[FileArg[1]],"w");
+		if(!outfile)
+		{
+			error("Can't open re-output file\n");
+			return 1;
+		}
+	}
+
+	/* Resolve any duplicate names in the UL list */
+	if(ULConsts && (ULMap.size() > 0))
+	{
+		ULDataList::iterator ListIt = ULFixupList.begin();
+		while(ListIt != ULFixupList.end())
+		{
+			printf("* Resolving Duplicate %s\n", (*ListIt).Name.c_str());
+
+			// A list of the items we are de-duplicating
+			ULDataList WorkingList;
+			
+			// First extract the copy of the data already in ULMap using this name
+			ULDataMap::iterator MapIt = ULMap.find((*ListIt).Name);
+			if(MapIt != ULMap.end())
+			{
+				WorkingList.push_back((*MapIt).second);
+				ULMap.erase(MapIt);
+			}
+
+			// Extract all matching names from the fixup list into the working list
+			std::string ThisName = (*ListIt).Name;
+			ULDataList::iterator ListIt2 = ULFixupList.begin();
+			while(ListIt2 != ULFixupList.end())
+			{
+				if((*ListIt2).Name == ThisName)
+				{
+					WorkingList.push_back(*ListIt2);
+					ULDataList::iterator ToErase = ListIt2;
+					ListIt2++;
+					ULFixupList.erase(ToErase);
+				}
+				else
+				{
+					ListIt2++;
+				}
+			}
+
+			/* First try to de-dulicate by appending Set, Pack, Array etc. */
+			int SetCount = 0;
+			int PackCount = 0;
+			int ArrayCount = 0;
+			int BatchCount = 0;
+			ListIt2 = WorkingList.begin();
+			while(ListIt2 != WorkingList.end())
+			{
+				if((*ListIt2).IsSet) SetCount++;
+				else if((*ListIt2).IsPack) PackCount++;
+				else if((*ListIt2).IsMulti)
+				{
+					if(   ((*ListIt2).Detail.find("Batch") != std::string::npos)
+					   || ((*ListIt2).Detail.find("batch") != std::string::npos)
+					   || ((*ListIt2).Detail.find("Unordered") != std::string::npos)
+					   || ((*ListIt2).Detail.find("unordered") != std::string::npos) )
+					{
+						BatchCount++;
+					}
+					else if(   ((*ListIt2).Detail.find("Array") != std::string::npos)
+							|| ((*ListIt2).Detail.find("array") != std::string::npos)
+							|| ((*ListIt2).Detail.find("Ordered") != std::string::npos)
+							|| ((*ListIt2).Detail.find("ordered") != std::string::npos) )
+					{
+						ArrayCount++;
+					}
+				}
+
+				ListIt2++;
+			}
+
+			// We can use appending if there are no duplicates
+			if(   (SetCount <= 1) && (PackCount <= 1) && (ArrayCount <= 1) && (BatchCount <= 1)
+			   && (WorkingList.size() - (SetCount + PackCount + ArrayCount + BatchCount) <= 1) )
+			{
+				ULDataList::iterator ListIt2 = WorkingList.begin();
+				while(ListIt2 != WorkingList.end())
+				{
+					std::string NewName = (*ListIt2).Name;
+					if((*ListIt2).IsSet) NewName += "Set";
+					else if((*ListIt2).IsPack) NewName += "Pack";
+					else if((*ListIt2).IsMulti)
+					{
+						if(   ((*ListIt2).Detail.find("Batch") != std::string::npos)
+						   || ((*ListIt2).Detail.find("batch") != std::string::npos)
+						   || ((*ListIt2).Detail.find("Unordered") != std::string::npos)
+						   || ((*ListIt2).Detail.find("unordered") != std::string::npos) )
+						{
+							NewName += "Batch";
+						}
+						else if(   ((*ListIt2).Detail.find("Array") != std::string::npos)
+								|| ((*ListIt2).Detail.find("array") != std::string::npos)
+								|| ((*ListIt2).Detail.find("Ordered") != std::string::npos)
+								|| ((*ListIt2).Detail.find("ordered") != std::string::npos) )
+						{
+							NewName += "Array";
+						}
+					}
+					ULMap.insert(ULDataMap::value_type(NewName, (*ListIt2)));
+
+					printf("%s -> %s\n", (*ListIt2).Name.c_str(), NewName.c_str());
+
+					ListIt2++;
+				}
+				WorkingList.clear();
+			}
+			else
+			{
+				/* Must use fully qualified names */
+				ULDataList::iterator ListIt2 = WorkingList.begin();
+				while(ListIt2 != WorkingList.end())
+				{
+					std::string NewName = (*ListIt2).Name;
+					if((*ListIt2).Parent.length()) NewName = (*ListIt2).Parent + "_" + NewName;
+
+					ULMap.insert(ULDataMap::value_type(NewName, (*ListIt2)));
+
+					printf("%s -> %s\n", (*ListIt2).Name.c_str(), NewName.c_str());
+
+					ListIt2++;
+				}
+				WorkingList.clear();
+			}
+
+			// DRAGONS: There is no need to increment ListIt as the first entry will have been removed
+			//          We simple restart at the top of the shortened list
+			ListIt = ULFixupList.begin();
+		}
+
+		/* Issue the list of ULs */
+
+		if(OnlyConsts)
+		{
+			fprintf(outfile, "\t// Define ULs for the global keys in %s\n", InputFile);
+			fprintf(outfile, "\tnamespace %s\n\t{\n", ULNamespace.c_str());
+		}
+		else
+		{
+			fprintf(outfile, "\n\n\t// Define ULs for the global keys in this dictionary\n");
+			fprintf(outfile, "\tnamespace %s\n\t{\n", ULNamespace.c_str());
+		}
+
+		ULDataMap::iterator MapIt = ULMap.begin();
+		while(MapIt != ULMap.end())
+		{
+			fprintf(outfile, "\t\tconst UInt8 %s_UL_Data[16] = { ", (*MapIt).first.c_str());
+			int i;
+			for(i=0; i<16; i++)
+			{
+				if(i == 0) fprintf(outfile, "0x%02x", (*MapIt).second.UL->GetValue()[0]);
+				else fprintf(outfile, ", 0x%02x", (*MapIt).second.UL->GetValue()[i]);
+			}
+			fprintf(outfile, " };\n");
+			fprintf(outfile, "\t\tconst UL %s_UL(%s_UL_Data);\n\n", (*MapIt).first.c_str(), (*MapIt).first.c_str());
+
+			MapIt++;
+		}
+
+		fprintf(outfile, "\t} // namespace %s\n", ULNamespace.c_str());
+	}
+
 	return result ? 0 : 1;
 }
 
@@ -221,6 +450,7 @@ std::string CConvert(const char *str)
 
 	return Ret;
 }
+
 
 
 //! XML callback - Deal with start tag of an element
@@ -521,7 +751,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND(\"%s\", \"%s\")\n", name, Detail);
 
 			State->State = StateTypesCompoundItem;
-			State->Compound = name;
+			State->Parent = name;
 
 			break;
 		}
@@ -585,7 +815,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				Convert_startElement(user_data, name, attrs);
 				return;
 			}
-			
+
 			// Anything else at this point is an old style dictionary
 			if(!State->FoundType)
 			{
@@ -735,6 +965,96 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			int Count = ReadHexString(Key.c_str(), 16, KeyBuff, " \t.");
 			if(Count == 2) Tag = GetU16(KeyBuff);
 
+			if(ULConsts && (GlobalKey.length() > 0))
+			{
+				UInt8 KeyBuff[16];
+
+				int Count = ReadHexString(GlobalKey.c_str(), 16, KeyBuff, " \t.");
+				if(Count == 16)
+				{
+					// Build a ULData item for this entry
+					ULData ThisItem;
+					ThisItem.Name = name;
+					ThisItem.Detail = Detail;
+					ThisItem.Parent = State->Parent;
+
+					char TypeBuff[32];
+					strncpy(TypeBuff, Type.c_str(), 32);
+					TypeBuff[31] = '\0';
+
+					if(   (strcasecmp(TypeBuff,"universalSet") == 0) 
+					   || (strcasecmp(TypeBuff,"localSet") == 0)
+				       || (strcasecmp(TypeBuff,"subLocalSet") == 0) )
+					{
+						ThisItem.IsSet = true;
+						ThisItem.IsPack = false;
+						ThisItem.IsMulti = false;
+					}
+					else if(   (strcasecmp(TypeBuff,"variablePack") == 0)
+			                || (strcasecmp(TypeBuff,"subVariablePack") == 0)
+							|| (strcasecmp(TypeBuff,"fixedPack") == 0)
+							|| (strcasecmp(TypeBuff,"subFixedPack") == 0) )
+					{
+						ThisItem.IsSet = false;
+						ThisItem.IsPack = true;
+						ThisItem.IsMulti = false;
+					}
+					else
+					{
+						ThisItem.IsSet = false;
+						ThisItem.IsPack = false;
+
+						if(   (strcasecmp(TypeBuff,"vector") == 0)
+						   || (strcasecmp(TypeBuff,"subVector") == 0)
+						   ||   (strcasecmp(TypeBuff,"array") == 0)
+						   || (strcasecmp(TypeBuff,"subArray") == 0) )
+						{
+							ThisItem.IsMulti = true;
+						}
+						else
+						{
+							ThisItem.IsMulti = false;
+						}
+					}
+					
+					ThisItem.UL = new UL(KeyBuff);
+					ThisItem.LocalTag = (mxflib::Tag)Tag;
+
+					// Build the name to use for the const
+					std::string ItemName = ThisItem.Name;
+					if(LongFormConsts && (ThisItem.Parent.length() > 0)) ItemName = ThisItem.Parent + "_" + ItemName;
+
+					// See if this is a duplicate entry
+					ULDataMap::iterator it = ULMap.find(ItemName);
+					if(it != ULMap.end())
+					{
+						if(*(ThisItem.UL) == *((*it).second.UL))
+						{
+							if((((*it).second.LocalTag != 0) && (Tag != 0)) && ((*it).second.LocalTag != ThisItem.LocalTag))
+							{
+								error("Multiple entries for %s with UL %s with different local tags (%s and %s)\n", 
+									   ItemName.c_str(), ThisItem.UL->GetString().c_str(), 
+									   Tag2String((*it).second.LocalTag).c_str(), Tag2String(ThisItem.LocalTag).c_str());
+							}
+							else
+							{
+								printf("Multiple entries for %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem.UL->GetString().c_str());
+							}
+						}
+						else
+						{
+							printf("Duplicate name %s - will attempt to resolve later\n", ItemName.c_str());
+
+							ULFixupList.push_back(ThisItem);
+						}
+					}
+					else
+					{
+						ULMap.insert(ULDataMap::value_type(ItemName, ThisItem));
+					}
+				}
+			}
+
 			// Calculate the indent depth
 			int i;
 			std::string Indent = "\t\t";
@@ -759,10 +1079,20 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			if(   (strcasecmp(TypeBuff,"universalSet") == 0) 
 			   || (strcasecmp(TypeBuff,"variablePack") == 0)
 			   || (strcasecmp(TypeBuff,"subVariablePack") == 0) )
-			   Convert_error(State, "Class %s is unsupported type %s\n", name, Type.c_str());
+			{
+				if(!OnlyConsts)
+				{
+					Convert_error(State, "Class %s is unsupported type %s\n", name, Type.c_str());
+					fprintf(State->OutFile, "%sERROR: Class %s is unsupported type %s\n", Indent.c_str(), name, Type.c_str());
+				}
+				State->Parent = name;
+				State->EndTagText.push_back(Indent + "/* END UNSUPPORTED TYPE */");
+			}
 			else if(   (strcasecmp(TypeBuff,"localSet") == 0)
 				    || (strcasecmp(TypeBuff,"subLocalSet") == 0) )
 			{
+				State->Parent = name;
+
 				if(SymSpace.size() == 0)
 					fprintf(State->OutFile, "%sMXFLIB_CLASS_SET(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
 				else
@@ -773,6 +1103,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			else if(   (strcasecmp(TypeBuff,"fixedPack") == 0)
 				    || (strcasecmp(TypeBuff,"subFixedPack") == 0) )
 			{
+				State->Parent = name;
+
 				if(SymSpace.size() == 0)
 					fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
 				else
@@ -877,7 +1209,7 @@ void Convert_endElement(void *user_data, const char *name)
 			// Allow MXF dictionaries to be wrapped inside other XML files
 			debug("Stepping out of outer level <%s>\n", name);
 			break;
-			
+
 //			Convert_error(user_data, "Closing tag </%s> found when not unexpected\n", name);
 //			return;
 		}
@@ -912,11 +1244,11 @@ void Convert_endElement(void *user_data, const char *name)
 		
 		case StateTypesCompoundItem:
 		{
-			if(strcmp(name,State->Compound.c_str()) == 0)
+			if(strcmp(name,State->Parent.c_str()) == 0)
 			{
 				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND_END\n");
 				State->State = StateTypesCompound;
-				State->Compound = "";
+				State->Parent = "";
 			}
 			break;
 		}
@@ -928,6 +1260,12 @@ void Convert_endElement(void *user_data, const char *name)
 				fprintf(State->OutFile, "\tMXFLIB_CLASS_END\n");
 				State->State = StateIdle;
 				break;
+			}
+
+			// Remove the parent name when we step out of a set or pack
+			if(strcmp(name,State->Parent.c_str()) == 0)
+			{
+				State->Parent = "";
 			}
 
 			// Emit any end text
