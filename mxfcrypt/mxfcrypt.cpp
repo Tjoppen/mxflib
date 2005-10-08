@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.6 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.7 2005/10/08 15:13:06 matt-beard Exp $
  *
  */
 /*
@@ -188,21 +188,21 @@ int main(int argc, char *argv[])
 	if(ClosingHeader)
 	{
 		// If the master partition is not from the header then change it to be a header
-		if(MasterPartition->GetUInt64("ThisPartition") > 0)
+		if(MasterPartition->GetUInt64(ThisPartition_UL) > 0)
 		{
 			if(MasterPartition->IsClosed())
 			{
 				if(MasterPartition->IsComplete()) 
-					MasterPartition->ChangeType("ClosedCompleteHeader");
+					MasterPartition->ChangeType(ClosedCompleteHeader_UL);
 				else
-					MasterPartition->ChangeType("ClosedHeader");
+					MasterPartition->ChangeType(ClosedHeader_UL);
 			}
 			else
 			{
 				if(MasterPartition->IsComplete()) 
-					MasterPartition->ChangeType("OpenCompleteHeader");
+					MasterPartition->ChangeType(OpenCompleteHeader_UL);
 				else
-					MasterPartition->ChangeType("OpenHeader");
+					MasterPartition->ChangeType(OpenHeader_UL);
 			}
 
 			// Read the old header partition
@@ -210,13 +210,12 @@ int main(int argc, char *argv[])
 			PartitionPtr OldHeader = InFile->ReadPartition();
 
 			// Set the header to have the same KAG and BodySID as before
-			MasterPartition->SetKAG(OldHeader->GetUInt("KAGSize"));
-			MasterPartition->SetUInt("BodySID", OldHeader->GetUInt("BodySID"));
-			MasterPartition->SetUInt64("FooterPartition", 0);
+			MasterPartition->SetKAG(OldHeader->GetUInt(KAGSize_UL));
+			MasterPartition->SetUInt("BodySID", OldHeader->GetUInt(BodySID_UL));
 		}
 
 		// We don't yet know where the footer is...
-		MasterPartition->SetUInt64("FooterPosition", 0);
+		MasterPartition->SetUInt64(FooterPartition_UL, 0);
 
 		// Write the new header
 		OutFile->WritePartition(MasterPartition);
@@ -252,21 +251,21 @@ int main(int argc, char *argv[])
 		if((CurrentPos==0) && (ClosingHeader)) UpdatePartition = false;
 		else
 			// Don't update the footer - we will write that later
-			if(CurrentPartition->IsA("CompleteFooter") || CurrentPartition->IsA("Footer")) UpdatePartition = false;
+			if(CurrentPartition->IsA(CompleteFooter_UL) || CurrentPartition->IsA(Footer_UL)) UpdatePartition = false;
 
 		if(UpdatePartition)
 		{
 			// TODO: We should probably insert updated metadata here if the input file has it
-			CurrentPartition->SetUInt64("FooterPartition", 0);
+			CurrentPartition->SetUInt64(FooterPartition_UL, 0);
 			OutFile->WritePartition(CurrentPartition);
 		}
 
 		// Find out what BodySID
 		// DRAGONS: ?? What are we doing with this?
-		UInt32 BodySID = CurrentPartition->GetUInt("BodySID");
+		UInt32 BodySID = CurrentPartition->GetUInt(BodySID_UL);
 
 		// Ensure we match the KAG
-		Writer->SetKAG(CurrentPartition->GetUInt("KAGSize"));
+		Writer->SetKAG(CurrentPartition->GetUInt(KAGSize_UL));
 
 		// Parse the file until next partition or an error
 		if (!BodyParser->ReadFromFile()) break;
@@ -275,9 +274,9 @@ int main(int argc, char *argv[])
 	// Write the footer partition
 	
 	if(MasterPartition->IsComplete()) 
-		MasterPartition->ChangeType("CompleteFooter");
+		MasterPartition->ChangeType(CompleteFooter_UL);
 	else
-		MasterPartition->ChangeType("Footer");
+		MasterPartition->ChangeType(Footer_UL);
 
 	// Ensure we maintain the same KAG as the previous footer
 	MasterPartition->SetKAG(Writer->GetKAG());
@@ -306,7 +305,7 @@ int main(int argc, char *argv[])
 bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyParser, GCWriterPtr Writer, bool LoadInfo /*=false*/)
 {
 	// Locate the Content Storage set
-	MDObjectPtr ContentStorage = HMeta["ContentStorage"];
+	MDObjectPtr ContentStorage = HMeta[ContentStorage_UL];
 	if(ContentStorage) ContentStorage = ContentStorage->GetLink();
 
 	if(!ContentStorage)
@@ -315,8 +314,8 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 		return false;
 	}
 
-	// And locate the Essence Container Data list in the Content Storage set
-	MDObjectPtr EssenceContainerData = ContentStorage["EssenceContainerData"];
+	// And locate the Essence Container Data batch in the Content Storage set
+	MDObjectPtr EssenceContainerData = ContentStorage[EssenceContainerDataBatch_UL];
 
 	if(!EssenceContainerData)
 	{
@@ -337,8 +336,8 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 		if(ECDSet)
 		{
 			// Add the package ID to the BodySID map
-			UInt32 BodySID = ECDSet->GetUInt("BodySID");
-			MDObjectPtr PackageID = ECDSet["LinkedPackageUID"];
+			UInt32 BodySID = ECDSet->GetUInt(BodySID_UL);
+			MDObjectPtr PackageID = ECDSet[LinkedPackageUID_UL];
 			if(PackageID) 
 			{
 				DataChunkPtr PackageIDData = PackageID->PutData();
@@ -359,7 +358,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 	while(Package_it != HMeta->Packages.end())
 	{
 		// Locate the package ID
-		MDObjectPtr ThisIDObject = (*Package_it)["PackageUID"];
+		MDObjectPtr ThisIDObject = (*Package_it)[PackageUID_UL];
 		if(ThisIDObject)
 		{
 			// Build a datachunk of the UMID to compare
@@ -402,91 +401,82 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 	}
 
 
-	// Update DMSchemes as required
-	MDOTypePtr FrameworkLabel = MDOType::Find("CryptographicFrameworkLabel");
-	if(!FrameworkLabel)
+	/* Update DMSchemes as required */
+
+	// Locate the Content Storage set
+	MDObjectPtr DMSchemes = HMeta[DMSchemes_UL];
+
+	if(!DMSchemes)
 	{
-		error("Couldn't find CryptographicFrameworkLabel in the dictionary - are the correct files loaded?\n");
+		error("Header Metadata does not contain a DMSchemes!\n");
+		
+		// Try and add one
+		DMSchemes = HMeta->AddChild(DMSchemes_UL);
+		
+		// If that fails give up!
+		if(!DMSchemes) return false;
+	}
+
+	if(DecryptMode)
+	{
+		bool Found = false;
+		MDObject::iterator it = DMSchemes->begin();
+		while(it != DMSchemes->end())
+		{
+			DataChunkPtr ThisLabel = (*it).second->PutData();
+			ULPtr ThisUL = new UL(ThisLabel->Data);
+			if(*ThisUL == CryptographicFrameworkLabel_UL)
+			{
+				DMSchemes->RemoveChild((*it).second);
+				Found = true;
+				break;
+			}
+			it++;
+		}
+		if(!Found)
+		{
+			error("Source file does not have a CryptographicFrameworkLabel in the DMSchemes list - is it really an AS-DCP encrypted file?\n");
+		}
 	}
 	else
 	{
-		DataChunkPtr FrameworkUL = new DataChunk(16, FrameworkLabel->GetUL()->GetValue());
-
-		// Locate the Content Storage set
-		MDObjectPtr DMSchemes = HMeta["DMSchemes"];
-
-		if(!DMSchemes)
+		bool Found = false;
+		MDObject::iterator it = DMSchemes->begin();
+		while(it != DMSchemes->end())
 		{
-			error("Header Metadata does not contain a DMSchemes!\n");
-			
-			// Try and add one
-			DMSchemes = HMeta->AddChild("DMSchemes");
-			
-			// If that fails give up!
-			if(!DMSchemes) return false;
+			DataChunkPtr ThisLabel = (*it).second->PutData();
+			ULPtr ThisUL = new UL(ThisLabel->Data);
+			if(*ThisUL == CryptographicFrameworkLabel_UL)
+			{
+				Found = true;
+				break;
+			}
+			it++;
 		}
-
-		if(DecryptMode)
+		if(Found)
 		{
-			bool Found = false;
-			MDObject::iterator it = DMSchemes->begin();
-			while(it != DMSchemes->end())
-			{
-				DataChunkPtr ThisLabel = (*it).second->PutData();
-				ULPtr ThisUL = new UL(ThisLabel->Data);
-				if(*ThisUL == *FrameworkLabel->GetUL())
-				{
-					DMSchemes->RemoveChild((*it).second);
-					Found = true;
-					break;
-				}
-				it++;
-			}
-			if(!Found)
-			{
-				error("Source file does not have a CryptographicFrameworkLabel in the DMSchemes list - is it really an AS-DCP encrypted file?\n");
-			}
+			error("Source file already contains a CryptographicFrameworkLabel in the DMSchemes list - is it already encrypted?\n");
 		}
 		else
 		{
-			bool Found = false;
-			MDObject::iterator it = DMSchemes->begin();
-			while(it != DMSchemes->end())
-			{
-				DataChunkPtr ThisLabel = (*it).second->PutData();
-				ULPtr ThisUL = new UL(ThisLabel->Data);
-				if(ThisUL == FrameworkLabel->GetUL())
-				{
-					Found = true;
-					break;
-				}
-				it++;
-			}
-			if(Found)
-			{
-				error("Source file already contains a CryptographicFrameworkLabel in the DMSchemes list - is it already encrypted?\n");
-			}
-			else
-			{
-				// Add the crypto scheme
-				MDObjectPtr Ptr = DMSchemes->AddChild("DMScheme", false);
-				if(Ptr) Ptr->ReadValue(FrameworkLabel->GetUL()->GetValue(), 16);
-			}
+			// Add the crypto scheme
+			MDObjectPtr Ptr = DMSchemes->AddChild();
+			if(Ptr) Ptr->ReadValue(CryptographicFrameworkLabel_UL.GetValue(), 16);
 		}
 	}
 
 	// Build an Ident set describing us and link into the metadata
-	MDObjectPtr Ident = new MDObject("Identification");
-	Ident->SetString("CompanyName", CompanyName);
-	Ident->SetString("ProductName", ProductName);
-	Ident->SetString("VersionString", ProductVersion);
-	Ident->SetString("ToolkitVersion", LibraryProductVersion());
+	MDObjectPtr Ident = new MDObject(Identification_UL);
+	Ident->SetString(CompanyName_UL, CompanyName);
+	Ident->SetString(ProductName_UL, ProductName);
+	Ident->SetString(VersionString_UL, ProductVersion);
+	Ident->SetString(ToolkitVersion_UL, LibraryProductVersion());
 	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
 
 	// DRAGONS: -- Need to set a proper GUID per released version
 	//             Non-released versions currently use a random GUID
 	//			   as they are not a stable version...
-	Ident->SetValue("ProductUID", DataChunk(16,ProductUID->GetValue()));
+	Ident->SetValue(ProductUID_UL, DataChunk(16,ProductUID->GetValue()));
 
 	// Link the new Ident set with all new metadata
 	// Note that this is done even for OP-Atom as the 'dummy' header written first
@@ -501,7 +491,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
  */
 bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt32 BodySID, PackagePtr ThisPackage, bool LoadInfo /*=false*/)
 {
-	MDObjectPtr Descriptor = ThisPackage["Descriptor"];
+	MDObjectPtr Descriptor = ThisPackage[Descriptor_UL];
 	if(Descriptor) Descriptor = Descriptor->GetLink();
 
 	if(!Descriptor)
@@ -510,7 +500,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 		return false;
 	}
 	
-	MDObjectPtr ContainerUL = Descriptor["EssenceContainer"];
+	MDObjectPtr ContainerUL = Descriptor[EssenceContainer_UL];
 	if(!ContainerUL)
 	{
 		error("Source file contains a File Descriptor without an EssenceContainer label\n");
@@ -531,7 +521,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	DMSegmentPtr CryptoDMSegment = CryptoDMTrack->AddDMSegment();
 
 	// Build the cryptographic framework
-	MDObjectPtr CryptoFramework = new MDObject("CryptographicFramework");
+	MDObjectPtr CryptoFramework = new MDObject(CryptographicFramework_UL);
 
 	// This is the first chance to sanity check the crypto dictionary
 	if(!CryptoFramework)
@@ -545,7 +535,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	CryptoDMSegment->MakeLink(CryptoFramework);
 
 	// Build the cryptographic context
-	MDObjectPtr CryptoContext = new MDObject("CryptographicContext");
+	MDObjectPtr CryptoContext = new MDObject(CryptographicContext_UL);
 	if(!CryptoContext)
 	{
 		// DRAGONS: These error messages should be folded by the compiler as they are identical
@@ -554,7 +544,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	}
 
 	// Build the context ID link
-	MDObjectPtr ContextSR = CryptoFramework->AddChild("ContextSR");
+	MDObjectPtr ContextSR = CryptoFramework->AddChild(ContextSR_UL);
 	if(!ContextSR)
 	{
 		// DRAGONS: These error messages should be folded by the compiler as they are identical
@@ -569,22 +559,22 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	UUIDPtr ContextID = new mxflib::UUID;
 	
 	// Set the context ID
-	MDObjectPtr Ptr = CryptoContext->AddChild("ContextID");
+	MDObjectPtr Ptr = CryptoContext->AddChild(ContextID_UL);
 	if(Ptr) Ptr->ReadValue(ContextID->GetValue(), 16);
 
 	// Set the original essence UL
-	Ptr = CryptoContext->AddChild("SourceEssenceContainer");
+	Ptr = CryptoContext->AddChild(SourceEssenceContainer_UL);
 	if(Ptr) Ptr->ReadValue(EssenceUL);
 
 	// Set the encryption algorithm
 	const UInt8 CypherLabel[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x02, 0x09, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00 };
-	Ptr = CryptoContext->AddChild("CipherAlgorithm");
+	Ptr = CryptoContext->AddChild(CipherAlgorithm_UL);
 	if(Ptr) Ptr->ReadValue(CypherLabel, 16);
 
 	// Specify no MIC
 	const UInt8 MICLabel_NULL[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 	const UInt8 MICLabel_HMAC_SHA1[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x02, 0x09, 0x02, 0x02, 0x01, 0x00, 0x00, 0x00 };
-	Ptr = CryptoContext->AddChild("MICAlgorithm");
+	Ptr = CryptoContext->AddChild(MICAlgorithm_UL);
 	if(Ptr) 
 	{
 		if(Hashing)
@@ -631,7 +621,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 		for(i=0; i<16; i++) KeyBuffU8[i] = (UInt8)KeyBuff[i];
 	}
 
-	Ptr = CryptoContext->AddChild("CryptographicKeyID");
+	Ptr = CryptoContext->AddChild(CryptographicKeyID_UL);
 	if(Ptr) Ptr->ReadValue(KeyBuffU8, 16);
 
 	/* Now set up the crypto handlers */
@@ -664,27 +654,27 @@ bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	TrackList::iterator it = ThisPackage->Tracks.begin();
 	while(it!= ThisPackage->Tracks.end())
 	{
-//printf("Track: %s\n", (*it)->GetString("TrackName").c_str());
+//printf("Track: %s\n", (*it)->GetString(TrackName_UL).c_str());
 		ComponentList::iterator comp_it = (*it)->Components.begin();
 		while(comp_it!= (*it)->Components.end())
 		{
 //printf("  Comp: %s\n", (*comp_it)->FullName().c_str());
 			// Found a DM segment?
-			if((*comp_it)->IsA("DMSegment"))
+			if((*comp_it)->IsA(DMSegment_UL))
 			{
-				MDObjectPtr Framework = (*comp_it)->Child("DMFramework");
+				MDObjectPtr Framework = (*comp_it)->Child(DMFramework_UL);
 				if(Framework) Framework = Framework->GetLink();
 
 				// Found a Crypto Framework on the segment?
-				if(Framework && Framework->IsA("CryptographicFramework"))
+				if(Framework && Framework->IsA(CryptographicFramework_UL))
 				{
-					MDObjectPtr Context = Framework->Child("ContextSR");
+					MDObjectPtr Context = Framework->Child(ContextSR_UL);
 					if(Context) Context = Context->GetLink();
 
 					if(Context)
 					{
 						// Read the key ID
-						Key = Context["CryptographicKeyID"]->PutData();
+						Key = Context[CryptographicKeyID_UL]->PutData();
 
 						// Remove the crypto track
 						ThisPackage->RemoveTrack(*it);
