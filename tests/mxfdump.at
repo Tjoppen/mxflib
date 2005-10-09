@@ -12,6 +12,7 @@ AT_CLEANUP
 AT_SETUP([mxfdump])
 AT_CHECK([mxfdump ../../small_wav.mxf], 0,
 [[Dump an MXF file using MXFLib
+- using dictionary "dict.xml"
 
 Partition at 0x00000000 is for BodySID 0x0001
 ClosedCompleteHeader
