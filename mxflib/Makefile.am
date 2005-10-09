@@ -9,7 +9,6 @@ libmxf_a_SOURCES = crypto.cpp deftypes.cpp esp_dvdif.cpp esp_mpeg2ves.cpp esp_wa
 INCLUDES = -I$(top_builddir)
 pkginclude_HEADERS = \
 			mxflib.h \
-
 			crypto.h \
 			datachunk.h \
 			debug.h \
@@ -18,6 +17,7 @@ pkginclude_HEADERS = \
 			esp_mpeg2ves.h \
 			esp_wavepcm.h \
 			essence.h \
+			features.h \
 			forward.h \
 			helper.h \
 			index.h \
@@ -35,7 +35,8 @@ pkginclude_HEADERS = \
 			rip.h \
 			smartptr.h \
 			waveheader.h \
-			sopsax.h
+			sopsax.h \
+			ulmap.h
 
 rsrc_DATA = \
 			$(top_builddir)/types.xml \
