@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.8 2005/10/08 15:37:03 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.9 2005/10/09 13:14:39 matt-beard Exp $
  *
  */
 /*
@@ -32,7 +32,7 @@
 using namespace mxflib;
 
 // Define the features bitmap - turn on those features set by compile time switch
-UInt64 mxflib::Features = UINT64_C(MXFLIB_FEATURE_DEFAULT) & UINT64_C(MXFLIB_FEATURE_MASK);
+UInt64 mxflib::Features = (UINT64_C(MXFLIB_FEATURE_DEFAULT)) & (UINT64_C(MXFLIB_FEATURE_MASK));
 
 
 //! Build a BER length
