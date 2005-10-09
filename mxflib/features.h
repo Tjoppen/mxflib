@@ -1,7 +1,7 @@
 /*! \file	features.h
  *	\brief	Control compile-time and run-time selectable library features
  *
- *	\version $Id: features.h,v 1.1 2005/10/08 15:47:02 matt-beard Exp $
+ *	\version $Id: features.h,v 1.2 2005/10/09 13:14:24 matt-beard Exp $
  *
  *  \detail 
  *  Library feature selection allows the behaviour of the library to be modified at run-time or compile-time.
@@ -71,15 +71,19 @@
 
 namespace mxflib
 {
-	// Standard library features (bits 0 to 30)
+	/* Standard library features (bits 0 to 30) */
+
 	const UInt64 Feature0 = UINT64_C(1 << 0);			//!< MXFLib feature: Not used
 
 	// Reserve a bit for user-extensions
 	const UInt64 UserExtension = UINT64_C(1 << 31);		//!< MXFLib feature: Reserved to allow user extensions
 
 
-	// Non-Standard library functions - may cause non-complient behaviour (bits 32 to 63)
-	const UInt64 Feature32 = UINT64_C(1 << 32);
+	/* Non-Standard library functions - may cause non-complient behaviour (bits 32 to 63)
+	 * DRAGONS: Note the different positioning of the brackets in the UINT64_C macro for bits 32 onwards
+	 */
+
+	const UInt64 Feature32 = UINT64_C(1) << 32;
 
 	// Declare the features bitmap
 	extern UInt64 Features;
