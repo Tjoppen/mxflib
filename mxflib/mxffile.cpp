@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.10 2005/10/08 15:41:19 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.11 2005/10/09 13:42:45 matt-beard Exp $
  *
  */
 /*
@@ -1234,7 +1234,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 			// Calculate how many bytes will be written before the start of the index
 			Length BytesBefore = PartitionPackSize;
-			if(KAGSize > 1) BytesBefore += (PartitionPackSize, KAGSize);
+			if(KAGSize > 1) BytesBefore += FillerSize(PartitionPackSize, KAGSize);
 			BytesBefore += HeaderByteCount;
 
 
