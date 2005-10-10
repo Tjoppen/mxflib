@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.5 2005/10/08 15:35:33 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.6 2005/10/10 13:14:44 matt-beard Exp $
  *
  */
 /*
@@ -889,7 +889,6 @@ bool mxflib::JP2K_EssenceSubParser::ParseJP2KCodestreamHeader(FileHandle InFile,
 			return true;
 		}
 
-		int Bytes = 0;
 		bool isSegment = true;
 
 		// Determine if there is a marker segment
