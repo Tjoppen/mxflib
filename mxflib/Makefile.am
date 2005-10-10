@@ -9,6 +9,7 @@ libmxf_a_SOURCES = crypto.cpp deftypes.cpp esp_dvdif.cpp esp_mpeg2ves.cpp esp_jp
 INCLUDES = -I$(top_builddir)
 pkginclude_HEADERS = \
 			mxflib.h \
+			constants.h \
 			crypto.h \
 			datachunk.h \
 			debug.h \
