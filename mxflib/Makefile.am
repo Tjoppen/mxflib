@@ -37,6 +37,7 @@ pkginclude_HEADERS = \
 			rip.h \
 			smartptr.h \
 			waveheader.h \
+			xmlparse.h \
 			sopsax.h \
 			ulmap.h
 
