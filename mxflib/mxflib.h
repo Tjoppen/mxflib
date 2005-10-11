@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.11 2005/10/08 15:43:15 matt-beard Exp $
+ *	\version $Id: mxflib.h,v 1.12 2005/10/11 10:01:01 matt-beard Exp $
  *
  */
 /*
@@ -121,7 +121,7 @@ namespace mxflib
 #include <mxflib/esp_dvdif.h>
 #include <mxflib/esp_jp2k.h>
 #include <mxflib/sopsax.h>
-#include <mxflib/xmlparse.h>
+#include <mxflib/xmlparser.h>
 
 #endif // MXFLIB__MXFLIB_H
 

@@ -165,7 +165,7 @@ SOURCE=..\..\mxflib\sopsax.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mxflib\xmlparse.cpp
+SOURCE=..\..\mxflib\xmlparser.cpp
 # End Source File
 # End Group
 # Begin Group "Header Files"
@@ -297,7 +297,7 @@ SOURCE=..\..\mxflib\waveheader.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mxflib\xmlparse.h
+SOURCE=..\..\mxflib\xmlparser.h
 # End Source File
 # End Group
 # Begin Group "Documentation"

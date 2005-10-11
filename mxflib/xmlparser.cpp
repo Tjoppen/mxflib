@@ -1,7 +1,7 @@
-/*! \file	xmlparse.cpp
+/*! \file	xmlparser.cpp
  *	\brief	Interface to available SAX style XML parser
  *
- *	\version $Id: xmlparse.cpp,v 1.2 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: xmlparser.cpp,v 1.1 2005/10/11 10:01:01 matt-beard Exp $
  *
  */
 /*

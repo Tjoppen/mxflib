@@ -1,7 +1,7 @@
-/*! \file	xmlparse.h
+/*! \file	xmlparser.h
  *	\brief	Interface to available SAX style XML parser
  *
- *	\version $Id: xmlparse.h,v 1.1 2005/03/24 15:19:51 terabrit Exp $
+ *	\version $Id: xmlparser.h,v 1.1 2005/10/11 10:01:01 matt-beard Exp $
  *
  */
 /*
