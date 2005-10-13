@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.7 2005/10/08 15:35:01 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.8 2005/10/13 13:35:28 matt-beard Exp $
  *
  */
 /*
@@ -581,7 +581,7 @@ Length KLVEObject::ReadCryptoDataFrom(Position Offset, Length Size /*=-1*/)
 	if(BytesToRead <= PreDecrypted)
 	{
 		// Set the data	into the DataChunk
-		Data.Set(BytesToRead, (UInt32)PreDecryptBuffer);
+		Data.Set((UInt32)BytesToRead, PreDecryptBuffer);
 
 		// Remove any padding if required
 		if(Offset + Data.Size > ValueLength)
@@ -771,7 +771,8 @@ Length KLVEObject::WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size
 		else
 		{
 			// TODO: Add decent random number generator here... this one is from the system.h UUID gen
-			srand((time(NULL)) ^ ((int)(Data.Data)) ^ (clock() << 2) ^ rand());
+			// DRAGONS: Strange double-casting is to remove pointer conversion warning in 64-bit systems
+			srand((time(NULL)) ^ ((unsigned int)((size_t)(Data.Data))) ^ (clock() << 2) ^ rand());
 
 			int i;
 			for(i=0; i< 16; i++) { IV[i] = (UInt8)rand(); };
