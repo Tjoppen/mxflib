@@ -4,7 +4,7 @@
  *			This file contains the SmartPtr class (and helpers) originally
  *			written by Sandu Turcan and submitted to www.codeproject.com
  *
- *	\version $Id: smartptr.h,v 1.6 2005/10/08 15:45:17 matt-beard Exp $
+ *	\version $Id: smartptr.h,v 1.7 2005/10/13 13:36:11 matt-beard Exp $
  *
  */
 /*
@@ -125,7 +125,7 @@ namespace mxflib
 		{
 			__m_counter++;
 
-			PTRDEBUG( debug("0x%08x Increment count -> %d\n", (int)this, __m_counter); )
+			PTRDEBUG( debug("%p Increment count -> %p\n", this, __m_counter); )
 		}
 
 		//! Decrement the number of references, if none left delete the object
@@ -133,11 +133,11 @@ namespace mxflib
 		{
 			__m_counter--;
 
-			PTRDEBUG( debug("0x%08x Decrement count -> %d\n", (int)this, __m_counter); )
+			PTRDEBUG( debug("%p Decrement count -> %d\n", this, __m_counter); )
 
 			if(__m_counter<=0)
 			{
-				PTRDEBUG( debug("0x%08x Destroying\n", this); )
+				PTRDEBUG( debug("%p Destroying\n", this); )
 
 				__DestroyRef();
 			}
@@ -184,7 +184,7 @@ namespace mxflib
 		//! Add a parent pointer to this object
 		virtual void AddRef(ParentPtr<T> &Ptr)
 		{
-			PTRDEBUG( debug("Adding ParentPtr(0x%08x) to 0x%08x\n", (int)&Ptr, (int)this); )
+			PTRDEBUG( debug("Adding ParentPtr(%p) to %p\n", &Ptr, this); )
 			
 			if(!ParentPointers) ParentPointers = new LocalParentList;
 			ParentPointers->push_back(&Ptr);
@@ -200,14 +200,14 @@ namespace mxflib
 				{
 					if((*it) == &Ptr)
 					{
-						PTRDEBUG( debug("Deleting ParentPtr(0x%08x) from 0x%08x\n", (int)&Ptr, (int)this); )
+						PTRDEBUG( debug("Deleting ParentPtr(%p) from %p\n", &Ptr, this); )
 						ParentPointers->erase(it);
 						return;
 					}
 					it++;
 				}
 			}
-			error("Tried to clear ParentPtr(0x%08x) from 0x%08x but that ParentPtr does not exist\n", (int)&Ptr, (int)this);
+			error("Tried to clear ParentPtr(%p) from %p but that ParentPtr does not exist\n", &Ptr, this);
 		}
 
     protected:
@@ -225,7 +225,7 @@ namespace mxflib
 			// No parent pointers (yet) reference this item
 			ParentPointers = NULL;
 
-			PTRDEBUG( debug("0x%08x Build new (zero) count\n", (int)this); )
+			PTRDEBUG( debug("%p Build new (zero) count\n", this); )
 		}
 
 
@@ -398,7 +398,7 @@ namespace mxflib
 		 */
 		virtual void __Assign(IRefCount<T> *refcount)
 		{
-			PTRDEBUG( if(DebugName.size()) debug("%s changing from 0x%08x to 0x%08x\n", DebugName.c_str(), (int)__m_refcount, (int)refcount); )
+			PTRDEBUG( if(DebugName.size()) debug("%s changing from %p to %p\n", DebugName.c_str(), __m_refcount, refcount); )
 
 			// Attach us to the new object first
 			// This is important in case we are assigned to
@@ -536,7 +536,7 @@ namespace mxflib
 		 */
 		virtual void __Assign(IRefCount<T> *refcount)
 		{
-			PTRDEBUG( debug("Assigning parent pointer at 0x%08x to 0x%08x\n", (int)this, (int)refcount); )
+			PTRDEBUG( debug("Assigning parent pointer at %p to %p\n", this, refcount); )
 
 			// Remove us from the old parent's list of parent pointers
 			if(this->__m_refcount) this->__m_refcount->DeleteRef(*this);
