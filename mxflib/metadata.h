@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.6 2005/10/08 15:41:19 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.7 2005/10/27 11:15:19 matt-beard Exp $
  *
  */
 /*
@@ -315,8 +315,8 @@ namespace mxflib
 		/*! \param Duration The duration of this DMSegment, -1 or omitted for unknown */
 		void SetDuration(Int64 Duration = -1);
 
-		//! Make a link to a specified track (in the same Package)
-		bool MakeLink(TrackPtr SourceTrack);
+//		//! Make a link to a specified track (in the same Package)
+//		bool MakeLink(TrackPtr SourceTrack);
 
 		//! Make a link to a specified DMFramework
 		bool MakeLink(MDObjectPtr DMFramework);
@@ -453,9 +453,9 @@ namespace mxflib
 		static TrackPtr Parse(MDObjectPtr BaseObject);
 
 		//! Add a new track type definition label
-		/*! /param Type The type of track that this new definition identifies
-		 *  /param Label The label to compare with the data definition
-		 *  /param CompareLength The number of bytes to compare in the label, this allows generic labels
+		/*! \param Type The type of track that this new definition identifies
+		 *  \param Label The label to compare with the data definition
+		 *  \param CompareLength The number of bytes to compare in the label, this allows generic labels
 		 */
 		static void AddTrackType(TrackType Type, const UInt8 *Label, int CompareLength = 16);
 

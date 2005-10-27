@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.11 2005/10/09 13:42:05 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.12 2005/10/27 11:02:10 matt-beard Exp $
  *
  */
 /*
@@ -719,7 +719,7 @@ void GCWriter::StartNewCP(void)
 
 
 //! Calculate how much data will be written if "Flush" is called now
-/*! /note Will return (2^64)-1 if the buffer contains a "FastClipWrap" item
+/*! \note Will return (2^64)-1 if the buffer contains a "FastClipWrap" item
  */
 UInt64 GCWriter::CalcWriteSize(void)
 {

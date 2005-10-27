@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.6 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.7 2005/10/27 11:08:07 matt-beard Exp $
  *
  */
 /*
@@ -223,17 +223,17 @@ namespace mxflib
 	bool IsPartitionKey(const UInt8 *Key);
 
 	//! Does a given std::string contain a "wide" string in UTF8?
-	/*! /note This currently only checks if any bytes contain >127 so it is only safe to test strings that are either 7-bit ASCII or UTF-8 */
+	/*! \note This currently only checks if any bytes contain >127 so it is only safe to test strings that are either 7-bit ASCII or UTF-8 */
 	bool IsWideString(std::string &String);
 
 	//! Read hex values separated by any of 'Sep'
-	/*! /note Modifies the value of Source to point to the following byte
-	 *  /ret number of values read */
+	/*! \note Modifies the value of Source to point to the following byte
+	 *  \return number of values read */
 	int ReadHexString(const char **Source, int Max, UInt8 *Dest, const char *Sep);
 
 	//! Read hex values separated by any of 'Sep'
-	/*! /note This version does not modify the value of parameter Source
-	 *  /ret number of values read */
+	/*! \note This version does not modify the value of parameter Source
+	 *  \return number of values read */
 	inline int ReadHexString(const char *Source, int Max, UInt8 *Dest, const char *Sep)
 	{
 		const char *p = Source;

@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.7 2005/10/08 15:13:06 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.8 2005/10/27 10:58:12 matt-beard Exp $
  *
  */
 /*
@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
 
 //! Process a set of header metadata
 /*!	If encrypting a crypto context is added in each internal file package, otherwise crypto tracks are removed
- *	/ret true if all OK, else false
+ *	\return true if all OK, else false
  */
 bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyParser, GCWriterPtr Writer, bool LoadInfo /*=false*/)
 {
@@ -487,7 +487,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 }
 	
 //! Process the metadata for a given package on an encryption pass
-/*! /ret true if all OK, else false
+/*! \return true if all OK, else false
  */
 bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt32 BodySID, PackagePtr ThisPackage, bool LoadInfo /*=false*/)
 {
@@ -643,7 +643,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 
 
 //! Process the metadata for a given package on a decryption pass
-/*! /ret true if all OK, else false
+/*! \return true if all OK, else false
  */
 bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt32 BodySID, PackagePtr ThisPackage, bool LoadInfo /*=false*/)
 {

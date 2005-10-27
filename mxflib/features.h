@@ -1,7 +1,7 @@
 /*! \file	features.h
  *	\brief	Control compile-time and run-time selectable library features
  *
- *	\version $Id: features.h,v 1.3 2005/10/09 13:39:31 matt-beard Exp $
+ *	\version $Id: features.h,v 1.4 2005/10/27 11:05:49 matt-beard Exp $
  *
  *  \detail 
  *  Library feature selection allows the behaviour of the library to be modified at run-time or compile-time.
@@ -88,8 +88,8 @@ namespace mxflib
 
 
 	//! Set an MXFLib library feature (or multiple features)
-	/*! /ret true if features set as requested
-	 *  /note If multiple features are requested and any one is unavailable none will be set
+	/*! \return true if features set as requested
+	 *  \note If multiple features are requested and any one is unavailable none will be set
 	 *
 	 *  DRAGONS: This code is written so that it will fold to:
 	 *           - a simple bit-set if the value of SetValue is known at compile-time and it is enabled and unlocked
@@ -127,8 +127,8 @@ namespace mxflib
 
 
 	//! Clear an MXFLib library feature (or multiple features)
-	/*! /ret true if features cleared as requested
-	 *  /note If clearing of multiple features is requested and any one is locked on none will be cleared
+	/*! \return true if features cleared as requested
+	 *  \note If clearing of multiple features is requested and any one is locked on none will be cleared
 	 *
 	 *  DRAGONS: This code is written so that it will fold to:
 	 *           - a simple bit-clear if the value of SetValue is known at compile-time and it is unlocked

@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.6 2005/10/08 15:41:19 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.7 2005/10/27 11:13:32 matt-beard Exp $
  *
  */
 /*
@@ -1136,9 +1136,9 @@ Track::TrackType Track::GetType(void)
 
 
 //! Add a new track type definition label
-/*! /param Type The type of track that this new definition identifies
- *  /param Label The label to compare with the data definition
- *  /param CompareLength The number of bytes to compare in the label, this allows generic labels
+/*! \param Type The type of track that this new definition identifies
+ *  \param Label The label to compare with the data definition
+ *  \param CompareLength The number of bytes to compare in the label, this allows generic labels
  */
 void mxflib::Track::AddTrackType(TrackType Type, const UInt8 *Label, int CompareLength /* =16 */)
 {

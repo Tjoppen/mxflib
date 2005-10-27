@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.6 2005/10/27 11:01:31 matt-beard Exp $
  *
  */
 /*
@@ -536,7 +536,7 @@ namespace mxflib
 		bool LoadData(void);
 
 		//! Read the AS-DCP footer (if any)
-		/*! /ret false on error, else true
+		/*! \return false on error, else true
 		 */
 		bool ReadFooter(void);
 
@@ -545,7 +545,7 @@ namespace mxflib
 		UInt32 CalcFooterLength(void);
 
 		//! Write the AS-DCP footer (if fequired)
-		/*! /ret false on error, else true
+		/*! \return false on error, else true
 		 */
 		bool WriteFooter(void);
 

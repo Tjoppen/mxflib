@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.10 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.11 2005/10/27 11:05:00 matt-beard Exp $
  *
  */
 /*
@@ -214,13 +214,13 @@ namespace mxflib
 
 		//! Get the current overridden essence key
 		/*! DRAGONS: If the key has not been overridden NULL will be returned - not the default key
-		 *  /note Defined EssenceSource sub-classes may always use a non-standard key, in which case
+		 *  \note Defined EssenceSource sub-classes may always use a non-standard key, in which case
 		 *        they will always return a non-NULL value from this function
 		 */
 		virtual DataChunkPtr &GetKey(void) { return SpecifiedKey; }
 
 		//! Get true if the default essence key has been overriden with  a key that does not use GC track number mechanism
-		/*  /note Defined EssenceSource sub-classes may always use a non-GC-type key, in which case
+		/*  \note Defined EssenceSource sub-classes may always use a non-GC-type key, in which case
 		 *        they will always return true from this function
 		 */
 		virtual bool GetNonGC(void) { return NonGC; }
@@ -1435,9 +1435,7 @@ namespace mxflib
 		 */
 		StateType GetNextState(void);
 
-		//! Set the index type(s) to the desired value
-		/*! \note This sets the complete value, it doesn't just add an option - to add "X" use SetIndexType(GetIndexType() | "X");
-		 */
+		//! Add the specified index type(s)
 		void AddIndexType(IndexType NewIndexType) { StreamIndex = (IndexType) (StreamIndex | NewIndexType); }
 
 		//! Set the index type(s) to the desired value
@@ -1547,7 +1545,7 @@ namespace mxflib
 		bool GetEditAlign(void) { return EditAlign; }
 
 		//! Set the "FreeSpaceIndex" flag
-		/*! /note DRAGONS: Setting this flag will cause index tables that are not SMPTE 377M complient to be created */
+		/*! \note DRAGONS: Setting this flag will cause index tables that are not SMPTE 377M complient to be created */
 		void SetFreeSpaceIndex(bool Flag) { FreeSpaceIndex = Flag; }
 
 		//! Read the "FreeSpaceIndex" flag

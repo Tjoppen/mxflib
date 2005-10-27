@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.6 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.7 2005/10/27 11:12:01 matt-beard Exp $
  *
  */
 /*
@@ -234,7 +234,7 @@ MDTypePtr MDType::EffectiveBase(void) const
 
 
 //! Report the effective size of this type
-/*! /ret The size in bytes of a single instance of this type, or 0 if variable size
+/*! \return The size in bytes of a single instance of this type, or 0 if variable size
  */
 UInt32 MDType::EffectiveSize(void) const
 {

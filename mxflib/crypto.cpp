@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.8 2005/10/13 13:35:28 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.9 2005/10/27 11:00:49 matt-beard Exp $
  *
  */
 /*
@@ -1179,7 +1179,7 @@ Int32 KLVEObject::WriteKL(Int32 LenSize /*=0*/)
 
 
 //! Read the AS-DCP footer (if any)
-/*! /ret false on error, else true
+/*! \return false on error, else true
  */
 bool KLVEObject::ReadFooter(void)
 {
@@ -1325,7 +1325,7 @@ UInt32 KLVEObject::CalcFooterLength(void)
 }
 
 //! Write the AS-DCP footer (if fequired)
-/*! /ret false on error, else true
+/*! \return false on error, else true
  *
  *  DRAGONS: Ensure that the data written matches the size given by CalcFooterLength()
  */

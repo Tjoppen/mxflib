@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.6 2005/10/27 11:12:42 matt-beard Exp $
  *
  */
 /*
@@ -220,7 +220,7 @@ namespace mxflib
 		MDTypePtr EffectiveBase(void) const;
 
 		//! Report the effective size of this type
-		/*! /ret The size in bytes of a single instance of this type, or 0 if variable size
+		/*! \return The size in bytes of a single instance of this type, or 0 if variable size
 		 */
 		UInt32 EffectiveSize(void) const;
 
