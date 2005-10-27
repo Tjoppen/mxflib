@@ -1,8 +1,22 @@
 
-Release Notes for mxflib version 0.5-Beta
+Release Notes for mxflib version 0.5.3-Beta
 =========================================
 
-Maintenance release - mainly updates of encrypted KLV processing
+* Added features.h for compile-time or run-time selectable library features
+* Dictconvert generates const ULs for all sets, packs and properties
+* All library code now uses UL consts rather than object names
+* Added constants.h
+* Harmonized UInt capitalization
+* Add SymbolSpace and allow UL based add/find of objects
+* Add esp_template to aid essence parser writing
+* Allow non-standard essence keys if required
+* Add full clip-wrap indexing
+* Add UL2NameFunc
+* Programable ParseDark
+* Add optional string termination
+* Add Track::GetType
+* Allow runtime selection between runtime and compiletime dictionaries in mxfdump
+* Add basic DM insertion code to mxfwrap
 
 
 Changes since version 0.5.0-Beta
