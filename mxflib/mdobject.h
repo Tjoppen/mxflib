@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.15 2005/10/08 15:38:08 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.16 2005/10/27 11:11:11 matt-beard Exp $
  *
  */
 /*
@@ -237,7 +237,7 @@ namespace mxflib
    through derivation from MDOTypeMap (maps child name to pointer to
    child item). Care should be taken iterating this map as the
    order is likely to be alphabetical rather than dictionary order
-   so where dictionary order is importand (such as packs) iterate
+   so where dictionary order is important (such as packs) iterate
    through the ChildOrder list property.
 
    Inheritance is supported where a type is regarded as a modified
@@ -288,7 +288,7 @@ namespace mxflib
 		DictRefType		RefType;		//!< Reference type if this is a reference
 		MDOTypeParent	RefTarget;		//!< Type (or base type) of item this ref source must target
 		std::string		RefTargetName;	//!< Name of the type (or base type) of item this ref source must target
-										/*!< /note This must only be used during dictionary parsing or for error reporting,
+										/*!< \note This must only be used during dictionary parsing or for error reporting,
 										 *         not for actual reference linking where RefTarget must be used
 										 */
 
@@ -353,7 +353,7 @@ namespace mxflib
 		MDOTypePtr GetRefTarget(void) const { return RefTarget; };
 
 		//! Accessor for Reference Target Name
-		/*!< /note This must only be used during dictionary parsing or for error reporting,
+		/*!< \note This must only be used during dictionary parsing or for error reporting,
 		 *         not for actual reference linking where RefTarget must be used
 		 */
 		std::string GetRefTargetName(void) const { return RefTargetName; };
@@ -875,7 +875,7 @@ namespace mxflib
 			MDObjectPtr Ptr = AddChild(ChildType);
 			if (Ptr) Ptr->SetUInt64(Val);
 		};
-		void SetUInt64(ULPtr &ChildType, UInt64 Val) { SetUInt(*ChildType, Val); }
+		void SetUInt64(ULPtr &ChildType, UInt64 Val) { SetUInt64(*ChildType, Val); }
 
 		void SetString(const UL &ChildType, std::string Val) 
 		{ 
