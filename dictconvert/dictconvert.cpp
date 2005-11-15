@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.5 2005/10/08 14:18:47 matt-beard Exp $
+ *	\version $Id: dictconvert.cpp,v 1.6 2005/11/15 11:53:02 matt-beard Exp $
  *
  */
 /*
@@ -64,7 +64,7 @@ char *InputFile = "";
 bool ULConsts = true;
 
 //! Should we only output UL consts?
-bool OnlyConsts = true;
+bool OnlyConsts = false;
 
 //! Should UL consts always be long-form?
 bool LongFormConsts = false;
@@ -111,6 +111,7 @@ struct ConvertState
 	int Depth;									//!< Nesting depth in class parsing
 	std::list<std::string> EndTagText;			//!< Text to be output at the next class end tag
 	std::map<std::string, std::string> TypeMap;	//!< Map of type for each class - to allow types to be inherited
+	std::list<bool> ExtendSubsList;				//!< List of extendSubs flags (explicit and inherited) for each level
 	bool FoundType;								//!< Set true once we have determined the dictionary type (old or new)
 	bool FoundMulti;							//!< Found new multi-style dictionary
 	std::string SymSpace;						//!< The symbol space attribute of the classes tag (stored if deferring the header line)
@@ -613,6 +614,10 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						if(strcasecmp(val,"yes") == 0) Endian = true;
 					}
+					else if(strcmp(attr, "ul") == 0)
+					{
+						// TODO: Implement this
+					}
 					else if(strcmp(attr, "ref") == 0)
 					{
 						// Ignore
@@ -847,6 +852,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			std::string default_text;
 			std::string dvalue_text;
 			std::string SymSpace;
+			bool HasExtendSubs = false;
+			bool ExtendSubs = true;
 
 			/* Scan attributes */
 			int this_attr = 0;
@@ -948,6 +955,12 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					else if(strcmp(attr, "symSpace") == 0)
 					{
 						SymSpace = CConvert(val);
+					}
+					else if(strcmp(attr, "extendSubs") == 0)
+					{
+						HasExtendSubs = true;
+						if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0)) ExtendSubs = true;
+						else ExtendSubs = false;
 					}
 					else
 					{
@@ -1070,6 +1083,17 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				if(it != State->TypeMap.end()) Type = (*it).second;
 			}
 
+			// Work out what the extend subs state (if not specified). 
+			// Defaults to true if at top level (the initial state of the variable)
+			if((!HasExtendSubs) && (!State->ExtendSubsList.empty()))
+			{
+				std::list<bool>::iterator it = State->ExtendSubsList.end();
+				ExtendSubs = *(--it);
+			}
+
+			// Store the flag for this level
+			State->ExtendSubsList.push_back(ExtendSubs);
+
 			// TODO: We should really work out if a set or pack is a simple rename (will work as it is but will produce an empty section)
 
 			char TypeBuff[32];
@@ -1094,9 +1118,27 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				State->Parent = name;
 
 				if(SymSpace.size() == 0)
-					fprintf(State->OutFile, "%sMXFLIB_CLASS_SET(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+				{
+					if(ExtendSubs)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_SET(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_SET_NOSUB(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+					}
+				}
 				else
-					fprintf(State->OutFile, "%sMXFLIB_CLASS_SET_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+				{
+					if(ExtendSubs)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_SET_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_SET_NOSUB_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+					}
+				}
 
 				State->EndTagText.push_back(Indent + "MXFLIB_CLASS_SET_END");
 			}
@@ -1106,9 +1148,27 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				State->Parent = name;
 
 				if(SymSpace.size() == 0)
-					fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+				{
+					if(ExtendSubs)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK_NOSUB(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str());
+					}
+				}
 				else
-					fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+				{
+					if(ExtendSubs)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK_NOSUB_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+					}
+				}
 
 				State->EndTagText.push_back(Indent + "MXFLIB_CLASS_FIXEDPACK_END");
 			}
@@ -1119,7 +1179,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				{
 					Convert_error(State, "Symbol space not currently supported for vector types such as <%s>\n", name);
 				}
-				
+
 				if(RefType == "ClassRefNone")
 					fprintf(State->OutFile, "%sMXFLIB_CLASS_VECTOR(\"%s\", \"%s\", %s, 0x%04x, \"%s\")\n", Indent.c_str(), name, Detail.c_str(), Use.c_str(), Tag, GlobalKey.c_str());
 				else
@@ -1278,6 +1338,9 @@ void Convert_endElement(void *user_data, const char *name)
 			
 			// Remove this text
 			State->EndTagText.erase(it);
+
+			// Remove the extend subs flag for this level
+			State->ExtendSubsList.pop_back();
 
 			State->Depth--;
 		
