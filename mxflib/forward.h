@@ -1,7 +1,7 @@
 /*! \file	forward.h
  *	\brief	Various forward declarations
  *
- *	\version $Id: forward.h,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: forward.h,v 1.5 2005/11/15 12:31:34 matt-beard Exp $
  *
  */
 /*
@@ -90,7 +90,7 @@ namespace mxflib
 	typedef std::list<SymbolSpaceParent> SymbolSpaceParentList;
 
 	//! A map of names to symbol space pointers
-	typedef std::map<std::string, SymbolSpaceParent> SymbolSpaceMap;
+	typedef std::map<std::string, SymbolSpacePtr> SymbolSpaceMap;
 
 	//! Global SymbolSpace for all MXFLib's normal symbols
 	extern SymbolSpacePtr MXFLibSymbols;
