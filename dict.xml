@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2005/10/08 15:46:10 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2005/11/15 11:50:13 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -514,7 +514,7 @@
 				<PictureComponentSize detail="Picture component" use="required" type="ComponentSizingArray"/>
 			</PictureComponentSizing>
 			<CodingStyleDefault detail="Default coding style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="CodingStyleDefault" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00"/>
-			<QuantizationDefault detail="Default quantization style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="QuantizationDefault" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00"/>
+			<QuantizationDefault detail="Default quantization style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="QuantizationDefault" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0d 00 00 00"/>
 		</JPEG2000PictureSubDescriptor>
 	</MXFClasses>
 </MXFDictionary>
