@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.7 2005/10/27 11:15:19 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.8 2005/11/15 12:50:44 matt-beard Exp $
  *
  */
 /*
@@ -190,6 +190,25 @@ namespace mxflib
 		MDObjectPtr operator[](ULPtr &ChildType);
 	};
 
+	class DMSourceClip;
+	//! A smart pointer to a DMSourceClip object (with operator[] overload)
+	class DMSourceClipPtr : public SmartPtr<DMSourceClip>
+	{
+	public:
+		//! Build a NULL pointer
+		DMSourceClipPtr() : SmartPtr<DMSourceClip>() {}
+
+		//! Build a pointer to an existing object
+		/*! \note The IRefCount has to be to a Component because that is what DMSourceClip is derived from */
+		DMSourceClipPtr(IRefCount<Component> * ptr) : SmartPtr<DMSourceClip>((IRefCount<DMSourceClip> *)ptr) {}
+
+		//! Child access operators that overcome dereferencing problems with SmartPtrs
+		MDObjectPtr operator[](const char *ChildName);
+		MDObjectPtr operator[](MDOTypePtr ChildType);
+		MDObjectPtr operator[](const UL &ChildType);
+		MDObjectPtr operator[](ULPtr &ChildType);
+	};
+
 	class TimecodeComponent;
 	//! A smart pointer to a SourceClip object (with operator[] overload)
 	class TimecodeComponentPtr : public SmartPtr<TimecodeComponent>
@@ -263,6 +282,32 @@ namespace mxflib
 
 		//! Parse an existing MDObject into a SourceClip object
 		static SourceClipPtr Parse(MDObjectPtr BaseObject);
+	};
+}
+
+
+namespace mxflib
+{
+	//! Holds data relating to a DMSourceClip
+	class DMSourceClip : public SourceClip
+	{
+	protected:
+		//! Protected constructor used to create from an existing MDObject
+		DMSourceClip(MDObjectPtr BaseObject) : SourceClip(BaseObject) {}
+
+	public:
+		DMSourceClip(std::string BaseType) : SourceClip(BaseType) {};
+		DMSourceClip(MDOTypePtr BaseType) : SourceClip(BaseType) {};
+		DMSourceClip(const UL &BaseUL) : SourceClip(BaseUL) {};
+		DMSourceClip(ULPtr &BaseUL) : SourceClip(BaseUL) {};
+
+		//! Return the containing "DMSourceClip" object for this MDObject
+		/*! \return NULL if MDObject is not contained in a SourceClip object
+		 */
+		static DMSourceClipPtr GetDMSourceClip(MDObjectPtr Object);
+
+		//! Parse an existing MDObject into a DMSourceClip object
+		static DMSourceClipPtr Parse(MDObjectPtr BaseObject);
 	};
 }
 
@@ -388,11 +433,28 @@ namespace mxflib
 		//! Add a SourceClip to a track
 		SourceClipPtr AddSourceClip(Int64 Duration = -1);
 
+		//! Add a Timecode Component to a track, taking the FPS and Dropframe settings from the track
+		TimecodeComponentPtr AddTimecodeComponent(Int64 Start = 0, Int64 Duration = -1)
+		{
+			MDObjectPtr EditRate = Child("EditRate");
+			if(EditRate)
+			{
+				double FPS = ((double)GetInt("Numerator", 1)) / ((double)GetInt("Denominator", 1));
+				return AddTimecodeComponent((UInt16)FPS, (GetInt("Denominator") == 1001), Start, Duration);
+			}
+
+			// Default to an edit rate of 1 if no known edit rate
+			return AddTimecodeComponent(1, false, Start, Duration);
+		}
+
 		//! Add a Timecode Component to a track
 		TimecodeComponentPtr AddTimecodeComponent(UInt16 FPS, bool DropFrame, Int64 Start = 0, Int64 Duration = -1);
 
 		//! Add a DMSegment to a track
 		DMSegmentPtr AddDMSegment(Int64 EventStart = -1, Int64 Duration = -1);
+
+		//! Add a DMSourceClip to a track
+		DMSourceClipPtr AddDMSourceClip(Int64 Duration = -1);
 
 		//! Update the duration field in the sequence for this track based on component durations
 		Int64 UpdateDuration(void);
@@ -536,7 +598,7 @@ namespace mxflib
 		}
 
 		//! Add an EVENT DM Track
-		TrackPtr AddDMTrack(Rational EditRate, Length DefaultDuration = DurationUnspecified, std::string TrackName = "Descriptive Track", UInt32 TrackID = 0) { return AddDMTrack(0, EditRate, DefaultDuration, TrackName, TrackID); }
+		TrackPtr AddDMTrack(Rational EditRate, Length DefaultDuration, std::string TrackName = "Descriptive Track", UInt32 TrackID = 0) { return AddDMTrack(0, EditRate, DefaultDuration, TrackName, TrackID); }
 		TrackPtr AddDMTrack(UInt32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName = "Descriptive Track", UInt32 TrackID = 0)
 		{
 			static const ULPtr TCDM = new UL(TrackTypeDataDefDM);
@@ -711,6 +773,10 @@ inline MDObjectPtr SourceClipPtr::operator[](const char *ChildName) { return Get
 inline MDObjectPtr SourceClipPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
 inline MDObjectPtr SourceClipPtr::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
 inline MDObjectPtr SourceClipPtr::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
+inline MDObjectPtr DMSourceClipPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
+inline MDObjectPtr DMSourceClipPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr DMSourceClipPtr::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
+inline MDObjectPtr DMSourceClipPtr::operator[](ULPtr &ChildType) { return GetPtr()->Object[*ChildType]; }
 inline MDObjectPtr MetadataPtr::operator[](const char *ChildName) { return GetPtr()->Object[ChildName]; }
 inline MDObjectPtr MetadataPtr::operator[](MDOTypePtr ChildType) { return GetPtr()->Object[ChildType]; }
 inline MDObjectPtr MetadataPtr::operator[](const UL &ChildType) { return GetPtr()->Object[ChildType]; }
