@@ -1,6 +1,6 @@
 
 	// Types definitions converted from file dict.xml
-	MXFLIB_TYPE_START(CompileTimeDict_Types)
+	MXFLIB_TYPE_START(DictData_Types)
 		MXFLIB_TYPE_BASIC("Float32", "32 bit IEEE Floating Point", 4, false)
 		MXFLIB_TYPE_BASIC("Float64", "64 bit IEEE Floating Point", 8, false)
 		MXFLIB_TYPE_BASIC("Float80", "80 bit IEEE Floating Point", 10, false)
@@ -81,9 +81,9 @@
 	MXFLIB_TYPE_END
 
 	// Class definitions converted from file dict.xml
-	MXFLIB_CLASS_START(CompileTimeDict_Classes)
+	MXFLIB_CLASS_START(DictData_Classes)
 		MXFLIB_CLASS_ITEM("KLVFill", "KLV Filler packet", ClassUsageOptional, "RAW", 0, 0, 0x0000, "06 0E 2B 34 01 01 01 01 03 01 02 10 01 00 00 00", NULL, NULL)
-		MXFLIB_CLASS_FIXEDPACK("PartitionMetadata", "Identifies a Partition Pack", "", "")
+		MXFLIB_CLASS_FIXEDPACK("PartitionMetadata", "Identifies a Partition Pack", "", "06 0E 2B 34 02 06 01 01 0D 01 02 00 00 00 00 00")
 			MXFLIB_CLASS_ITEM("MajorVersion", "Major Version number of MXF byte-level format (non-backwards compatible version number)", ClassUsageRequired, "UInt16", 2, 2, 0x0000, "06 0e 2b 34 01 01 01 04  03 01 02 01 06 00 00 00", "0001h", NULL)
 			MXFLIB_CLASS_ITEM("MinorVersion", "Minor Version number of MXF byte-level format (backwards compatible version number)", ClassUsageRequired, "UInt16", 2, 2, 0x0000, "06 0e 2b 34 01 01 01 04  03 01 02 01 07 00 00 00", "0002h", NULL)
 			MXFLIB_CLASS_ITEM("KAGSize", "Size of the KLV Alignment Grid (KAG) for this partition, in bytes", ClassUsageRequired, "UInt32", 4, 4, 0x0000, "06 0e 2b 34 01 01 01 05  03 01 02 01 09 00 00 00", NULL, NULL)
@@ -129,7 +129,7 @@
 		MXFLIB_CLASS_SET("InterchangeObject", "", "", "")
 			MXFLIB_CLASS_ITEM_REF("InstanceUID", "Unique ID of this instance", ClassUsageRequired, "UUID", 16, 16, 0x3c0a, "06 0e 2b 34 01 01 01 01  01 01 15 02 00 00 00 00", ClassRefTarget, "", NULL, NULL)
 		MXFLIB_CLASS_SET_END
-		MXFLIB_CLASS_SET("GenerationInterchangeObject", "", "InterchangeObject", "")
+		MXFLIB_CLASS_SET("GenerationInterchangeObject", "", "InterchangeObject", "80 63 c1 08 fe 0d eb 7e 3a 9d c8 e1 a8 83 b6 4b")
 			MXFLIB_CLASS_ITEM("GenerationUID", "Generation Instance", ClassUsageOptional, "UUID", 16, 16, 0x0102, "06 0e 2b 34 01 01 01 02  05 20 07 01 08 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_SET("DefaultObject", "", "GenerationInterchangeObject", "06 0e 2b 34 02 53 01 01  7f 00 00 00 00 00 00 00")
@@ -180,7 +180,7 @@
 			MXFLIB_CLASS_VECTOR_END
 		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_FIXEDPACK("RandomIndexMetadata", "Random Index Pack", "", "06 0e 2b 34 02 05 01 01  0d 01 02 01 01 11 01 00")
-			MXFLIB_CLASS_ARRAY("PartitionArray", "Array of Partition Start Positions", ClassUsageRequired, 0x0000, "")
+			MXFLIB_CLASS_ARRAY("PartitionArray", "Array of Partition Start Positions", ClassUsageRequired, 0x0000, "80 62 c1 08 a8 0d eb fe 3a 9d c8 e1 7e 83 b6 4b")
 				MXFLIB_CLASS_ITEM("BodySID", "Stream ID of the Body in this partition", ClassUsageRequired, "UInt32", 4, 4, 0x0000, "06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00", NULL, NULL)
 				MXFLIB_CLASS_ITEM("ByteOffset", "Byte offset from file start (1st byte of the file which is numbered 0) to the 1st byte of the Partition Pack Key", ClassUsageRequired, "UInt64", 8, 8, 0x0000, "06 0e 2b 34 01 01 01 04  06 09 02 01 01 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ARRAY_END
@@ -234,7 +234,7 @@
 			MXFLIB_CLASS_ITEM("IndexSID", "ID of the Index Table for the Essence Container to which this set is linked", ClassUsageOptional, "UInt32", 4, 4, 0x3f06, "06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("BodySID", "ID of the Essence Container to which this set is linked", ClassUsageRequired, "UInt32", 4, 4, 0x3f07, "06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
-		MXFLIB_CLASS_SET("GenericPackage", "Defines a Generic Package set", "GenerationInterchangeObject", "")
+		MXFLIB_CLASS_SET("GenericPackage", "Defines a Generic Package set", "GenerationInterchangeObject", "06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 34 00")
 			MXFLIB_CLASS_ITEM("PackageUID", "Unique Package Identifier as a UMID", ClassUsageRequired, "UMID", 32, 32, 0x4401, "06 0e 2b 34 01 01 01 01  01 01 15 10 00 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("Name", "Human readable package name", ClassUsageOptional, "UTF16String", 0, 0, 0x4402, "06 0e 2b 34 01 01 01 01  01 03 03 02 01 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PackageCreationDate", "The date & time of creation of this package", ClassUsageRequired, "Timestamp", 8, 8, 0x4405, "06 0e 2b 34 01 01 01 02  07 02 01 10 01 03 00 00", NULL, NULL)
@@ -251,7 +251,7 @@
 		MXFLIB_CLASS_SET("TextLocator", "Text Locator set for location with a human-readable text string", "Locator", "06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 33 00")
 			MXFLIB_CLASS_ITEM("LocatorName", "Value of a human-readable locator text string for manual location of essence", ClassUsageRequired, "UTF16String", 0, 0, 0x4101, "06 0e 2b 34 01 01 01 02  01 04 01 02 01 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
-		MXFLIB_CLASS_SET("GenericTrack", "Generic Track", "GenerationInterchangeObject", "")
+		MXFLIB_CLASS_SET("GenericTrack", "Generic Track", "GenerationInterchangeObject", "06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 38 00")
 			MXFLIB_CLASS_ITEM("TrackID", "ID of the track in this package (for linking to a SourceTrackID in a segment)", ClassUsageRequired, "UInt32", 4, 4, 0x4801, "06 0e 2b 34 01 01 01 02  01 07 01 01 00 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("TrackNumber", "Number used to link to the track in the Essence Container if it exists", ClassUsageRequired, "UInt32", 4, 4, 0x4804, "06 0e 2b 34 01 01 01 02  01 04 01 03 00 00 00 00", "0", NULL)
 			MXFLIB_CLASS_ITEM("TrackName", "Human readable name of the track type", ClassUsageOptional, "UTF16String", 0, 0, 0x4802, "06 0e 2b 34 01 01 01 02  01 07 01 02 01 00 00 00", NULL, NULL)
@@ -351,7 +351,7 @@
 			MXFLIB_CLASS_ITEM("ComponentDepth", "Number of active bits per sample (e.g. 8, 10, 16)", ClassUsageBestEffort, "UInt32", 4, 4, 0x3301, "06 0e 2b 34 01 01 01 02  04 01 05 03 0A 00 00 00", NULL, "0")
 			MXFLIB_CLASS_ITEM("HorizontalSubsampling", "Specifies the H colour subsampling", ClassUsageBestEffort, "UInt32", 4, 4, 0x3302, "06 0e 2b 34 01 01 01 01  04 01 05 01 05 00 00 00", NULL, "0")
 			MXFLIB_CLASS_ITEM("VerticalSubsampling", "Specifies the V colour subsampling", ClassUsageOptional, "UInt32", 4, 4, 0x3308, "06 0e 2b 34 01 01 01 02  04 01 05 01 10 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("ColorSiting", "Enumerated value describing the color siting", ClassUsageOptional, "UInt8", 4, 4, 0x3303, "06 0e 2b 34 01 01 01 01  04 01 05 01 06 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("ColorSiting", "Enumerated value describing the color siting", ClassUsageOptional, "UInt8", 1, 1, 0x3303, "06 0e 2b 34 01 01 01 01  04 01 05 01 06 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("ReversedByteOrder", "a FALSE value denotes Chroma followed by Luma pexels according to ITU Rec. 601", ClassUsageOptional, "Boolean", 1, 1, 0x330b, "06 0e 2b 34 01 01 01 05  03 01 02 01 0a 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PaddingBits", "Bits to round up each pixel to stored size", ClassUsageOptional, "UInt16", 2, 2, 0x3307, "06 0e 2b 34 01 01 01 02  04 18 01 04 00 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("AlphaSampleDepth", "Number of bits per alpha sample", ClassUsageOptional, "UInt32", 4, 4, 0x3309, "06 0e 2b 34 01 01 01 02  04 01 05 03 07 00 00 00", NULL, NULL)
@@ -456,21 +456,21 @@
 	// Class definitions converted from file dict.xml
 	MXFLIB_CLASS_START(DictData_Classes_2)
 		MXFLIB_CLASS_SET("JPEG2000PictureSubDescriptor", "JPEG 2000 Picture Sub Descriptor", "GenerationInterchangeObject", "06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 5a 00")
-			MXFLIB_CLASS_ITEM("Rsize", "An enumerated value that defines the decoder capabilities", ClassUsageRequired, "UInt16", 0, 0, 0x3341, "06 0e 2b 34 01 01 01 0a  04 01 06 03 01 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("Xsize", "Width of the reference grid", ClassUsageRequired, "UInt32", 0, 0, 0x3342, "06 0e 2b 34 01 01 01 0a  04 01 06 03 02 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("Ysize", "Height of the reference grid", ClassUsageRequired, "UInt32", 0, 0, 0x3343, "06 0e 2b 34 01 01 01 0a  04 01 06 03 03 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("XOsize", "Horizontal offset from the origin of the reference grid to the left side of the image area", ClassUsageRequired, "UInt32", 0, 0, 0x3344, "06 0e 2b 34 01 01 01 0a  04 01 06 03 04 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("YOsize", "Vertical offset from the origin of the reference grid to the top side of the image area", ClassUsageRequired, "UInt32", 0, 0, 0x3345, "06 0e 2b 34 01 01 01 0a  04 01 06 03 05 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("XTsize", "Width of one reference tile with respect to the reference grid", ClassUsageRequired, "UInt32", 0, 0, 0x3346, "06 0e 2b 34 01 01 01 0a  04 01 06 03 06 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("YTsize", "Height of one reference tile with respect to the reference grid", ClassUsageRequired, "UInt32", 0, 0, 0x3347, "06 0e 2b 34 01 01 01 0a  04 01 06 03 07 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("XTOsize", "Horizontal offset from the origin of the reference grid to the left side of the first tile", ClassUsageRequired, "UInt32", 0, 0, 0x3348, "06 0e 2b 34 01 01 01 0a  04 01 06 03 08 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("YTOsize", "Vertical offset from the origin of the reference grid to the top side of the first tile", ClassUsageRequired, "UInt32", 0, 0, 0x3349, "06 0e 2b 34 01 01 01 0a  04 01 06 03 09 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("Csize", "The number of components in the picture", ClassUsageRequired, "UInt16", 0, 0, 0x334a, "06 0e 2b 34 01 01 01 0a  04 01 06 03 0a 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_VECTOR("PictureComponentSizing", "Array of picture components", ClassUsageRequired, 0x3351, "06 0e 2b 34 01 01 01 0a  04 01 06 03 0b 00 00 00")
+			MXFLIB_CLASS_ITEM("Rsiz", "An enumerated value that defines the decoder capabilities", ClassUsageRequired, "UInt16", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 01 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("Xsiz", "Width of the reference grid", ClassUsageRequired, "UInt32", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 02 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("Ysiz", "Height of the reference grid", ClassUsageRequired, "UInt32", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 03 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("XOsiz", "Horizontal offset from the origin of the reference grid to the left side of the image area", ClassUsageRequired, "UInt32", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 04 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("YOsiz", "Vertical offset from the origin of the reference grid to the top side of the image area", ClassUsageRequired, "UInt32", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 05 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("XTsiz", "Width of one reference tile with respect to the reference grid", ClassUsageRequired, "UInt32", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 06 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("YTsiz", "Height of one reference tile with respect to the reference grid", ClassUsageRequired, "UInt32", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 07 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("XTOsiz", "Horizontal offset from the origin of the reference grid to the left side of the first tile", ClassUsageRequired, "UInt32", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 08 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("YTOsiz", "Vertical offset from the origin of the reference grid to the top side of the first tile", ClassUsageRequired, "UInt32", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 09 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("Csize", "The number of components in the picture", ClassUsageRequired, "UInt16", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 0a 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_VECTOR("PictureComponentSizing", "Array of picture components", ClassUsageRequired, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 0b 00 00 00")
 				MXFLIB_CLASS_ITEM("PictureComponentSize", "Picture component", ClassUsageRequired, "ComponentSizingArray", 0, 0, 0x0000, "", NULL, NULL)
 			MXFLIB_CLASS_VECTOR_END
-			MXFLIB_CLASS_ITEM("CodingStyleDefault", "Default coding style for all components. Use this value only if static for all pictures in the Essence Container", ClassUsageOptional, "CodingStyleDefault", 0, 0, 0x3352, "06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("QuantizationDefault", "Default quantization style for all components. Use this value only if static for all pictures in the Essence Container", ClassUsageOptional, "QuantizationDefault", 0, 0, 0x3352, "06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("CodingStyleDefault", "Default coding style for all components. Use this value only if static for all pictures in the Essence Container", ClassUsageOptional, "CodingStyleDefault", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("QuantizationDefault", "Default quantization style for all components. Use this value only if static for all pictures in the Essence Container", ClassUsageOptional, "QuantizationDefault", 0, 0, 0x0000, "06 0e 2b 34 01 01 01 0a  04 01 06 03 0d 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
 	MXFLIB_CLASS_END
 
