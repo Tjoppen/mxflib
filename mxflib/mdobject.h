@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.16 2005/10/27 11:11:11 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.17 2005/11/15 12:46:12 matt-beard Exp $
  *
  */
 /*
@@ -238,7 +238,7 @@ namespace mxflib
    child item). Care should be taken iterating this map as the
    order is likely to be alphabetical rather than dictionary order
    so where dictionary order is important (such as packs) iterate
-   through the ChildOrder list property.
+   through the ChildList property.
 
    Inheritance is supported where a type is regarded as a modified
    version of another (base) type. The mechanism for inheritance is
@@ -268,7 +268,8 @@ namespace mxflib
 		MDOTypeParent Base;				//!< Base class if this is a derived class, else NULL
 
 	protected:
-		StringList ChildOrder;			//!< Child names in order for packs
+		StringList ChildOrder;			//!< Child names in order, for packs	## DEPRECATED - Use ChildList ##
+		MDOTypeList ChildList;			//!< Child types in order, for packs
 		MDOTypeParent Parent;			//!< Parent type if this is a child
 		ULPtr TypeUL;					//!< The UL for this type, or NULL
 
@@ -341,7 +342,12 @@ namespace mxflib
 		}
 
 		//! Derive this new entry from a base entry
-		void Derive(MDOTypePtr BaseEntry);
+		void Derive(MDOTypePtr &BaseEntry);
+
+		//! Re-Derive sub-items from a base entry
+		/*! Used when the base entry is being extended 
+		 */
+		void ReDerive(MDOTypePtr &BaseEntry);
 
 		//! Access function for ContainerType
 		const MDContainerType &GetContainerType(void) const { return (const MDContainerType &)ContainerType; };
@@ -389,7 +395,32 @@ namespace mxflib
 		const MDTypePtr &GetValueType(void) const { return ValueType; }
 
 		//! Read-only access to ChildOrder
+		/*! \note DEPRECATED - Use GetChildList() instead
+		 */
 		const StringList &GetChildOrder(void) const { return ChildOrder; }
+
+		//! Read-only access to ChildList
+		const MDOTypeList &GetChildList(void) const { return ChildList; }
+
+		//! Locate a named child
+		MDOTypePtr Child(std::string Name)
+		{
+			MDOTypeMap::iterator it = find(Name);
+			if(it != end()) return (*it).second;
+			return NULL;
+		}
+
+		//! Locate a child by UL
+		MDOTypePtr Child(ULPtr &ChildType)
+		{
+			MDOTypeMap::iterator it = begin();
+			while(it != end()) 
+			{ 
+				if(((*it).second->TypeUL) && (*((*it).second->TypeUL) == *ChildType)) return (*it).second; 
+				it++;
+			}
+			return NULL;
+		}
 
 		//! Read-only access to KeyFormat
 		const DictKeyFormat &GetKeyFormat(void) const { return KeyFormat; }
@@ -402,6 +433,7 @@ namespace mxflib
 		{ 
 			std::string NewName = NewType->Name();
 			std::pair<iterator, bool> Ret = MDOTypeMap::insert(MDOTypeMap::value_type(NewName, NewType));
+			ChildList.push_back(NewType);
 			ChildOrder.push_back(NewName);
 			return Ret;
 		}
@@ -430,6 +462,14 @@ namespace mxflib
 		//! Determine if this type is derived from a specified type (directly or indirectly)
 		bool IsA(ULPtr &BaseType) { return IsA(*BaseType); }
 
+		//! Redefine a sub-item in a container
+		void ReDefine(std::string NewDetail, std::string NewBase, unsigned int NewMinSize, unsigned int NewMaxSize);
+		
+		//! Redefine a container
+		void ReDefine(std::string NewDetail)
+		{
+			if(NewDetail.length()) Detail = NewDetail;
+		}
 
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
@@ -465,25 +505,16 @@ namespace mxflib
 			DICT_ITEM_DVALUE = 128
 		};
 
-		/*! \return a smart pointer to the new type, or NULL if the call failed
-		 *  \note This function should only be called from a dictionary parser
-		 */
-		static MDOTypePtr MDOType::BuildTypeFromDict(std::string Name, std::string Base, MDOTypePtr Parent,
-													 DataChunkPtr Key, DataChunkPtr GlobalKey, std::string Detail,
-													 DictUse Use, DictRefType RefType, MDTypePtr ValueType, 
-													 std::string TypeName, MDContainerType ContainerType, 
-													 unsigned int minLength, unsigned int maxLength, DictKeyFormat KeyFormat, 
-													 DictLenFormat LenFormat, std::string RefTargetName,
-													 std::string Default, std::string DValue, UInt32 Items, 
-													 SymbolSpacePtr ThisSymbolSpace);
-
 	protected:
 		//! Basic primer for use when parsing non-primer partitions
 		static PrimerPtr StaticPrimer;
 
 	public:
 		//! Load the dictionary
-		static void LoadDict(const char *DictFile, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols);
+		static void LoadDict(const char *DictFile, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols)
+		{
+			LoadDictionary(DictFile, DefaultSymbolSpace);
+		}
 
 		//! Locate reference target types for any types not yet located
 		static void LocateRefTypes(void);
@@ -498,7 +529,12 @@ namespace mxflib
 			return StaticPrimer;
 		}
 
-		static MDOTypePtr Find(std::string BaseType);
+		//! Find a type in the default symbol, optionally searching all others
+		static MDOTypePtr Find(std::string BaseType, bool SearchAll = false) { return Find(BaseType, MXFLibSymbols, SearchAll); }
+		
+		//! Find a type in a specified symbol, optionally searching all others
+		static MDOTypePtr Find(std::string BaseType, SymbolSpacePtr &SymSpace, bool SearchAll = false);
+
 		static MDOTypePtr Find(const UL& BaseUL);
 		static MDOTypePtr Find(Tag BaseTag, PrimerPtr BasePrimer);
 
@@ -590,9 +626,7 @@ namespace mxflib
 		bool IsConstructed;				//!< True if this object is constructed, false if read from a file or a parent object
 		UInt64 ParentOffset;			//!< Offset from start of parent object if read from file or object
 		UInt32 KLSize;					//!< Size of this objects KL if read from file or parent object
-//		MDObjectPtr Parent;				//!< Pointer to parent if read from inside another object
 		MDObjectParent Parent;			//!< Pointer to parent if read from inside another object
-//		MXFFilePtr ParentFile;			//!< Pointer to parent file if read from a file
 		MXFFileParent ParentFile;		//!< Pointer to parent file if read from a file
 		ULPtr TheUL;					//!< The UL for this object (if known)
 		Tag TheTag;						//!< The local tag used for this object (if known)
