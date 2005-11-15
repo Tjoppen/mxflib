@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.7 2005/10/27 11:13:32 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.8 2005/11/15 12:53:26 matt-beard Exp $
  *
  */
 /*
@@ -797,6 +797,15 @@ SourceClipPtr SourceClip::GetSourceClip(MDObjectPtr Object)
 }
 
 
+//! Return the containing "DMSourceClip" object for this MDObject
+/*! \return NULL if MDObject is not contained in a DMSourceClip object
+ */
+DMSourceClipPtr DMSourceClip::GetDMSourceClip(MDObjectPtr Object)
+{
+	return Object->GetOuter() ? DMSourceClipPtr(dynamic_cast<DMSourceClip*>(Object->GetOuter())) : NULL;
+}
+
+
 //! Return the containing "TimecodeComponent" object for this MDObject
 /*! \return NULL if MDObject is not contained in a TimecodeComponent object
  */
@@ -1048,6 +1057,24 @@ SourceClipPtr SourceClip::Parse(MDObjectPtr BaseObject)
 
 	// Build the basic SourceClip object
 	Ret = new SourceClip(BaseObject);
+
+	return Ret;
+}
+
+
+//! Parse an existing MDObject into a DMSourceClip object
+DMSourceClipPtr DMSourceClip::Parse(MDObjectPtr BaseObject)
+{
+	DMSourceClipPtr Ret;
+
+	// We can only build a DMSourceClip object from a DMSourceClip
+	if(!BaseObject->IsA(DMSourceClip_UL)) return Ret;
+
+	// If this is already part of a DMSourceClip object then return that object
+	if(BaseObject->GetOuter()) return DMSourceClip::GetDMSourceClip(BaseObject);
+
+	// Build the basic DMSourceClip object
+	Ret = new DMSourceClip(BaseObject);
 
 	return Ret;
 }
