@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.11 2005/10/09 13:42:45 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.12 2005/11/15 12:55:49 matt-beard Exp $
  *
  */
 /*
@@ -134,18 +134,8 @@ bool mxflib::MXFFile::ReadRunIn()
 	// If we couldn't read 16-bytes then this isn't a valid MXF file
 	if(Key->Size != 16) return false;
 
-	// Locate a closed header type for key compares
-	MDOTypePtr BaseHeader = MDOType::Find(ClosedHeader_UL);
-
-	if(!BaseHeader)
-	{
-		error("Cannot find \"ClosedHeader\" in current dictionary\n");
-		return false;
-	}
-
-	// Index the start of the key (with a sanity check first!)
-	if(BaseHeader->GetKey().Size < 16) return false;
-	UInt8 *BaseKey = BaseHeader->GetKey().Data;
+	// Use the closed header for key compares
+	const UInt8 *BaseKey = ClosedHeader_UL.GetValue();
 
 	// If no run-in end now
 	if(memcmp(BaseKey,Key->Data,11) == 0)
