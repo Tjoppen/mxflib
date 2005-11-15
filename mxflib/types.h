@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: types.h,v 1.5 2005/11/15 13:43:08 matt-beard Exp $
  *
  */
 /*
@@ -128,6 +128,12 @@ namespace mxflib
 
 namespace mxflib
 {
+	// Forward declare UUID
+	class UUID;
+	
+	//! A smart pointer to a UUID object
+	typedef SmartPtr<UUID> UUIDPtr;
+	
 	//! 16-byte identifier
 	typedef Identifier<16> Identifier16;
 
@@ -149,6 +155,15 @@ namespace mxflib
 
 		//! Copy constructor
 		UL(const UL &RHS) { memcpy(Ident,RHS.Ident, 16); };
+
+		//! Construct a UL from an end-swapped UUID
+		UL(const UUID &RHS) { operator=(RHS); }
+
+		//! Construct a UL from an end-swapped UUID
+		UL(const UUIDPtr &RHS) { operator=(*RHS); }
+
+		//! Construct a UL from an end-swapped UUID
+		UL(const UUID *RHS) { operator=(*RHS); }
 
 		//! Fast compare a UL based on testing most-likely to fail bytes first
 		/*! We use an unrolled loop with modified order for best efficiency
@@ -184,6 +199,15 @@ namespace mxflib
 			
 			return (*--pLHS == *--pRHS);				// Test byte 0
 		}
+
+		//! Set a UL from a UUID, does end swapping
+		UL &operator=(const UUID &RHS);
+
+		//! Set a UL from a UUID, does end swapping
+		UL &operator=(const UUIDPtr &RHS) { return operator=(*RHS); }
+
+		//! Set a UL from a UUID, does end swapping
+		UL &operator=(const UUID *RHS) { return operator=(*RHS); }
 
 		//! Produce a human-readable string in one of the "standard" formats
 		std::string GetString(void) const
@@ -244,6 +268,29 @@ namespace mxflib
 		//! Copy constructor
 		UUID(const UUID &RHS) { memcpy(Ident,RHS.Ident, 16); };
 
+		//! Construct a UUID from an end-swapped UL
+		UUID(const UL &RHS) { operator=(RHS); }
+
+		//! Construct a UUID from an end-swapped UL
+		UUID(const ULPtr &RHS) { operator=(*RHS); }
+
+		//! Construct a UUID from an end-swapped UL
+		UUID(const UL *RHS) { operator=(*RHS); }
+
+		//! Set a UUID from a UL, does end swapping
+		UUID &operator=(const UL &RHS)
+		{
+			memcpy(Ident, &RHS.GetValue()[8], 8);
+			memcpy(&Ident[8], RHS.GetValue(), 8);
+			return *this;
+		}
+
+		//! Set a UUID from a UL, does end swapping
+		UUID &operator=(const ULPtr &RHS) { return operator=(*RHS); }
+
+		//! Set a UUID from a UL, does end swapping
+		UUID &operator=(const UL *RHS) { return operator=(*RHS); }
+
 		//! Produce a human-readable string in one of the "standard" formats
 		std::string GetString(void) const
 		{
@@ -274,9 +321,19 @@ namespace mxflib
 			return std::string(Buffer);
 		}
 	};
+}
 
-	//! A smart pointer to a UUID object
-	typedef SmartPtr<UUID> UUIDPtr;
+
+namespace mxflib
+{
+	//! Set a UL from a UUID, does end swapping
+	/*  DRAGONS: Defined here as we need UUID to be fully defined */
+	inline UL &UL::operator=(const UUID &RHS)
+	{
+		memcpy(Ident, &RHS.GetValue()[8], 8);
+		memcpy(&Ident[8], RHS.GetValue(), 8);
+		return *this;
+	}
 }
 
 
