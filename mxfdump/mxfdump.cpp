@@ -157,7 +157,7 @@ int main_process(int argc, char *argv[])
 	if( UseCompiledDict )
 	{
 		printf("- using compile-time dictionary\n");
-		LoadDictionary(CompileTimeDict);
+		LoadDictionary(DictData);
 	}
 	else
 	{
