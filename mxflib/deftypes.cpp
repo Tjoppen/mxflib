@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.12 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.13 2005/11/15 12:15:09 matt-beard Exp $
  *
  */
 /*
@@ -529,6 +529,10 @@ namespace
 						{
 							if(strcasecmp(val,"yes") == 0) Endian = true;
 						}
+						else if(strcmp(attr, "ul") == 0)
+						{
+							// TODO: Implement this
+						}
 						else if(strcmp(attr, "ref") == 0)
 						{
 							// Ignore
@@ -971,6 +975,8 @@ namespace
 		if(ClassData->SymSpace == NULL) ThisClass->SymSpace = "";
 		else ThisClass->SymSpace = ClassData->SymSpace;
 
+		ThisClass->ExtendSubs = ClassData->ExtendSubs;
+
 		// Add any children
 		if((ClassData->Class == ClassSet) || (ClassData->Class == ClassPack) 
 			|| (ClassData->Class == ClassVector) || (ClassData->Class == ClassArray) )
@@ -1047,21 +1053,58 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		DICT_LEN_4_BYTE
 	};
 
-//	// Are we redefining an existing class (perhaps because the first attempt was postponed)?
-//	bool RedefineClass = true;
+	// Does this entry have a valid UL (rather than a UUID)
+	bool ValidUL = false;
+
+	// The UL for this type
+	ULPtr TypeUL;
+
+	// Decide the type UL
+	if(ThisClass->UL)
+	{
+		TypeUL = ThisClass->UL;
+		ValidUL = true;
+	}
+	else
+	{
+		/* If no valid UL given we use an end-swapped UUID to allow lookups */
+
+		// Build a UL from a new UUID
+		TypeUL = new UL(new UUID);
+	}
 
 	// Work out the root name of this class (showing the list of parents)
 	std::string RootName ;
 	if(Parent) RootName = Parent->FullName() + "/";
 
-	// Locate this type if it already exists
-	MDOTypePtr Ret = MDOType::Find(RootName + ThisClass->Name);
+	// Locate this type if it already exists (by UL if possible, else by name)
+	MDOTypePtr Ret; 
+	if(ValidUL && Parent) 
+		Ret = Parent->Child(TypeUL);
+	else
+		Ret = MDOType::Find(RootName + ThisClass->Name);
 
-	// This class does not already exist so add it
-	if(!Ret)
+	// Initially assume that we aren't extending
+	bool Extending = false;
+
+	// Are we extending an existing definition?
+	if(Ret)
 	{
-//		RedefineClass = false;					// We are adding a new class rather than redefining one
+		Extending = true;
 
+		// If we extend an "item" then we will replace it
+		if(ThisClass->Class == ClassItem)
+		{
+			Ret->ReDefine(ThisClass->Detail, ThisClass->Base, ThisClass->MinSize, ThisClass->MaxSize);
+		}
+		else
+		{
+			// Redefining a container can only change the detailed description
+			Ret->ReDefine(ThisClass->Detail);
+		}
+	}
+	else	// This class does not already exist so add it
+	{
 		if(ThisClass->Class == ClassItem)
 		{
 			// Find the type of this item
@@ -1074,7 +1117,7 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 
 			Ret = new MDOType(NONE, RootName, ThisClass->Name, ThisClass->Detail, Type, DICT_KEY_NONE, DICT_LEN_NONE, ThisClass->MinSize, ThisClass->MaxSize, ThisClass->Usage);
 		}
-		// Are we redefining a base class?
+		// Are we defining a derived class?
 		else if(ThisClass->Base.size())
 		{
 			MDOTypePtr BaseType = MDOType::Find(ThisClass->Base);
@@ -1141,32 +1184,27 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 	}
 
 	// Add us to the class lists
-	if(Parent)
+	if(!Extending)
 	{
-		// Set our parent
-		Ret->Parent = Parent;
-
-		// Add us as a child of our parent
-		Parent->insert(Ret);
-
-		// Move reference details from parent (used for vectors)
-		if(Parent->RefType != DICT_REF_NONE)
+		if(Parent)
 		{
-			Ret->RefType = Parent->RefType;
-			Parent->RefType = DICT_REF_NONE;
+			// Set our parent
+			Ret->Parent = Parent;
+
+			// Add us as a child of our parent
+			Parent->insert(Ret);
+
+			// Move reference details from parent (used for vectors)
+			if(Parent->RefType != DICT_REF_NONE)
+			{
+				Ret->RefType = Parent->RefType;
+				Parent->RefType = DICT_REF_NONE;
+			}
+
+			// If we are not top level then record out "family tree"
+			Ret->RootName = Parent->FullName() + "/";
 		}
-
-		// If we are not top level then record out "family tree"
-		Ret->RootName = Parent->FullName() + "/";
 	}
-	else
-	{
-		// If it is a top level type then add it to TopTypes as well
-		TopTypes.push_back(Ret);
-	}
-
-	// Add to the list of all types
-	AllTypes.push_back(Ret);
 
 	// Sort referencing (overrides anything inherited)
 	if(ThisClass->RefType != ClassRefNone)
@@ -1174,9 +1212,6 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		Ret->RefType = ThisClass->RefType;
 		Ret->RefTargetName = ThisClass->RefTarget;
 	}
-	
-//	// Set the name lookup - UL lookup set when key set
-//	NameLookup[RootName + Ret->DictName] = Ret;
 
 	// Set the local tag (if one exists)
 	if(ThisClass->Tag)
@@ -1201,22 +1236,16 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		ThisSymbolSpace = DefaultSymbolSpace;
 	}
 
-	// Set the global key (if one exists)
-	if(ThisClass->UL)
+	// Set the global key (even if we have to use the UUID generated above)
+	if(!Extending)
 	{
-		Ret->GlobalKey.Set(16, ThisClass->UL->GetValue());
+		Ret->GlobalKey.Set(16, TypeUL->GetValue());
 
-		// If we don't have a "key" set this global key as the key
-		if(Ret->Key.Size == 0) Ret->Key.Set(16, ThisClass->UL->GetValue());
+		// If we don't have a tag set this global key as the key
+		if(ThisClass->Tag == 0) Ret->Key.Set(16, TypeUL->GetValue());
 
-		Ret->TypeUL = ThisClass->UL;
-		ULLookup[UL(Ret->TypeUL)] = Ret;
-		// printf("CLASS %s UL set\n", Ret->DictName.c_str());
-
-		// Add the name and UL to the symbol space
-		ThisSymbolSpace->AddSymbol(Ret->FullName(), Ret->TypeUL);
+		Ret->TypeUL = TypeUL;
 	}
-	// else printf("CLASS %s has no UL\n", Ret->DictName.c_str());
 
 	// Set the default value (if one exists)
 	if(ThisClass->HasDefault)
@@ -1252,12 +1281,47 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 	ClassRecordList::iterator it = ThisClass->Children.begin();
 	while(it != ThisClass->Children.end())
 	{
+		// Propogate the extension flag to our children
+		(*it)->ExtendSubs = (*it)->ExtendSubs && ThisClass->ExtendSubs;
+
 		MDOTypePtr Child = DefineClass(*it, Ret, ThisSymbolSpace);
 
 		// If the child was not added quit this attempt (deliberately returning the NULL)
 		if(!Child) return Child;
 
 		it++;
+	}
+
+	/* Add this new class to the lookups - this is done after building children so we can fail safely if children not built */
+	if(!Extending)
+	{
+		ULLookup[*TypeUL] = Ret;
+
+		// Add the name and UL to the symbol space
+		ThisSymbolSpace->AddSymbol(Ret->FullName(), TypeUL);
+	}
+
+	if(!Parent)
+	{
+		// If it is a top level type then add it to TopTypes as well
+		TopTypes.push_back(Ret);
+	}
+
+	// Add to the list of all types
+	AllTypes.push_back(Ret);
+
+	/* We need to ensure that any extension to a set or pack is also performed for all derived items,
+	 * unless ThisClass->ExtendSubs = false
+	 */
+	if(Extending && ThisClass->ExtendSubs && (Ret->size() != 0))
+	{
+		MDOTypeList::iterator it = AllTypes.begin();
+		while(it != AllTypes.end())
+		{
+			// Extend any types that are derived from our use (carefully not adding again to our us)
+			if(((*it) != Ret) && ((*it)->IsA(Ret))) (*it)->ReDerive(Ret);
+			it++;
+		}
 	}
 
 	return Ret;
@@ -1334,7 +1398,8 @@ int mxflib::LoadDictionary(const ConstDictionaryRecord *DictionaryData, SymbolSp
 namespace
 {
 	//! Our XML handler
-	static XMLParserHandler DictLoad_XMLHandler = {
+	static XMLParserHandler DictLoad_XMLHandler = 
+	{
 		(startElementXMLFunc) DictLoad_startElement,		/* startElement */
 		(endElementXMLFunc) DictLoad_endElement,			/* endElement */
 		(warningXMLFunc) XML_warning,						/* warning */
@@ -1356,10 +1421,11 @@ namespace
 	struct DictParserState
 	{
 		DictCurrentState State;				//!< Current state of the parser state-machine
-		MDOTypeList Parents;				//!< List of pointers to parents, empty if currently at the top level
 		TypesParserState ClassState;		//!< Parser state for types sub-parser
-		SymbolSpacePtr DefaultSymbolSpace;	//!< Default symbol space to use for all classes
-		SymbolSpaceList SymbolSpaces;		//!< List of symbol spaces for each level, empty if currently at the top level
+		SymbolSpacePtr DefaultSymbolSpace;	//!< Default symbol space to use for all classes (in current MXFClasses section)
+		SymbolSpacePtr DictSymbolSpace;		//!< Default symbol space to use for all classes (in the whole dictionary)
+		ClassRecordList ClassList;			//!< Class being built at this level (one for each level in the hierarchy)
+		ClassRecordList ClassesToBuild;		//!< Top level classes that need to be built at the end of the parsing
 	};
 }
 
@@ -1375,6 +1441,7 @@ int mxflib::LoadDictionary(const char *DictFile, SymbolSpacePtr DefaultSymbolSpa
 	// Initialize the state
 	State.State = DictStateIdle;
 	State.DefaultSymbolSpace = DefaultSymbolSpace;
+	State.DictSymbolSpace = DefaultSymbolSpace;
 
 	std::string XMLFilePath = LookupDictionaryPath(DictFile);
 
@@ -1388,11 +1455,13 @@ int mxflib::LoadDictionary(const char *DictFile, SymbolSpacePtr DefaultSymbolSpa
 		return -1;
 	}
 
-	// Define the basic "internally required" classes (enough to hold an "Unknown")
-	if(!BasicClassesDefined)
+	// If any classes were found they will be stored ready to build, so build them now
+	if(!State.ClassesToBuild.empty())
 	{
-		BasicClassesDefined = true;
-		LoadClasses(BasicInternalClasses, MXFLibSymbols);
+		LoadClasses(State.ClassesToBuild, DefaultSymbolSpace);
+
+		// Build a static primer (for use in index tables)
+		MDOType::MakePrimer(true);
 	}
 
 	return 0;
@@ -1456,10 +1525,6 @@ namespace
 					// Allow MXF dictionaries to be wrapped inside other XML files
 					debug("Stepping into outer level <%s>\n", name);
 					break;
-					
-//					XML_fatalError(user_data, "Outer tag <MXFTypes> or <MXFDictionary> expected - <%s> found\n", name);
-//					State->State = DictStateError;
-//					return;
 				}
 			}
 
@@ -1487,7 +1552,7 @@ namespace
 
 				// Start classes parsing
 				State->State = DictStateClasses;
-				State->Parents.clear();
+				State->ClassList.clear();
 
 				if(strcmp(name, "MXFClasses") == 0)
 				{
@@ -1513,10 +1578,7 @@ namespace
 									DefaultSymbolSpace = new SymbolSpace(val);
 								}
 
-								// We push this symbol space on to the SymbolSpaces list
-								// so that we can revert back to the default is we have
-								// more than one MXFClasses section in the dictionary file
-								State->SymbolSpaces.push_back(DefaultSymbolSpace);
+								State->DefaultSymbolSpace = DefaultSymbolSpace;
 							}
 						}
 					}
@@ -1577,37 +1639,35 @@ namespace
 			}
 		}
 
-		//! Bit map of items to set for this definition (as opposed to inheriting them from any base class)
-		UInt32 Items = 0;
+		// Build a record for this class
+		ClassRecordPtr ThisClass = new ClassRecord;
 
-		//! Used to determine if we need to copy the main key to the global key
-		bool HasGlobalKey = false;
+		// Set our name
+		ThisClass->Name = name;
 
-		/* Variables required to build this item */
+		// The two keys
 		DataChunkPtr Key;
 		DataChunkPtr GlobalKey;
-		std::string Detail;
-		std::string Base;
-		DictUse Use = DICT_USE_OPTIONAL;
-		DictRefType RefType = DICT_REF_NONE;
-		MDTypePtr ValueType;
-		std::string TypeName;
-		MDContainerType ContainerType = NONE;
-		DictKeyFormat KeyFormat = DICT_KEY_NONE;
-		DictLenFormat LenFormat = DICT_LEN_NONE;
-		int minLength = 0;
-		int maxLength = 0;
-		std::string RefTargetName;
-		MDOTypePtr Parent;
-		std::string Default;
-		std::string DValue;
-		std::string SymSpace;
 
-		// Record the parent
-		if(State->Parents.size())
+		// Used to determine if we need to copy the main key to the global key
+		bool HasGlobalKey = false;
+
+		// Index our level info
+		ClassRecordPtr Parent;
+
+		if(!State->ClassList.empty())
 		{
-			// Our parent is the last entry in the parents list
-			Parent = *State->Parents.rbegin();
+			ClassRecordList::iterator it = State->ClassList.end();
+			Parent = *(--it);
+		}
+
+		if(!Parent)
+		{
+			ThisClass->ExtendSubs = true;
+		}
+		else
+		{
+			ThisClass->ExtendSubs = Parent->ExtendSubs;		// Carry on extending subs if we were, not if we weren't
 		}
 
 		/* Scan attributes */
@@ -1643,19 +1703,17 @@ namespace
 				}
 				else if(strcmp(attr, "detail") == 0)
 				{
-					Detail = std::string(val);
+					ThisClass->Detail = std::string(val);
 				}
 				else if(strcmp(attr, "use") == 0)
 				{
-					Items |= (UInt32)MDOType::DICT_ITEM_USE;
-
-					if(strcasecmp(val,"required") == 0) Use = DICT_USE_REQUIRED;
-					else if(strcasecmp(val,"encoder required") == 0) Use = DICT_USE_ENCODER_REQUIRED;
-					else if(strcasecmp(val,"decoder required") == 0) Use = DICT_USE_DECODER_REQUIRED;
-					else if(strcasecmp(val,"best effort") == 0) Use = DICT_USE_BEST_EFFORT;
-					else if(strcasecmp(val,"optional") == 0) Use = DICT_USE_OPTIONAL;
-					else if(strcasecmp(val,"dark") == 0) Use = DICT_USE_DARK;
-					else if(strcasecmp(val,"toxic") == 0) Use = DICT_USE_TOXIC;
+					if(strcasecmp(val,"required") == 0) ThisClass->Usage = DICT_USE_REQUIRED;
+					else if(strcasecmp(val,"encoder required") == 0) ThisClass->Usage = DICT_USE_ENCODER_REQUIRED;
+					else if(strcasecmp(val,"decoder required") == 0) ThisClass->Usage = DICT_USE_DECODER_REQUIRED;
+					else if(strcasecmp(val,"best effort") == 0) ThisClass->Usage = DICT_USE_BEST_EFFORT;
+					else if(strcasecmp(val,"optional") == 0) ThisClass->Usage = DICT_USE_OPTIONAL;
+					else if(strcasecmp(val,"dark") == 0) ThisClass->Usage = DICT_USE_DARK;
+					else if(strcasecmp(val,"toxic") == 0) ThisClass->Usage = DICT_USE_TOXIC;
 					else
 					{
 						XML_warning(user_data, "Unknown use value use=\"%s\" in <%s/>", val, name);
@@ -1663,175 +1721,99 @@ namespace
 				}
 				else if(strcmp(attr, "ref") == 0)
 				{
-					Items |= (UInt32)MDOType::DICT_ITEM_REFTYPE;
-
-					if(strcasecmp(val,"strong") == 0) RefType = DICT_REF_STRONG;
-					else if(strcasecmp(val,"target") == 0) RefType = DICT_REF_TARGET;
-					else if(strcasecmp(val,"weak") == 0) RefType = DICT_REF_WEAK;
+					if(strcasecmp(val,"strong") == 0) ThisClass->RefType = DICT_REF_STRONG;
+					else if(strcasecmp(val,"target") == 0) ThisClass->RefType = DICT_REF_TARGET;
+					else if(strcasecmp(val,"weak") == 0) ThisClass->RefType = DICT_REF_WEAK;
 					else
 					{
 						XML_warning(user_data, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
 					}
 				}
 				else if(strcmp(attr, "type") == 0)
-				// TODO: This section is rather inefficient due to the way that it was
-				//       originally used - needs to be recoded at some point!
 				{
-					ValueType = MDType::Find(val);
-
-					if(!ValueType)
+					if(   (strcasecmp(val,"universalSet") == 0) 
+					|| (strcasecmp(val,"variablePack") == 0)
+					|| (strcasecmp(val,"subVariablePack") == 0) )
 					{
-						/*
-						** Enumeration type for dictionary entry 'Type' field
-						*/
-						typedef enum 
-						{
-							DICT_TYPE_NONE = 0,
-							DICT_TYPE_U8,
-							DICT_TYPE_I8,
-							DICT_TYPE_U16,
-							DICT_TYPE_I16,
-							DICT_TYPE_U32,
-							DICT_TYPE_I32,
-							DICT_TYPE_U64,
-							DICT_TYPE_I64,
-							DICT_TYPE_ISO7,
-							DICT_TYPE_UTF8,
-							DICT_TYPE_UTF16,
-							DICT_TYPE_UUID,
-							DICT_TYPE_UMID,
-							DICT_TYPE_LABEL,
-							DICT_TYPE_TIMESTAMP,
-							DICT_TYPE_VERTYPE,
-							DICT_TYPE_RATIONAL,
-							DICT_TYPE_RAW,
-							DICT_TYPE_I32ARRAY,
-
-							/* Special to allow decoding of Sony IBC 2000 file */
-							DICT_TYPE_UTFSONY,
-
-							/* New types (soon to be added via types registry) */
-							DICT_TYPE_BOOLEAN,
-							DICT_TYPE_ISO7STRING,
-							DICT_TYPE_UTF16STRING,
-							DICT_TYPE_IEEEFLOAT64,
-							DICT_TYPE_UINT8STRING,
-							DICT_TYPE_PRODUCTVERSION,
-
-							/* Container types */
-							DICT_TYPE_UNIVERSAL_SET,
-							DICT_TYPE_LOCAL_SET,
-							DICT_TYPE_FIXED_PACK,
-							DICT_TYPE_VARIABLE_PACK,
-							DICT_TYPE_VECTOR,
-							DICT_TYPE_ARRAY,
-
-							/* Types for pixel layout */
-							DICT_TYPE_RGBALAYOUT,
-
-						} DictType;
-
-						DictType DType = DICT_TYPE_NONE;
-						if(strcasecmp(val,"universalSet") == 0) DType = DICT_TYPE_UNIVERSAL_SET;
-						else if(strcasecmp(val,"localSet") == 0) DType = DICT_TYPE_LOCAL_SET;
-						else if(strcasecmp(val,"subLocalSet") == 0) DType = DICT_TYPE_LOCAL_SET;
-						else if(strcasecmp(val,"fixedPack") == 0) DType = DICT_TYPE_FIXED_PACK;
-						else if(strcasecmp(val,"subFixedPack") == 0) DType = DICT_TYPE_FIXED_PACK;
-						else if(strcasecmp(val,"variablePack") == 0) DType = DICT_TYPE_VARIABLE_PACK;
-						else if(strcasecmp(val,"subVariablePack") == 0) DType = DICT_TYPE_VARIABLE_PACK;
-						else if(strcasecmp(val,"vector") == 0) DType = DICT_TYPE_VECTOR;
-						else if(strcasecmp(val,"subVector") == 0) DType = DICT_TYPE_VECTOR;
-						else if(strcasecmp(val,"array") == 0) DType = DICT_TYPE_ARRAY;
-						else if(strcasecmp(val,"subArray") == 0) DType = DICT_TYPE_ARRAY;
-						else
-						{
-							XML_warning(user_data, "Unknown type \"%s\" in <%s/>", val, name);
-						}
-
-						// Set the container type
-						if((DType == DICT_TYPE_UNIVERSAL_SET) || (DType == DICT_TYPE_LOCAL_SET))
-						{
-							ContainerType = SET;
-						}
-						else if((DType == DICT_TYPE_FIXED_PACK) || (DType == DICT_TYPE_VARIABLE_PACK))
-						{
-							ContainerType = PACK;
-						}
-						else if(DType == DICT_TYPE_VECTOR)
-						{
-							ContainerType = BATCH;
-						}
-						else if(DType == DICT_TYPE_ARRAY)
-						{
-							ContainerType = ARRAY;
-						}
-
-						// If we set a container type ensure that it is used
-						if(ContainerType != NONE) Items |= (UInt32)MDOType::DICT_ITEM_CONTAINERTYPE;
-
-						// Modify 'omitted' items by type
-						if(DType == DICT_TYPE_FIXED_PACK)
-						{
-							Items |= ((UInt32)MDOType::DICT_ITEM_KEYFORMAT) | ((UInt32)MDOType::DICT_ITEM_LENFORMAT);
-							KeyFormat = DICT_KEY_NONE;
-							LenFormat = DICT_LEN_NONE;
-						}
-						else if(DType == DICT_TYPE_VARIABLE_PACK)
-						{
-							Items |= MDOType::DICT_ITEM_KEYFORMAT;
-							KeyFormat = DICT_KEY_NONE;
-						}
+						XML_error(user_data, "Class %s is unsupported type %s\n", name, val);
 					}
-
-					TypeName = std::string(val);
-				}
-				else if(strcmp(attr, "minLength") == 0)
-				{
-					Items |= (UInt32)MDOType::DICT_ITEM_MINLENGTH;
-					minLength = atoi(val);
-				}
-				else if(strcmp(attr, "maxLength") == 0)
-				{
-					Items |= (UInt32)MDOType::DICT_ITEM_MAXLENGTH;
-					maxLength = atoi(val);
-				}
-				else if(strcmp(attr, "keyFormat") == 0)
-				{
-					Items |= (UInt32)MDOType::DICT_ITEM_KEYFORMAT;
-					KeyFormat = (DictKeyFormat)atoi(val);
-				}
-				else if(strcmp(attr, "lengthFormat") == 0)
-				{
-					Items |= (UInt32)MDOType::DICT_ITEM_LENFORMAT;
-					if(strcmp(val, "BER")==0)
+					else if(   (strcasecmp(val,"localSet") == 0)
+							|| (strcasecmp(val,"subLocalSet") == 0) )
 					{
-						LenFormat = DICT_LEN_BER;
+						ThisClass->Class = ClassSet;
+					}
+					else if(   (strcasecmp(val,"fixedPack") == 0)
+							|| (strcasecmp(val,"subFixedPack") == 0) )
+					{
+						ThisClass->Class = ClassPack;
+					}
+					else if(   (strcasecmp(val,"vector") == 0)
+						    || (strcasecmp(val,"subVector") == 0) )
+					{
+						ThisClass->Class = ClassVector;
+					}
+					else if(   (strcasecmp(val,"array") == 0)
+							|| (strcasecmp(val,"subArray") == 0) )
+					{
+						ThisClass->Class = ClassArray;
 					}
 					else
 					{
-						LenFormat = (DictLenFormat)atoi(val);
+						ThisClass->Class = ClassItem;
+						ThisClass->Base = val;
+					}
+				}
+				else if(strcmp(attr, "minLength") == 0)
+				{
+					ThisClass->MinSize = atoi(val);
+				}
+				else if(strcmp(attr, "maxLength") == 0)
+				{
+					ThisClass->MaxSize = atoi(val);
+				}
+				else if(strcmp(attr, "keyFormat") == 0)
+				{
+					// DRAGONS: key format is carried in MinSize when defining a set
+					ThisClass->MinSize = (unsigned int)atoi(val);
+				}
+				else if(strcmp(attr, "lengthFormat") == 0)
+				{
+					// DRAGONS: length format is carried in MaxSize when defining a set
+					if(strcasecmp(val, "BER")==0)
+					{
+						ThisClass->MaxSize = (unsigned int)DICT_LEN_BER;
+					}
+					else
+					{
+						ThisClass->MaxSize = (unsigned int)atoi(val);
 					}
 				}
 				else if(strcmp(attr, "default") == 0)
 				{
-					Default = std::string(val);
+					ThisClass->HasDefault = true;
+					ThisClass->Default = std::string(val);
 				}
 				else if(strcmp(attr, "dvalue") == 0)
 				{
-					Items |= (UInt32)MDOType::DICT_ITEM_DVALUE;
-					DValue = std::string(val);
+					ThisClass->HasDValue = true;
+					ThisClass->DValue = std::string(val);
 				}
 				else if(strcmp(attr, "target") == 0)
 				{
-					RefTargetName = std::string(val);
+					ThisClass->RefTarget = std::string(val);
 				}
 				else if(strcmp(attr, "base") == 0)
 				{
-					Base = std::string(val);
+					ThisClass->Base = std::string(val);
 				}
 				else if(strcmp(attr, "symSpace") == 0)
 				{
-					SymSpace = std::string(val);
+					ThisClass->SymSpace = std::string(val);
+				}
+				else if(strcmp(attr, "extendSubs") == 0)
+				{
+					if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0))ThisClass->ExtendSubs = true;
+					else ThisClass->ExtendSubs = false;
 				}
 				else
 				{
@@ -1846,46 +1828,41 @@ namespace
 			if(Key) GlobalKey = new DataChunk(Key);
 		}
 
-
-		// Build this item
-		if(Ret)
+		// Build UL from global key
+		if(GlobalKey)
 		{
-			// First determine the symbol space to use
-			SymbolSpacePtr ThisSymbolSpace;
-			if(SymSpace.size())
+			if(GlobalKey->Size != 16)
 			{
-				/* A symbol space has been specified - look it up */
-				ThisSymbolSpace = SymbolSpace::FindSymbolSpace(SymSpace);
-
-				// If it does not already exist, create it
-				if(!ThisSymbolSpace) ThisSymbolSpace = new SymbolSpace(SymSpace);
-			}
-			else if(State->SymbolSpaces.empty())
-			{
-				/* Not specified - and we are at the top level */
-				ThisSymbolSpace = State->DefaultSymbolSpace;
+				error("Global key for %s is not 16 bytes\n", ThisClass->Name.c_str());
 			}
 			else
 			{
-				/* Not specified - we will inherit from our parent */
-				SymbolSpaceList::iterator it = State->SymbolSpaces.end();
-				ThisSymbolSpace = *(--it);
+				ThisClass->UL = new UL(GlobalKey->Data);
 			}
-
-			MDOTypePtr Dict = MDOType::BuildTypeFromDict(std::string(name), Base, Parent, Key, GlobalKey, Detail,
-														 Use, RefType, ValueType, TypeName, ContainerType, 
-														 minLength, maxLength, KeyFormat, LenFormat,
-														 RefTargetName, Default, DValue, Items, ThisSymbolSpace);
-
-			// Add us as parent to any following entries
-			if(Dict)
-			{
-				State->Parents.push_back(Dict);
-				State->SymbolSpaces.push_back(ThisSymbolSpace);
-			}
-			else Ret = false;
 		}
 
+		// Build local tag from key (if local)
+		if(Key && (Key->Size != 16))
+		{
+			if(Key->Size != 2)
+			{
+				error("Only 2-byte local tags currently supported, tag size for %s is %d\n", ThisClass->Name.c_str(), (int)Key->Size);
+			}
+			else
+			{
+				ThisClass->Tag = Key->Data[1] + (Key->Data[0] << 8);
+			}
+		}
+
+		// If there is a parent class (in the level above) add us as a child of it
+		if(Parent)
+		{
+			Parent->Children.push_back(ThisClass);
+		}
+
+		// Add this class to the list of classes (one class per level)
+		State->ClassList.push_back(ThisClass);
+	
 		return Ret;
 	}
 }
@@ -1905,25 +1882,20 @@ namespace
 			else if(strcmp(name, "MXFClasses") == 0) 
 			{
 				State->State = DictStateDictionary;
-				State->Parents.clear();
-				State->SymbolSpaces.clear();
+				State->DefaultSymbolSpace = State->DictSymbolSpace;
+				State->ClassList.clear();
 			}
 			else
 			{
-				// Remove the last parent from the stack
-				std::list<MDOTypePtr>::iterator it = State->Parents.end();
-				if(--it != State->Parents.end()) State->Parents.erase(it);
+				// If we have arrived back at the top level we make the current item (with its children)
+				if(State->ClassList.size() == 1)
+				{
+					ClassRecordList::iterator it = State->ClassList.end();
+					State->ClassesToBuild.push_back(*(--it));
+				}
 
-				// Remove the last symbol space from the stack
-				SymbolSpaceList::iterator sym_it = State->SymbolSpaces.end();
-				if(--sym_it != State->SymbolSpaces.end()) State->SymbolSpaces.erase(sym_it);
-			}
-
-			// Tidy up at end of class parsing if we have finished processing classes
-			if(State->State != DictStateClasses)
-			{
-				// Build a static primer (for use in index tables)
-				MDOType::MakePrimer(true);
+				// Remove the most recent level from the class list
+				State->ClassList.pop_back();
 			}
 
 			return;

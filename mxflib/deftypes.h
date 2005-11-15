@@ -1,6 +1,6 @@
 /*! \file	deftypes.h
  *	\brief	Definition of classes that load type and class dictionaries
- *	\version $Id: deftypes.h,v 1.6 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: deftypes.h,v 1.7 2005/11/15 12:18:29 matt-beard Exp $
  *
  */
 /*
@@ -245,6 +245,7 @@ namespace mxflib
 		ClassRef RefType;					//!< Reference type of this item (if a reference or target)
 		const char *RefTarget;				//!< Type of the reference target (if this is a referencing type)
 		const char *SymSpace;				//!< SymbolSpace for this class, or NULL if none specified (will inherit)
+		bool ExtendSubs;					//!< If this entry is extending a class, should sub-classes also be extended?
 	};
 
 	// Forward declare ClassRecord to allow ClassRecordPtr to be defined early
@@ -280,6 +281,22 @@ namespace mxflib
 		ClassRef RefType;					//!< Reference type of this item (if a reference or target)
 		std::string RefTarget;				//!< Type of the reference target (if this is a referencing type)
 		std::string SymSpace;				//!< SymbolSpace for this class, or "" if none specified (will inherit)
+		bool ExtendSubs;					//!< If this entry is extending a class, should sub-classes also be extended?
+	
+	public:
+		//! Build an empty ClassRecord
+		ClassRecord()
+		{
+			Class = ClassNULL;
+			MinSize = 0;
+			MaxSize = 0;
+			Usage = ClassUsageNULL;
+			Tag = 0;
+			HasDefault = false;
+			HasDValue = false;
+			RefType = ClassRefNone;
+			ExtendSubs = true;
+		}
 	};
 
 
@@ -303,7 +320,7 @@ namespace mxflib
 #define MXFLIB_CLASS_START(Name) const ConstClassRecord Name[] = {
 
 //! MXFLIB_CLASS_START_SYM - Use to start a type definition block and define a default symbol space
-#define MXFLIB_CLASS_START_SYM(Name, Sym) const ConstClassRecord Name[] = { { ClassSymbolSpace, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", Sym },
+#define MXFLIB_CLASS_START_SYM(Name, Sym) const ConstClassRecord Name[] = { { ClassSymbolSpace, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", Sym, true },
 
 //! MXFLIB_CLASS_SET - Use to define a local set that has 2-byte tags and 2-byte lengths
 /*! \param Name The name of the set being defined
@@ -311,7 +328,7 @@ namespace mxflib
  *  \param Base The base class if this set is a derived class, else ""
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_SET(Name, Detail, Base, UL) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_SET(Name, Detail, Base, UL) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_SET_SYM - Use to define a local set that has 2-byte tags and 2-byte lengths and override the default symbol space
 /*! \param Name The name of the set being defined
@@ -320,10 +337,27 @@ namespace mxflib
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  *  \param Sym The name of the symbol space for this set
  */
-#define MXFLIB_CLASS_SET_SYM(Name, Detail, Base, UL, Sym) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", "This:" Sym },
+#define MXFLIB_CLASS_SET_SYM(Name, Detail, Base, UL, Sym) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", Sym, true },
+
+//! MXFLIB_CLASS_SET_NOSUB - Use to extend a local set that has 2-byte tags and 2-byte lengths, without extending sub-classes
+/*! \param Name The name of the set being extended
+ *  \param Detail A human readable description of the set
+ *  \param Base The base class if this set is a derived class, else ""
+ *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
+ */
+#define MXFLIB_CLASS_SET_NOSUB(Name, Detail, Base, UL) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL, false },
+
+//! MXFLIB_CLASS_SET_NOSUB_SYM - Use to extend a local set that has 2-byte tags and 2-byte lengths, without extending sub-classes, and override the default symbol space
+/*! \param Name The name of the set being extended
+ *  \param Detail A human readable description of the set
+ *  \param Base The base class if this set is a derived class, else ""
+ *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
+ *  \param Sym The name of the symbol space for this set
+ */
+#define MXFLIB_CLASS_SET_NOSUB_SYM(Name, Detail, Base, UL, Sym) { ClassSet, 2, 2, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", Sym, false },
 
 //! MXFLIB_CLASS_SET_END - Use to end a set definition
-#define MXFLIB_CLASS_SET_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_SET_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_FIXEDPACK - Use to define a fixed length pack (defined length pack)
 /*! \param Name The name of the pack being defined
@@ -331,7 +365,7 @@ namespace mxflib
  *  \param Base The base class if this pack is a derived class, else ""
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_FIXEDPACK(Name, Detail, Base, UL) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_FIXEDPACK(Name, Detail, Base, UL) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_FIXEDPACK_SYM - Use to define a fixed length pack (defined length pack) and override the default symbol space
 /*! \param Name The name of the pack being defined
@@ -340,10 +374,27 @@ namespace mxflib
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  *  \param Sym The name of the symbol space for this set
  */
-#define MXFLIB_CLASS_FIXEDPACK_SYM(Name, Detail, Base, UL, Sym) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", Sym },
+#define MXFLIB_CLASS_FIXEDPACK_SYM(Name, Detail, Base, UL, Sym) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", Sym, true },
+
+//! MXFLIB_CLASS_FIXEDPACK - Use to extend a fixed length pack (defined length pack, without extending sub-classes
+/*! \param Name The name of the pack being extended
+ *  \param Detail A human readable description of the pack
+ *  \param Base The base class if this pack is a derived class, else ""
+ *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
+ */
+#define MXFLIB_CLASS_FIXEDPACK_NOSUB(Name, Detail, Base, UL) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL, false },
+
+//! MXFLIB_CLASS_FIXEDPACK_SYM - Use to extend a fixed length pack (defined length pack), without extending sub-classes, and override the default symbol space
+/*! \param Name The name of the pack being extended
+ *  \param Detail A human readable description of the pack
+ *  \param Base The base class if this pack is a derived class, else ""
+ *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
+ *  \param Sym The name of the symbol space for this set
+ */
+#define MXFLIB_CLASS_FIXEDPACK_NOSUB_SYM(Name, Detail, Base, UL, Sym) { ClassPack, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", Sym, false },
 
 //! MXFLIB_CLASS_FIXEDPACK_END - Use to end a pack definition
-#define MXFLIB_CLASS_FIXEDPACK_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_FIXEDPACK_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_ITEM - Use to define a single item in a set or pack
 /*! \param Name The name of the item being defined
@@ -355,7 +406,7 @@ namespace mxflib
  *	\param Default The default value for this item as a string (or NULL if none)
  *	\param DValue The distinguished value for this item as a string (or NULL if none)
  */
-#define MXFLIB_CLASS_ITEM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, Default, DValue) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_ITEM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, Default, DValue) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_ITEM_REF - Use to define a single item in a set or pack that is a reference source or target
 /*! \param Name The name of the item being defined
@@ -369,7 +420,7 @@ namespace mxflib
  *	\param RefType The reference type (RefWeak, RefStrong or RefTarget)
  *  \param RefTarget The type of the reference target
  */
-#define MXFLIB_CLASS_ITEM_REF(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, RefType, RefTarget, Default, DValue) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, RefType, RefTarget, NULL },
+#define MXFLIB_CLASS_ITEM_REF(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, RefType, RefTarget, Default, DValue) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, RefType, RefTarget, NULL, true },
 
 //! MXFLIB_CLASS_ITEM_SYM - Use to define a single item in a set or pack and override the default symbol space
 /*! \param Name The name of the item being defined
@@ -382,7 +433,7 @@ namespace mxflib
  *	\param DValue The distinguished value for this item as a string (or NULL if none)
  *  \param Sym The name of the symbol space for this set
  */
-#define MXFLIB_CLASS_ITEM_SYM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, Default, DValue, Sym) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, ClassRefNone, "", Sym },
+#define MXFLIB_CLASS_ITEM_SYM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, Default, DValue, Sym) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, ClassRefNone, "", Sym, true },
 
 //! MXFLIB_CLASS_ITEM_REF_SYM - Use to define a single item in a set or pack that is a reference source or target and override the default symbol space
 /*! \param Name The name of the item being defined
@@ -397,7 +448,7 @@ namespace mxflib
  *	\param DValue The distinguished value for this item as a string (or NULL if none)
  *  \param Sym The name of the symbol space for this set
  */
-#define MXFLIB_CLASS_ITEM_REF_SYM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, RefType, RefTarget, Default, DValue, Sym) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, RefType, RefTarget, Sym },
+#define MXFLIB_CLASS_ITEM_REF_SYM(Name, Detail, Usage, Type, MinSize, MaxSize, Tag, UL, RefType, RefTarget, Default, DValue, Sym) { ClassItem, MinSize, MaxSize, Name, Detail, Usage, Type, Tag, UL, Default, DValue, RefType, RefTarget, Sym, true },
 
 //! MXFLIB_CLASS_VECTOR - Use to define a vector holding items
 /*! \param Name The name of the vector being defined
@@ -406,7 +457,7 @@ namespace mxflib
  *  \param Tag The tag for this vector as a string of hex bytes e.g. "03 2b" (if in a set, else "")
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_VECTOR(Name, Detail, Usage, Tag, UL) { ClassVector, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_VECTOR(Name, Detail, Usage, Tag, UL) { ClassVector, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_VECTOR_REF - Use to define a vector holding items that are reference sources or targets
 /*! \param Name The name of the vector being defined
@@ -417,10 +468,10 @@ namespace mxflib
  *	\param RefType The reference type (RefWeak, RefStrong or RefTarget)
  *  \param RefTarget The type of the reference target
  */
-#define MXFLIB_CLASS_VECTOR_REF(Name, Detail, Usage, Tag, UL, RefType, RefTarget) { ClassVector, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, RefType, RefTarget, NULL },
+#define MXFLIB_CLASS_VECTOR_REF(Name, Detail, Usage, Tag, UL, RefType, RefTarget) { ClassVector, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, RefType, RefTarget, NULL, true },
 
 //! MXFLIB_CLASS_VECTOR_END - Use to end a vector definition
-#define MXFLIB_CLASS_VECTOR_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_VECTOR_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_ARRAY - Use to define an array holding items
 /*! \param Name The name of the array being defined
@@ -429,7 +480,7 @@ namespace mxflib
  *  \param Tag The tag for this array as a string of hex bytes e.g. "03 2b" (if in a set, else "")
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_ARRAY(Name, Detail, Usage, Tag, UL) { ClassArray, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_ARRAY(Name, Detail, Usage, Tag, UL) { ClassArray, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_ARRAY - Use to define an array holding items
 /*! \param Name The name of the array being defined
@@ -438,10 +489,10 @@ namespace mxflib
  *  \param Tag The tag for this array as a string of hex bytes e.g. "03 2b" (if in a set, else "")
  *  \param UL The UL of this class as a hex string e.g. "06 0e 2b 34 etc." (if one exists, else "")
  */
-#define MXFLIB_CLASS_ARRAY_REF(Name, Detail, Usage, Tag, UL, RefType, RefTarget) { ClassArray, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, RefType, RefTarget, NULL },
+#define MXFLIB_CLASS_ARRAY_REF(Name, Detail, Usage, Tag, UL, RefType, RefTarget) { ClassArray, 0, 0, Name, Detail, Usage, "", Tag, UL, NULL, NULL, RefType, RefTarget, NULL, true },
 
 //! MXFLIB_CLASS_ARRAY_END - Use to end a array definition
-#define MXFLIB_CLASS_ARRAY_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_ARRAY_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_RENAME - Use to rename a set or pack without defining new members
 /*! \param Name The name of the class being defined
@@ -449,10 +500,10 @@ namespace mxflib
  *  \param Base The base class of which this is a rename
  *  \param UL The UL of this class (if one exists, else "")
  */
-#define MXFLIB_CLASS_RENAME(Name, Detail, Base, UL) { ClassRename, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL },
+#define MXFLIB_CLASS_RENAME(Name, Detail, Base, UL) { ClassRename, 0, 0, Name, Detail, ClassUsageNULL, Base, 0, UL, NULL, NULL, ClassRefNone, "", NULL, true },
 
 //! MXFLIB_CLASS_END - Use to end a class definition block
-#define MXFLIB_CLASS_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL } };
+#define MXFLIB_CLASS_END { ClassNULL, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", NULL, true } };
 
 
 /* Example usage:
