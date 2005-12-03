@@ -38,9 +38,6 @@ bool UseCompiledDict = true;
 #else
 
 const bool UseCompiledDict = false;
-// build an empty dictionary
-MXFLIB_DICTIONARY_START(CompileTimeDict)
-MXFLIB_DICTIONARY_END
 
 #endif // COMPILED_DICT
 
@@ -154,12 +151,14 @@ int main_process(int argc, char *argv[])
 		return 1;
 	}
 
+#ifdef COMPILED_DICT
 	if( UseCompiledDict )
 	{
 		printf("- using compile-time dictionary\n");
 		LoadDictionary(DictData);
 	}
 	else
+#endif // COMPILED_DICT
 	{
 		printf("- using dictionary \"%s\"\n", DictName.c_str());
 		LoadDictionary(DictName);
