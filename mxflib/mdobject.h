@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.17 2005/11/15 12:46:12 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.18 2005/12/04 12:32:57 matt-beard Exp $
  *
  */
 /*
@@ -308,6 +308,8 @@ namespace mxflib
 
 			if(Type) TypeName = Type->Name();
 			else TypeName = Name;
+
+			RefType = ClassRefNone;
 
 			// Set the name lookup - UL lookup set when key set
 			NameLookup[RootName + Name] = this;
