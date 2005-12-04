@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.27 2005/10/08 15:34:06 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.28 2005/12/04 12:38:25 matt-beard Exp $
  *
  */
 /*
@@ -265,9 +265,6 @@ int main_process(int argc, char *argv[])
 
 	// Build an essence parser
 	EssenceParser EssParse;
-
-	// Load the dictionaries
-	LoadDictionary("dict.xml");
 
 	// Parse command line options and exit on error
 	ForceEditRate.Numerator = 0;
