@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.11 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: system.h,v 1.12 2006/02/11 15:58:15 matt-beard Exp $
  *
  */
 /*
@@ -106,6 +106,23 @@ namespace mxflib
 #pragma warning(disable:4786)			// Ignore "identifer > 255 characters" warning
 										// This is produced from many STL class specialisations
 										// Note: Not all these warnings go away (another MS-Bug??)
+
+#ifndef UINT64_C
+#define UINT64_C(c)	c					// for defining 64bit constants
+#endif // UINT64_C
+#ifndef INT64_C
+#define INT64_C(c)	c					// for defining 64bit constants
+#endif // INT64_C
+
+#else  // _MSC_VER < 1300
+
+#ifndef UINT64_C
+#define UINT64_C(c)	c##ULL				// for defining 64bit constants
+#endif // UINT64_C
+#ifndef INT64_C
+#define INT64_C(c)	c##ULL				// for defining 64bit constants
+#endif // INT64_C
+
 #endif // _MSC_VER < 1300
 
 #include <crtdbg.h>						//!< Debug header
@@ -173,9 +190,6 @@ namespace mxflib
 		return std::string(Buffer);
 	};
 
-#define UINT64_C(c)	c			// for defining 64bit constants
-#define INT64_C(c)	c			// for defining 64bit constants
-
 #define ASSERT _ASSERT					//!< Debug assert
 #define strcasecmp(s1, s2) stricmp(s1, s2)
 
@@ -242,9 +256,10 @@ namespace mxflib
 	inline full_time GetTime(void)
 	{
 		full_time Ret;
+		_tzset();
 		_timeb tb;
 		_ftime(&tb);
-		Ret.time = tb.time;
+		Ret.time = tb.time + tb.timezone*60;
 		Ret.msBy4 = tb.millitm / 4;
 		return Ret;
 	}
