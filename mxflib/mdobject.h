@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.18 2005/12/04 12:32:57 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.19 2006/02/11 16:15:40 matt-beard Exp $
  *
  */
 /*
@@ -299,9 +299,9 @@ namespace mxflib
 	public:
 		//! Public constructor - build a full type
 		MDOType(MDContainerType ContainerType, std::string RootName, std::string Name, std::string Detail, MDTypePtr Type, 
-				DictKeyFormat KeyFormat, DictLenFormat LenFormat, unsigned int minLength, unsigned int maxLength, DictUse Use)
+				DictKeyFormat KeyFormat, DictLenFormat LenFormat, unsigned int minLen, unsigned int maxLen, DictUse Use)
 			: ContainerType(ContainerType), RootName(RootName), ValueType(Type), DictName(Name), Detail(Detail),
-			  KeyFormat(KeyFormat), LenFormat(LenFormat), minLength(minLength), maxLength(maxLength), Use(Use)
+			  KeyFormat(KeyFormat), LenFormat(LenFormat), minLength(minLen), maxLength(maxLen), Use(Use)
 		{
 			// MaxLength = 0 is used for maxlength = unbounded
 			if(maxLength == 0) maxLength = (unsigned int)-1;
@@ -313,6 +313,9 @@ namespace mxflib
 
 			// Set the name lookup - UL lookup set when key set
 			NameLookup[RootName + Name] = this;
+
+			// Start of with no referencing details
+			RefType = ClassRefNone;
 		};
 
 		//! Set the referencing details for this type
@@ -531,10 +534,10 @@ namespace mxflib
 			return StaticPrimer;
 		}
 
-		//! Find a type in the default symbol, optionally searching all others
+		//! Find a type in the default symbol space, optionally searching all others
 		static MDOTypePtr Find(std::string BaseType, bool SearchAll = false) { return Find(BaseType, MXFLibSymbols, SearchAll); }
 		
-		//! Find a type in a specified symbol, optionally searching all others
+		//! Find a type in a specified symbol space, optionally searching all others
 		static MDOTypePtr Find(std::string BaseType, SymbolSpacePtr &SymSpace, bool SearchAll = false);
 
 		static MDOTypePtr Find(const UL& BaseUL);
@@ -1014,6 +1017,7 @@ namespace mxflib
 		//! Read the object's value from a memory buffer
 		UInt32 ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer = NULL);
 
+		//! Write this object to a new memory buffer
 		DataChunkPtr WriteObject(MDObjectPtr ParentObject, PrimerPtr UsePrimer, UInt32 BERSize = 0)
 		{
 			DataChunkPtr Ret = new DataChunk;
@@ -1060,6 +1064,7 @@ namespace mxflib
 		//! Inset a new child object - overloads the existing MDObjectList version
 		void insert(MDObjectPtr NewObject)
 		{
+			// FIXME: Should we add a new GUID instead? Otherwise we may get duplicates
 			const UInt8 Null_UL_Data[16] = { 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0 };
 			const UL Null_UL(Null_UL_Data);
 			

@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.14 2005/12/04 12:27:29 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.15 2006/02/11 16:15:40 matt-beard Exp $
  *
  */
 /*
@@ -91,8 +91,32 @@ namespace
 
 namespace
 {
+	//! Set when built-in traits need to be loaded
+	bool LoadBuiltInTraits = true;
+}
+
+namespace mxflib
+{
+	//! Disable automatic loading of built-in traits
+	/*! \note This needs to be called early as they may have already been loaded!
+	 *  \ret false if the traits have already been loaded (or already disabled)
+	 */
+	bool DisableBuiltInTraits(void)
+	{
+		// Is it too late?
+		if(!LoadBuiltInTraits) return false;
+
+		LoadBuiltInTraits = false;
+		return true;
+	}
+}
+
+
+
+namespace
+{
 	//! Our XML handler
-	static XMLParserHandler DefTypes_XMLHandler = {
+	XMLParserHandler DefTypes_XMLHandler = {
 		(startElementXMLFunc) DefTypes_startElement,		/* startElement */
 		(endElementXMLFunc) DefTypes_endElement,			/* endElement */
 		(warningXMLFunc) XML_warning,						/* warning */
@@ -121,73 +145,64 @@ namespace
 		TypeRecordPtr Compound;				//!< The current compound being built (or NULL)
 	};
 
-	//! Type to map type names to their handling traits
-	typedef std::map<std::string,MDTraitsPtr> TraitsMapType;
-
-	//! Map of type names to thair handling traits
-	static TraitsMapType TraitsMap;
-
-	
 	//! Build the map of all known traits
-	static void DefineTraits(void)
+	void DefineTraits(void)
 	{
+		// Ensure we should be here!
+		if (!LoadBuiltInTraits) return;
+		LoadBuiltInTraits = false;
+
 		// Not a real type, but the default for basic types
-		TraitsMap.insert(TraitsMapType::value_type("Default-Basic", new MDTraits_Raw));
+		AddTraitsMapping<MDTraits_Raw>("Default-Basic");
 
 		// Not a real type, but the default for array types
-		TraitsMap.insert(TraitsMapType::value_type("Default-Array", new MDTraits_BasicArray));
+		AddTraitsMapping<MDTraits_BasicArray>("Default-Array");
 
 		// Not a real type, but the default for compound types
-		TraitsMap.insert(TraitsMapType::value_type("Default-Compound", new MDTraits_BasicCompound));
+		AddTraitsMapping<MDTraits_BasicCompound>("Default-Compound");
 
-		TraitsMap.insert(TraitsMapType::value_type("RAW", new MDTraits_Raw));
+		AddTraitsMapping<MDTraits_Raw>("RAW");
+		AddTraitsMapping<MDTraits_Raw>("Unknown");
 
-		TraitsMap.insert(TraitsMapType::value_type("Int8", new MDTraits_Int8));
-		TraitsMap.insert(TraitsMapType::value_type("UInt8", new MDTraits_UInt8));
-		TraitsMap.insert(TraitsMapType::value_type("Uint8", new MDTraits_UInt8));
-		TraitsMap.insert(TraitsMapType::value_type("Internal-UInt8", new MDTraits_UInt8));
-		TraitsMap.insert(TraitsMapType::value_type("Int16", new MDTraits_Int16));
-		TraitsMap.insert(TraitsMapType::value_type("UInt16", new MDTraits_UInt16));
-		TraitsMap.insert(TraitsMapType::value_type("Uint16", new MDTraits_UInt16));
-		TraitsMap.insert(TraitsMapType::value_type("Int32", new MDTraits_Int32));
-		TraitsMap.insert(TraitsMapType::value_type("UInt32", new MDTraits_UInt32));
-		TraitsMap.insert(TraitsMapType::value_type("Uint32", new MDTraits_UInt32));
-		TraitsMap.insert(TraitsMapType::value_type("Int64", new MDTraits_Int64));
-		TraitsMap.insert(TraitsMapType::value_type("UInt64", new MDTraits_UInt64));
-		TraitsMap.insert(TraitsMapType::value_type("Uint64", new MDTraits_UInt64));
+		AddTraitsMapping<MDTraits_Int8>("Int8");
+		AddTraitsMapping<MDTraits_UInt8>("UInt8");
+		AddTraitsMapping<MDTraits_UInt8>("Uint8");
+		AddTraitsMapping<MDTraits_UInt8>("Internal-UInt8");
+		AddTraitsMapping<MDTraits_Int16>("Int16");
+		AddTraitsMapping<MDTraits_UInt16>("UInt16");
+		AddTraitsMapping<MDTraits_UInt16>("Uint16");
+		AddTraitsMapping<MDTraits_Int32>("Int32");
+		AddTraitsMapping<MDTraits_UInt32>("UInt32");
+		AddTraitsMapping<MDTraits_UInt32>("Uint32");
 
-		TraitsMap.insert(TraitsMapType::value_type("ISO7", new MDTraits_ISO7));
-		TraitsMap.insert(TraitsMapType::value_type("UTF16", new MDTraits_UTF16));
+		AddTraitsMapping<MDTraits_Int64>("Int64");
+		AddTraitsMapping<MDTraits_UInt64>("UInt64");
+		AddTraitsMapping<MDTraits_UInt64>("Uint64");
 
-		TraitsMap.insert(TraitsMapType::value_type("ISO7String", new MDTraits_BasicStringArray));
-		TraitsMap.insert(TraitsMapType::value_type("UTF16String", new MDTraits_UTF16String));
-		TraitsMap.insert(TraitsMapType::value_type("UInt8Array", new MDTraits_RawArray));
-		TraitsMap.insert(TraitsMapType::value_type("Uint8Array", new MDTraits_RawArray));
+		AddTraitsMapping<MDTraits_ISO7>("ISO7");
+		AddTraitsMapping<MDTraits_UTF16>("UTF16");
 
-		TraitsMap.insert(TraitsMapType::value_type("UUID", new MDTraits_UUID));
-		TraitsMap.insert(TraitsMapType::value_type("Label", new MDTraits_Label));
+		AddTraitsMapping<MDTraits_BasicStringArray>("ISO7String");
+		AddTraitsMapping<MDTraits_UTF16String>("UTF16String");
 
-		TraitsMap.insert(TraitsMapType::value_type("UMID", new MDTraits_UMID));
+		AddTraitsMapping<MDTraits_RawArray>("UInt8Array");
+		AddTraitsMapping<MDTraits_RawArray>("Uint8Array");
 
-		TraitsMap.insert(TraitsMapType::value_type("LabelCollection", new MDTraits_RawArrayArray));
+		AddTraitsMapping<MDTraits_UUID>("UUID");
+		AddTraitsMapping<MDTraits_Label>("Label");
 
-		TraitsMap.insert(TraitsMapType::value_type("Rational", new MDTraits_Rational));
-		TraitsMap.insert(TraitsMapType::value_type("Timestamp", new MDTraits_TimeStamp));
+		AddTraitsMapping<MDTraits_UMID>("UMID");
+
+		AddTraitsMapping<MDTraits_RawArrayArray>("LabelCollection");
+
+		AddTraitsMapping<MDTraits_Rational>("Rational");
+		AddTraitsMapping<MDTraits_TimeStamp>("Timestamp");
 	}
 
 	//! Set true once the basic required classes have been loaded
 	static bool BasicClassesDefined = false;
 }
 
-#ifdef TRAITS_HACK
-//FIXME
-//This is only needed for the moment until user extensions to the traits are implemented
-//It is not recommended that you use the function as it will be unceremoniously removed when it can be.
-//! Lookup a Trait by name
-const MDTraits*  mxflib::LookupTraits(const char* TraitsName) { return TraitsMap[TraitsName]; };
-
-
-#endif
 
 //! Load types from the specified XML definitions
 /*! \return 0 if all OK
@@ -197,7 +212,7 @@ int mxflib::LoadTypes(char *TypesFile)
 {
 	// Define the known traits
 	// Test before calling as two partial definition files could be loaded!
-	if(TraitsMap.empty()) DefineTraits();
+	if(LoadBuiltInTraits) DefineTraits();
 
 	// State data block passed through XML parser
 	TypesParserState State;
@@ -311,7 +326,7 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 	}
 
 	// Define the known traits if required
-	if(TraitsMap.empty()) DefineTraits();
+	if(LoadBuiltInTraits) DefineTraits();
 
 	//! List to hold any entries that are not resolved during this pass (we will recurse to resolve them at the end of the pass)
 	TypeRecordList Unresolved;
@@ -328,9 +343,7 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 				MDTypePtr Ptr = MDType::AddBasic((*it)->Type, (*it)->Size);
 				if((*it)->Endian) Ptr->SetEndian(true);
 
-				MDTraitsPtr Traits = TraitsMap[(*it)->Type];
-				if(!Traits) Traits = TraitsMap["Default-Basic"];
-
+				MDTraitsPtr Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Basic");
 				if(Traits) Ptr->SetTraits(Traits);
 
 				break;
@@ -351,7 +364,7 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 				{
 					MDTypePtr Ptr = MDType::AddInterpretation((*it)->Type, BaseType, (*it)->Size);
 
-					MDTraitsPtr Traits = TraitsMap[(*it)->Type];
+					MDTraitsPtr Traits = MDType::LookupTraitsMapping((*it)->Type);
 
 					// If we don't have specific traits for this type
 					// it will inherit the base type's traits
@@ -377,8 +390,7 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 					MDTypePtr Ptr = MDType::AddArray((*it)->Type, BaseType, (*it)->Size);
 					if((*it)->IsBatch) Ptr->SetArrayClass(ARRAYBATCH);
 
-					MDTraitsPtr Traits = TraitsMap[(*it)->Type];
-					if(!Traits) Traits = TraitsMap["Default-Array"];
+					MDTraitsPtr Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Array");
 					if(Traits) Ptr->SetTraits(Traits);
 				}
 
@@ -410,9 +422,7 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 
 				MDTypePtr Ptr = MDType::AddCompound((*it)->Type);
 
-				MDTraitsPtr Traits = TraitsMap[(*it)->Type];
-				if(!Traits) Traits = TraitsMap["Default-Compound"];
-
+				MDTraitsPtr Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Compound");
 				if(Traits) Ptr->SetTraits(Traits);
 
 				/* Process sub-items */
@@ -1553,7 +1563,7 @@ namespace
 
 					// Define the known traits
 					// Test before calling as two partial definition files could be loaded!
-					if(TraitsMap.empty()) DefineTraits();
+					if(LoadBuiltInTraits) DefineTraits();
 
 					// Initialize the types parser state
 					State->ClassState.State = StateIdle;
@@ -1748,9 +1758,7 @@ namespace
 				}
 				else if(strcmp(attr, "type") == 0)
 				{
-					if(   (strcasecmp(val,"universalSet") == 0) 
-					|| (strcasecmp(val,"variablePack") == 0)
-					|| (strcasecmp(val,"subVariablePack") == 0) )
+					if(strcasecmp(val,"universalSet") == 0) 
 					{
 						XML_error(user_data, "Class %s is unsupported type %s\n", name, val);
 					}
@@ -1760,7 +1768,9 @@ namespace
 						ThisClass->Class = ClassSet;
 					}
 					else if(   (strcasecmp(val,"fixedPack") == 0)
-							|| (strcasecmp(val,"subFixedPack") == 0) )
+							|| (strcasecmp(val,"subFixedPack") == 0)
+							|| (strcasecmp(val,"variablePack") == 0)
+							|| (strcasecmp(val,"subVariablePack") == 0) )
 					{
 						ThisClass->Class = ClassPack;
 					}
