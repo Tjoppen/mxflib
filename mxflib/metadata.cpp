@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.8 2005/11/15 12:53:26 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.9 2006/02/11 16:03:46 matt-beard Exp $
  *
  */
 /*
@@ -98,7 +98,7 @@ PackagePtr mxflib::Metadata::AddPackage(const UL &PackageType, std::string Packa
 	if(!Ret) return Ret;
 
 	// Set the package name if one supplied
-	if(PackageName.length()) Ret->SetString(Name_UL, PackageName);
+	if(PackageName.length()) Ret->SetString(GenericPackage_Name_UL, PackageName);
 
 	// Set the package's properties
 	Ret->AddChild(PackageUID_UL)->ReadValue(PackageUMID->GetValue(), 32);
@@ -133,7 +133,8 @@ PackagePtr Metadata::GetPrimaryPackage(void)
 	}
 	else
 	{
-		MDObjectPtr Packages = Child(ContentStorageSet_UL);
+		MDObjectPtr Packages = Child(ContentStorage_UL);
+		if(Packages) Packages = Packages->GetLink();
 		if(Packages) Packages = Packages[Packages_UL];
 		if(!Packages)
 		{
@@ -549,6 +550,10 @@ Int64 Track::UpdateDuration(void)
 	MDObjectPtr Sequence = Child(Sequence_UL)->GetLink();
 	Int64 SeqDuration = 0;
 	MDObjectPtr Structs = Sequence[StructuralComponents_UL];
+
+	// if the Sequence is not a valid sequence, exit now
+	if( !Structs ) return -1;
+
 	MDObjectULList::iterator it = Structs->begin();
 	while(it != Structs->end())
 	{
