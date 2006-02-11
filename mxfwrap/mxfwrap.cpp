@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.28 2005/12/04 12:38:25 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.29 2006/02/11 16:23:19 matt-beard Exp $
  *
  */
 /*
@@ -1471,40 +1471,6 @@ int Process(	int OutFileNum,
 
 
 	//
-	// ** Set up the base partition pack **
-	//
-
-	PartitionPtr ThisPartition = new Partition(OpenHeader_UL);
-	ASSERT(ThisPartition);
-	ThisPartition->SetKAG(KAGSize);			// Everything else can stay at default
-	ThisPartition->SetUInt(BodySID_UL, 1);
-
-	ThisPartition->AddMetadata(MData);
-
-	// Build an Ident set describing us and link into the metadata
-	MDObjectPtr Ident = new MDObject(Identification_UL);
-	Ident->SetString(CompanyName_UL, CompanyName);
-	Ident->SetString(ProductName_UL, ProductName);
-	Ident->SetString(VersionString_UL, ProductVersion);
-	Ident->SetString(ToolkitVersion_UL, LibraryProductVersion());
-	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
-
-	// DRAGONS: -- Need to set a proper GUID per released version
-	//             Non-released versions currently use a random GUID
-	//			   as they are not a stable version...
-	Ident->SetValue(ProductUID_UL, DataChunk(16,ProductUID->GetValue()));
-
-	// Link the new Ident set with all new metadata
-	// Note that this is done even for OP-Atom as the 'dummy' header written first
-	// could have been read by another device. This flags that items have changed.
-	MData->UpdateGenerations(Ident);
-
-	// Add the template partition to the body writer
-	Writer->SetPartition(ThisPartition);
-
-
-
-	//
 	// ** Set up indexing **
 	//
 
@@ -1569,6 +1535,39 @@ int Process(	int OutFileNum,
 		}
 
 	}
+
+
+	//
+	// ** Set up the base partition pack **
+	//
+
+	PartitionPtr ThisPartition = new Partition(OpenHeader_UL);
+	ASSERT(ThisPartition);
+	ThisPartition->SetKAG(KAGSize);			// Everything else can stay at default
+	ThisPartition->SetUInt(BodySID_UL, 1);
+
+	ThisPartition->AddMetadata(MData);
+
+	// Build an Ident set describing us and link into the metadata
+	MDObjectPtr Ident = new MDObject(Identification_UL);
+	Ident->SetString(CompanyName_UL, CompanyName);
+	Ident->SetString(ProductName_UL, ProductName);
+	Ident->SetString(VersionString_UL, ProductVersion);
+	Ident->SetString(ToolkitVersion_UL, LibraryProductVersion());
+	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
+
+	// DRAGONS: -- Need to set a proper GUID per released version
+	//             Non-released versions currently use a random GUID
+	//			   as they are not a stable version...
+	Ident->SetValue(ProductUID_UL, DataChunk(16,ProductUID->GetValue()));
+
+	// Link the new Ident set with all new metadata
+	// Note that this is done even for OP-Atom as the 'dummy' header written first
+	// could have been read by another device. This flags that items have changed.
+	MData->UpdateGenerations(Ident);
+
+	// Add the template partition to the body writer
+	Writer->SetPartition(ThisPartition);
 
 
 	//
