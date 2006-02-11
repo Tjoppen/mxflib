@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.18 2005/11/15 12:40:48 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.19 2006/02/11 16:07:31 matt-beard Exp $
  *
  */
 /*
@@ -39,10 +39,8 @@
 using namespace mxflib;
 
 
-
 //! Static flag to say if dark metadata sets that appear to be valid KLV 2x2 sets should be parsed
 bool MDObject::ParseDark = false;
-
 
 //! Static primer to use for index tables
 PrimerPtr MDOType::StaticPrimer;
@@ -1256,19 +1254,28 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 					NewItem->ParentOffset = BytesAtItemStart;
 					NewItem->KLSize = Bytes - BytesAtItemStart;
 
-					ThisBytes = NewItem->ReadValue(Buffer, Length);
-
-//					debug("  at 0x%s Set item (%s) %s = %s\n", Int64toHexString(NewItem->GetLocation(), 8).c_str(), Key.GetString().c_str(), NewItem->Name().c_str(), NewItem->GetString().c_str());
-
-					if(ThisBytes != Length)
+					// Handle cases where a batch has burst the 2-byte length (non-standard)
+					if((Length == 0xffff) && (Type->GetLenFormat() == DICT_LEN_2_BYTE) && (NewItem->Type->GetContainerType() == BATCH))
 					{
-						error("Failed to read complete %s value at 0x%s in %s - specified length=%d, read=%d\n", 
-							  NewItem->FullName().c_str(), Int64toHexString(NewItem->GetLocation(), 8).c_str(), 
-							  NewItem->GetSource().c_str(), Length, ThisBytes);
-						
-						// Skip anything left over
-						if(Length > ThisBytes) ThisBytes = Length;
+						ThisBytes = NewItem->ReadValue(Buffer, Size);
 					}
+					else
+					{
+						ThisBytes = NewItem->ReadValue(Buffer, Length);
+
+//						debug("  at 0x%s Set item (%s) %s = %s\n", Int64toHexString(NewItem->GetLocation(), 8).c_str(), Key.GetString().c_str(), NewItem->Name().c_str(), NewItem->GetString().c_str());
+
+						if(ThisBytes != Length)
+						{
+							error("Failed to read complete %s value at 0x%s in %s - specified length=%d, read=%d\n", 
+								NewItem->FullName().c_str(), Int64toHexString(NewItem->GetLocation(), 8).c_str(), 
+								NewItem->GetSource().c_str(), Length, ThisBytes);
+							
+							// Skip anything left over
+							if(Length > ThisBytes) ThisBytes = Length;
+						}
+					}
+
 					Size -= ThisBytes;
 					Buffer += ThisBytes;
 					Bytes += ThisBytes;
@@ -1821,10 +1828,11 @@ UInt32 MDObject::WriteLength(DataChunkPtr &Buffer, UInt64 Length, DictLenFormat 
 			return BER->Size;
 		}
 
-	case DICT_LEN_1_BYTE:		
+	case DICT_LEN_1_BYTE:
 		{ 
 			UInt8 Buff;
-			PutU8((UInt8)Length, &Buff);
+			UInt8 Len8 = Length <= 0xff ? (UInt8)Length : 0xff;
+			PutU8(Len8, &Buff);
 
 			Buffer->Append(1, &Buff);
 			return 1;
@@ -1833,7 +1841,8 @@ UInt32 MDObject::WriteLength(DataChunkPtr &Buffer, UInt64 Length, DictLenFormat 
 	case DICT_LEN_2_BYTE:
 		{ 
 			UInt8 Buff[2];
-			PutU16((UInt16)Length, Buff);
+			UInt16 Len16 = Length <= 0xffff ? (UInt16)Length : 0xffff;
+			PutU16(Len16, Buff);
 
 			Buffer->Append(2, Buff);
 			return 2;
@@ -1842,7 +1851,8 @@ UInt32 MDObject::WriteLength(DataChunkPtr &Buffer, UInt64 Length, DictLenFormat 
 	case DICT_LEN_4_BYTE:
 		{ 
 			UInt8 Buff[4];
-			PutU32((UInt32)Length, Buff);
+			UInt32 Len32 = Length <= 0xffffffff ? (UInt32)Length : 0xffffffff;
+			PutU32(Len32, Buff);
 
 			Buffer->Append(4, Buff);
 			return 4;
