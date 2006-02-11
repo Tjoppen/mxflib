@@ -1,7 +1,7 @@
 /*! \file	sopSAX.cpp
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.cpp,v 1.6 2005/05/08 15:50:02 matt-beard Exp $
+ *	\version $Id: sopsax.cpp,v 1.7 2006/02/11 15:58:38 matt-beard Exp $
  *
  */
 /*
@@ -45,10 +45,10 @@ static void sopSkipSpace(FILE *xmlFile);
 static void sopGetItem(FILE *xmlFile, char *Buffer, int Max);
 
 
-#define MAXTAGDEPTH 16
-#define MAXTAGLENGTH 32
-#define MAXATTRIBS 16
-#define ATTRIBBUFFERSIZE 2048
+#define MAXTAGDEPTH 32
+#define MAXTAGLENGTH 256
+#define MAXATTRIBS 128
+#define ATTRIBBUFFERSIZE 20480
 
 /*
 ** sopSAXParseFile() - Parse an XML file (not re-entrant due to static data)
