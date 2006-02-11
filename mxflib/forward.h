@@ -1,7 +1,7 @@
 /*! \file	forward.h
  *	\brief	Various forward declarations
  *
- *	\version $Id: forward.h,v 1.5 2005/11/15 12:31:34 matt-beard Exp $
+ *	\version $Id: forward.h,v 1.6 2006/02/11 16:08:28 matt-beard Exp $
  *
  */
 /*
@@ -71,6 +71,24 @@ namespace mxflib
 
 	//! A list of smart pointers to MDValue objects
 	typedef std::list<MDValuePtr> MDValueList;
+
+	/* Forward refs for index tables */
+	
+	class IndexTable;
+
+	//! Smart pointer to an index table
+	typedef SmartPtr<IndexTable> IndexTablePtr;
+	
+	//! Parent pointer to an index table
+	typedef ParentPtr<IndexTable> IndexTableParent;
+
+	class IndexSegment;
+
+	//! Smart pointer to an index table segment
+	typedef SmartPtr<IndexSegment> IndexSegmentPtr;
+
+	//! List of smart pointers to index table segments
+	typedef std::list<IndexSegmentPtr> IndexSegmentList;
 
 
 	/* SymbolSpace pointer types */

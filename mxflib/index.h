@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.5 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: index.h,v 1.6 2006/02/11 16:08:14 matt-beard Exp $
  *
  */
 /*
@@ -29,22 +29,6 @@
  */
 #ifndef MXFLIB__INDEX_H
 #define MXFLIB__INDEX_H
-
-// Forward refs
-namespace mxflib
-{
-	class IndexTable;
-	//! Smart pointer to an index table
-	typedef SmartPtr<IndexTable> IndexTablePtr;
-	
-	//! Parent pointer to an index table
-	typedef ParentPtr<IndexTable> IndexTableParent;
-
-	//! Smart pointer to an index table segment
-	class IndexSegment;
-	typedef SmartPtr<IndexSegment> IndexSegmentPtr;
-	typedef std::list<IndexSegmentPtr> IndexSegmentList;
-}
 
 
 namespace mxflib
