@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.8 2005/10/08 15:44:51 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.9 2006/02/11 15:59:17 matt-beard Exp $
  *
  */
 /*
@@ -388,15 +388,38 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 
 			UInt32 ThisBytes = NewItem->ReadValue(BuffPtr,(UInt32) Len, PartitionPrimer);
 
-			Size -= ThisBytes;
-			Bytes += ThisBytes;
-			BuffPtr += ThisBytes;
+			// skip total length, not just the length actually consumed
+			Size -= Len;
+			Bytes += Len;
+			BuffPtr += Len;
 		}
 
 		AddMetadata(NewItem);
 	}
 
 	return Bytes + FillerBytes;
+}
+
+
+//! Read any index segments from this partition's source file, and add them to a given table
+/*! \ret true if all OK
+	*/
+bool mxflib::Partition::ReadIndex(IndexTablePtr Table)
+{
+	bool Ret = true;
+
+	MDObjectListPtr Segments = ReadIndex();
+
+	MDObjectList::iterator it = Segments->begin();
+	while(it != Segments->end())
+	{
+		// Set error flag if any add fails
+		if(!Table->AddSegment(*it)) Ret = false;
+
+		it++;
+	}
+
+	return Ret;
 }
 
 
@@ -744,13 +767,27 @@ MetadataPtr Partition::ParseMetadata(void)
 		if((*it)->IsA(Preface_UL))
 		{
 			Ret = Metadata::Parse(*it);
-			break;
+			return Ret;
 		}
 
 		it++;
 	}
 
-	// If we failed to find the preface (or to parse it) this will be NULL
+	// The preface is not found at the top level - it is not totally forbidden for it to be lower level!
+	it = AllMetadata.begin();
+	while(it != AllMetadata.end())
+	{
+		// If we find the preface, parse it
+		if((*it)->IsA("Preface"))
+		{
+			Ret = Metadata::Parse(*it);
+			return Ret;
+		}
+
+		it++;
+	}
+
+	// We failed to find the preface, this will be NULL
 	return Ret;
 }
 

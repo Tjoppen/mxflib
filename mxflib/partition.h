@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.5 2005/10/08 15:44:51 matt-beard Exp $
+ *	\version $Id: partition.h,v 1.6 2006/02/11 15:59:17 matt-beard Exp $
  *
  */
 /*
@@ -137,6 +137,11 @@ namespace mxflib
 
 		//! Read any index table segments from a file
 		MDObjectListPtr ReadIndex(MXFFilePtr File, UInt64 Size);
+
+		//! Read any index segments from this partition's source file, and add them to a given table
+		/*! \ret true if all OK
+		 */
+		bool ReadIndex(IndexTablePtr Table);
 
 		//! Read raw index table data from this partition's source file
 		DataChunkPtr ReadIndexChunk(void);
