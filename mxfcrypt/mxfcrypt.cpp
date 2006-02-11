@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.8 2005/10/27 10:58:12 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.9 2006/02/11 16:17:59 matt-beard Exp $
  *
  */
 /*
@@ -614,7 +614,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 		return false;
 	}
 
-	// Copy the datat into a byte buffer
+	// Copy the data into a byte buffer
 	UInt8 KeyBuffU8[16];
 	{
 		int i;
