@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.7 2005/10/27 11:08:07 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.8 2006/02/11 16:10:56 matt-beard Exp $
  *
  */
 /*
@@ -53,6 +53,9 @@ namespace mxflib
 		sprintf(Buffer, "%0*u", Digits, Num);
 		return std::string(Buffer);
 	}
+
+	// Support old capitalization of unsigned integers
+	inline std::string Uint2String(int Num, int Digits = 0) { return UInt2String(Num, Digits); }
 
 	//! Make a hex string containing a number
 	inline std::string Int2HexString(int Num, int Digits = 0)
