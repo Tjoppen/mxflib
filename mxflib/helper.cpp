@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.11 2005/10/27 11:07:06 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.12 2006/02/11 16:11:34 matt-beard Exp $
  *
  */
 /*
@@ -255,7 +255,7 @@ DataChunkPtr mxflib::Hex2DataChunk(std::string Hex)
 {
 	// Build the result chunk
 	DataChunkPtr Ret = new DataChunk();
-	
+
 	// Use a granularity of 16 as most hex strings are likely to be 16 or 32 bytes
 	// DRAGONS: We may want to revise this later
 	Ret->SetGranularity(16);
@@ -351,7 +351,7 @@ std::string mxflib::SearchPath(const char *Path, const char *Filename)
 {
 	// First check to see if the filename is either relative to . (or ..)
 	// or absolute in which case we don't search via the path
-	
+
 	bool NonPath = false;
 
 	if(*Filename == '.')
@@ -382,7 +382,7 @@ std::string mxflib::SearchPath(const char *Path, const char *Filename)
 		{
 			// Copy the whole of the remaining path
 			strcpy(Buffer, p );
-			
+
 			// Force the loop to stop at the end of this iteration
 			p = NULL;
 		}
@@ -521,7 +521,7 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 		{
 			int separator = 0;
 			const char *p = Sep;
-			
+
 			if(p == NULL)
 			{
 				if((c==' ') || (c=='\t')) separator = 1;
@@ -562,7 +562,7 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 		/* Move to next character */
 		(*Source)++;
 	}
-	
+
 	/* Update the output data with last value      */
 	/* If we are working on one and there is space */
 	if(Started)
@@ -644,7 +644,7 @@ std::string mxflib::SafePrintf(const char *Fmt, va_list args)
 				Flags = 0;
 				Width = 0;
 				Precision = 0;
-				
+
 				Fmt++;
 				continue;
 			}
