@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.7 2006/02/11 16:04:35 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.8 2006/02/11 18:08:43 matt-beard Exp $
  *
  */
 /*
@@ -317,37 +317,40 @@ namespace mxflib
 	};
 }
 
-//! Add a mapping to apply a given set of traits to a certain type
-/*! \ret The name of the traits
-	*/
-template<class C> std::string AddTraitsMapping(std::string TypeName)
+namespace mxflib
 {
-	MDTraitsPtr Tr = new C;
-	MDTraitsPtr TrLookup = MDTraits::Find(Tr->Name());
+	//! Add a mapping to apply a given set of traits to a certain type
+	/*! \ret The name of the traits
+		*/
+	template<class C> std::string AddTraitsMapping(std::string TypeName)
+	{
+		MDTraitsPtr Tr = new C;
+		MDTraitsPtr TrLookup = MDTraits::Find(Tr->Name());
 
-	if(!TrLookup) MDTraits::Add(Tr->Name(), Tr);
+		if(!TrLookup) MDTraits::Add(Tr->Name(), Tr);
 
-	if(MDType::AddTraitsMapping(TypeName, Tr->Name()))
-		return Tr->Name();
-	else
-		return "";
-}
+		if(MDType::AddTraitsMapping(TypeName, Tr->Name()))
+			return Tr->Name();
+		else
+			return "";
+	}
 
 
-//! Update an existing mapping and apply to any existing type of the given name
-/*! \ret The name of the traits
-	*/
-template<class C> std::string UpdateTraitsMapping(std::string TypeName)
-{
-	MDTraitsPtr Tr = new C;
-	MDTraitsPtr TrLookup = MDTraits::Find(Tr->Name());
+	//! Update an existing mapping and apply to any existing type of the given name
+	/*! \ret The name of the traits
+		*/
+	template<class C> std::string UpdateTraitsMapping(std::string TypeName)
+	{
+		MDTraitsPtr Tr = new C;
+		MDTraitsPtr TrLookup = MDTraits::Find(Tr->Name());
 
-	if(!TrLookup) MDTraits::Add(Tr->Name(), Tr);
+		if(!TrLookup) MDTraits::Add(Tr->Name(), Tr);
 
-	if(MDType::UpdateTraitsMapping(TypeName, Tr->Name()))
-		return Tr->Name();
-	else
-		return "";
+		if(MDType::UpdateTraitsMapping(TypeName, Tr->Name()))
+			return Tr->Name();
+		else
+			return "";
+	}
 }
 
 
