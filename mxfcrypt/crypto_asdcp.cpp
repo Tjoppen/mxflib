@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.cpp
  *	\brief	AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.cpp,v 1.3 2005/10/08 14:55:49 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.cpp,v 1.4 2006/02/11 12:47:41 matt-beard Exp $
  *
  */
 /*
@@ -225,9 +225,20 @@ Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID,
 	if(Bytes == 32)
 	{
 		UInt8 KeyBuff[16];
-		if(sscanf(Buffer, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-			   &KeyBuff[0], &KeyBuff[1], &KeyBuff[2], &KeyBuff[3], &KeyBuff[4], &KeyBuff[5], &KeyBuff[6], &KeyBuff[7], 
-			   &KeyBuff[8], &KeyBuff[9], &KeyBuff[10], &KeyBuff[11], &KeyBuff[12], &KeyBuff[13], &KeyBuff[14], &KeyBuff[15] ) == 16)
+		int Count = 0;
+		while(Bytes)
+		{
+			int Val;
+			if(sscanf(&Buffer[Count*2], "%02x", &Val) == 1)
+			{
+				KeyBuff[Count] = static_cast<UInt8>(Val);
+				Count++;
+				Bytes -= 2;
+			}
+			else break;
+		}
+
+		if(Count == 16)
 		{
 			EncKey.Set(16, KeyBuff);
 			printf("Key Set OK\n");
@@ -346,9 +357,20 @@ Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(UInt32 BodySID, DataChu
 	if(Bytes == 32)
 	{
 		UInt8 KeyBuff[16];
-		if(sscanf(Buffer, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-			   &KeyBuff[0], &KeyBuff[1], &KeyBuff[2], &KeyBuff[3], &KeyBuff[4], &KeyBuff[5], &KeyBuff[6], &KeyBuff[7], 
-			   &KeyBuff[8], &KeyBuff[9], &KeyBuff[10], &KeyBuff[11], &KeyBuff[12], &KeyBuff[13], &KeyBuff[14], &KeyBuff[15] ) == 16)
+		int Count = 0;
+		while(Bytes)
+		{
+			int Val;
+			if(sscanf(&Buffer[Count*2], "%02x", &Val) == 1)
+			{
+				KeyBuff[Count] = static_cast<UInt8>(Val);
+				Count++;
+				Bytes -= 2;
+			}
+			else break;
+		}
+
+		if(Count == 16)
 		{
 			DecKey.Set(16, KeyBuff);
 			printf("Key Set OK\n");
@@ -362,8 +384,8 @@ Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(UInt32 BodySID, DataChu
  */
 bool Decrypt_GCEncryptionHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 {
-	printf("0x%08x -> %02x:0x%08x Encrypted data, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset());
-	printf("Size = 0x%08x\n", (int)Object->GetLength());
+//	printf("0x%08x -> %02x:0x%08x Encrypted data, ", (int)Object->GetLocation(), OurSID, (int)Caller->GetStreamOffset());
+//	printf("Size = 0x%08x\n", (int)Object->GetLength());
 
 	KLVEObjectPtr KLVE = new KLVEObject(Object);
 
