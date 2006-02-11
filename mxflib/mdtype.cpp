@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.7 2005/10/27 11:12:01 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.8 2006/02/11 16:04:34 matt-beard Exp $
  *
  */
 /*
@@ -42,7 +42,14 @@ using namespace mxflib;
 
 
 //! Default traits for types without special handling
-static MDTraits DefaultTraits;
+namespace
+{
+	MDTraitsPtr DefaultTraits = new MDTraits_DefaultTraits;
+}
+
+
+//! Map of type names to thair handling traits
+MDType::TraitsMapType MDType::TraitsMap;
 
 
 //! Add a definition for a basic type
@@ -55,7 +62,7 @@ MDTypePtr MDType::AddBasic(std::string TypeName, int TypeSize)
 	// ASSERT(TypeSize != 0);
 
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, BASIC, &DefaultTraits);
+	MDTypePtr NewType = new MDType(TypeName, BASIC, DefaultTraits);
 
 	// Set no base type
 	NewType->Base = NULL;
@@ -147,7 +154,7 @@ MDTypePtr MDType::AddArray(std::string TypeName, MDTypePtr BaseType, int Size /*
 MDTypePtr MDType::AddCompound(std::string TypeName)
 {
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, COMPOUND, &DefaultTraits);
+	MDTypePtr NewType = new MDType(TypeName, COMPOUND, DefaultTraits);
 
 	// Set no base type
 	NewType->Base = NULL;
@@ -269,6 +276,123 @@ UInt32 MDType::EffectiveSize(void) const
 
 	return Size;
 }
+
+
+//! Add a mapping to be applied to all types of a given type name
+/*! \note This will act retrospectively - all existing traits will be updated as required
+	*/
+bool MDType::AddTraitsMapping(std::string TypeName, std::string TraitsName)
+{
+	MDTraitsPtr Traits;
+	if(!TraitsName.empty()) Traits = MDTraits::Find(TraitsName);
+	if(!Traits) Traits = DefaultTraits;
+	
+	TraitsMap[TypeName] = Traits;
+
+	/* Apply these traits to any type that will need them */
+	std::map<std::string, MDTypePtr>::iterator it = NameLookup.begin();
+	while(it != NameLookup.end())
+	{
+		bool UpdateThis = false;
+
+		// Exact name matches will be updated
+		if((*it).first == TypeName) UpdateThis = true;
+		else
+		{
+			// If the type is an interpretation type, and its base type matches this type name...
+			if(((*it).second->Class == INTERPRETATION) && ((*it).second->EffectiveType()->Name() == TypeName))
+			{
+				// ...and it does not have a trait mapping itself, we will update it
+				TraitsMapType::iterator Map_it = TraitsMap.find((*it).second->Name());
+				if(Map_it == TraitsMap.end()) UpdateThis = true;
+			}
+		}
+
+		if(UpdateThis)
+		{
+			(*it).second->SetTraits(Traits);
+		}
+
+		it++;
+	}
+
+	return true;
+}
+
+
+//! Update an existing mapping and apply to any existing type of the given name
+bool MDType::UpdateTraitsMapping(std::string TypeName, std::string TraitsName)
+{
+	MDTraitsPtr Traits;
+	if(!TraitsName.empty()) Traits = MDTraits::Find(TraitsName);
+	if(!Traits) Traits = DefaultTraits;
+
+	TraitsMap[TypeName] = Traits;
+
+	/* Apply these traits to any type that will need them */
+	std::map<std::string, MDTypePtr>::iterator it = NameLookup.begin();
+	while(it != NameLookup.end())
+	{
+		bool UpdateThis = false;
+
+		// Exact name matches will be updated
+		if((*it).first == TypeName) UpdateThis = true;
+		else
+		{
+			// If the type is an interpretation type, and its base type matches this type name...
+			if(((*it).second->Class == INTERPRETATION) && ((*it).second->EffectiveType()->Name() == TypeName))
+			{
+				// ...and it does not have a trait mapping itself, we will update it
+				TraitsMapType::iterator Map_it = TraitsMap.find((*it).second->Name());
+				if(Map_it == TraitsMap.end()) UpdateThis = true;
+			}
+		}
+
+		if(UpdateThis)
+		{
+			(*it).second->SetTraits(Traits);
+		}
+
+		it++;
+	}
+
+	return true;
+}
+
+
+//! Lookup the traits for a specified type name
+/*! If no traits have been defined for the specified type the traits with the name given in DefaultTraitsName is used (if specified)
+ */
+MDTraitsPtr MDType::LookupTraitsMapping(std::string TypeName, std::string DefaultTraitsName /*=""*/)
+{
+	MDTraitsPtr Ret;
+
+	// First lookup this type's traits
+	TraitsMapType::iterator it = TraitsMap.find(TypeName);
+	if(it != TraitsMap.end())
+	{
+		Ret = (*it).second;
+	}
+	else
+	{
+		if(!DefaultTraitsName.empty())
+		{
+			it = TraitsMap.find(DefaultTraitsName);
+			if(it != TraitsMap.end())
+			{
+				Ret = (*it).second;
+			}
+			else
+			{
+				// If that doesn't work, look up the named default traits
+				Ret = MDTraits::Find(DefaultTraitsName);
+			}
+		}
+	}
+
+	return Ret;
+}
+
 
 
 //! MDValue named constructor

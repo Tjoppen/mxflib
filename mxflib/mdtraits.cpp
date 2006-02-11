@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.7 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.8 2006/02/11 16:04:34 matt-beard Exp $
  *
  */
 /*
@@ -33,7 +33,7 @@
 using namespace mxflib;
 
 // Standard library includes
-#include <stdexcept>
+//#include <stdexcept>
 
 //! Soft limit for strings returned by MDTraits - Defaults to 10k
 /*! \note This is a soft limit in that it is not enforced strictly.
@@ -51,6 +51,64 @@ UInt32 mxflib::MDTraits_StringLimit = 10240;
 /*! \note This only works for UTF16 and ISO7 string SetString traits
  */
 bool mxflib::TerminateStrings = false;
+
+
+mxflib::MDTraitsMap mxflib::MDTraits::AllTraits;
+
+
+//! Add a new trait to the list of known traits
+/*! \ret True is all went well, else false
+	*/
+bool MDTraits::Add(std::string Name, MDTraitsPtr Trait)
+{
+	MDTraitsMap::iterator it = AllTraits.find(Name);
+	if(it != AllTraits.end())
+	{
+		error("Internal error - two traits defined with the name \"%s\"\n", Name.c_str());
+	
+		return false;
+	}
+
+	AllTraits[Name] = Trait;
+
+	return true;
+};
+
+
+//! Replace the named trait in the list of known traits
+/*! \ret True is all went well, else false
+	*/
+bool MDTraits::Replace(std::string Name, MDTraitsPtr Trait)
+{
+	bool Ret = true;
+
+	MDTraitsMap::iterator it = AllTraits.find(Name);
+	if(it == AllTraits.end())
+	{
+		error("Internal error - MDTraits::Replace(%s) called when no such traits exist\n", Name.c_str());
+
+		Ret = false;
+	}
+
+	AllTraits[Name] = Trait;
+
+	return Ret;
+}
+
+
+//! Locate a named trait in the list of known traits
+/*! \ret A pointer to the named trait, or NULL if not found
+	*/
+MDTraitsPtr MDTraits::Find(std::string Name)
+{
+	MDTraitsMap::iterator it = AllTraits.find(Name);
+	if(it == AllTraits.end())
+	{
+		return NULL;
+	}
+
+	return (*it).second;
+}
 
 
 // Default trait implementations
@@ -1137,7 +1195,7 @@ std::string MDTraits_BasicStringArray::GetString(MDValuePtr Object)
 	while(it != Object->end())
 	{
 		std::string Temp = (*it).second->GetString();
-		
+
 		// Stop if a terminating zero was found
 		if(Temp.length() == 0) break;
 
@@ -1194,6 +1252,94 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 **   Raw Implementations   **
 ****************************/
 // TODO: The raw implementations should check "endian" and byte-swap if required (or should they?)
+
+Int32 MDTraits_Raw::GetInt(MDValuePtr Object)
+{
+	if(Object->GetData().Size >= 8)
+	{
+		return static_cast<Int32>(GetI64(Object->GetData().Data));
+	}
+	else if(Object->GetData().Size >= 4)
+	{
+		return GetI32(Object->GetData().Data);
+	}
+	else if(Object->GetData().Size >= 2)
+	{
+		return static_cast<Int32>(GetI16(Object->GetData().Data));
+	}
+	else if(Object->GetData().Size >= 1)
+	{
+		return static_cast<Int32>(*(Object->GetData().Data));
+	}
+
+	return 0;
+}
+
+UInt32 MDTraits_Raw::GetUInt(MDValuePtr Object)
+{
+	if(Object->GetData().Size >= 8)
+	{
+		return static_cast<UInt32>(GetU64(Object->GetData().Data));
+	}
+	else if(Object->GetData().Size >= 4)
+	{
+		return UInt32(Object->GetData().Data);
+	}
+	else if(Object->GetData().Size >= 2)
+	{
+		return static_cast<UInt32>(GetU16(Object->GetData().Data));
+	}
+	else if(Object->GetData().Size >= 1)
+	{
+		return static_cast<UInt32>(*(Object->GetData().Data));
+	}
+
+	return 0;
+}
+
+Int64 MDTraits_Raw::GetInt64(MDValuePtr Object)
+{
+	if(Object->GetData().Size >= 8)
+	{
+		return GetI64(Object->GetData().Data);
+	}
+	else if(Object->GetData().Size >= 4)
+	{
+		return static_cast<Int64>(GetI32(Object->GetData().Data));
+	}
+	else if(Object->GetData().Size >= 2)
+	{
+		return static_cast<Int64>(GetI16(Object->GetData().Data));
+	}
+	else if(Object->GetData().Size >= 1)
+	{
+		return static_cast<Int64>(*(Object->GetData().Data));
+	}
+
+	return 0;
+}
+
+UInt64 MDTraits_Raw::GetUInt64(MDValuePtr Object)
+{
+	if(Object->GetData().Size >= 8)
+	{
+		return GetU64(Object->GetData().Data);
+	}
+	else if(Object->GetData().Size >= 4)
+	{
+		return static_cast<UInt64>(GetU32(Object->GetData().Data));
+	}
+	else if(Object->GetData().Size >= 2)
+	{
+		return static_cast<UInt64>(GetU16(Object->GetData().Data));
+	}
+	else if(Object->GetData().Size >= 1)
+	{
+		return static_cast<UInt64>(*(Object->GetData().Data));
+	}
+
+	return 0;
+}
 
 std::string MDTraits_Raw::GetString(MDValuePtr Object)
 {
@@ -1263,6 +1409,9 @@ void MDTraits_Raw::SetString(MDValuePtr Object, std::string Val)
 	}
 
 	Object->SetData(Object->GetData().Size, Data);
+
+	// Clean up
+	delete[] Data;
 }
 
 
@@ -1315,6 +1464,45 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 		it++;
 	}
 	return Ret;
+}
+
+
+UInt32 MDTraits_Raw::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
+{
+	// If multiple items are found read them all "blindly"
+	UInt32 FullSize = Size;
+	if(Count) FullSize *= Count;
+
+	// Try and make exactly the right amount of room
+	// Some objects will not allow this and will return a different size
+	UInt32 ObjSize = Object->MakeSize(FullSize);
+
+	// If the object is too small, only read what we can
+	if(ObjSize < FullSize)
+	{
+		Object->SetData(ObjSize, Buffer);
+		return ObjSize;
+	}
+
+	// If the object is exactly the right size read it all in
+	if(ObjSize == FullSize)
+	{
+		Object->SetData(FullSize, Buffer);
+	}
+	else
+	{
+		// If the object ends up too big we build a copy
+		// of the data with zero padding
+		UInt8 *Temp = new UInt8[ObjSize];
+
+		memcpy(Temp, Buffer, FullSize);
+		memset(&Temp[FullSize], 0, ObjSize - FullSize);
+		Object->SetData(ObjSize, Temp);
+
+		delete[] Temp;
+	}
+
+	return FullSize;
 }
 
 
@@ -1380,6 +1568,108 @@ void MDTraits_RawArray::SetString(MDValuePtr Object, std::string Val)
 **   UUID Implementations	**
 *****************************/
 
+void MDTraits_UUID::SetString(MDValuePtr Object, std::string Val)
+{
+	// Make a safe copy of the value that will not be cleaned-up by string manipulation
+	const int VALBUFF_SIZE = 256;
+	char ValueBuff[VALBUFF_SIZE];
+	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
+	const char *p = ValueBuff;
+
+	int Count = Object->GetData().Size;
+	int Value = -1;
+	UInt8 *Data = new UInt8[Count];
+	UInt8 *pD = Data;
+
+	bool EndSwap = false;
+
+	// Check for URN format
+	if((tolower(*p) == 'u') && (tolower(p[1]) == 'r') && (tolower(p[2]) == 'n') && (tolower(p[3]) == ':'))
+	{
+
+		if( (strcasecmp(Val.substr(0,7).c_str(), "urn:ul:") == 0) || (strcasecmp(Val.substr(0,9).c_str(), "urn:x-ul:") == 0) )
+		{
+			EndSwap = true;
+		}
+
+		p += Val.rfind(':') + 1;
+	}
+
+	// During this loop Value = -1 when no digits of a number are mid-process
+	// This stops a double space being regarded as a small zero in between two spaces
+	int DigitCount = 0;
+	while(Count)
+	{
+		int Digit;
+
+		if((*p == 0) && (Value == -1)) Value = 0;
+
+		if(*p >= '0' && *p <='9') Digit = (*p) - '0';
+		else if(*p >= 'a' && *p <= 'f') Digit = (*p) - 'a' + 10;
+		else if(*p >= 'A' && *p <= 'F') Digit = (*p) - 'A' + 10;
+		else
+		{
+			// If we meet "[" before any digits, this as a UL - which will need to be end-swapped
+			if((*p == '[') && (Count == Object->GetData().Size))
+			{
+				EndSwap = true;
+			}
+
+			if(Value == -1)
+			{
+				// Skip second or subsiquent non-digit
+				p++;
+				continue;
+			}
+			else
+			{
+				*pD = Value;
+				*pD++;
+
+				Count--;
+
+				if(*p) p++;
+				
+				Value = -1;
+				DigitCount = 0;
+
+				continue;
+			}
+		}
+
+		if(Value == -1) Value = 0; else Value <<=4;
+		Value += Digit;
+		p++;
+
+		if(!DigitCount) 
+			DigitCount++;
+		else
+		{
+			*pD = Value;
+			*pD++;
+
+			Count--;
+			
+			Value = -1;
+			DigitCount = 0;
+		}
+	}
+
+	// If the value was a UL, end-swap it
+	if(EndSwap && (Object->GetData().Size == 16))
+	{
+		UInt8 Temp[8];
+		memcpy(Temp, &Data[8], 8);
+		memcpy(&Data[8], Data, 8);
+		memcpy(Data, Temp, 8);
+	}
+
+	Object->SetData(Object->GetData().Size, Data);
+
+	// Clean up
+	delete[] Data;
+}
+
 std::string MDTraits_UUID::GetString(MDValuePtr Object)
 {
 	char Buffer[100];
@@ -1416,6 +1706,107 @@ std::string MDTraits_UUID::GetString(MDValuePtr Object)
 /***********************************
 **   Label Implementations        **
 ************************************/
+
+void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
+{
+	// Make a safe copy of the value that will not be cleaned-up by string manipulation
+	const int VALBUFF_SIZE = 256;
+	char ValueBuff[VALBUFF_SIZE];
+	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
+	const char *p = ValueBuff;
+
+	int Count = Object->GetData().Size;
+	int Value = -1;
+	UInt8 *Data = new UInt8[Count];
+	UInt8 *pD = Data;
+
+	bool EndSwap = false;
+
+	// Check for URN format
+	if((tolower(*p) == 'u') && (tolower(p[1]) == 'r') && (tolower(p[2]) == 'n') && (tolower(p[3]) == ':'))
+	{
+		if(strcasecmp(Val.substr(0,9).c_str(), "urn:uuid:") == 0)
+		{
+			EndSwap = true;
+		}
+
+		p += Val.rfind(':') + 1;
+	}
+
+	// During this loop Value = -1 when no digits of a number are mid-process
+	// This stops a double space being regarded as a small zero in between two spaces
+	int DigitCount = 0;
+	while(Count)
+	{
+		int Digit;
+		
+		if((*p == 0) && (Value == -1)) Value = 0;
+
+		if(*p >= '0' && *p <='9') Digit = (*p) - '0';
+		else if(*p >= 'a' && *p <= 'f') Digit = (*p) - 'a' + 10;
+		else if(*p >= 'A' && *p <= 'F') Digit = (*p) - 'A' + 10;
+		else
+		{
+			// If we meet "{" before any digits, this as a UUID - which will need to be end-swapped
+			if((*p == '{') && (Count == Object->GetData().Size))
+			{
+				EndSwap = true;
+			}
+
+			if(Value == -1)
+			{
+				// Skip second or subsiquent non-digit
+				p++;
+				continue;
+			}
+			else 
+			{
+				*pD = Value;
+				*pD++;
+
+				Count--;
+
+				if(*p) p++;
+				
+				Value = -1;
+				DigitCount = 0;
+
+				continue;
+			}
+		}
+
+		if(Value == -1) Value = 0; else Value <<=4;
+		Value += Digit;
+		p++;
+
+		if(!DigitCount) 
+			DigitCount++;
+		else
+		{
+			*pD = Value;
+			*pD++;
+
+			Count--;
+			
+			Value = -1;
+			DigitCount = 0;
+		}
+	}
+
+	// If the value was a UUID, end-swap it
+	if(EndSwap && (Object->GetData().Size == 16))
+	{
+		UInt8 Temp[8];
+		memcpy(Temp, &Data[8], 8);
+		memcpy(&Data[8], Data, 8);
+		memcpy(Data, Temp, 8);
+	}
+
+	Object->SetData(Object->GetData().Size, Data);
+
+	// Clean up
+	delete[] Data;
+}
 
 std::string MDTraits_Label::GetString(MDValuePtr Object)
 {
@@ -1463,6 +1854,81 @@ std::string MDTraits_Label::GetString(MDValuePtr Object)
 /*****************************
 **   UMID Implementations	**
 *****************************/
+
+void MDTraits_UMID::SetString(MDValuePtr Object, std::string Val)
+{
+	// Make a safe copy of the value that will not be cleaned-up by string manipulation
+	const int VALBUFF_SIZE = 256;
+	char ValueBuff[VALBUFF_SIZE];
+	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
+	const char *p = ValueBuff;
+
+	int Count = Object->GetData().Size;
+	int Value = -1;
+	UInt8 *Data = new UInt8[Count];
+	UInt8 *pD = Data;
+
+	bool EndSwap = false;
+
+	// During this loop Value = -1 when no digits of a number are mid-process
+	// This stops a double space being regarded as a small zero in between two spaces
+	while(Count)
+	{
+		int digit;
+		
+		if((*p == 0) && (Value == -1)) Value = 0;
+
+		if(*p >= '0' && *p <='9') digit = (*p) - '0';
+		else if(*p >= 'a' && *p <= 'f') digit = (*p) - 'a' + 10;
+		else if(*p >= 'A' && *p <= 'F') digit = (*p) - 'A' + 10;
+		else
+		{
+			// If we meet "[" before the digits for the material number, it is a UL - which will need to be end-swapped
+			if((*p == '[') && (Count == (Object->GetData().Size - 16)))
+			{
+				EndSwap = true;
+			}
+
+			if(Value == -1)
+			{
+				// Skip second or subsiquent non-digit
+				p++;
+				continue;
+			}
+			else 
+			{
+				*pD = Value;
+				*pD++;
+
+				Count--;
+
+				if(*p) p++;
+				
+				Value = -1;
+
+				continue;
+			}
+		}
+
+		if(Value == -1) Value = 0; else Value <<=4;
+		Value += digit;
+		p++;
+	}
+
+	// If the material number was a UL, end-swap it
+	if(EndSwap && (Object->GetData().Size == 32))
+	{
+		UInt8 Temp[8];
+		memcpy(Temp, &Data[24], 8);
+		memcpy(&Data[24], &Data[16], 8);
+		memcpy(&Data[16], Temp, 8);
+	}
+
+	Object->SetData(Object->GetData().Size, Data);
+
+	// Clean up
+	delete[] Data;
+}
 
 std::string MDTraits_UMID::GetString(MDValuePtr Object)
 {

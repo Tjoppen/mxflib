@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.6 2005/10/27 11:12:42 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.7 2006/02/11 16:04:35 matt-beard Exp $
  *
  */
 /*
@@ -175,11 +175,11 @@ namespace mxflib
 	//! Holds the definition of a metadata type
 	class MDType : public RefCount<MDType> , public MDTypeMap
 	{
-	private:
+	protected:
 		std::string TypeName;			//!< Name of this MDType
 		MDTypeClass Class;				//!< Class of this MDType
 		MDArrayClass ArrayClass;		//!< Sub-class of array
-		MDTraits *Traits;				//!< Traits for this MDType
+		MDTraitsPtr Traits;				//!< Traits for this MDType
 		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 
 	public:
@@ -192,13 +192,17 @@ namespace mxflib
 		//! Access function for ContainerType
 //		const MDContainerType &GetContainerType(void) { return (const MDContainerType &)ContainerType; };
 
-	private:
+	protected:
 		//!	Construct a basic MDType
 		/*! This constructor is private so the ONLY way to create
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
-		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraits *TypeTraits)
-			: TypeName(TypeName) , Class(TypeClass) , ArrayClass(ARRAYARRAY) , Traits(TypeTraits) , Endian(false) {};
+		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraitsPtr TypeTraits)
+			: TypeName(TypeName) , Class(TypeClass) , ArrayClass(ARRAYARRAY) , Traits(TypeTraits) , Endian(false) 
+		{
+			// Ensure that the traits are initialized
+//			TypeTraits->Init();
+		};
  
 		//! Prevent auto construction by NOT having an implementation to this constructor
 		MDType();
@@ -249,7 +253,7 @@ namespace mxflib
 
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
-	private:
+	protected:
 		static MDTypeList Types;		//!< All types managed by this object
 
 		//! Map for reverse lookups based on type name
@@ -270,15 +274,80 @@ namespace mxflib
 
 		static MDTypePtr Find(const std::string& TypeName);
 	
+
+	/* Traits handling */
+	/*******************/
+
+	public:
 		//! Set the traits for this type
-		void SetTraits(MDTraits *Tr) { Traits = Tr; };
+		void SetTraits(MDTraitsPtr Tr) 
+		{ 
+			Traits = Tr; 
+			
+			// Ensure that the traits are initialized
+//			Tr->Init();
+		};
 
 		//! Access the traits for this type
-		const MDTraits* GetTraits(void) const { return Traits; };
+		MDTraitsPtr GetTraits(void) const { return Traits; };
+
+	protected:
+		//! Type to map type names to their handling traits
+		typedef std::map<std::string,MDTraitsPtr> TraitsMapType;
+
+		//! Map of type names to thair handling traits
+		static TraitsMapType TraitsMap;
+
+	public:
+		//! Add a mapping to be applied to all types of a given type name
+		/*! \note This will act retrospectively
+		 */
+		static bool AddTraitsMapping(std::string TypeName, std::string TraitsName);
+
+		//! Update an existing mapping and apply to any existing type of the given name
+		static bool UpdateTraitsMapping(std::string TypeName, std::string TraitsName);
+
+		//! Lookup the traits for a specified type name
+		/*! If no traits have been defined for the specified type the traits with the name given in DefaultTraitsName is used (if specified)
+		 */
+		static MDTraitsPtr LookupTraitsMapping(std::string TypeName, std::string DefaultTraitsName = "");
 
 		/* Allow MDValue class to view internals of this class */
 		friend class MDValue;
 	};
+}
+
+//! Add a mapping to apply a given set of traits to a certain type
+/*! \ret The name of the traits
+	*/
+template<class C> std::string AddTraitsMapping(std::string TypeName)
+{
+	MDTraitsPtr Tr = new C;
+	MDTraitsPtr TrLookup = MDTraits::Find(Tr->Name());
+
+	if(!TrLookup) MDTraits::Add(Tr->Name(), Tr);
+
+	if(MDType::AddTraitsMapping(TypeName, Tr->Name()))
+		return Tr->Name();
+	else
+		return "";
+}
+
+
+//! Update an existing mapping and apply to any existing type of the given name
+/*! \ret The name of the traits
+	*/
+template<class C> std::string UpdateTraitsMapping(std::string TypeName)
+{
+	MDTraitsPtr Tr = new C;
+	MDTraitsPtr TrLookup = MDTraits::Find(Tr->Name());
+
+	if(!TrLookup) MDTraits::Add(Tr->Name(), Tr);
+
+	if(MDType::UpdateTraitsMapping(TypeName, Tr->Name()))
+		return Tr->Name();
+	else
+		return "";
 }
 
 
