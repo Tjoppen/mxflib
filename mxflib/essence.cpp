@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.12 2005/10/27 11:02:10 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.13 2006/02/11 16:12:19 matt-beard Exp $
  *
  */
 /*
@@ -1755,7 +1755,11 @@ UInt32 mxflib::GetGCTrackNumber(ULPtr TheUL)
 	
 	// Note that we first test the 11th byte as this where "Application = MXF Generic Container Keys"
 	// is set and so is the same for all GC keys and different in the majority of non-CG keys
-	if( ( TheUL->GetValue()[10] == DegenerateGCLabel[10] ) && (memcmp(TheUL->GetValue(), DegenerateGCLabel, 12) == 0) )
+	// also, avoid testing the 8th byte (version number)
+	if( ( TheUL->GetValue()[10] == DegenerateGCLabel[10] )
+	 && ( TheUL->GetValue()[9]  == DegenerateGCLabel[9]  )
+	 && ( TheUL->GetValue()[8]  == DegenerateGCLabel[8]  )
+	 && ( memcmp(TheUL->GetValue(), DegenerateGCLabel, 7 ) == 0) )
 	{
 		return (UInt32(TheUL->GetValue()[12]) << 24) | (UInt32(TheUL->GetValue()[13]) << 16) 
 			 | (UInt32(TheUL->GetValue()[14]) << 8) | UInt32(TheUL->GetValue()[15]);
