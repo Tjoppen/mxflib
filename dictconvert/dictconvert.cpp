@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.6 2005/11/15 11:53:02 matt-beard Exp $
+ *	\version $Id: dictconvert.cpp,v 1.7 2006/02/11 14:32:01 matt-beard Exp $
  *
  */
 /*
@@ -86,6 +86,31 @@ int main(int argc, char *argv[])
 	return Ret;
 }
 
+namespace
+{
+	class ULData;
+	typedef SmartPtr<ULData> ULDataPtr;
+
+	class ULData : public RefCount<ULData>
+	{
+	public:
+		std::string Name;
+		std::string Detail;
+		ULDataPtr Parent;
+		bool IsSet;
+		bool IsPack;
+		bool IsMulti;
+		ULPtr UL;
+		Tag LocalTag;
+	};
+
+	typedef std::map<std::string, ULDataPtr> ULDataMap;
+	typedef std::list<ULDataPtr> ULDataList;
+
+	ULDataMap ULMap;
+	ULDataList ULFixupList;
+};
+
 
 //! State-machine state for XML parsing
 enum CurrentState
@@ -107,6 +132,9 @@ struct ConvertState
 {
 	CurrentState State;							//!< Current state of the parser state-machine
 	std::string Parent;							//!< The name of the current compound or set/pack being built
+	std::string Multi;							//!< The name of the current multiple being built (possibly inside a set of pack)
+	ULDataPtr ParentData;						//!< The ULData item of the parent set or pack
+	ULDataPtr MultiData;						//!< The ULData item of the parent multiple
 	FILE *OutFile;								//!< The file being written
 	int Depth;									//!< Nesting depth in class parsing
 	std::list<std::string> EndTagText;			//!< Text to be output at the next class end tag
@@ -117,27 +145,6 @@ struct ConvertState
 	std::string SymSpace;						//!< The symbol space attribute of the classes tag (stored if deferring the header line)
 };
 
-
-namespace
-{
-	struct ULData
-	{
-		std::string Name;
-		std::string Detail;
-		std::string Parent;
-		bool IsSet;
-		bool IsPack;
-		bool IsMulti;
-		ULPtr UL;
-		Tag LocalTag;
-	};
-
-	typedef std::map<std::string, ULData> ULDataMap;
-	typedef std::list<ULData> ULDataList;
-
-	ULDataMap ULMap;
-	ULDataList ULFixupList;
-};
 
 
 //! Do the main processing (less any pause before exit)
@@ -280,13 +287,40 @@ int main_process(int argc, char *argv[])
 		ULDataList::iterator ListIt = ULFixupList.begin();
 		while(ListIt != ULFixupList.end())
 		{
-			printf("* Resolving Duplicate %s\n", (*ListIt).Name.c_str());
+			printf("\n* Resolving Duplicate %s\n", (*ListIt)->Name.c_str());
+
+			// Must check that any parent is resolved first
+			// DRAGONS: Can this ever be required?
+			if((*ListIt)->Parent)
+			{
+				bool ParentUnresolved = false;
+                ULDataList::iterator ParentIt = ULFixupList.begin();
+				while(ParentIt != ULFixupList.end())
+				{
+					if((*ParentIt)->Name == (*ListIt)->Parent->Name)
+					{
+						ParentUnresolved = true;
+						break;
+					}
+					ParentIt++;
+				}
+
+				if(ParentUnresolved)
+				{
+					ULDataPtr ThisData = (*ListIt);
+					ULFixupList.erase(ListIt);
+					ULFixupList.push_back(ThisData);
+					printf("Defering %s as parent, %s, needs resolving first\n", ThisData->Name.c_str(), ThisData->Parent->Name.c_str());
+					ListIt = ULFixupList.begin();
+					continue;
+				}
+			}
 
 			// A list of the items we are de-duplicating
 			ULDataList WorkingList;
 			
 			// First extract the copy of the data already in ULMap using this name
-			ULDataMap::iterator MapIt = ULMap.find((*ListIt).Name);
+			ULDataMap::iterator MapIt = ULMap.find((*ListIt)->Name);
 			if(MapIt != ULMap.end())
 			{
 				WorkingList.push_back((*MapIt).second);
@@ -294,11 +328,11 @@ int main_process(int argc, char *argv[])
 			}
 
 			// Extract all matching names from the fixup list into the working list
-			std::string ThisName = (*ListIt).Name;
+			std::string ThisName = (*ListIt)->Name;
 			ULDataList::iterator ListIt2 = ULFixupList.begin();
 			while(ListIt2 != ULFixupList.end())
 			{
-				if((*ListIt2).Name == ThisName)
+				if((*ListIt2)->Name == ThisName)
 				{
 					WorkingList.push_back(*ListIt2);
 					ULDataList::iterator ToErase = ListIt2;
@@ -316,27 +350,32 @@ int main_process(int argc, char *argv[])
 			int PackCount = 0;
 			int ArrayCount = 0;
 			int BatchCount = 0;
+			int ItemCount = 0;
 			ListIt2 = WorkingList.begin();
 			while(ListIt2 != WorkingList.end())
 			{
-				if((*ListIt2).IsSet) SetCount++;
-				else if((*ListIt2).IsPack) PackCount++;
-				else if((*ListIt2).IsMulti)
+				if((*ListIt2)->IsSet) SetCount++;
+				else if((*ListIt2)->IsPack) PackCount++;
+				else if((*ListIt2)->IsMulti)
 				{
-					if(   ((*ListIt2).Detail.find("Batch") != std::string::npos)
-					   || ((*ListIt2).Detail.find("batch") != std::string::npos)
-					   || ((*ListIt2).Detail.find("Unordered") != std::string::npos)
-					   || ((*ListIt2).Detail.find("unordered") != std::string::npos) )
+					if(   ((*ListIt2)->Detail.find("Batch") != std::string::npos)
+					   || ((*ListIt2)->Detail.find("batch") != std::string::npos)
+					   || ((*ListIt2)->Detail.find("Unordered") != std::string::npos)
+					   || ((*ListIt2)->Detail.find("unordered") != std::string::npos) )
 					{
 						BatchCount++;
 					}
-					else if(   ((*ListIt2).Detail.find("Array") != std::string::npos)
-							|| ((*ListIt2).Detail.find("array") != std::string::npos)
-							|| ((*ListIt2).Detail.find("Ordered") != std::string::npos)
-							|| ((*ListIt2).Detail.find("ordered") != std::string::npos) )
+					else if(   ((*ListIt2)->Detail.find("Array") != std::string::npos)
+							|| ((*ListIt2)->Detail.find("array") != std::string::npos)
+							|| ((*ListIt2)->Detail.find("Ordered") != std::string::npos)
+							|| ((*ListIt2)->Detail.find("ordered") != std::string::npos) )
 					{
 						ArrayCount++;
 					}
+				}
+				else if((*ListIt2)->Parent)
+				{
+					if((*ListIt2)->Parent->IsMulti) ItemCount++;
 				}
 
 				ListIt2++;
@@ -344,34 +383,43 @@ int main_process(int argc, char *argv[])
 
 			// We can use appending if there are no duplicates
 			if(   (SetCount <= 1) && (PackCount <= 1) && (ArrayCount <= 1) && (BatchCount <= 1)
-			   && (WorkingList.size() - (SetCount + PackCount + ArrayCount + BatchCount) <= 1) )
+			   && (WorkingList.size() - (SetCount + PackCount + ArrayCount + BatchCount + ItemCount) <= 1) )
 			{
 				ULDataList::iterator ListIt2 = WorkingList.begin();
 				while(ListIt2 != WorkingList.end())
 				{
-					std::string NewName = (*ListIt2).Name;
-					if((*ListIt2).IsSet) NewName += "Set";
-					else if((*ListIt2).IsPack) NewName += "Pack";
-					else if((*ListIt2).IsMulti)
+					std::string NewName = (*ListIt2)->Name;
+					if((*ListIt2)->IsSet) NewName += "Set";
+					else if((*ListIt2)->IsPack) NewName += "Pack";
+					else if((*ListIt2)->IsMulti)
 					{
-						if(   ((*ListIt2).Detail.find("Batch") != std::string::npos)
-						   || ((*ListIt2).Detail.find("batch") != std::string::npos)
-						   || ((*ListIt2).Detail.find("Unordered") != std::string::npos)
-						   || ((*ListIt2).Detail.find("unordered") != std::string::npos) )
+						if(   ((*ListIt2)->Detail.find("Batch") != std::string::npos)
+						   || ((*ListIt2)->Detail.find("batch") != std::string::npos)
+						   || ((*ListIt2)->Detail.find("Unordered") != std::string::npos)
+						   || ((*ListIt2)->Detail.find("unordered") != std::string::npos) )
 						{
 							NewName += "Batch";
 						}
-						else if(   ((*ListIt2).Detail.find("Array") != std::string::npos)
-								|| ((*ListIt2).Detail.find("array") != std::string::npos)
-								|| ((*ListIt2).Detail.find("Ordered") != std::string::npos)
-								|| ((*ListIt2).Detail.find("ordered") != std::string::npos) )
+						else if(   ((*ListIt2)->Detail.find("Array") != std::string::npos)
+								|| ((*ListIt2)->Detail.find("array") != std::string::npos)
+								|| ((*ListIt2)->Detail.find("Ordered") != std::string::npos)
+								|| ((*ListIt2)->Detail.find("ordered") != std::string::npos) )
 						{
 							NewName += "Array";
 						}
 					}
-					ULMap.insert(ULDataMap::value_type(NewName, (*ListIt2)));
+					else if((*ListIt2)->Parent)
+					{
+						if((*ListIt2)->Parent->IsMulti)
+						{
+							NewName = (*ListIt2)->Parent->Name + "Item";
+						}
+					}
 
-					printf("%s -> %s\n", (*ListIt2).Name.c_str(), NewName.c_str());
+					printf("%s -> %s\n", (*ListIt2)->Name.c_str(), NewName.c_str());
+
+					(*ListIt2)->Name = NewName;
+					ULMap.insert(ULDataMap::value_type(NewName, (*ListIt2)));
 
 					ListIt2++;
 				}
@@ -383,12 +431,12 @@ int main_process(int argc, char *argv[])
 				ULDataList::iterator ListIt2 = WorkingList.begin();
 				while(ListIt2 != WorkingList.end())
 				{
-					std::string NewName = (*ListIt2).Name;
-					if((*ListIt2).Parent.length()) NewName = (*ListIt2).Parent + "_" + NewName;
+					std::string NewName = (*ListIt2)->Name;
+					if((*ListIt2)->Parent) NewName = (*ListIt2)->Parent->Name + "_" + NewName;
 
 					ULMap.insert(ULDataMap::value_type(NewName, (*ListIt2)));
 
-					printf("%s -> %s\n", (*ListIt2).Name.c_str(), NewName.c_str());
+					printf("%s -> %s\n", (*ListIt2)->Name.c_str(), NewName.c_str());
 
 					ListIt2++;
 				}
@@ -396,7 +444,7 @@ int main_process(int argc, char *argv[])
 			}
 
 			// DRAGONS: There is no need to increment ListIt as the first entry will have been removed
-			//          We simple restart at the top of the shortened list
+			//          We simply restart at the top of the shortened list
 			ListIt = ULFixupList.begin();
 		}
 
@@ -420,8 +468,8 @@ int main_process(int argc, char *argv[])
 			int i;
 			for(i=0; i<16; i++)
 			{
-				if(i == 0) fprintf(outfile, "0x%02x", (*MapIt).second.UL->GetValue()[0]);
-				else fprintf(outfile, ", 0x%02x", (*MapIt).second.UL->GetValue()[i]);
+				if(i == 0) fprintf(outfile, "0x%02x", (*MapIt).second->UL->GetValue()[0]);
+				else fprintf(outfile, ", 0x%02x", (*MapIt).second->UL->GetValue()[i]);
 			}
 			fprintf(outfile, " };\n");
 			fprintf(outfile, "\t\tconst UL %s_UL(%s_UL_Data);\n\n", (*MapIt).first.c_str(), (*MapIt).first.c_str());
@@ -978,6 +1026,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			int Count = ReadHexString(Key.c_str(), 16, KeyBuff, " \t.");
 			if(Count == 2) Tag = GetU16(KeyBuff);
 
+			ULDataPtr ThisItem;
 			if(ULConsts && (GlobalKey.length() > 0))
 			{
 				UInt8 KeyBuff[16];
@@ -986,10 +1035,11 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				if(Count == 16)
 				{
 					// Build a ULData item for this entry
-					ULData ThisItem;
-					ThisItem.Name = name;
-					ThisItem.Detail = Detail;
-					ThisItem.Parent = State->Parent;
+					ThisItem = new ULData;
+					ThisItem->Name = name;
+					ThisItem->Detail = Detail;
+					if(State->MultiData) ThisItem->Parent = State->MultiData;
+					else ThisItem->Parent = State->ParentData;
 
 					char TypeBuff[32];
 					strncpy(TypeBuff, Type.c_str(), 32);
@@ -999,59 +1049,59 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					   || (strcasecmp(TypeBuff,"localSet") == 0)
 				       || (strcasecmp(TypeBuff,"subLocalSet") == 0) )
 					{
-						ThisItem.IsSet = true;
-						ThisItem.IsPack = false;
-						ThisItem.IsMulti = false;
+						ThisItem->IsSet = true;
+						ThisItem->IsPack = false;
+						ThisItem->IsMulti = false;
 					}
 					else if(   (strcasecmp(TypeBuff,"variablePack") == 0)
 			                || (strcasecmp(TypeBuff,"subVariablePack") == 0)
 							|| (strcasecmp(TypeBuff,"fixedPack") == 0)
 							|| (strcasecmp(TypeBuff,"subFixedPack") == 0) )
 					{
-						ThisItem.IsSet = false;
-						ThisItem.IsPack = true;
-						ThisItem.IsMulti = false;
+						ThisItem->IsSet = false;
+						ThisItem->IsPack = true;
+						ThisItem->IsMulti = false;
 					}
 					else
 					{
-						ThisItem.IsSet = false;
-						ThisItem.IsPack = false;
+						ThisItem->IsSet = false;
+						ThisItem->IsPack = false;
 
 						if(   (strcasecmp(TypeBuff,"vector") == 0)
 						   || (strcasecmp(TypeBuff,"subVector") == 0)
 						   ||   (strcasecmp(TypeBuff,"array") == 0)
 						   || (strcasecmp(TypeBuff,"subArray") == 0) )
 						{
-							ThisItem.IsMulti = true;
+							ThisItem->IsMulti = true;
 						}
 						else
 						{
-							ThisItem.IsMulti = false;
+							ThisItem->IsMulti = false;
 						}
 					}
-					
-					ThisItem.UL = new UL(KeyBuff);
-					ThisItem.LocalTag = (mxflib::Tag)Tag;
+
+					ThisItem->UL = new UL(KeyBuff);
+					ThisItem->LocalTag = (mxflib::Tag)Tag;
 
 					// Build the name to use for the const
-					std::string ItemName = ThisItem.Name;
-					if(LongFormConsts && (ThisItem.Parent.length() > 0)) ItemName = ThisItem.Parent + "_" + ItemName;
+					std::string ItemName = ThisItem->Name;
+					if(LongFormConsts && (ThisItem->Parent)) ItemName = ThisItem->Parent->Name + "_" + ItemName;
 
 					// See if this is a duplicate entry
 					ULDataMap::iterator it = ULMap.find(ItemName);
 					if(it != ULMap.end())
 					{
-						if(*(ThisItem.UL) == *((*it).second.UL))
+						if(*(ThisItem->UL) == *((*it).second->UL))
 						{
-							if((((*it).second.LocalTag != 0) && (Tag != 0)) && ((*it).second.LocalTag != ThisItem.LocalTag))
+							if((((*it).second->LocalTag != 0) && (Tag != 0)) && ((*it).second->LocalTag != ThisItem->LocalTag))
 							{
 								error("Multiple entries for %s with UL %s with different local tags (%s and %s)\n", 
-									   ItemName.c_str(), ThisItem.UL->GetString().c_str(), 
-									   Tag2String((*it).second.LocalTag).c_str(), Tag2String(ThisItem.LocalTag).c_str());
+									   ItemName.c_str(), ThisItem->UL->GetString().c_str(), 
+									   Tag2String((*it).second->LocalTag).c_str(), Tag2String(ThisItem->LocalTag).c_str());
 							}
 							else
 							{
-								printf("Multiple entries for %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem.UL->GetString().c_str());
+								printf("Multiple entries for %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem->UL->GetString().c_str());
 							}
 						}
 						else
@@ -1116,6 +1166,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				    || (strcasecmp(TypeBuff,"subLocalSet") == 0) )
 			{
 				State->Parent = name;
+				State->ParentData = ThisItem;
 
 				if(SymSpace.size() == 0)
 				{
@@ -1146,6 +1197,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				    || (strcasecmp(TypeBuff,"subFixedPack") == 0) )
 			{
 				State->Parent = name;
+				State->ParentData = ThisItem;
+
 
 				if(SymSpace.size() == 0)
 				{
@@ -1175,6 +1228,9 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			else if(   (strcasecmp(TypeBuff,"vector") == 0)
 				    || (strcasecmp(TypeBuff,"subVector") == 0) )
 			{
+				State->Multi = name;
+				State->MultiData = ThisItem;
+
 				if(SymSpace.size() != 0)
 				{
 					Convert_error(State, "Symbol space not currently supported for vector types such as <%s>\n", name);
@@ -1190,6 +1246,9 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			else if(   (strcasecmp(TypeBuff,"array") == 0)
 				    || (strcasecmp(TypeBuff,"subArray") == 0) )
 			{
+				State->Multi = name;
+				State->MultiData = ThisItem;
+
 				if(SymSpace.size() != 0)
 				{
 					Convert_error(State, "Symbol space not currently supported for arrays types such as <%s>\n", name);
@@ -1322,10 +1381,18 @@ void Convert_endElement(void *user_data, const char *name)
 				break;
 			}
 
-			// Remove the parent name when we step out of a set or pack
+			// Remove the parent name when we step out of a set or pack (and clear its data)
 			if(strcmp(name,State->Parent.c_str()) == 0)
 			{
 				State->Parent = "";
+				State->ParentData = NULL;
+			}
+
+			// Remove the multi name when we step out of a batch or array (and clear its data)
+			if(strcmp(name,State->Multi.c_str()) == 0)
+			{
+				State->Multi = "";
+				State->MultiData = NULL;
 			}
 
 			// Emit any end text
