@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.6 2005/10/08 15:35:33 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.7 2006/02/11 16:14:30 matt-beard Exp $
  *
  */
 /*
@@ -509,8 +509,10 @@ Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, U
 	// Simple version - we are working in our native edit rate
 	if((SelectedEditRate.Denominator == NativeEditRate.Denominator) && (SelectedEditRate.Numerator = NativeEditRate.Numerator))
 	{
+		Position SeqSize = (150 * 80 * SeqCount);
+
 		// Seek to the data position
-		Position ReadStart = DIFStart + (150 * 80 * SeqCount * PictureNumber);
+		Position ReadStart = DIFStart + (SeqSize * PictureNumber);
 		FileSeek(InFile, ReadStart);
 
 		// Work out how many bytes to read
@@ -521,7 +523,10 @@ Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, U
 		if((Ret + ReadStart) > DIFEnd)
 		{
 			Ret = DIFEnd - ReadStart;
-			PictureNumber = (DIFEnd - DIFStart) / (150 * 80 * SeqCount);
+
+			// Work out the picture number
+			// DRAGONS: Add SeqSize-1 to ensure that a truncated edit unit is counted as a whole one (relies on '/' rounding down)
+			PictureNumber = ((DIFEnd - DIFStart) + (SeqSize - 1)) / SeqSize;
 		}
 
 		// Return the number of bytes to read
