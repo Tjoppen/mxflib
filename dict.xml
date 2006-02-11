@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2005/11/15 11:50:13 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2006/02/11 15:55:57 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -132,10 +132,6 @@
 			<RationalArray detail="Array of Rational" base="Rational" type="Array"/>
 			<RGBALayout detail="Specifies the type, order and size of the components within the pixel" base="RGBALayoutItem" type="Array" size="8"/>
 		</Multiple>
-		<!-- TODO 
-	Timecode12M,,,,
-	Timestamp309M,,,,
-	-->
 	</MXFTypes>
 	<MXFClasses>
 		<KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 01 03 01 02 10 01 00 00 00"/>
@@ -337,7 +333,6 @@
 				<TrackID detail="UInt32" type="UInt32" minLength="4" maxLength="4"/>
 			</TrackIDs>
 			<DMFramework detail="Strong Reference to the Descriptive Metadata Framework" use="decoder required" type="UUID" ref="strong" target="DM_Framework" minLength="16" maxLength="16" key="61 01" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 04 02 0c 00 00"/>
-			<!-- wol changed to target DM_Framework-->
 		</DMSegment>
 		<DMSourceClip base="SourceClip" detail="Descriptive Metadata SourceClip" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 45 00">
 			<DMSourceClipTrackIDs detail="An unordered list of track ID values that identify the tracks in this Package to which the referenced Descriptive Metadata refers (if omitted, refers to all essence tracks)" use="optional" type="subVector" key="61 03" globalKey="06 0e 2b 34 01 01 01 05  01 07 01 06 00 00 00 00">
@@ -509,7 +504,7 @@
 			<YTsiz detail="Height of one reference tile with respect to the reference grid" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 07 00 00 00"/>
 			<XTOsiz detail="Horizontal offset from the origin of the reference grid to the left side of the first tile" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 08 00 00 00"/>
 			<YTOsiz detail="Vertical offset from the origin of the reference grid to the top side of the first tile" use="required" type="UInt32" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 09 00 00 00"/>
-			<Csize detail="The number of components in the picture" use="required" type="UInt16" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0a 00 00 00"/>
+			<Csiz detail="The number of components in the picture" use="required" type="UInt16" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0a 00 00 00"/>
 			<PictureComponentSizing detail="Array of picture components" use="required" type="subVector" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0b 00 00 00">
 				<PictureComponentSize detail="Picture component" use="required" type="ComponentSizingArray"/>
 			</PictureComponentSizing>
