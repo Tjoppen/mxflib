@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.9 2005/10/08 15:37:03 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.10 2006/02/11 16:10:04 matt-beard Exp $
  *
  */
 /*
@@ -59,7 +59,7 @@ void IndexTable::Purge(UInt64 FirstPosition, UInt64 LastPosition)
 //! Get the segment containing a specified edit unit
 /*! - If the edit unit exists within a segment that segment is returned
  *  - If the edit unit does not exist in a current edit unit, but it is the first edit unit
- *  beyond the end of a segment then that segment is returned.
+ *	  beyond the end of a segment then that segment is returned.
  *  - Otherwise a new segment is created starting with the specified edit unit and added to the index
  */
 IndexSegmentPtr IndexTable::GetSegment(Position EditUnit)
@@ -69,10 +69,13 @@ IndexSegmentPtr IndexTable::GetSegment(Position EditUnit)
 	if(it == SegmentMap.end()) 
 	{ 
 		it = SegmentMap.lower_bound(EditUnit); 
-		if(!SegmentMap.empty())
+		if(it != SegmentMap.begin())
 		{
 			it--;
 		}
+		else
+			// Flag that it is before the start
+			it = SegmentMap.end();
 	}
 
 	// If this position is before the start of the index table we must add a new segment
@@ -175,7 +178,13 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		if(!SegmentMap.empty()) 
 		{ 
 			it = SegmentMap.lower_bound(EditUnit); 
-			it--;
+			if(it != SegmentMap.begin())
+			{
+				it--;
+			}
+			else
+				// Flag that it is before the start
+				it = SegmentMap.end();
 		} 
 	}
 
@@ -508,7 +517,7 @@ bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8
 	}
 
 	// Calculate the new size to see if it is too big for a 2-byte local local set length
-	int NewSize = (EntryCount+1) * Parent->IndexEntrySize;
+	int NewSize = ((EntryCount+1) * Parent->IndexEntrySize + 8);
 	if(NewSize > 0xffff) return false;
 
 	UInt8 *Buffer = new UInt8[Parent->IndexEntrySize];
@@ -770,7 +779,20 @@ void IndexTable::Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOf
 
 	// Find the correct segment  - one starting with this edit unit, or the nearest before it
 	IndexSegmentMap::iterator it = SegmentMap.find(EditUnit);
-	if(it == SegmentMap.end()) { if(!SegmentMap.empty()) { it = SegmentMap.lower_bound(EditUnit); it--; } }
+	if(it == SegmentMap.end()) 
+	{ 
+		if(!SegmentMap.empty()) 
+		{ 
+			it = SegmentMap.lower_bound(EditUnit); 
+			if(it != SegmentMap.begin())
+			{
+				it--;
+			}
+			else
+				// Flag that it is before the start
+				it = SegmentMap.end();
+		} 
+	}
 
 	// If this position is before the start of the index table do nothing
 	if((it == SegmentMap.end()) || ((*it).first > EditUnit)) return;
