@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.13 2005/10/29 14:56:50 matt-beard Exp $
+ *	\version $Id: mxflib.h,v 1.14 2006/02/11 15:59:55 matt-beard Exp $
  *
  */
 /*
@@ -48,9 +48,9 @@ namespace mxflib {}
 namespace mxflib
 {
 #define MXFLIB_VERSION_MAJOR "0"
-#define MXFLIB_VERSION_MINOR "5"
-#define MXFLIB_VERSION_TWEAK "4"
-#define MXFLIB_VERSION_BUILD "6"
+#define MXFLIB_VERSION_MINOR "6"
+#define MXFLIB_VERSION_TWEAK "0"
+#define MXFLIB_VERSION_BUILD "0"
 #define MXFLIB_VERSION_REL   2
 #define MXFLIB_VERSION_RELTEXT(REL) (REL==1?"-Release":(REL==2?"-Development":(REL==3?"-Patched":(REL==4?"-Beta":(REL==5?"-Private":"")))))
 #define MXFLIB_VERSION_RELNUMBER(REL) (REL==1?"1":(REL==2?"2":(REL==3?"3":(REL==4?"4":(REL==5?"5":"0")))))
