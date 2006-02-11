@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.14 2005/10/08 15:32:30 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.15 2006/02/11 17:35:28 matt-beard Exp $
  *
  */
 /*
@@ -28,8 +28,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
-#include <mxflib/waveheader.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
@@ -42,8 +41,9 @@ using namespace std;
 
 struct StreamFile
 {
-	FILE* file;
+	FileHandle file;
 	GCElementKind kind;
+	EssenceSinkPtr Sink;
 };
 
 typedef map<string, StreamFile> FileMap;
@@ -51,12 +51,17 @@ typedef map<string, StreamFile> FileMap;
 //! Debug flag for KLVLib
 int Verbose = 0;
 
+
+// DRAGONS: static file-scope is deprecated
+// TODO: remove static and replace with empty namespace
+
 //! Debug flag for MXFLib
-static bool Quiet = false;				// -q
+static bool Quiet = false;			// -q
 static bool DebugMode = false;		// -v
 
+static bool DumpAllHeader = false;	// -a
 static bool SplitIndex = false;		// -i
-static bool SplitGC = false;			// -g
+static bool SplitGC = false;		// -g
 static bool SplitWave = false;		// -w
 static bool SplitMono = false;		// -m
 static bool SplitStereo = false;	// -s
@@ -64,14 +69,14 @@ static bool SplitParts = false;		// -p
 static bool FullIndex = false;		// -f dump full index
 static bool DumpExtraneous = false;		// -x dump extraneous body elements
 
-static unsigned int SplitWaveChannels = 2;	// -w=n
-
-#ifdef DMStiny
-static char* DMStinyDict = NULL;						//!< Set to name of DMStiny xmldict
-#endif
+//static unsigned int SplitWaveChannels = 2;	// -w=n
 
 //! Output Streams
 FileMap theStreams;
+
+//! DM Dictionaries
+typedef list<std::string> DMFileList;
+DMFileList DMDicts;
 
 // not presently used
 static void DumpObject(MDObjectPtr Object, std::string Prefix);
@@ -79,10 +84,134 @@ static void DumpObject(MDObjectPtr Object, std::string Prefix);
 static void DumpHeader(PartitionPtr ThisPartition);
 static void DumpIndex(PartitionPtr ThisPartition);
 static void DumpBody(PartitionPtr ThisPartition);
+static void WriteWaveHeader(FileHandle File, Int16 Channels, UInt32 SamplesPerSec, UInt16 BitsPerSample, UInt32 DataSize = 0 );
+static bool UpdateWaveLengths(FileHandle File);
+
+
+namespace
+{
+	//! Structure holding information about the essence in each body stream
+	struct EssenceInfo
+	{
+		UMIDPtr PackageID;
+		PackagePtr Package;
+		MDObjectPtr Descriptor;
+	};
+	//! Map of EssenceInfo structures indexed by BodySID
+	typedef std::map<UInt32, EssenceInfo> EssenceInfoMap;
+
+	//! The map of essence info for this file
+	EssenceInfoMap EssenceLookup;
+};
+
+//! Build an EssenceInfoMap for the essence in a given file
+/*! \return True if al OK, else false
+ */
+bool BuildEssenceInfo(MXFFilePtr &File, EssenceInfoMap &EssenceLookup);
+
+namespace mxflib
+{
+	//! EssenceSink that writes a raw file to the currently open file
+	class RawFileSink : public EssenceSink
+	{
+	protected:
+		FileHandle File;						//!< The file to write
+		bool EndCalled;							//!< True once EndOfData is called
+
+	private:
+		// Prevent default construction
+		RawFileSink();
+
+	public:
+		// Construct with required header values
+		RawFileSink(FileHandle File) : File(File) 
+		{
+			EndCalled = false;
+		};
+
+		//! Clean up
+		virtual ~RawFileSink() 
+		{
+			if(!EndCalled) EndOfData();
+		};
+
+		//! Receive the next "installment" of essence data
+		/*! This will recieve a buffer containing thhe next bytes of essence data
+		 *  \param Buffer The data buffer
+		 *  \param BufferSize The number of bytes in the data buffer
+		 *  \param EndOfItem This buffer is the last in this wrapping item
+		 *  \return True if all is OK, else false
+		 *  \note The first call may well fail if the sink has not been fully configured.
+		 *	\note If false is returned the caller should make no more calls to this function, but the function should be implemented such that it is safe to do so
+		 */
+		virtual bool PutEssenceData(UInt8 *const Buffer, size_t BufferSize, bool EndOfItem = true)
+		{
+			// Write the buffer, returning true if all the bytes were written
+			return BufferSize == FileWrite(File, Buffer, BufferSize);
+		}
+
+		//! Called once all data exhausted
+		/*! \return true if all is OK, else false
+		 *  \note This function must also be called from the derived class' destructor in case it is never explicitly called
+		 */
+		virtual bool EndOfData(void) { return true; }
+	};
+
+
+	//! EssenceSink that writes a wave file to the currently open file
+	class WaveFileSink : public EssenceSink
+	{
+	protected:
+		FileHandle File;						//!< The file to write
+		unsigned int ChannelCount;				//!< The number of audio channels
+        UInt32 SamplesPerSec;					//!< The sample rate in smaples per second
+        unsigned int BitsPerSample;				//!< The number of bits per sample, per channel
+		UInt32 DataSize;						//!< The size of the entire data chunk of the finished wave file (if known), else 0
+		bool HeaderWritten;						//!< Set true once the wave header has been written
+		bool EndCalled;							//!< True once EndOfData is called
+
+	private:
+		// Prevent default construction
+		WaveFileSink();
+
+	public:
+		// Construct with required header values
+		WaveFileSink(FileHandle File, unsigned int Channels, UInt32 SamplesPerSec, unsigned int BitsPerSample, UInt32 DataSize = 0)
+					: File(File), ChannelCount(Channels), SamplesPerSec(SamplesPerSec), BitsPerSample(BitsPerSample), DataSize(DataSize)
+		{
+			HeaderWritten = false;
+			EndCalled = false;
+		};
+
+		//! Clean up
+		virtual ~WaveFileSink()
+		{
+			if(!EndCalled) EndOfData();
+		}
+
+		//! Receive the next "installment" of essence data
+		/*! This will recieve a buffer containing thhe next bytes of essence data
+		 *  \param Buffer The data buffer
+		 *  \param BufferSize The number of bytes in the data buffer
+		 *  \param EndOfItem This buffer is the last in this wrapping item
+		 *  \return True if all is OK, else false
+		 *  \note The first call may well fail if the sink has not been fully configured.
+		 *	\note If false is returned the caller should make no more calls to this function, but the function should be implemented such that it is safe to do so
+		 */
+		virtual bool PutEssenceData(UInt8 *const Buffer, size_t BufferSize, bool EndOfItem = true);
+
+		//! Called once all data exhausted
+		/*! \return true if all is OK, else false
+		 *  \note This function must also be called from the derived class' destructor in case it is never explicitly called
+		 */
+		virtual bool EndOfData(void);
+	};
+}
 
 
 //! Should we pause before exit?
 bool PauseBeforeExit = false;
+
 
 // Declare main process function
 int main_process(int argc, char *argv[]);
@@ -115,32 +244,38 @@ int main_process(int argc, char *argv[])
 			char Opt = tolower(*p);					// The option itself (in lower case)
 			if(Opt == 'q') Quiet = true;
 			else if(Opt == 'v') DebugMode = true;
-#ifdef DMStiny
-			else if(Opt == 't')
+			else if(Opt == 'd')
 			{
-				// DMStiny Dictionary
+				// DM Dictionary
 				if(tolower(*(p+1))=='d')
 				{
-					char *name="DMStiny.xml"; // default name
-					if( '='==*(p+2) )	name=p+3; // explicit name
-					DMStinyDict = new char[ 1+strlen(name) ];
-					strcpy( DMStinyDict, name );
+					char *name=""; // default name
+					if( '='==*(p+2) || ':'==*(p+2))	name=p+3; // explicit name
+					else if( i+1<argc ) name=argv[++i]; // explicit name in next arg
+
+					if( strlen(name) ) 
+					{
+						DMDicts.push_back( std::string(name) );
+					}
 				}
 			}
-#endif
 			else if(Opt == 'f') FullIndex = true;
 			else if(Opt == 'i')	SplitIndex = true;
 			else if(Opt == 'g')	SplitGC = true;
 			else if(Opt == 'p') SplitParts = true;
+			else if(Opt == 'a') DumpAllHeader = true;
 			else if(Opt == 'm') SplitMono = true;
 			else if(Opt == 's') SplitStereo = true;
 			else if(Opt == 'w') 
 			{
-				SplitWave = true;
-				if( argv[i][2]==':' || argv[i][2]=='=' )
+				int sub = 2;
 				{
-					SplitWaveChannels = (unsigned int)strtoul( argv[i]+3, NULL, 0 );
+					SplitWave = true;
 				}
+//				if( argv[i][sub]==':' || argv[i][sub]=='=' )
+//				{
+//					SplitWaveChannels = (unsigned int)strtoul( argv[i]+3, NULL, 0 );
+//				}
 			}
 			else if(Opt == 'x') DumpExtraneous = true;
 		}
@@ -148,29 +283,33 @@ int main_process(int argc, char *argv[])
 
 	if((argc-num_options) < 2)
 	{
-		fprintf( stderr,"\nUsage:  mxfsplit [-qv] <filename> \n" );
+		fprintf( stderr,"\nUsage:  mxfsplit [options] <filename> \n" );
 		fprintf( stderr,"                       [-q] Quiet (default is Terse) \n" );
 		fprintf( stderr,"                       [-v] Verbose (Debug) \n" );
+		fprintf( stderr,"                       [-a] Dump all header metadata (and start of index)\n" );
 		fprintf( stderr,"                       [-f] Dump Full Index \n" );
+		fprintf( stderr,"                                    (where pattern is the filename pattern)\n");
 		//fprintf( stderr,"                       [-i] Split Index Table Segments \n" );
 		//fprintf( stderr,"                       [-g] Split Generic Containers into Elements \n" );
-		fprintf( stderr,"                     [-w:n] Split AESBWF Elements into n-channel wave files \n" );
+//		fprintf( stderr,"                     [-w:n] Split AESBWF Elements into n-channel wave files \n" );
+		fprintf( stderr,"                       [-w] Split AESBWF audio elements into wave files \n" );
 		//fprintf( stderr,"                       [-m] Subdivide AESBWF Elements into mono wave files \n" );
 		//fprintf( stderr,"                       [-s] Subdivide AESBWF Elements into stereo wave files \n" );
 		//fprintf( stderr,"                       [-p] Split Partitions \n");
 		fprintf( stderr,"                       [-x] Dump Extraneous Body Elements \n" );
 		fprintf( stderr,"                       [-z] Pause for input before final exit\n");
-#ifdef DMStiny
-		fprintf( stderr,"                       [-td=filename] Use DMStiny dictionary \n" );
-#endif
+		fprintf( stderr,"             [-dd=filename] Use DM dictionary \n" );
 
 		return 1;
 	}
 
-#ifdef DMStiny
-	// load the DMStiny Dictionary
-	if( DMStinyDict ) MDOType::LoadDict( DMStinyDict );
-#endif
+	// load any DM Dictionaries
+	DMFileList::iterator dd_it = DMDicts.begin();
+	while( dd_it != DMDicts.end() )
+	{
+		MDOType::LoadDict( (*dd_it).c_str() );
+		dd_it++;
+	}
 
 	MXFFilePtr TestFile = new MXFFile;
 	if (! TestFile->Open(argv[num_options+1], true))
@@ -181,6 +320,8 @@ int main_process(int argc, char *argv[])
 
 	// Get a RIP (however possible)
 	TestFile->GetRIP();
+
+	BuildEssenceInfo(TestFile, EssenceLookup);
 
 	RIP::iterator it = TestFile->FileRIP.begin();
 	UInt32 iPart = 0;
@@ -197,20 +338,23 @@ int main_process(int argc, char *argv[])
 		PartitionPtr ThisPartition = TestFile->ReadPartition();
 		if(ThisPartition)
 		{
-			// Dump Partition Pack
-			if( !Quiet )
+			if(DumpAllHeader)
 			{
-				printf( "Partition Pack:\n" );
-				DumpObject(ThisPartition->Object,"");
-				printf("\n");
+				// Dump Partition Pack
+				if( !Quiet )
+				{
+					printf( "Partition Pack:\n" );
+					DumpObject(ThisPartition->Object,"");
+					printf("\n");
+				}
+
+				// Header Metadata
+				DumpHeader( ThisPartition );
+
+				// Index Segments
+				DumpIndex( ThisPartition );
 			}
-
-			// Header Metadata
-			DumpHeader( ThisPartition );
-
-			// Index Segments
-			DumpIndex( ThisPartition );
-
+			
 			// Body Elements
 			DumpBody( ThisPartition );
 		}
@@ -222,31 +366,19 @@ int main_process(int argc, char *argv[])
 	FileMap::iterator itFile = theStreams.begin();
 	while( theStreams.end() != itFile )
 	{
-		if( SplitWave && 0x16==(*itFile).second.kind.Item )
+/*			if( SplitWave && 0x16==(*itFile).second.kind.Item )
 		{
-			// update length fields in wave header
-			// how much data?
-			long datalen = ftell( (*itFile).second.file ) - sizeof( waveheader_t );
-
-			if( !Quiet ) printf( "Updating wave data length = 0x%lx\n", datalen );
-
-			// get wave header
-			waveheader_t wavfmt;
-			rewind( (*itFile).second.file );
-			fread( (void *)&wavfmt, 1, sizeof(wavfmt), (*itFile).second.file );
-			// update it
-			wavfmt.SetDataLength( datalen );
-			// put it back
-			rewind( (*itFile).second.file );
-			fwrite( (void *)&wavfmt, 1, sizeof(wavfmt), (*itFile).second.file );
-			// go to end (to report correct length)
-			fseek( (*itFile).second.file, 0, SEEK_END );
+			UpdateWaveLengths((*itFile).second.file);
 		}
+*/
+		if( !Quiet ) printf( "Closing %s, size 0x%x\n", (*itFile).first.c_str(), Int64toHexString(FileTell( (*itFile).second.file )).c_str() );
 
-		if( !Quiet ) printf( "Closing %s, size 0x%lx\n", (*itFile).first.c_str(), ftell( (*itFile).second.file ) );
-		fclose( (*itFile).second.file );
+		if((*itFile).second.Sink) (*itFile).second.Sink->EndOfData();
+		FileClose( (*itFile).second.file );
+
 		itFile++;
 	}
+
 	theStreams.clear();
 
 	return 0;
@@ -431,7 +563,7 @@ static void DumpIndex( PartitionPtr ThisPartition )
 
 static void DumpBody( PartitionPtr ThisPartition )
 {
-	UInt32 BodySID = ThisPartition->GetUInt( "BodySID" );
+	UInt32 BodySID = ThisPartition->GetUInt( BodySID_UL );
 
 	if( 0==BodySID )
 	{
@@ -444,7 +576,6 @@ static void DumpBody( PartitionPtr ThisPartition )
 		char filename[40] = "_12345678-Giiccttnn-Mcc-Ppppp.Stream";
 
 		FileMap::iterator itFile;
-		FILE* fp;
 
 		int limit=0;
 
@@ -464,7 +595,10 @@ static void DumpBody( PartitionPtr ThisPartition )
 				if( DumpExtraneous )
 				{
 					// anElement isa KLVObject
-					MDObjectPtr anObj = new MDObject( anElement->GetUL() );
+					//IDB the kludge with tmpUL ois to get it to compile with GCC>3.4.0
+					// see http://www.gnu.org/software/gcc/gcc-3.4/changes.html
+					ULPtr tmpUL=anElement->GetUL();
+					MDObjectPtr anObj = new MDObject( tmpUL );
 
 					// this may take a long time if we only want to report the size of a mystery KLV
 					anElement->ReadData();
@@ -485,7 +619,12 @@ static void DumpBody( PartitionPtr ThisPartition )
 			}
 			else
 			{
+				// The current file
+				FileHandle ThisFile;
+				EssenceSinkPtr ThisSink;
+
 				// DRAGONS: wimpos sprintf not ISO 
+				// DRAGONS: In what way??
 				sprintf(	filename, "_%04x-G%02x%02x%02x%02x.Stream", 
 									BodySID,
 									kind.Item,
@@ -493,55 +632,521 @@ static void DumpBody( PartitionPtr ThisPartition )
 									kind.ElementType,
 									kind.Number );
 
-				if( !Quiet ) printf( "GC Element: L=0x%s File=%s", 
-															Int64toHexString( anElement->GetLength(), 8 ).c_str(),
-															filename );
-
-				itFile = theStreams.find( filename );
-				if( theStreams.end() == itFile )
+				if( !Quiet )
 				{
-					if( !Quiet ) printf( " NEW" );
+					printf( "GC Element: L=0x%s", Int64toHexString( anElement->GetLength(), 8 ).c_str());
+					printf(" File=%s",	filename );
+				}
 
-                    // @modif 20/01/2004 | replaced "wb" by "w+b" | marcvdb@users.sourceforge.net
-                    // This prevented the reloading of the files and thus always wrote the 
-                    // the default wave header
-					fp = fopen( filename, "w+b" );
-					if( !fp ) if( !Quiet ) printf( " ERROR");
+				bool StreamFound = false;
+				itFile = theStreams.find( filename );
+				if(itFile != theStreams.end()) 
+				{
+					ThisFile = (*itFile).second.file;
+					ThisSink = (*itFile).second.Sink;
+					StreamFound = true;
+				}
 
-					StreamFile sf;
-					sf.file = fp; sf.kind = kind;
-					theStreams.insert( FileMap::value_type(filename, sf) );
+				if( !StreamFound )
+				{
+					if(!Quiet) printf( " NEW" );
 
-					// if( -w && GCSound item) add an empty waveheader
+					// Open the file
+					ThisFile = FileOpenNew(filename);
+
+					if( !FileValid(ThisFile) ) if( !Quiet ) printf( " ERROR");
+
+					if( FileValid(ThisFile) )
+					{
+						TrackPtr Track;					//!< Pointer to the top-level source package for this stream
+						MDObjectPtr Descriptor;			//!< Pointer to the file descriptor for this stream
+
+						EssenceInfoMap::iterator it = EssenceLookup.find(BodySID);
+						if(it == EssenceLookup.end())
+						{
+							warning("BodySID %d not listed in header metadata\n", BodySID);
+
+							// Add a dummy entry so we don't keep getting the same error
+							EssenceInfo Dummy;
+							EssenceLookup[BodySID] = Dummy;
+						}
+						else
+						{
+							if((*it).second.Package)
+							{
+								UInt32 TrackNumber = anElement->GetGCTrackNumber();
+								int TrackPos = 0;			//!< The entry number in the tracks array, and possibly the descriptor list, of this track
+								
+								TrackList::iterator Track_it = (*it).second.Package->Tracks.begin();
+								while(Track_it != (*it).second.Package->Tracks.end())
+								{
+									if((*Track_it)->GetUInt(TrackNumber_UL) == TrackNumber)
+									{
+										Track = (*Track_it);
+										break;
+									}
+
+									// DRAGONS: We don't count timecode tracks as we assume that these don't have descriptors
+									if(!(*Track_it)->IsTimecodeTrack()) TrackPos++;
+									Track_it++;
+								}
+
+								if(!Track)
+								{
+									warning("Track Number 0x%08x for BodySID %d, not listed in header metadata\n", TrackNumber, BodySID);
+									// TODO: Should we add something to stop a repeat of this error?
+								}
+								else
+								{
+									bool HasTrackID = false;
+									UInt32 TrackID;
+
+									MDObjectPtr TrackIDObject = Track[TrackID_UL];
+									if(TrackIDObject)
+									{
+										HasTrackID = true;
+										TrackID = TrackIDObject->GetUInt();
+									}
+
+									if((*it).second.Descriptor)
+									{
+										// DRAGONS: If we don't have a multi-descriptor then this descriptor must describe anything we have
+										Descriptor = (*it).second.Descriptor;
+
+										if(Descriptor->IsA(MultipleDescriptor_UL))
+										{
+											MDObjectPtr DescriptorList = Descriptor[SubDescriptorUIDs_UL];
+											if(DescriptorList)
+											{
+												int DescriptorPos = 0;
+
+												MDObject::iterator it = DescriptorList->begin();
+												while(it != DescriptorList->end())
+												{
+													MDObjectPtr SubDescriptor = (*it).second->GetLink();
+													if(SubDescriptor)
+													{
+														if(!HasTrackID)
+														{
+															// Track has no TrackID parameter, fall-back to position linking
+															if(DescriptorPos == TrackPos)
+															{
+																Descriptor = SubDescriptor;
+																break;
+															}
+														}
+														else
+														{
+															MDObjectPtr LinkedTrackIDObject = SubDescriptor->Child(LinkedTrackID_UL);
+															if(LinkedTrackIDObject)
+															{
+																UInt32 LinkedTrackID = LinkedTrackIDObject->GetUInt();
+
+																if(LinkedTrackID == TrackID)
+																{
+																	Descriptor = SubDescriptor;
+																	break;
+																}
+															}
+															else
+															{
+																// Descriptor has no LinkedTrackID parameter, fall-back to position linking
+																if(DescriptorPos == TrackPos)
+																{
+																	Descriptor = SubDescriptor;
+																	break;
+																}
+															}
+														}
+													}
+
+													DescriptorPos++;
+													it++;
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+
+						if(!Descriptor)
+						{
+							// If we couldn't find a descriptor we can't get fancy with unwrapping the essence
+							ThisSink = new RawFileSink(ThisFile);
+						}
+						else
+						{
+							if(SplitWave && Track && (Track->GetType() == Track::TypeSound) && (Descriptor->IsA(GenericSoundEssenceDescriptor_UL)))
+							{
+								UInt32 ChannelCount = Descriptor->GetUInt(ChannelCount_UL);
+								UInt32 QuantizationBits = Descriptor->GetUInt(QuantizationBits_UL);
+								
+								// Assume 48k if we have problems!
+								Int32 AudioSamplingRate = 48000;
+
+								MDObjectPtr SamplingRate = Descriptor[AudioSamplingRate_UL];
+								if(SamplingRate)
+								{
+									AudioSamplingRate = SamplingRate->GetInt("Numerator");
+									Int32 Denom = SamplingRate->GetInt("Denominator");
+									if(Denom != 0) AudioSamplingRate /= Denom;
+								}
+
+								// FIXME: Take into account "SplitWaveChannels"
+								ThisSink = new WaveFileSink(ThisFile, (int)ChannelCount, AudioSamplingRate, (int)QuantizationBits);
+
+								if( !Quiet ) printf( " Wave" );
+							}
+							else
+							{
+								ThisSink = new RawFileSink(ThisFile);
+							}
+						}
+
+						StreamFile sf;
+						sf.file = ThisFile; 
+						sf.kind = kind;
+						sf.Sink = ThisSink;
+						theStreams.insert( FileMap::value_type(filename, sf) );
+					}
+
+/*					// if( -w && GCSound item) add an empty waveheader
 					// DRAGONS: if a user says -w, we assume S382M
-					if( SplitWave && 0x16==kind.Item )
+					if( FileValid(ThisFile) && SplitWave && 0x16==kind.Item )
 					{
 						if( !Quiet ) printf( " Wave" );
 						// assume 48000, 24 bit at this stage
-						waveheader_t wavfmt( SplitWaveChannels );
-						fwrite( (void *)&wavfmt, 1, sizeof(wavfmt), fp );
+						WriteWaveHeader(ThisFile, SplitWaveChannels, 48000, 24);
 					}
-
+*/
 				}
-				itFile = theStreams.find( filename );
 
 				if( !Quiet ) printf( "\n" );
 
-				// Read entire essence KLV
-				// DRAGONS: This is likely to be messy with large KLVs such as clip-wrapped essence!
-				anElement->ReadData();
-				DataChunk &theEss = anElement->GetData();
 
-				//diagnostics
-				// printf( "  writing %x bytes to %s\n", theEss.Size, (*itFile).first.c_str() );
+				/* Copy the essence KLV to the output file in managable chunks */
+	
+				// Limit chunk size to 32Mb
+				const Length MaxSize = 32 * 1024 * 1024;
 
-				fwrite( theEss.Data, 1, theEss.Size, (*itFile).second.file );
+				Position Offset = 0;
+				for(;;)
+				{
+					// Work out the chunk-size
+					Length CurrentSize = anElement->GetLength() - (Length)Offset;
+					if(CurrentSize <= 0) break;
+					if(CurrentSize > MaxSize) CurrentSize = MaxSize;
 
+					Length Bytes = anElement->ReadDataFrom(Offset, CurrentSize);
+					if(!Bytes) break;
+					Offset += Bytes;
+
+					//if(FileValid(ThisFile)) FileWrite(ThisFile, anElement->GetData().Data, anElement->GetData().Size);
+					// FIXME: Need to add end-of-element
+					if(ThisSink) ThisSink->PutEssenceData(anElement->GetData());
+				}
 			}
 		}
 	} // if( 0==BodySID )
 	return;
 }
+
+
+//! Write a basic wave fle header
+void WriteWaveHeader(FileHandle File, Int16 Channels, UInt32 SamplesPerSec, UInt16 BitsPerSample, UInt32 DataSize /*=0*/)
+{
+	const UInt32 ID_RIFF = 0x52494646;		//! "RIFF"
+	const UInt32 ID_WAVE = 0x57415645;		//! "WAVE"
+	const UInt32 ID_fmt  = 0x666d7420;		//! "fmt "
+	const UInt32 ID_data = 0x64617461;		//! "data"
+
+	//! Buffer big enough to hold a basic Wave Header
+	UInt8 Buffer[44];
+
+	/*  The format written is as follows:
+
+		fourcc		fRIFF;				// 0
+		LEUInt32	RIFF_len;			// 4
+		fourcc		fWAVE;				// 8
+
+		fourcc		ffmt_;				// 12
+		LEUInt32	fmt__len;			// 16
+
+		LEUInt16	format;				// 20
+		LEUInt16	nchannels;			// 22
+		LEUInt32	samplespersec;		// 24
+		LEUInt32	avgbps;				// 28
+		LEUInt16	blockalign;			// 32
+		LEUInt16	bitspersample;		// 34
+
+		fourcc		data;				// 36
+		LEUInt32	data_len;			// 40
+										// 44
+	*/
+
+	//! Walking buffer pointer
+	UInt8 *p = Buffer;
+
+	// Write the initial RIFF FourCC
+	PutU32(ID_RIFF, p);
+	p+= 4;
+
+	// Write the length of the file with only the header (excluding the first 8 bytes)
+	PutU32_LE(38 + DataSize, p);
+	p+= 4;
+
+	// Write the WAVE FourCC
+	PutU32(ID_WAVE, p);
+	p+= 4;
+
+	// Write the fmt_ FourCC
+	PutU32(ID_fmt, p);
+	p+= 4;
+
+	// And the length of the fmt_ chunk
+	PutU32_LE(16, p);
+	p+= 4;
+
+	/* Write the format chunk */
+
+	// AudioFormat = PCM
+	PutU16_LE(1, p);
+	p += 2;
+
+	// NumChannels
+	PutU16_LE(Channels, p);
+	p += 2;
+
+	// SamplesRate
+	PutU32_LE(SamplesPerSec, p);
+	p += 4;
+
+	// ByteRate
+	PutU32_LE((SamplesPerSec * Channels * BitsPerSample)/8, p);
+	p += 4;
+
+	// BlockAlign
+	PutU16_LE((Channels * BitsPerSample)/8, p);
+	p += 2;
+
+	// BitsPerSample
+	PutU16_LE(BitsPerSample, p);
+	p += 2;
+
+
+	/* Write the data header */
+	
+	// Write the data FourCC
+	PutU32(ID_data, p);
+	p+= 4;
+
+	// Write the length of the data
+	PutU32_LE(DataSize, p);
+
+
+	// Write this data to the file
+	FileWrite(File, Buffer, 44);
+}
+
+
+//! Update the lengths in the header of the specified wave file
+/*! \return true if updated OK */
+bool UpdateWaveLengths(FileHandle File)
+{
+	const UInt32 ID_RIFF = 0x52494646;		//! "RIFF"
+	const UInt32 ID_WAVE = 0x57415645;		//! "WAVE"
+	const UInt32 ID_fmt  = 0x666d7420;		//! "fmt "
+	const UInt32 ID_data = 0x64617461;		//! "data"
+
+	//! Buffer for working values
+	UInt8 Buffer[20];
+
+	// Determine the size of the file (Note it can not be > 4Gb)
+	FileSeekEnd(File);
+	UInt32 FileSize = (UInt32)FileTell(File);
+
+	// Read the start of the header
+	FileSeek(File, 0);
+	if(FileRead(File, Buffer, 20) != 20) return false;
+
+	// Check the initial RIFF FourCC
+	if(GetU32(Buffer) != ID_RIFF) return false;
+
+	// Check the WAVE FourCC
+	if(GetU32(&Buffer[8]) != ID_WAVE) return false;
+
+	// Check the fmt_ FourCC
+	if(GetU32(&Buffer[12]) != ID_fmt) return false;
+
+	// Get the length of the format chunk
+	UInt32 FormatLength = GetU32_LE(&Buffer[16]);
+
+	// Read the following chunk
+	FileSeek(File, FormatLength + 20);
+	if(FileRead(File, Buffer, 4) != 4) return false;
+
+	// Check the data FourCC (doesn't have to be here for a valid wave file, but it's all we support!)
+	if(GetU32(Buffer) != ID_data) return false;
+
+	// Write the file length (less the first 8 bytes)
+	PutU32_LE(FileSize - 8, Buffer);
+	FileSeek(File, 4);
+	FileWrite(File, Buffer, 4);
+
+	// Write the file length (less the first 28 bytes)
+	PutU32_LE(FileSize - (FormatLength + 28), Buffer);
+	FileSeek(File, FormatLength + 24);
+	FileWrite(File, Buffer, 4);
+
+	return true;
+}
+
+
+//! Receive the next "installment" of essence data
+/*! This will recieve a buffer containing thhe next bytes of essence data
+ *  \param Buffer The data buffer
+ *  \param BufferSize The number of bytes in the data buffer
+ *  \param EndOfItem This buffer is the last in this wrapping item
+ *  \return True if all is OK, else false
+ *  \note The first call may well fail if the sink has not been fully configured.
+ *	\note If false is returned the caller should make no more calls to this function, but the function should be implemented such that it is safe to do so
+ */
+bool WaveFileSink::PutEssenceData(UInt8 *const Buffer, size_t BufferSize, bool EndOfItem /*=true*/)
+{
+	if(!HeaderWritten)
+	{
+		WriteWaveHeader(File, static_cast<Int16>(ChannelCount), SamplesPerSec, static_cast<Int16>(BitsPerSample), DataSize);
+		HeaderWritten = true;
+	}
+
+	// Write the buffer, returning true if all the bytes were written
+	return BufferSize == FileWrite(File, Buffer, BufferSize);
+}
+
+//! Called once all data exhausted
+/*! \return true if all is OK, else false
+	*/
+bool WaveFileSink::EndOfData(void)
+{
+	bool Ret = true;
+
+	if(DataSize == 0)
+	{
+		// Update the length fields if required
+		Ret = UpdateWaveLengths(File);
+	}
+
+	EndCalled = true;
+
+	return Ret;
+}
+
+
+//! Build an EssenceInfoMap for the essence in a given file
+/*! \return True if al OK, else false
+ */
+bool BuildEssenceInfo(MXFFilePtr &File, EssenceInfoMap &EssenceLookup)
+{
+	// Empty any old data
+	EssenceLookup.clear();
+
+	// Get the master metadata set (or the header if we must)
+	PartitionPtr MasterPartition = File->ReadMasterPartition();
+	if(!MasterPartition)
+	{
+		File->Seek(0);
+		MasterPartition = File->ReadPartition();
+		warning("File %s does not contain a cloased copy of header metadata - using the open copy in the file header\n", File->Name.c_str());
+	}
+
+	if(!MasterPartition) 
+	{
+		error("Could not read header metadata from file %s\n", File->Name.c_str());
+		return false;
+	}
+
+	// Read and parse the metadata
+	MasterPartition->ReadMetadata();
+	MetadataPtr HMeta = MasterPartition->ParseMetadata();
+	
+	if(!HMeta) 
+	{
+		error("Could not read header metadata from file %s\n", File->Name.c_str());
+		return false;
+	}
+
+	/* Scan the Essence container data sets to get PackageID to BodySID mapping */
+	MDObjectPtr ECDSet = HMeta[ContentStorage_UL];
+	if(ECDSet) ECDSet = ECDSet->GetLink();
+	if(ECDSet) ECDSet = ECDSet[EssenceContainerDataBatch_UL];
+	if(!ECDSet)
+	{
+		error("Header metadata in file %s does not contain an EssenceContainerData set\n", File->Name.c_str());
+		return false;
+	}
+
+	MDObject::iterator it = ECDSet->begin();
+	while(it != ECDSet->end())
+	{
+		MDObjectPtr ThisECDSet = (*it).second->GetLink();
+		MDObjectPtr PackageID;
+		if(ThisECDSet) PackageID = ThisECDSet->Child(LinkedPackageUID_UL);
+		if(PackageID)
+		{
+			EssenceInfo NewEI;
+			NewEI.PackageID = new UMID(PackageID->PutData()->Data);
+
+			// Inset the basic essence info - but not if this is external essence (BodySID == 0)
+			UInt32 BodySID = ThisECDSet->GetUInt(BodySID_UL);
+			if(BodySID) EssenceLookup[BodySID] = NewEI;
+		}
+		it++;
+	}
+
+	/* Now find the other items for the essence lookup map */
+	if(EssenceLookup.size())
+	{
+		PackageList::iterator it = HMeta->Packages.begin();
+		while(it != HMeta->Packages.end())
+		{
+			// Only Source Packages are of interest
+			if((*it)->IsA(SourcePackage_UL))
+			{
+				MDObjectPtr Descriptor = (*it)->Child(Descriptor_UL);
+				if(Descriptor) Descriptor = Descriptor->GetLink();
+
+				if(Descriptor)
+				{
+					MDObjectPtr PackageID = (*it)->Child(PackageUID_UL);
+					if(PackageID)
+					{
+						UMIDPtr TheID = new UMID(PackageID->PutData()->Data);
+						
+						/* Now do a lookup in the essence lookup map (it will need to be done the long way here */
+						EssenceInfoMap::iterator EL_it = EssenceLookup.begin();
+						while(EL_it != EssenceLookup.end())
+						{
+							if((*((*EL_it).second.PackageID)) == (*TheID))
+							{
+								// If found, set the missing items and stop searching
+								(*EL_it).second.Package = (*it);
+								(*EL_it).second.Descriptor = Descriptor;
+								break;
+							}
+							EL_it++;
+						}
+					}
+				}
+			}
+
+			it++;
+		}
+	}
+
+	return true;
+}
+
 
 // Debug and error messages
 #include <stdarg.h>
@@ -581,4 +1186,6 @@ void mxflib::error(const char *Fmt, ...)
 	vprintf(Fmt, args);
 	va_end(args);
 }
+
+
 
