@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.12 2005/11/15 12:55:49 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.13 2006/02/11 16:00:57 matt-beard Exp $
  *
  */
 /*
@@ -993,24 +993,9 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	{
 		if(IncludeMetadata) (*it)->WriteLinkedObjects(MetaBuffer, ThisPrimer);
 
-		const UInt8 PrefaceUL_Data[16] = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0D, 0x01, 0x01, 0x01, 0x01, 0x01, 0x2F, 0x00 };
-		const UL PrefaceUL = UL(PrefaceUL_Data);
-
-		MDOTypePtr ThisType=(*it)->GetType();
-		ULPtr thisUL;
-		//Ian Baker change to recognise type as subclass of preface, as discussed with Matt
-		if(ThisType)
+		// Update partition pack settings from the preface (if we find one)
+		if((*it)->IsA(Preface_UL))
 		{
-			thisUL=ThisType->GetTypeUL();
-		}
-			
-		if(thisUL && *thisUL==PrefaceUL)
-		{
-
-			// Update partition pack settings from the preface (if we find one)
-			// if((*it)->Name() == "Preface" || (*it)->Name() == "Header" )
-			//	if( *(*it)->GetType()->GetTypeUL() == PrefaceUL )
-
 			// Update OP label
 			MDObjectPtr DstPtr = ThisPartition[OperationalPattern_UL];
 			MDObjectPtr SrcPtr = (*it)[OperationalPattern_UL];
