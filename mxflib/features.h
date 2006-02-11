@@ -1,7 +1,7 @@
 /*! \file	features.h
  *	\brief	Control compile-time and run-time selectable library features
  *
- *	\version $Id: features.h,v 1.4 2005/10/27 11:05:49 matt-beard Exp $
+ *	\version $Id: features.h,v 1.5 2006/02/11 15:57:36 matt-beard Exp $
  *
  *  \detail 
  *  Library feature selection allows the behaviour of the library to be modified at run-time or compile-time.
@@ -53,9 +53,10 @@
  *                       Default setting is all features unlocked
  */
 
+
 // Those features that may be enabled
 #ifndef MXFLIB_FEATURE_MASK
-#define MXFLIB_FEATURE_MASK (UINT64_C(-1))
+#define MXFLIB_FEATURE_MASK (~UINT64_C(0))
 #endif
 
 // Those features that are enabled by default
