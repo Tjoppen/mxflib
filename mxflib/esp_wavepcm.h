@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.6 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.7 2006/02/11 16:13:11 matt-beard Exp $
  *
  */
 /*
@@ -202,7 +202,7 @@ namespace mxflib
 
 			UInt32 Ret = SampleSize*ConstSamples;
 
-			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 
+			if(Ret && (SelectedWrapping->ThisWrapType == WrappingOption::Frame))
 			{
 				// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
 				Ret += 16 + 4;
@@ -218,7 +218,12 @@ namespace mxflib
 					Ret += Remainder;
 
 					// If there is not enough space to fit a filler in the remaining space an extra KAG will be required
-					if((Remainder > 0) && (Remainder < 17)) Ret++;
+					// DRAGONS: For very small KAGSizes we may need to add several KAGs
+					while((Remainder > 0) && (Remainder < 17))
+					{
+						Ret += KAGSize;
+						Remainder += KAGSize;
+					}
 				}
 			}
 
