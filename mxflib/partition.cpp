@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.9 2006/02/11 15:59:17 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.10 2006/02/12 12:30:05 matt-beard Exp $
  *
  */
 /*
@@ -386,9 +386,9 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 		{
 			NewItem->SetParent(File, BytesAtItemStart + Location,(UInt32)( Bytes - BytesAtItemStart));
 
-			UInt32 ThisBytes = NewItem->ReadValue(BuffPtr,(UInt32) Len, PartitionPrimer);
+			NewItem->ReadValue(BuffPtr,(UInt32) Len, PartitionPrimer);
 
-			// skip total length, not just the length actually consumed
+			// Skip total length, not just the length actually consumed
 			Size -= Len;
 			Bytes += Len;
 			BuffPtr += Len;
