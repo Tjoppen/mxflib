@@ -9,7 +9,7 @@ AT_CLEANUP
 
 
 AT_SETUP([mxfsplit])
-AT_CHECK([mxfsplit ../../small_wav.mxf], 0,
+AT_CHECK([mxfsplit -a ../../small_wav.mxf], 0,
 [[MXFlib File Splitter
 
 Partition    1 at 0x00000000 for BodySID 0x0001
