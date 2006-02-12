@@ -16,12 +16,12 @@
 	</CryptographicContext>
 	<EncryptedTriplet type="variablePack" detail="encrypted data and cryptographic information specific to the Triplet" key="06 0e 2b 34 02 04 01 07 0d 01 03 01 02 7e 01 00">
 		<ContextIDLink type="UUID" minLength="16" maxLength="16" globalKey="06 0e 2b 34 01 01 01 09 06 01 01 06 03 00 00 00 " use="required" detail="Persistent Unique identifier for the context.associated with this Triplet"/>
-		<PlaintextOffset type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 09 06 09 02 01 03 00 00 00 " use="required" detail="Offset within the source at which encryption starts"/>
+		<PlaintextOffset type="UInt64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 09 06 09 02 01 03 00 00 00 " use="required" detail="Offset within the source at which encryption starts"/>
 		<SourceKey type="Label" minLength="16" maxLength="16" globalKey="06 0e 2b 34 01 01 01 09 06 01 01 02 03 00 00 00 " use="required" detail="Key of the source Triplet"/>
-		<SourceLength type="Uint64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 09 04 06 10 02 00 00 00 00" use="required" detail="Length of the value of the source Triplet"/>
+		<SourceLength type="UInt64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 09 04 06 10 02 00 00 00 00" use="required" detail="Length of the value of the source Triplet"/>
 		<EncryptedSourceValue type="RAW" minLength="0" maxLength="unbounded" globalKey="06 0e 2b 34 01 01 01 09 02 09 03 01 03 00 00 00" use="required" detail="Encrypted Source value starting at Plaintext Offset"/>
 		<TrackFileID type="UUID" minLength="0" maxLength="16" globalKey="06 0e 2b 34 01 01 01 09 06 01 01 06 02 00 00 00" use="optional" detail="The identifier of the AS-DCP Track File containing this Triplet"/>
-		<SequenceNumber type="Uint64" minLength="0" maxLength="8" globalKey="06 0e 2b 34 01 01 01 09 06 10 05 00 00 00 00 00" use="optional" detail="Sequence number of this Triplet within the Track File"/>
+		<SequenceNumber type="UInt64" minLength="0" maxLength="8" globalKey="06 0e 2b 34 01 01 01 09 06 10 05 00 00 00 00 00" use="optional" detail="Sequence number of this Triplet within the Track File"/>
 		<MIC type="DataValue" minLength="0" maxLength="20" globalKey="06 0e 2b 34 01 01 01 09 02 09 03 02 02 00 00 00" use="optional" detail="Keyed HMAC"/>
 	</EncryptedTriplet>
 	<CipherAlgorithmAES128CBC detail="Identifes the use of AES128 CBC mode cipher algorithm" type="Label" key="06 0e 2b 34 04 01 01 07 02 09 02 01 01 00 00 00"/>
