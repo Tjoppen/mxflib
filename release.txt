@@ -1,7 +1,22 @@
+Release Notes for mxflib version 0.6.0-Beta
+===========================================
 
-Release Notes for mxflib version 0.5.3-Beta
-=========================================
+This release adds the EssenceSink class - a compliment to EssenceSource.
+Also added is the ability to replace individual MDTraits, or all of them.
+MXFSplit is revamped using the EssenceSink class.
 
+
+Changes since version 0.5.3-Beta
+================================
+* Add EssenceSink class
+* Allow MDTraits to be changed by applications
+* Revamped MXFSplit
+* A number of changes to make the code more stable with damages or non-standard files
+* UL and UUID traits can now read the standard text formats as well as producing them
+
+
+Changes since version 0.5.2-Beta
+================================
 * Added features.h for compile-time or run-time selectable library features
 * Dictconvert generates const ULs for all sets, packs and properties
 * All library code now uses UL consts rather than object names
@@ -19,9 +34,24 @@ Release Notes for mxflib version 0.5.3-Beta
 * Add basic DM insertion code to mxfwrap
 
 
+Changes since version 0.5.1-Beta
+================================
+* Added constants.h
+* Harmonized UInt capitalization
+* Add SymbolSpace
+* Add esp_template to aid essence parser writing
+* Allow non-standard essence keys if required
+* Add full clip-wrap indexing
+* Add UL2NameFunc
+* Programable ParseDark
+* Add optional string termination
+* Add Track::GetType
+* Allow runtime selection between runtime and compiletime dictionaries in mxfdump
+* Add basic DM insertion code to mxfwrap
+
+
 Changes since version 0.5.0-Beta
 ================================
-
 * Split encryption code from mxfcrypt.cpp into separate crypto_asdcp files
 * Added HMAC calculation and checking for encrypted KLVs
 * Updated encrypted KLV key
@@ -40,7 +70,6 @@ Changes since version 0.4.0-Alpha
 
 Changes since version 0.3.2-Alpha
 =================================
-
 * Added kludge code to allow compilation under gcc 3.3.x which has a known bug with complex template classes and forward declares
 * Removed dependency on KLVLib by adding new dictionary loading code
 * GetDict() No longer exists - replaced with various accessors
@@ -61,9 +90,9 @@ Changes since version 0.3.2-Alpha
 * Corrected AnchorOffset in MPEG index tables
 * Corrected Operational Pattern qualifiers in mxfwrap
 
+
 Changes since version 0.3.1-Alpha
 =================================
-
 * Ported to Linux (x86, AMD64, Alpha, StrongARM), FreeBSD (x86), MacOS X 10.2 (PowerPC), Solaris (SPARC) and IRIX (MIPS)
 * Ported to ISO C++ compilers including GCC 3.2 (not yet GCC 3.3.x - see README), MIPSpro C++ 7.3, Sun Forte C++ 5.4, Intel C++ 7.0, Borland C++ 5.0
 * For portability, FileSeek() and FileSeekEnd() no longer return the current file position, only a value indicating success or failure.  Use a subsequent FileTell() to get the file position.
@@ -78,7 +107,6 @@ Changes since version 0.3.1-Alpha
 
 Changes since version 0.3-Alpha
 ===============================
-
 * Fixed "silly" bug in integer traits on big-endian platforms!
 * Fixed bug in parsing MPEG headers where LoadIntra and LoadNonIntra
   were 1 bit out of place.
@@ -90,7 +118,6 @@ Changes since version 0.3-Alpha
 
 Changes since version 0.2.2-Alpha
 =================================
-
 * Fixed "silly" bug in PutIxx() which only wrote 1 byte!
 * Fixed a problem where sparse index table lookups didn't work
 * Added Higher level objects (Package, Track etc.)
@@ -106,7 +133,6 @@ Changes since version 0.2.2-Alpha
 
 Changes since version 0.2.1-Alpha
 =================================
-
 * Fixed problem where mxffile::Seek() returned the wrong value in 
   files with a run-in
 * Revised the front page of the documentation
@@ -114,7 +140,6 @@ Changes since version 0.2.1-Alpha
 
 Changes since version 0.2-Alpha
 ===============================
-
 * New child value access functions added to MDObject, with (optional)
   default values for missing children.
 * MDObject is now derived from MDObjectNamedList which contains all
@@ -129,7 +154,6 @@ Changes since version 0.2-Alpha
 
 Changes since version 0.1-Alpha
 ===============================
-
 * Each MDObject stores information about where it came from which can be
   read using functions Location() and Source()
 * Code now handles differences in HeaderByteCount between version 10 and 
