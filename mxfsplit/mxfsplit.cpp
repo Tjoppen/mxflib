@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.16 2006/02/12 11:37:45 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.17 2006/02/12 12:21:37 matt-beard Exp $
  *
  */
 /*
@@ -268,7 +268,7 @@ int main_process(int argc, char *argv[])
 			else if(Opt == 's') SplitStereo = true;
 			else if(Opt == 'w') 
 			{
-				int sub = 2;
+//				int sub = 2;
 				{
 					SplitWave = true;
 				}
