@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.15 2006/02/11 17:35:28 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.16 2006/02/12 11:37:45 matt-beard Exp $
  *
  */
 /*
@@ -371,7 +371,7 @@ int main_process(int argc, char *argv[])
 			UpdateWaveLengths((*itFile).second.file);
 		}
 */
-		if( !Quiet ) printf( "Closing %s, size 0x%x\n", (*itFile).first.c_str(), Int64toHexString(FileTell( (*itFile).second.file )).c_str() );
+		if( !Quiet ) printf( "Closing %s, size 0x%s\n", (*itFile).first.c_str(), Int64toHexString(FileTell( (*itFile).second.file )).c_str() );
 
 		if((*itFile).second.Sink) (*itFile).second.Sink->EndOfData();
 		FileClose( (*itFile).second.file );
