@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.6 2005/10/10 13:14:44 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.7 2006/02/28 10:51:52 matt-beard Exp $
  *
  */
 /*
@@ -568,7 +568,8 @@ Length mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Str
 	// If the size is known (possible in a JP2 file) we return it
 	if(DataSize != 0)
 	{
-		Ret = DataSize;
+		Ret = DataSize - (CurrentPos - DataStart);
+		if(Ret < 0) Ret = 0;
 		return Ret;
 	}
 
