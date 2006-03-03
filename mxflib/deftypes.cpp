@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.15 2006/02/11 16:15:40 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.16 2006/03/03 12:37:17 matt-beard Exp $
  *
  */
 /*
@@ -153,50 +153,49 @@ namespace
 		LoadBuiltInTraits = false;
 
 		// Not a real type, but the default for basic types
-		AddTraitsMapping<MDTraits_Raw>("Default-Basic");
+		AddTraitsMapping("Default-Basic", new MDTraits_Raw);
 
 		// Not a real type, but the default for array types
-		AddTraitsMapping<MDTraits_BasicArray>("Default-Array");
+		AddTraitsMapping("Default-Array", new MDTraits_BasicArray);
 
 		// Not a real type, but the default for compound types
-		AddTraitsMapping<MDTraits_BasicCompound>("Default-Compound");
+		AddTraitsMapping("Default-Compound", new MDTraits_BasicCompound);
 
-		AddTraitsMapping<MDTraits_Raw>("RAW");
-		AddTraitsMapping<MDTraits_Raw>("Unknown");
+		AddTraitsMapping("RAW", new MDTraits_Raw);
+		AddTraitsMapping("Unknown", new MDTraits_Raw);
 
-		AddTraitsMapping<MDTraits_Int8>("Int8");
-		AddTraitsMapping<MDTraits_UInt8>("UInt8");
-		AddTraitsMapping<MDTraits_UInt8>("Uint8");
-		AddTraitsMapping<MDTraits_UInt8>("Internal-UInt8");
-		AddTraitsMapping<MDTraits_Int16>("Int16");
-		AddTraitsMapping<MDTraits_UInt16>("UInt16");
-		AddTraitsMapping<MDTraits_UInt16>("Uint16");
-		AddTraitsMapping<MDTraits_Int32>("Int32");
-		AddTraitsMapping<MDTraits_UInt32>("UInt32");
-		AddTraitsMapping<MDTraits_UInt32>("Uint32");
+		AddTraitsMapping("Int8", new MDTraits_Int8);
+		AddTraitsMapping("UInt8", new MDTraits_UInt8);
+		AddTraitsMapping("Uint8", new MDTraits_UInt8);
+		AddTraitsMapping("Internal-UInt8", new MDTraits_UInt8);
+		AddTraitsMapping("Int16", new MDTraits_Int16);
+		AddTraitsMapping("UInt16", new MDTraits_UInt16);
+		AddTraitsMapping("Uint16", new MDTraits_UInt16);
+		AddTraitsMapping("Int32", new MDTraits_Int32);
+		AddTraitsMapping("UInt32", new MDTraits_UInt32);
+		AddTraitsMapping("Uint32", new MDTraits_UInt32);
+		AddTraitsMapping("Int64", new MDTraits_Int64);
+		AddTraitsMapping("UInt64", new MDTraits_UInt64);
+		AddTraitsMapping("Uint64", new MDTraits_UInt64);
 
-		AddTraitsMapping<MDTraits_Int64>("Int64");
-		AddTraitsMapping<MDTraits_UInt64>("UInt64");
-		AddTraitsMapping<MDTraits_UInt64>("Uint64");
+		AddTraitsMapping("ISO7", new MDTraits_ISO7);
+		AddTraitsMapping("UTF16", new MDTraits_UTF16);
 
-		AddTraitsMapping<MDTraits_ISO7>("ISO7");
-		AddTraitsMapping<MDTraits_UTF16>("UTF16");
+		AddTraitsMapping("ISO7String", new MDTraits_BasicStringArray);
+		AddTraitsMapping("UTF16String", new MDTraits_UTF16String);
 
-		AddTraitsMapping<MDTraits_BasicStringArray>("ISO7String");
-		AddTraitsMapping<MDTraits_UTF16String>("UTF16String");
+		AddTraitsMapping("UInt8Array", new MDTraits_RawArray);
+		AddTraitsMapping("Uint8Array", new MDTraits_RawArray);
 
-		AddTraitsMapping<MDTraits_RawArray>("UInt8Array");
-		AddTraitsMapping<MDTraits_RawArray>("Uint8Array");
+		AddTraitsMapping("UUID", new MDTraits_UUID);
+		AddTraitsMapping("Label", new MDTraits_Label);
 
-		AddTraitsMapping<MDTraits_UUID>("UUID");
-		AddTraitsMapping<MDTraits_Label>("Label");
+		AddTraitsMapping("UMID", new MDTraits_UMID);
 
-		AddTraitsMapping<MDTraits_UMID>("UMID");
+		AddTraitsMapping("LabelCollection", new MDTraits_RawArrayArray);
 
-		AddTraitsMapping<MDTraits_RawArrayArray>("LabelCollection");
-
-		AddTraitsMapping<MDTraits_Rational>("Rational");
-		AddTraitsMapping<MDTraits_TimeStamp>("Timestamp");
+		AddTraitsMapping("Rational", new MDTraits_Rational);
+		AddTraitsMapping("Timestamp", new MDTraits_TimeStamp);
 	}
 
 	//! Set true once the basic required classes have been loaded
