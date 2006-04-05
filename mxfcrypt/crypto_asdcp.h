@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.h
  *	\brief	Definitions for AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.h,v 1.2 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.h,v 1.3 2006/04/05 17:07:21 matt-beard Exp $
  *
  */
 /*
@@ -189,6 +189,9 @@ protected:
 
 	Length PlaintextOffset;							//!< Plaintext offset to use when encrypting
 
+	IndexTablePtr Index;							//!< Index table to update (or NULL if none)
+	Position IndexPos;								//!< Current edit unit for indexing
+
 private:
 	Encrypt_GCReadHandler();						//!< Don't allow standard construction
 
@@ -203,6 +206,9 @@ public:
 
 	//! Set the Plaintext offset to use when encrypting
 	void SetPlaintextOffset(Length Offset) { PlaintextOffset = Offset; }
+
+	//! Set an index table to update with new byte offsets
+	void SetIndex(IndexTablePtr Index) { this->Index = Index; }
 };
 
 
@@ -345,21 +351,37 @@ protected:
 	UInt32 OurSID;								//!< The BodySID of this essence
 	GCWriterPtr Writer;							//!< GCWriter to receive dencrypted data
 
+	IndexTablePtr Index;								//!< Index table to update (or NULL if none)
+	Position IndexPos;									//!< Current edit unit for indexing
+
 private:
 	Decrypt_GCReadHandler();						//!< Don't allow standard construction
 
 public:
 	//! Construct a test handler for a specified BodySID
-	Decrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID) : Writer(Writer), OurSID(BodySID) {};
+	Decrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID) : Writer(Writer), OurSID(BodySID), IndexPos(0) {};
 
 	//! Handle a "chunk" of data that has been read from the file
 	/*! \return true if all OK, false on error 
 	 */
 	virtual bool HandleData(GCReaderPtr Caller, KLVObjectPtr Object) 
 	{
+		// Update the index table to the new position
+		if(Index)
+		{
+			Index->Update(IndexPos, (UInt64)Writer->GetStreamOffset());
+		}
+
 		// Write the data without further processing
 		Writer->WriteRaw(Object);
+
+		// Update the index position count (even if not yet indexing)
+		IndexPos++;
+
 		return true;
 	}
+
+	//! Set an index table to update with new byte offsets
+	void SetIndex(IndexTablePtr Index) { this->Index = Index; }
 };
 

@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.9 2006/02/11 16:17:59 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.10 2006/04/05 17:07:21 matt-beard Exp $
  *
  */
 /*
@@ -75,6 +75,10 @@ bool ClosingHeader = true;
 //! Flag for decrypt rather than encrypt
 bool DecryptMode = false;
 
+//! Index table to update
+IndexTablePtr Index;
+
+
 #include <time.h>
 
 int main(int argc, char *argv[])
@@ -144,7 +148,33 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	// Read the header partition pack
+	/* Locate an index table to update (Required seeking!) */
+
+	InFile->GetRIP();
+	if(InFile->FileRIP.empty())
+	{
+		warning("Unable to get a RIP for the input file - so not able to locate an index table\n");
+	}
+	else
+	{
+		RIP::iterator it = InFile->FileRIP.end();
+		while(it != InFile->FileRIP.begin())
+		{
+			it--;
+			InFile->Seek((*it).second->ByteOffset);
+			PartitionPtr ThisPartition = InFile->ReadPartition();
+
+			// Read the first index table we find (scanning backwards)
+			if(ThisPartition->GetInt64(IndexByteCount_UL) != 0)
+			{
+				Index = new IndexTable;
+				ThisPartition->ReadIndex(Index);
+				break;
+			}
+		}
+	}
+
+	// Read the master partition pack
 	PartitionPtr MasterPartition = InFile->ReadMasterPartition();
 
 	if(!MasterPartition)
@@ -272,7 +302,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Write the footer partition
-	
+
 	if(MasterPartition->IsComplete()) 
 		MasterPartition->ChangeType(CompleteFooter_UL);
 	else
@@ -281,7 +311,14 @@ int main(int argc, char *argv[])
 	// Ensure we maintain the same KAG as the previous footer
 	MasterPartition->SetKAG(Writer->GetKAG());
 
-	OutFile->WritePartition(MasterPartition);
+	if(Index) 
+	{
+		DataChunkPtr IndexData = new DataChunk;
+		Index->WriteIndex(*IndexData);
+		OutFile->WritePartitionWithIndex(MasterPartition, IndexData);
+	}
+	else
+		OutFile->WritePartition(MasterPartition);
 
 	// Add a RIP
 	OutFile->WriteRIP();
@@ -632,6 +669,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 		DataChunkPtr KeyID = new DataChunk(16, KeyBuffU8);
 		Encrypt_GCReadHandler *pHandler = new Encrypt_GCReadHandler(Writer, BodySID, ContextID, KeyID, KeyFileName);
 		pHandler->SetPlaintextOffset(PlaintextOffset);
+		if(Index) pHandler->SetIndex(Index);
 		GCReadHandlerPtr Handler = pHandler;
 		GCReadHandlerPtr FillerHandler = new Basic_GCFillerHandler(Writer, BodySID);
 		BodyParser->MakeGCReader(BodySID, Handler, FillerHandler);
@@ -649,6 +687,9 @@ bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 {
 	// Decryption Key
 	DataChunkPtr Key;
+
+	// Original Essence Key
+	DataChunkPtr OriginalEssenceUL;
 
 	// Search for the crypto context
 	TrackList::iterator it = ThisPackage->Tracks.begin();
@@ -676,6 +717,9 @@ bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 						// Read the key ID
 						Key = Context[CryptographicKeyID_UL]->PutData();
 
+						// Read the original essence UL
+						OriginalEssenceUL = Context[SourceEssenceContainer_UL]->PutData();
+
 						// Remove the crypto track
 						ThisPackage->RemoveTrack(*it);
 
@@ -692,18 +736,43 @@ bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 		it++;
 	}
 
+
+	/* Replace the original Essence UL */
+
+	MDObjectPtr Descriptor = ThisPackage[Descriptor_UL];
+	if(Descriptor) Descriptor = Descriptor->GetLink();
+
+	if(!Descriptor)
+	{
+		error("Source file contains a File Package without a File Descriptor\n");
+		return false;
+	}
+	
+	MDObjectPtr ContainerUL = Descriptor[EssenceContainer_UL];
+	if(!ContainerUL)
+	{
+		error("Source file contains a File Descriptor without an EssenceContainer label\n");
+		return false;
+	}
+
+	// Change the essence UL in the descriptor back to the original version
+	ContainerUL->ReadValue(OriginalEssenceUL);
+
+
 	// Don't validate or set up crypto if not loading data
 	if(!LoadInfo) return true;
 
 //## warning("Not checking if this package is actually encrypted or not!!\n");
-	
+
 	if(!Key)
 	{
 		error("Coundn't find CryptographicKeyID in the encrypted file\n");
 		if(!ForceKeyMode) return false;
 	}
 
-	GCReadHandlerPtr Handler = new Decrypt_GCReadHandler(Writer, BodySID);
+	Decrypt_GCReadHandler *pHandler = new Decrypt_GCReadHandler(Writer, BodySID);
+	if(Index) pHandler->SetIndex(Index);
+	GCReadHandlerPtr Handler = pHandler;
 	GCReadHandlerPtr FillerHandler = new Basic_GCFillerHandler(Writer, BodySID);
 	GCReadHandlerPtr EncHandler = new Decrypt_GCEncryptionHandler(BodySID, Key, KeyFileName);
 
