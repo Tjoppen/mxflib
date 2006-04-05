@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.6 2006/02/11 16:08:14 matt-beard Exp $
+ *	\version $Id: index.h,v 1.7 2006/04/05 17:02:39 matt-beard Exp $
  *
  */
 /*
@@ -278,6 +278,9 @@ namespace mxflib
 		//! Perform an index table look-up
 		IndexPosPtr Lookup(Position EditUnit, int SubItem = 0, bool Reorder = true);
 
+		//! Update the Stream Offset of an index entry
+		void Update(Position EditUnit, UInt64 StreamOffset);
+
 		//! Fudge to correct index entry
 		void Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8 Flags);
 
@@ -314,7 +317,7 @@ namespace mxflib
 	public:
 		//! Table that owns this segment
 		IndexTableParent Parent;
-		
+	
 		//! Edit unit of the first entry in this segment
 		Int64 StartPosition;
 
@@ -350,6 +353,9 @@ namespace mxflib
 
 		//! Add multiple - pre-formed index entries
 		bool AddIndexEntries(int Count, int Size, UInt8 *Entries);
+
+		//! Update the Stream Offset of an index entry
+		void Update(Position EditUnit, UInt64 StreamOffset);
 	};
 }
 

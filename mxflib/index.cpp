@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.10 2006/02/11 16:10:04 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.11 2006/04/05 17:02:39 matt-beard Exp $
  *
  */
 /*
@@ -775,8 +775,6 @@ UInt32 IndexTable::WriteIndex(DataChunk &Buffer)
 //! Fudge to correct index entry
 void IndexTable::Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8 Flags)
 {
-	IndexPosPtr Ret = new IndexPos;
-
 	// Find the correct segment  - one starting with this edit unit, or the nearest before it
 	IndexSegmentMap::iterator it = SegmentMap.find(EditUnit);
 	if(it == SegmentMap.end()) 
@@ -822,6 +820,58 @@ void IndexTable::Correct(Position EditUnit, Int8 TemporalOffset, Int8 KeyFrameOf
 	
 	return;
 }
+
+
+
+//! Update the Stream Offset of an index entry
+void IndexTable::Update(Position EditUnit, UInt64 StreamOffset)
+{
+	// Find the correct segment  - one starting with this edit unit, or the nearest before it
+	IndexSegmentMap::iterator it = SegmentMap.find(EditUnit);
+	if(it == SegmentMap.end()) 
+	{ 
+		if(!SegmentMap.empty()) 
+		{ 
+			it = SegmentMap.lower_bound(EditUnit); 
+			if(it != SegmentMap.begin())
+			{
+				it--;
+			}
+			else
+				// Flag that it is before the start
+				it = SegmentMap.end();
+		} 
+	}
+
+	// If this position is before the start of the index table do nothing
+	if((it == SegmentMap.end()) || ((*it).first > EditUnit)) return;
+
+	// Update the entry in this segment
+	(*it).second->Update(EditUnit, StreamOffset);
+}
+
+
+//! Update the Stream Offset of an index entry
+void IndexSegment::Update(Position EditUnit, UInt64 StreamOffset)
+{
+	// Ensure that this edit unit is within this segment
+	if(EditUnit < StartPosition) return;
+
+	// Ensure that this edit unit is within this segment
+	if(EditUnit > (StartPosition + EntryCount - 1)) return;
+
+	// Index the start of the correct index entry
+	UInt8 *Ptr = &IndexEntryArray.Data[(EditUnit - StartPosition) * Parent->IndexEntrySize];
+
+	// Skip over the temporal offset, the key frame offset and the flags
+	Ptr += 3;
+
+	// Write the stream offset for this frame
+	PutU64(StreamOffset,Ptr);
+
+	return;
+}
+
 
 
 
