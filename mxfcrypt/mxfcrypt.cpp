@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.10 2006/04/05 17:07:21 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.11 2006/04/05 17:44:20 matt-beard Exp $
  *
  */
 /*
@@ -75,8 +75,17 @@ bool ClosingHeader = true;
 //! Flag for decrypt rather than encrypt
 bool DecryptMode = false;
 
+//! Flag for preserving the index table (non complient!)
+bool PreserveIndex = false;
+
+//! The original IndexSID
+UInt32 IndexSID;
+
 //! Index table to update
 IndexTablePtr Index;
+
+//! Original index data (if preserving the index unchanged)
+DataChunkPtr OriginalIndexData;
 
 
 #include <time.h>
@@ -108,6 +117,14 @@ int main(int argc, char *argv[])
 				}
 				KeyFileName = std::string(&argv[i][3]);
 			}
+			else if((argv[i][1] == 'i') || (argv[i][1] == 'I'))
+			{
+				if((argv[i][2] == 'p') && (argv[i][2] != 'P'))
+				{
+					PreserveIndex = true;
+					printf("Preserving index table from the input file (non-complient behaviour)\n");
+				}
+			}
 			else if((argv[i][1] == 'p') || (argv[i][1] == 'P'))
 			{
 				if((argv[i][2] != '=') && (argv[i][2] != ':'))
@@ -127,7 +144,7 @@ int main(int argc, char *argv[])
 
 	if (argc - num_options < 3)
 	{
-		printf( "\nUsage:  %s [-d] [-h] [-v] [-k=keyfile] [-p=offset] <in-filename> <out-filename>\n\n", argv[0] );
+		printf( "\nUsage:  %s [-d] [-h] [-v] [-k=keyfile] [-p=offset] [-ip] <in-filename> <out-filename>\n\n", argv[0] );
 
 		return 1;
 	}
@@ -167,8 +184,17 @@ int main(int argc, char *argv[])
 			// Read the first index table we find (scanning backwards)
 			if(ThisPartition->GetInt64(IndexByteCount_UL) != 0)
 			{
-				Index = new IndexTable;
-				ThisPartition->ReadIndex(Index);
+				IndexSID= ThisPartition->GetUInt(IndexSID_UL);
+
+				if(PreserveIndex)
+				{
+					OriginalIndexData = ThisPartition->ReadIndexChunk();
+				}
+				else
+				{
+					Index = new IndexTable;
+					ThisPartition->ReadIndex(Index);
+				}
 				break;
 			}
 		}
@@ -311,8 +337,14 @@ int main(int argc, char *argv[])
 	// Ensure we maintain the same KAG as the previous footer
 	MasterPartition->SetKAG(Writer->GetKAG());
 
-	if(Index) 
+	if(PreserveIndex)
 	{
+		MasterPartition->SetUInt(IndexSID_UL, IndexSID);
+		OutFile->WritePartitionWithIndex(MasterPartition, OriginalIndexData);
+	}
+	else if(Index)
+	{
+		MasterPartition->SetUInt(IndexSID_UL, IndexSID);
 		DataChunkPtr IndexData = new DataChunk;
 		Index->WriteIndex(*IndexData);
 		OutFile->WritePartitionWithIndex(MasterPartition, IndexData);
