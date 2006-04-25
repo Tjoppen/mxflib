@@ -23,7 +23,7 @@ Processing output file "../../mxfwrap_wav.mxf"
 Done
 ]])
 
-AT_CHECK([wc -c ../../mxfwrap_wav.mxf | sed 's/  */ /g'], 0,
+AT_CHECK([wc -c ../../mxfwrap_wav.mxf | sed 's/^ *//g'], 0,
 [[20675 ../../mxfwrap_wav.mxf
 ]])
 
