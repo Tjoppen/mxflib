@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.7 2006/02/28 10:51:52 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.8 2006/05/01 17:27:52 matt-beard Exp $
  *
  */
 /*
@@ -827,6 +827,12 @@ bool mxflib::JP2K_EssenceSubParser::ParseJP2Header(FileHandle InFile)
 
 			// Resize the value if not all bytes read
 			if(Bytes != ReadLength) ThisData->Resize(Bytes);
+
+			if(Remaining > 0)
+			{
+				Remaining -= Bytes;
+				if(Remaining < 0) Remaining = 0;
+			}
 
 			std::string FullBoxName;
 			if(Parent.size() == 0) FullBoxName = BoxName;
