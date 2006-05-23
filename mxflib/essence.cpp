@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.13 2006/02/11 16:12:19 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.14 2006/05/23 13:12:06 matt-beard Exp $
  *
  */
 /*
@@ -2093,6 +2093,9 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 		// We need to check the start of the partition on the first iteration
 		bool FirstIteration = true;
 
+		// Start of the current partition
+		Position PartitionStart;
+
 		// TODO: Re-write to not read a whole frame into memory if that is too big!!
 
 		// We keep decrement a copy of the duration rather that the function parameter
@@ -2187,9 +2190,6 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 				// Now we have written something we must record the BodySID
 				PartitionBodySID = CurrentBodySID;
 			}
-
-			// Start of the current partition
-			Position PartitionStart;
 
 			if(FirstIteration)
 			{
@@ -3131,12 +3131,18 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 				// Add any remaining entries to make a sprinkled index table
 				Position EditUnit = IndexMan->GetLastNewEditUnit();
 				IndexMan->AddEntriesToIndex(Index, Stream->GetNextSprinkled(), EditUnit);
+
+				// We have now done the remaining sprinkles
+				IndexFlags = BodyStream::StreamIndexSprinkled;
 			}
 			else if(IndexFlags & BodyStream::StreamIndexFullFooter)
 			{
 				// Add all available edit units
 				IndexMan->GetLastNewEditUnit();
 				IndexMan->AddEntriesToIndex(Index);
+
+				// We have now done the full index
+				IndexFlags = BodyStream::StreamIndexFullFooter;
 			}
 			else if(IndexFlags & BodyStream::StreamIndexSparseFooter)
 			{
@@ -3154,6 +3160,9 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 					IndexMan->AddEntriesToIndex(true, Index, (*it), (*it));
 					it++;
 				}
+
+				// We have now done the sparse index
+				IndexFlags = BodyStream::StreamIndexSparseFooter;
 			}
 			else
 			{
@@ -3181,9 +3190,6 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		// Set the "done" flag for this index type
 		// DRAGONS: Is this an MSVC funny or can we really not do bitmaths with enums without them becoming integers?
 		Stream->SetFooterIndex((BodyStream::IndexType) (Stream->GetFooterIndex() | IndexFlags) );
-
-		// Move the stream to the next state
-		Stream->GetNextState();
 
 		// This stream has done a cycle - move to the next stream
 		SetNextStream();
