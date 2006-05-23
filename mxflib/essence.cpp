@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.14 2006/05/23 13:12:06 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.15 2006/05/23 14:47:53 matt-beard Exp $
  *
  */
 /*
@@ -2232,9 +2232,6 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 
 					// Flag that we have "stored" some essence for a later partition
 					Stream->SetPendingData();
-
-					// And exit as this partition is now done
-					Stream->GetNextState();
 
 					// Prevent this partition being "continued"
 					PartitionDone = true;
