@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.15 2006/05/23 14:47:53 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.16 2006/05/24 09:40:46 matt-beard Exp $
  *
  */
 /*
@@ -2290,9 +2290,6 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 						// Flag that we have "stored" some essence for next partition
 						Stream->SetPendingData();
 
-						// And exit as this partition is now done
-						Stream->GetNextState();
-
 						// Prevent this partition being "continued"
 						PartitionDone = true;
 
@@ -2455,7 +2452,7 @@ BodyStream::StateType mxflib::BodyStream::GetNextState(void)
 		// Maybe we are all done and need to go to the footer
 		if(GetEndOfStream())
 		{
-			if(StreamIndex & (StreamIndexFullFooter | StreamIndexCBRFooter ))
+			if(StreamIndex & ( StreamIndexSparseFooter | StreamIndexCBRFooter | StreamIndexFullFooter ))
 				State = BodyStreamFootIndex;
 			// Check if we have any left-over sprinkles
 			else if((StreamIndex & (StreamIndexSprinkled | StreamIndexSprinkledIsolated))
@@ -3123,14 +3120,14 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		else
 		{
 			// First off we write any remaining sprinkles
-			if(IndexFlags & BodyStream::StreamIndexSprinkled)
+			if(IndexFlags & (BodyStream::StreamIndexSprinkled | BodyStream::StreamIndexSprinkledIsolated))
 			{
 				// Add any remaining entries to make a sprinkled index table
 				Position EditUnit = IndexMan->GetLastNewEditUnit();
 				IndexMan->AddEntriesToIndex(Index, Stream->GetNextSprinkled(), EditUnit);
 
 				// We have now done the remaining sprinkles
-				IndexFlags = BodyStream::StreamIndexSprinkled;
+				IndexFlags = (BodyStream::IndexType) (IndexFlags & (BodyStream::StreamIndexSprinkled | BodyStream::StreamIndexSprinkledIsolated));
 			}
 			else if(IndexFlags & BodyStream::StreamIndexFullFooter)
 			{
@@ -3175,14 +3172,18 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		DataChunkPtr IndexChunk = new DataChunk;
 		Index->WriteIndex(*IndexChunk);
 
-		// Set the index SID
-		BasePartition->SetUInt(IndexSID_UL,  Index->IndexSID);
+		// Don't write empty index partitions
+		if(IndexChunk->Size)
+		{
+			// Set the index SID
+			BasePartition->SetUInt(IndexSID_UL,  Index->IndexSID);
 
-		// Record the index data to write
-		PendingIndexData = IndexChunk;
+			// Record the index data to write
+			PendingIndexData = IndexChunk;
 
-		// Queue the write
-		PartitionWritePending = true;
+			// Queue the write
+			PartitionWritePending = true;
+		}
 
 		// Set the "done" flag for this index type
 		// DRAGONS: Is this an MSVC funny or can we really not do bitmaths with enums without them becoming integers?
