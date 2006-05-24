@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.11 2006/04/05 17:02:39 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.12 2006/05/24 13:53:51 matt-beard Exp $
  *
  */
 /*
@@ -1596,17 +1596,23 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 
 		// Build the slice table
 		int i;
-		for(i=0; i<StreamCount; i++)
+		for(i=0; i<(StreamCount-1); i++)
 		{
-			// DRAGONS: Why not just shorten the loop??
-			if( i!=StreamCount-1 ) // if this is the last Stream, there is no next Slice
+			if( ElementSizeList[i] == 0) // VBR - next Stream will be start of next Slice
 			{
-				if( ElementSizeList[i] == 0) // VBR - next Stream will be start of next Slice
-				{
-					Position NextPos = ThisEntry->StreamOffset[i+1];
+				Position NextPos = ThisEntry->StreamOffset[i+1];
+				
+				if(NextPos >= StreamPos) 
 					SliceOffsets[Slice]=(UInt32)(NextPos - StreamPos);
-					Slice++;
+				else
+				{
+					// Write zero in the slice offset of any missing entry
+					// DRAGONS: this is not very good, but what else do we do
+					// FIXME: Scan forwards to find the next indexed item to calculate the correct slice offset for a zero size object
+					SliceOffsets[Slice]=0;
 				}
+
+				Slice++;
 			}
 
 			// DRAGONS: Not supporting PosTable yet!
