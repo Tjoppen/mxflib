@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.16 2006/05/24 09:40:46 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.17 2006/06/10 14:26:48 matt-beard Exp $
  *
  */
 /*
@@ -2887,7 +2887,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 					Index->WriteIndex(*IndexChunk);
 
 					// We will be a closed complete body partition unless the partition handler adds metadata
-					BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
+					if(!PendingHeader) BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
 
 					// Set the index SID
 					BasePartition->SetUInt(IndexSID_UL,  Index->IndexSID);
