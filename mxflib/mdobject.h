@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.19 2006/02/11 16:15:40 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.20 2006/06/25 14:30:13 matt-beard Exp $
  *
  */
 /*
@@ -308,8 +308,6 @@ namespace mxflib
 
 			if(Type) TypeName = Type->Name();
 			else TypeName = Name;
-
-			RefType = ClassRefNone;
 
 			// Set the name lookup - UL lookup set when key set
 			NameLookup[RootName + Name] = this;
@@ -1064,14 +1062,11 @@ namespace mxflib
 		//! Inset a new child object - overloads the existing MDObjectList version
 		void insert(MDObjectPtr NewObject)
 		{
-			// FIXME: Should we add a new GUID instead? Otherwise we may get duplicates
-			const UInt8 Null_UL_Data[16] = { 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0 };
-			const UL Null_UL(Null_UL_Data);
-			
 			if(NewObject->TheUL)
 				push_back(MDObjectULList::value_type(*(NewObject->TheUL), NewObject));
 			else
-				push_back(MDObjectULList::value_type(Null_UL, NewObject));
+				ASSERT(0);
+//				push_back(MDObjectULList::value_type(Null_UL, NewObject));
 		}
 
 		//! Type access function
@@ -1093,9 +1088,13 @@ namespace mxflib
 		MDObjectPtr GetLink(void) const { return Link; };
 
 		//! Make a link from this reference source to the specified target set
-		bool MakeLink(MDObjectPtr &TargetSet, bool ForceLink = false);
+		bool MakeRef(MDObjectPtr &TargetSet, bool ForceLink = false);
 	
-		//! Record that a link exists (not the same as making a link - see MakeLink)
+		//! DEPRECATED: Make a link from this reference source to the specified target set
+		/*! \note This method is deprecated - use MakeRef() instead */
+		bool MakeLink(MDObjectPtr &TargetSet, bool ForceLink = false) { return MakeRef(TargetSet, ForceLink); }
+	
+		//! Record that a link exists (not the same as making a link - see MakeRef)
 		void SetLink(MDObjectPtr NewLink) { Link = NewLink; };
 
 		//! Ref access function

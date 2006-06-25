@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.19 2006/02/11 16:07:31 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.20 2006/06/25 14:30:13 matt-beard Exp $
  *
  */
 /*
@@ -164,15 +164,17 @@ MDOTypePtr MDOType::Find(const UL& BaseUL)
 	else
 	{
 		// If the exact match is not found try a version-less lookup by changing the version number to 1
-		UL Ver1UL = BaseUL;
-		Ver1UL.Set(7, 1);
-
-		std::map<UL, MDOTypePtr>::iterator it2 = ULLookupVer1.find(Ver1UL);
-		if(it2 != ULLookupVer1.end())
+		if((BaseUL.GetValue()[0] == 0x06) && (BaseUL.GetValue()[1] == 0x0e) && (BaseUL.GetValue()[2] == 0x2b) && (BaseUL.GetValue()[3] == 0x34))
 		{
-			theType = (*it2).second;
-		}
+			UL Ver1UL = BaseUL;
+			Ver1UL.Set(7, 1);
 
+			std::map<UL, MDOTypePtr>::iterator it2 = ULLookupVer1.find(Ver1UL);
+			if(it2 != ULLookupVer1.end())
+			{
+				theType = (*it2).second;
+			}
+		}
 	}
 
 	return theType;
@@ -192,33 +194,14 @@ MDOTypePtr MDOType::Find(Tag BaseTag, PrimerPtr BasePrimer)
 	// Search the static primer by default
 	if(!BasePrimer) BasePrimer = GetStaticPrimer();
 
+	// Search the primer
 	Primer::iterator it = BasePrimer->find(BaseTag);
 
-	if(it != BasePrimer->end())
-	{
-		UL BaseUL = (*it).second;
-		std::map<UL, MDOTypePtr>::iterator it2 = ULLookup.find(BaseUL);
+	// Return NULL if not in the primer
+	if(it == BasePrimer->end()) return NULL;
 
-		if(it2 != ULLookup.end())
-		{
-			theType = (*it2).second;
-		}
-		else
-		{
-			// Force the version number to 1
-			BaseUL.Set(7, 1);
-
-			// Look-up in the non-version specific map
-			std::map<UL, MDOTypePtr>::iterator it3 = ULLookupVer1.find(BaseUL);
-
-			if(it3 != ULLookupVer1.end())
-			{
-				theType = (*it3).second;
-			}
-		}
-	}
-
-	return theType;
+	// Now search on the located UL
+	return MDOType::Find((*it).second);
 }
 
 
@@ -436,7 +419,7 @@ void MDObject::Init(void)
 		{
 			// If we are trying to build a type that is not defined, build it as an "Unknown"
 			MDTypePtr ValType = Type->GetValueType();
-			if(!ValType) ValType = MDType::Find("Unknown");
+			if(!ValType) ValType = MDType::Find("UnknownType");
 			ASSERT(ValType);
 
 			Value = new MDValue(ValType);
@@ -1931,7 +1914,7 @@ UInt32 MDObject::WriteKey(DataChunkPtr &Buffer, DictKeyFormat Format, PrimerPtr 
  *		  must be a set (or pack) containing an InstanceUID property which is a
  *		  reference target
  */
-bool MDObject::MakeLink(MDObjectPtr &TargetSet, bool ForceLink /*=false*/)
+bool MDObject::MakeRef(MDObjectPtr &TargetSet, bool ForceLink /*=false*/)
 {
 	UInt8 TheUID[16];
 
