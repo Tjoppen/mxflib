@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.12 2006/02/11 15:58:15 matt-beard Exp $
+ *	\version $Id: system.h,v 1.13 2006/06/25 14:46:06 matt-beard Exp $
  *
  */
 /*
@@ -253,13 +253,13 @@ namespace mxflib
 
 
 	/********* Acurate time *********/
+	//! Get the current <b>UTC</b> time including number of milliseconds / 4
 	inline full_time GetTime(void)
 	{
 		full_time Ret;
-		_tzset();
 		_timeb tb;
 		_ftime(&tb);
-		Ret.time = tb.time + tb.timezone*60;
+		Ret.time = tb.time;
 		Ret.msBy4 = tb.millitm / 4;
 		return Ret;
 	}
@@ -408,6 +408,7 @@ namespace mxflib
 #endif //MXFLIB_NO_FILE_IO
 
 	/********* Acurate time *********/
+	//! Get the current <b>UTC</b> time including number of milliseconds / 4
 	inline full_time GetTime(void)
 	{
 		full_time Ret;
