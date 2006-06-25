@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.12 2006/02/11 16:11:34 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.13 2006/06/25 14:28:22 matt-beard Exp $
  *
  */
 /*
@@ -33,6 +33,15 @@ using namespace mxflib;
 
 // Define the features bitmap - turn on those features set by compile time switch
 UInt64 mxflib::Features = MXFLIB_FEATURE_DEFAULT & MXFLIB_FEATURE_MASK;
+
+
+namespace
+{
+	//! Data bytes for the null UL used as a magic number when no UL is specified for some function parameters
+	const UInt8 Null_UL_Data[16] = { 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0 };
+}
+//! Define the null UL used as a magic number when no UL is specified for some function parameters
+const UL mxflib::Null_UL(Null_UL_Data);
 
 
 //! Build a BER length
@@ -469,16 +478,94 @@ bool mxflib::IsWideString(std::string &String)
 }
 
 
+//! Read an IFF chunk header (from an open file)
+/*! The Chunk ID is read as a big-endian UInt32 and returned as the first
+ *	part of the returned pair. The chunk size is read as a specified-endian
+ *	number and returned as the second part of the returned pair
+ *	\return <0,0> if the header counld't be read
+ */
+U32Pair mxflib::ReadIFFHeader(FileHandle InFile, bool BigEndian /*=true*/)
+{
+	U32Pair Ret;
+
+	UInt8 Buffer[8];
+	if(FileRead(InFile, Buffer, 8) < 8)
+	{
+		Ret.first = 0;
+		Ret.second = 0;
+		return Ret;
+	}
+
+	Ret.first = GetU32(Buffer);
+	
+	if(BigEndian)
+		Ret.second = GetU32(&Buffer[4]);
+	else
+		Ret.second = GetU32_LE(&Buffer[4]);
+
+	return Ret;
+}
+
+
+//! Read a QuickTime Atom header (from an open file)
+/*! The Atom Type ID is read as a big-endian UInt32 and returned as the first
+ *	part of the returned pair. The Atom size is read as a big-endian
+ *	number and returned as the second part of the returned pair.
+ *  Extended sizes are automatically read if used.
+ *  If SkipWide is omitted (or true) any "wide" atoms are read and skipped automatically.
+ *	\return <0,0> if the header counld't be read
+ */
+std::pair<UInt32, Length> mxflib::ReadAtomHeader(FileHandle InFile, bool SkipWide /*=true*/)
+{
+	static UInt32 WideID = 'w' << 24 | 'i' << 16 | 'd' << 8 | 'e';
+
+	std::pair<UInt32, Length> Ret;
+
+	UInt8 Buffer[8];
+	if(FileRead(InFile, Buffer, 8) < 8)
+	{
+		Ret.first = 0;
+		Ret.second = 0;
+		return Ret;
+	}
+
+	Ret.second = GetU32(Buffer);
+	Ret.first = GetU32(&Buffer[4]);
+
+	// Skip wide atoms if requested
+	if(SkipWide && (Ret.first == WideID) && (Ret.second == 8))
+	{
+		return ReadAtomHeader(InFile, true);
+	}
+
+	// Read the extended length, if used
+	if(Ret.second == 1)
+	{
+		if(FileRead(InFile, Buffer, 8) < 8)
+		{
+			Ret.first = 0;
+			Ret.second = 0;
+			return Ret;
+		}
+
+		// DRAGONS: We read as signed as MXF uses signed lengths - this is only a problem for chunks > 2^63 bytes!
+		Ret.second = GetI64(Buffer);
+	}
+
+	return Ret;
+}
+
+
 //! Read hex values separated by any of 'Sep'
 /*! \return number of values read */
 int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char *Sep)
 {
 	/* DRAGONS: - Pointer to pointer used for Source
-	**		      This allows the caller's pointer to be updated to
-	**		      point to the first character after the hex string
+	**		  This allows the caller's pointer to be updated to
+	**		  point to the first character after the hex string
 	**
-	**  		  **Source = character value in input data
-	**			  *Source  = pointer to source data
+	**		  **Source = character value in input data
+	**		  *Source  = pointer to source data
 	*/
 
 	int Count = 0;
@@ -492,6 +579,30 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 		(*Source)++;
 	}
 
+
+	// Lets see if this is a urn:x-ul: format definition
+	// If so we skip over the lead-in
+	if(**Source == 'u')
+	{
+		const char *Pattern = "urn:x-ul:";
+
+		const char *pSrc = *Source;
+		const char *pPat = Pattern;
+
+		// Scan the start of the string until the end of the pattern
+		while(*pPat)
+		{
+			// Abort if we find a mismatch
+			if((*pSrc) != tolower(*pPat)) break;
+			pSrc++;
+			pPat++;
+		}
+
+		// If we reached the end of the pattern then we have a match, so
+		if(!(*pPat)) *Source = pSrc;
+	}
+
+	int CharCount = 0;
 	while(**Source != 0)
 	{
 		char c = **Source;
@@ -502,6 +613,7 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 			current *= 16;
 			current += (c - '0');
 			Started = 1;
+			CharCount++;
 		}
 		else if((c>='a') && (c<='f'))
 		{
@@ -509,6 +621,7 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 			current *= 16;
 			current += (c - 'a') + 10;
 			Started = 1;
+			CharCount++;
 		}
 		else if((c>='A') && (c<='F'))
 		{
@@ -516,9 +629,12 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 			current *= 16;
 			current += (c - 'A') + 10;
 			Started = 1;
+			CharCount++;
 		}
 		else
 		{
+			CharCount = 0;
+
 			int separator = 0;
 			const char *p = Sep;
 
@@ -559,6 +675,23 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 			}
 		}
 
+		// Move after 2 digits, even if no separator
+		if(CharCount == 2)
+		{
+			CharCount = 0;
+
+			/* Update the output data if not full */
+			if(Started && (Count <= Max))
+			{
+				*Dest++ = current;
+				Count++;
+			}
+
+			/* Reset current value */
+			current = 0;
+			Started = 0;
+		}
+
 		/* Move to next character */
 		(*Source)++;
 	}
@@ -576,6 +709,110 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 
 	return Count;
 }
+
+
+//! Build a UL from a character string, writing the bytes into a 16-byte buffer
+/*! \return true if a full 16 bytes were read into the buffer, else false
+ */
+bool mxflib::StringToUL(UInt8 *Data, std::string Val)
+{
+	// Make a safe copy of the value that will not be cleaned-up by string manipulation
+	const int VALBUFF_SIZE = 256;
+	char ValueBuff[VALBUFF_SIZE];
+	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
+	ValueBuff[VALBUFF_SIZE-1] = 0;
+	const char *p = ValueBuff;
+
+	int Count = 16;
+	int Value = -1;
+	UInt8 *pD = Data;
+
+	bool EndSwap = false;
+
+	// Check for URN format
+	if((tolower(*p) == 'u') && (tolower(p[1]) == 'r') && (tolower(p[2]) == 'n') && (tolower(p[3]) == ':'))
+	{
+		if(strcasecmp(Val.substr(0,9).c_str(), "urn:uuid:") == 0)
+		{
+			EndSwap = true;
+		}
+
+		p += Val.rfind(':') + 1;
+	}
+
+	// During this loop Value = -1 when no digits of a number are mid-process
+	// This stops a double space being regarded as a small zero in between two spaces
+	int DigitCount = 0;
+	while(Count)
+	{
+		int Digit;
+		
+		if((*p == 0) && (Value == -1)) Value = 0;
+
+		if(*p >= '0' && *p <='9') Digit = (*p) - '0';
+		else if(*p >= 'a' && *p <= 'f') Digit = (*p) - 'a' + 10;
+		else if(*p >= 'A' && *p <= 'F') Digit = (*p) - 'A' + 10;
+		else
+		{
+			// If we meet "{" before any digits, this as a UUID - which will need to be end-swapped
+			if((*p == '{') && (Count == 16) && (Value == -1))
+			{
+				EndSwap = true;
+			}
+
+			if(Value == -1)
+			{
+				// Skip second or subsiquent non-digit
+				p++;
+				continue;
+			}
+			else 
+			{
+				*pD = Value;
+				*pD++;
+
+				Count--;
+
+				if(*p) p++;
+				
+				Value = -1;
+				DigitCount = 0;
+
+				continue;
+			}
+		}
+
+		if(Value == -1) Value = 0; else Value <<=4;
+		Value += Digit;
+		p++;
+
+		if(!DigitCount) 
+			DigitCount++;
+		else
+		{
+			*pD = Value;
+			*pD++;
+
+			Count--;
+			
+			Value = -1;
+			DigitCount = 0;
+		}
+	}
+
+	// If the value was a UUID, end-swap it
+	if(EndSwap)
+	{
+		UInt8 Temp[8];
+		memcpy(Temp, &Data[8], 8);
+		memcpy(&Data[8], Data, 8);
+		memcpy(Data, Temp, 8);
+	}
+
+	// Return true if we read 16-bytes worth of data
+	return (Count == 0);
+}
+
 
 
 /*

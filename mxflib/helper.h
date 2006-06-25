@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.8 2006/02/11 16:10:56 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.9 2006/06/25 14:28:22 matt-beard Exp $
  *
  */
 /*
@@ -36,6 +36,9 @@
 
 namespace mxflib
 {
+	// Declare the global null-ul which is 16 zero bytes
+	extern const UL Null_UL;
+	
 	//! Make a string containing a number
 	inline std::string Int2String(int Num, int Digits = 0)
 	{
@@ -75,9 +78,9 @@ namespace mxflib
 		char Buffer[32];
 		
 		if(StrictISO)
-			strftime(Buffer, 31, "%Y-%m-%dT%H:%M:%S.", localtime( &Time.time ));
+			strftime(Buffer, 31, "%Y-%m-%dT%H:%M:%S.", gmtime( &Time.time ));
 		else
-			strftime(Buffer, 31, "%Y-%m-%d %H:%M:%S.", localtime( &Time.time ));
+			strftime(Buffer, 31, "%Y-%m-%d %H:%M:%S.", gmtime( &Time.time ));
 
 		// Append the milliseconds
 		sprintf(&Buffer[strlen(Buffer)], "%03d", Time.msBy4 * 4);
@@ -141,6 +144,16 @@ namespace mxflib
 	//! Read a "Chunk" from a non-MXF file
 	DataChunkPtr FileReadChunk(FileHandle InFile, UInt64 Size);
 
+
+	//! Read an IFF chunk header (from an open file)
+	/*! The Chunk ID is read as a big-endian UInt32 and returned as the first
+	 *	part of the returned pair. The chunk size is read as a specified-endian
+	 *	number and returned as the second part of the returned pair
+	 *	\return <0,0> if the header counld't be read
+	 */
+	U32Pair ReadIFFHeader(FileHandle InFile, bool BigEndian = true);
+
+
 	//! Read a RIFF chunk header (from an open file)
 	/*! The Chunk ID is read as a big-endian UInt32 and returned as the first
 	 *	part of the returned pair. The chunk size is read as a little-endian
@@ -149,21 +162,32 @@ namespace mxflib
 	 */
 	inline U32Pair ReadRIFFHeader(FileHandle InFile)
 	{
-		U32Pair Ret;
-
-		UInt8 Buffer[8];
-		if(FileRead(InFile, Buffer, 8) < 8)
-		{
-			Ret.first = 0;
-			Ret.second = 0;
-			return Ret;
-		}
-
-		Ret.first = GetU32(Buffer);
-		Ret.second = GetU32_LE(&Buffer[4]);
-
-		return Ret;
+		return ReadIFFHeader(InFile, false);
 	}
+
+
+	//! Read a AIFF chunk header (from an open file)
+	/*! The Chunk ID is read as a big-endian UInt32 and returned as the first
+	 *	part of the returned pair. The chunk size is read as a big-endian
+	 *	number and returned as the second part of the returned pair
+	 *	\return <0,0> if the header counld't be read
+	 */
+	inline U32Pair ReadAIFFHeader(FileHandle InFile)
+	{
+		return ReadIFFHeader(InFile, true);
+	}
+
+
+	//! Read a QuickTime Atom header (from an open file)
+	/*! The Atom Type ID is read as a big-endian UInt32 and returned as the first
+	 *	part of the returned pair. The Atom size is read as a big-endian
+	 *	number and returned as the second part of the returned pair.
+	 *  Extended sizes are automatically read if used.
+	 *  If SkipWide is omitted (or true) any "wide" atoms are read and skipped automatically.
+	 *	\return <0,0> if the header counld't be read
+	 */
+	std::pair<UInt32, Length> ReadAtomHeader(FileHandle InFile, bool SkipWide = true);
+
 
 	//! Set a data chunk from a hex string
 	DataChunkPtr Hex2DataChunk(std::string Hex);
@@ -241,6 +265,21 @@ namespace mxflib
 	{
 		const char *p = Source;
 		return ReadHexString(&p, Max, Dest, Sep);
+	}
+
+	//! Build a UL from a character string, writing the bytes into a 16-byte buffer
+	/*! \return true if a full 16 bytes were read into the buffer, else false
+	 */
+	bool StringToUL(UInt8 *Data, std::string Val);
+	
+	//! Build a UL from a character string, returning a smart pointer to it
+	/*! \return A pointer to the new UL if a full 16 bytes were read, else NULL
+	 */
+	inline ULPtr StringToUL(std::string Val)
+	{
+		UInt8 Data[16];
+		if(!StringToUL(Data, Val)) return NULL;
+		return new UL(Data);
 	}
 }
 
