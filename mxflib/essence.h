@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.14 2006/04/05 17:03:45 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.15 2006/06/25 14:26:04 matt-beard Exp $
  *
  */
 /*
@@ -257,6 +257,37 @@ namespace mxflib
 		{
 			return (GetGCEssenceType() == 0x18);
 		}
+
+		//! An indication of the relative write order to use for this stream
+		/*! Normally streams in a GC are ordered as follows:
+		 *  - All the CP system items (in Scheme ID then Element ID order)
+		 *  - All the GC system items (in Scheme ID then Element ID order)
+		 *  - All the CP picture items (in Element ID then Element Number order)
+		 *  - All the GC picture items (in Element ID then Element Number order)
+		 *  - All the CP sound items (in Element ID then Element Number order)
+		 *  - All the GC sound items (in Element ID then Element Number order)
+		 *  - All the CP data items (in Element ID then Element Number order)
+		 *  - All the GC data items (in Element ID then Element Number order)
+		 *  - All the GC compound items (in Element ID then Element Number order) (no GC compound)
+		 *
+		 *  However, sometimes this order needs to be overridden - such as for VBI data preceding picture items.
+		 *
+		 *  The normal case for ordering of an essence stream is for RelativeWriteOrder to return 0,
+		 *  indicating that the default ordering is to be used. Any other value indicates that relative
+		 *  ordering is required, and this is used as the Position value for a SetRelativeWriteOrder()
+		 *  call. The value of Type for that call is acquired from RelativeWriteOrderType()
+		 *
+		 * For example: to force a source to be written between the last GC sound item and the first CP data
+		 *              item, RelativeWriteOrder() can return any -ve number, with RelativeWriteOrderType()
+		 *				returning 0x07 (meaning before CP data). Alternatively RelativeWriteOrder() could
+		 *				return a +ve number and RelativeWriteOrderType() return 0x16 (meaning after GC sound)
+		 */
+		virtual Int32 RelativeWriteOrder(void) { return 0; }
+
+		//! The type for relative write-order positioning if RelativeWriteOrder() != 0
+		/*! This method indicates the essence type to order this data before or after if reletive write-ordering is used 
+		 */
+		virtual int RelativeWriteOrderType(void) { return 0; }
 	};
 
 	// Smart pointer to an EssenceSource object
@@ -373,7 +404,7 @@ namespace mxflib
 		UInt32 KAGSize;						//!< KAGSize for this Essence Container
 		bool ForceFillerBER4;				//!< True if filler items must have BER lengths forced to 4-byte BER
 
-		int NextWriteOrder;					//!< The "WriteOrder" to use for the next auto "SetWriteOrder()"
+		Int32 NextWriteOrder;				//!< The "WriteOrder" to use for the next auto "SetWriteOrder()"
 
 		Position IndexEditUnit;				//!< Edit unit of the current CP for use if indexing
 											/*!< This property starts at zero and is incremented with each CP written, however the value
@@ -381,6 +412,9 @@ namespace mxflib
 											 */
 
 		UInt64 StreamOffset;				//!< Current stream offset within this essence container
+
+		//! Map of all used write orders to stream ID - used to ensure no duplicates
+		std::map<UInt32, GCStreamID> WriteOrderMap;
 
 	public:
 		//! Constructor
@@ -542,7 +576,10 @@ namespace mxflib
 
 
 		//! Set the WriteOrder for the specified stream
-		void SetWriteOrder(GCStreamID ID, int WriteOrder = -1, int Type =-1);
+		void SetWriteOrder(GCStreamID ID, Int32 WriteOrder = -1, int Type =-1);
+
+		//! Set a write-order relative to all items of a specified type
+		void SetRelativeWriteOrder(GCStreamID ID, int Type, Int32 Position);
 
 		//! Read the count of streams
 		int GetStreamCount(void) { return StreamCount; };
@@ -552,9 +589,9 @@ namespace mxflib
 
 namespace mxflib
 {
-	class EssenceSubParserBase;
-	typedef SmartPtr<EssenceSubParserBase> EssenceSubParserPtr;
-	typedef ParentPtr<EssenceSubParserBase> EssenceSubParserParent;
+	class EssenceSubParser;
+	typedef SmartPtr<EssenceSubParser> EssenceSubParserPtr;
+	typedef ParentPtr<EssenceSubParser> EssenceSubParserParent;
 
 	class WrappingOption : public RefCount<WrappingOption>
 	{
@@ -564,7 +601,10 @@ namespace mxflib
 		enum WrapType { None, Frame, Clip, Line, Other } ;
 
 		EssenceSubParserParent Handler;			//!< Pointer to the object that can parse this wrapping option - parent pointer because the parser holds a copy of this!
+		std::string Name;						//!< A short name, unique for this sub-parser, for this wrapping option (or "" if not supported by this handler)
 		std::string Description;				//!< Human readable description of this wrapping option (to allow user selection)
+		ULPtr	WrappingID;						//!< A UL (or endian swapped UUID) that uniquely identifies this sub-parser/wrapping option combination (or NULL if not suppoered by this handler)
+												/*!< This allows an application to specify a desired wrapping, or list of wrappings, for automated selection */
 		ULPtr	WrappingUL;						//!< UL for this wrapping
 		ULList	RequiredPartners;				//!< List of other items that *MUST* accompany this item to use this wrapping
 		UInt8	GCEssenceType;					//!< The Generic Container essence type, or 0 if not a GC wrapping
@@ -580,23 +620,74 @@ namespace mxflib
 	typedef SmartPtr<WrappingOption> WrappingOptionPtr;
 	typedef std::list<WrappingOptionPtr> WrappingOptionList;
 
-	/*! An MDObject with an associated stream identifier 
+	//! Class for holding a description of an essence stream 
+	class EssenceStreamDescriptor;
+
+	//! A smart pointer to a EssenceStreamDescriptor object
+	typedef SmartPtr<EssenceStreamDescriptor> EssenceStreamDescriptorPtr;
+
+	//! A list of smart pointers to EssenceStreamDescriptor objects
+	typedef std::list<EssenceStreamDescriptorPtr> EssenceStreamDescriptorList;
+
+	/*! \page SubStreamNotes Notes on Sub-Streams
+	 *  \section SubStreams1 Sub-Streams Introduction
+	 *  Certain essence streams may have intimate data related to the essence that is linked as a substream.
+	 *  \section SubParserSubStreams Sub-Streams in EssenceSubParsers
+	 *  An EssenceSubParser may produce a main EssenceSource with sub-streams which are EssenceSources whose 
+	 *  data is extracted during the parsing that produces the main source's data. These SubStreams are indicated
+	 *  by members of the EssenceStreamDescriptor::SubStreams properties of members of the EssenceStreamDescriptorList
+	 *  returned by a call to EssenceSubParserBase::IdentifyEssence(). This in turn gets propogated to the 
+	 *  EssenceParser::WrapingConfig::SubStreams properties of members of the EssenceParser::WrapingConfigList
+	 *  returned by a call to EssenceParser::ListWrappingOptions().
+	 *
+	 *  The value of EssenceStreamDescriptor::ID, and hence EssenceParser::WrapingConfig::Stream, will differ
+	 *  between the main stream and its sub-streams. These stream IDs are passed to EssenceSubParserBase::GetEssenceSource
+	 *  to produce the desired EssenceSource objects.  The master stream needs to be requested first, otherwise the
+	 *  EssenceSubParserBase::GetEssenceSource is unlikely to produce a valid sub-stream EssenceSource.
+	 *
+	 *  It is worth noting that as the sub-stream data is extracted from the master stream, the master stream is responsible
+	 *  for managing the file handle and other items such as the edit rate.
+	 *
+	 *  \attention Any EssenceSubParser providing sub-streams <b>must</b> support EssenceSubParserBase::ReValidate(),
+	 *             even if only to reject all attempts to continue into the next file (as this may not be a valid thing to do).
+	 *
+	 *  \attention It is the responsibility of the EssenceSubParser to ensure that data for all streams is extracted from
+	 *             the initial file before the master stream returns NULL from its GetEssenceData() method.
+	 *             This is because the file will be closed soon after that call is made.
+	 *
+	 *  DRAGONS: There may be a requirement at some point to allow an EssenceSubParser to keep the file open if a huge amount of data is still unread
+	 */
+
+	/*! Class for holding a description of an essence stream
 	 *  (used to differentiate multiple streams in an essence file)
 	 *  and a human-readable description
 	 */
-	struct EssenceStreamDescriptor
+	class EssenceStreamDescriptor : public RefCount<EssenceStreamDescriptor>
 	{
+	public:
 		UInt32 ID;								//!< ID for this essence stream
 		std::string Description;				//!< Description of this essence stream
 		UUID SourceFormat;						//!< A UUID (or byte-swapped UL) identifying the source format
 		MDObjectPtr Descriptor;					//!< Pointer to an actual essence descriptor for this stream
+		EssenceStreamDescriptorList SubStreams;	//!< A list of sub-streams that can be derived from this stream. See \ref SubStreamNotes
 	};
-	typedef std::list<EssenceStreamDescriptor> EssenceStreamDescriptorList;
 
-	
+
+	//! Base class for any EssenceSubParserFactory classes
+	class EssenceSubParserFactory : public RefCount<EssenceSubParserFactory>
+	{
+	public:
+		//! Build a new sub-parser of the appropriate type
+		virtual EssenceSubParserPtr NewParser(void) const = 0;
+	};
+
+	//! Smart pointer to an EssenceSubParserFactory
+	typedef SmartPtr<EssenceSubParserFactory> EssenceSubParserFactoryPtr;
+
+
 	//! Abstract base class for all essence parsers
 	/*! \note It is important that no derived class has its own derivation of RefCount<> */
-	class EssenceSubParserBase : public RefCount<EssenceSubParserBase>
+	class EssenceSubParser : public RefCount<EssenceSubParser>
 	{
 	protected:
 		//! The wrapping options selected
@@ -758,10 +849,7 @@ namespace mxflib
 
 	public:
 		//! Base destructor (to allow polymorphism)
-		virtual ~EssenceSubParserBase() {};
-
-		//! Build a new parser of this type and return a pointer to it
-		virtual EssenceSubParserPtr NewParser(void) const = 0;
+		virtual ~EssenceSubParser() {};
 
 		//! Report the extensions of files this sub-parser is likely to handle
 		virtual StringList HandledExtensions(void) { StringList Ret; return Ret; };
@@ -933,7 +1021,7 @@ namespace mxflib
 		virtual DataChunkPtr Read(FileHandle InFile, UInt32 Stream, UInt64 Count = 1) = 0;
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual ESP_EssenceSource *GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1) = 0;
+		virtual EssenceSourcePtr GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1) = 0;
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
 		/*! If frame or line mapping is used the parameter Count is used to
@@ -948,7 +1036,43 @@ namespace mxflib
 		//! Set a parser specific option
 		/*! \return true if the option was successfully set */
 		virtual bool SetOption(std::string Option, Int64 Param = 0) { return false; } ;
+
+		//! Get a unique name for this sub-parser
+		/*! The name must be all lower case, and must be unique.
+		 *  The recommended name is the part of the filename of the parser header after "esp_" and before the ".h".
+		 *  If the parser has no name return "" (however this will prevent named wrapping option selection for this sub-parser)
+		 */
+		virtual std::string GetParserName(void) const { return ""; }
+
+
+		//! Build a new sub-parser of the appropriate type
+		/*! \note Only redifine this function in a sub-parser if it is going to be its own factory (no EssenceSubParserFactory used)
+		 */
+		virtual EssenceSubParserPtr NewParser(void) const { return NULL; };
 	};
+
+	//! Rename of EssenceSubParser for legacy compatibility
+	typedef EssenceSubParser EssenceSubParserBase;
+
+
+
+	//! A wrapper class that allows an EssenceSubParser to be its own factory
+	/*! This less memory-efficient method supports older EssenceSubParsers
+	 */
+	class EssenceSubParserSelfFactory : public EssenceSubParserFactory
+	{
+	protected:
+		//! The parser that we are wrapping
+		EssenceSubParserPtr Parser;
+
+	public:
+		//! Construct a factory that wraps a specified self-factory parser
+		EssenceSubParserSelfFactory(EssenceSubParserPtr Parser) : Parser(Parser) {};
+
+		//! Build a new sub-parser of the appropriate type
+		virtual EssenceSubParserPtr NewParser(void) const { return Parser->NewParser(); }
+	};
+
 }
 
 
@@ -959,53 +1083,69 @@ namespace mxflib
 	//! List of pointers to essence parsers
 	typedef std::list<EssenceSubParserPtr> EssenceParserList;
 
+
 	//! List of pairs of essence parser pointers with associated file descriptors
 	class ParserDescriptorList : public RefCount<ParserDescriptorList>, public std::list<ParserDescriptorPair> {};
 	typedef SmartPtr<ParserDescriptorList> ParserDescriptorListPtr;
 
+
 	//! Master-class for parsing essence via EssenceSubParser objects
-	class EssenceParser : public RefCount<EssenceParser>
+	class EssenceParser
 	{
-	private:
+	public:
+		//! A list of parser factory functions
+		typedef std::list<EssenceSubParserFactoryPtr> EssenceSubParserFactoryList;
+
+	protected:
 		//! List of pointers to known parsers
 		/*! Used only for building parsers to parse essence - the parses 
 		 *  in this list must not themselves be used for essence parsing 
 		 */
-		static EssenceParserList EPList;
+		static EssenceSubParserFactoryList EPList;
 		
 		//! Initialization flag for EPList
-		static bool EPListInited;
+		static bool Inited;
 
-	public:
-		//! Build an essence parser with all known sub-parsers
+	private:
+		//! Prevent instantiation of essence parser - all methods are now static
 		EssenceParser();
 
-		//! Add a new EssenceSubParser type (Deprecated)
-		/*! DRAGONS: This version is deprecated in favour of the static version AddNewSubParserType()
-		 *  This adds an instance of a sub parser type that can be used to identify essence 
-		 *  and will act as a factory to build more instances of that sub parser type if required
+	public:
+		//! Add a new EssenceSubParser type
+		/*! This adds a factory to build instances of a new sub parser type if required
 		 *  to parse an essence stream
 		 */
-		void AddSubParserType(EssenceSubParserPtr NewType)
+		static void AddNewSubParserType(EssenceSubParserFactoryPtr Factory)
 		{
-			EPList.push_back(NewType);
+			EPList.push_back(Factory);
 		}
 
 		//! Add a new EssenceSubParser type
-		/*! This adds an instance of a sub parser type that can be used to identify essence 
-		 *  and will act as a factory to build more instances of that sub parser type if required
-		 *  to parse an essence stream
+		/*! This adds a factory to build instances of a new sub parser type if required
+		 *  to parse an essence stream.
+		 *  \note This is the lecacy version to cope with EssenceSubParsers which are thier own factories
 		 */
-		static void AddNewSubParserType(EssenceSubParserPtr NewType)
+		static void AddNewSubParserType(EssenceSubParserPtr SubParser)
 		{
-			EPList.push_back(NewType);
+			EssenceSubParserFactoryPtr Factory = new EssenceSubParserSelfFactory(SubParser);
+
+			EPList.push_back(Factory);
 		}
 
 		//! Build a list of parsers with their descriptors for a given essence file
-		ParserDescriptorListPtr IdentifyEssence(FileHandle InFile);
+		static ParserDescriptorListPtr IdentifyEssence(FileHandle InFile);
 
 		//! Configuration data for an essence parser with a specific wrapping option
-		/*! \note No parser must contain one of these that includes a pointer to that parser otherwise it will never be deleted (circular reference)
+		class WrappingConfig;
+		
+		//! Smart pointer to a WrappingConfig object
+		typedef SmartPtr<WrappingConfig> WrappingConfigPtr;
+
+		//! List of smart pointers to WrappingConfig objects
+		typedef std::list<WrappingConfigPtr> WrappingConfigList;
+
+		//! Configuration data for an essence parser with a specific wrapping option
+		/*! \note No parser may contain one of these that includes a pointer to that parser otherwise it will never be deleted (circular reference)
 		 */
 		class WrappingConfig : public RefCount<WrappingConfig>
 		{
@@ -1013,24 +1153,465 @@ namespace mxflib
 			EssenceSubParserPtr Parser;					//!< The parser that parses this essence - true smart pointer not a parent pointer to keep parser alive
 			WrappingOptionPtr WrapOpt;					//!< The wrapping options
 			MDObjectPtr EssenceDescriptor;				//!< The essence descriptior for the essence as parsed
-			UInt32 Stream;
-			Rational EditRate;
+			UInt32 Stream;								//!< The stream ID of this stream from the parser
+			Rational EditRate;							//!< The selected edit rate for this wrapping
+			WrappingConfigList SubStreams;				//!< A list of wrapping options available for sub-streams extracted from the same essence source. See \ref SubStreamNotes
 		};
-		typedef SmartPtr<WrappingConfig> WrappingConfigPtr;
-		typedef std::list<WrappingConfigPtr> WrappingConfigList;
 
 		//! Produce a list of available wrapping options
-		EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+		static EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Produce a list of available wrapping options
+		static EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Produce a list of available wrapping options
+		static EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational ForceEditRate(0,0);
+			return ListWrappingOptions(InFile, ForceEditRate, ForceWrap);
+		}
 
 		//! Select the best wrapping option
-		WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Select the specified wrapping options
+		static void SelectWrappingOption(EssenceParser::WrappingConfigPtr Config);
+
+		//! Auto select a wrapping option (with a specified edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, Rational ForceEditRate);
+
+		//! Auto select a  wrapping option (using the default edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile)
+		{
+			Rational ForceEditRate(0,0);
+			return SelectWrappingOption(InFile, ForceEditRate);
+		}
+
+		//! Select a named wrapping option (with a specified edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, std::string WrappingName, Rational ForceEditRate);
+
+		//! Select a named wrapping option (using the default edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, std::string WrappingName)
+		{
+			Rational ForceEditRate(0,0);
+			return SelectWrappingOption(InFile, WrappingName, ForceEditRate);
+		}
+
+		//! Select from a list of named wrapping options (with a specified edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, std::list<std::string> WrappingNameList, Rational ForceEditRate);
+
+		//! Select a named wrapping option (using the default edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, std::list<std::string> WrappingNameList)
+		{
+			Rational ForceEditRate(0,0);
+			return SelectWrappingOption(InFile, WrappingNameList, ForceEditRate);
+		}
+
+		//! Select a UL identified wrapping option (with a specified edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ULPtr &WrappingID, Rational ForceEditRate);
+
+		//! Select a UL identified wrapping option (using the default edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ULPtr &WrappingID)
+		{
+			Rational ForceEditRate(0,0);
+			return SelectWrappingOption(InFile, WrappingID, ForceEditRate);
+		}
+
+		//! Select a UL identified wrapping option (with a specified edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ULList &WrappingIDList, Rational ForceEditRate);
+
+		//! Select a UL identified wrapping option (using the default edit rate)
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ULList &WrappingIDList)
+		{
+			Rational ForceEditRate(0,0);
+			return SelectWrappingOption(InFile, WrappingIDList, ForceEditRate);
+		}
+
+	protected:
+		//! Take a list of wrapping options and validate them agains a specified edit rate and wrapping type
+		/*! All valid options are built into a WrappingConfig object and added to a specified WrappingConfigList,
+		*  which may already contain other items.
+		*/
+		static void ExtractValidWrappingOptions(WrappingConfigList &Ret, FileHandle InFile, EssenceStreamDescriptorPtr &ESDescriptor, WrappingOptionList &WO, Rational &ForceEditRate, WrappingOption::WrapType ForceWrap);
+
+	
+	protected:
+		//! Initialise the sub-parser list
+		static Init(void);
+	};
+}
+
+
+namespace mxflib
+{
+	//! Base class for handlers to receive notification of the next file about to be opened
+	class NewFileHandler : public RefCount<NewFileHandler>
+	{
+	public:
+		virtual ~NewFileHandler() {};
+
+		//! Receive notification of a new file about to be opened
+		/*! \param FileName - reference to a std::string containing the name of the file about to be opened - <b>may be changed by this function if required</b>
+		 */
+		virtual void NewFile(std::string &FileName) = 0;
+	};
+
+	//! Smart pointer to a NewFileHandler
+	typedef SmartPtr<NewFileHandler> NewFileHandlerPtr;
+
+	// Forware declare the file parser
+	class FileParser;
+
+	//! Smart pointer to a FileParser
+	typedef SmartPtr<FileParser> FileParserPtr;
+
+
+	//! List-of-files base class for handling a sequential set of files
+	class ListOfFiles
+	{
+	protected:
+		NewFileHandlerPtr Handler;				//!< Handler to be informed of new filenames
+		std::string BaseFileName;				//!< Base filename as a printf string
+		bool FileList;							//!< True if this is a multi-file set rather than a single file
+		int ListOrigin;							//!< Start number for filename building
+		int ListIncrement;						//!< Number to add to ListOrigin for each new file
+		int ListNumber;							//!< The number of files in the list or -1 for "end when no more files"
+		int ListEnd;							//!< The last file number in the list or -1 for "end when no more files"
+		int FileNumber;							//!< The file number to use for the <b>next</b> source file to open
+		int FilesRemaining;						//!< The number of files remaining in the list or -1 for "end when no more files"
+		bool AtEOF;								//!< True once the last file has hit it's end of file
+		std::string CurrentFileName;			//!< The name of the current file (if open)
+
+	public:
+		//! Construct a ListOfFiles and optionally set a single source filename pattern
+		ListOfFiles(std::string FileName = "") 
+		{
+			AtEOF = false;
+
+			// Set the filename pattern if required
+			if(FileName.size()) 
+			{
+				ParseFileName(FileName); 
+			}
+			else
+			{
+				BaseFileName = "";
+				FileList = false; 
+			}
+		}
+
+		//! Virtual destructor to allow polymorphism
+		virtual ~ListOfFiles() {}
+
+		//! Set a single source filename pattern
+		void SetFileName(std::string &FileName) { ParseFileName(FileName); }
+
+		//! Set a handler to receive notification of all file open actions
+		void SetNewFileHandler(NewFileHandlerPtr &NewHandler) { Handler = NewHandler; }
+
+		//! Set a handler to receive notification of all file open actions
+		void SetNewFileHandler(NewFileHandler *NewHandler) { Handler = NewHandler; }
+
+		//! Get the current filename
+		std::string FileName(void) { return CurrentFileName; }
+
+		//! Open the current file (any new-file handler will already have been called)
+		/*! This function must be supplied be the derived class 
+		 *  \return true if file open succeeded
+		 */
+		virtual bool OpenFile(void) = 0;
+
+		//! Close the current file
+		/*! This function must be supplied be the derived class */
+		virtual void CloseFile(void) = 0;
+
+		//! Is the current file open?
+		/*! This function must be supplied be the derived class */
+		virtual bool IsFileOpen(void) = 0;
+
+		//! Is the current filename pattern a list rather than a single file?
+		bool IsFileList(void) { return FileList; }
+
+		//! Open the next file in the set of source files
+		/*! \return true if all OK, false if no file or error
+		 */
+		bool GetNextFile(void);
+
+	protected:
+		//! Parse a given multi-file name
+		void ParseFileName(std::string FileName);
+
+	};
+
+
+	//! File parser - parse essence from a sequential set of files
+	class FileParser : public ListOfFiles, public RefCount<FileParser>
+	{
+	protected:
+		bool CurrentFileOpen;					//!< True if we have a file open for processing
+		FileHandle CurrentFile;					//!< The current file being processed
+		EssenceSubParserPtr SubParser;			//!< The sub-parser selected for parsing this sourceessence
+		UInt32 CurrentStream;					//!< The currently selected stream in the source essence
+		MDObjectPtr CurrentDescriptor;			//!< Pointer to the essence descriptor for the currently selected stream
+		WrappingOptionPtr CurrentWrapping;		//!< The currently selected wrapping options
+		EssenceSourceParent SeqSource;			//!< This parser's sequential source - which perversely owns the parser!
+
+		DataChunkPtr PendingData;				//!< Any pending data from the main stream held over from a previous file is a sub-stream read caused a change of file
+
+		//! Information about a substream
+		struct SubStreamInfo
+		{
+			Int32 StreamID;						//!< The ID of this sub-stream
+			EssenceSourcePtr Source;			//!< The source for the sub-stream data
+		};
+
+		//! A list of sub-stream sources, with associated properties
+		typedef std::list<SubStreamInfo> SubStreamList;
+
+		SubStreamList SubStreams;				//!< A list of sub-stream sources
+
+
+	public:
+		//! Construct a FileParser and optionally set a single source filename pattern
+		FileParser(std::string FileName = "") : ListOfFiles(FileName)
+		{
+			// Let our sequential source know who we are
+			SeqSource = new SequentialEssenceSource(this);
+
+			CurrentFileOpen = false;
+		}
+
+		//! Identify the essence type in the first file in the set of possible files
+		ParserDescriptorListPtr IdentifyEssence(void);
+
+		//! Produce a list of available wrapping options
+		EssenceParser::WrappingConfigList ListWrappingOptions(ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational Zero(0,0);
+			return ListWrappingOptions(PDList, Zero, ForceWrap);
+		}
+
+		//! Produce a list of available wrapping options
+		EssenceParser::WrappingConfigList ListWrappingOptions(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Select the best wrapping option without a forced edit rate
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational Zero(0,0);
+			return SelectWrappingOption(PDList, Zero, ForceWrap);
+		}
+
+		//! Select the best wrapping option with a forced edit rate
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
 
 		//! Select the specified wrapping options
 		void SelectWrappingOption(EssenceParser::WrappingConfigPtr Config);
+
+		//! Set a wrapping option for this essence
+		/*! IdentifyEssence() and IdentifyWrappingOptions() must have been called first
+		 */
+		void Use(UInt32 Stream, WrappingOptionPtr &UseWrapping);
+
+		//! Return the sequential EssenceSource for the main stream (already aquired internally, so no need to use the stream ID)
+		EssenceSourcePtr GetEssenceSource(UInt32 Stream);
+
+		//! Build an EssenceSource to read from the specified sub-stream
+		EssenceSourcePtr GetSubSource(UInt32 Stream);
+
+		//! Open the current file (any new-file handler will already have been called)
+		/*! Required for ListOfFiles
+		 *  \return true if file open succeeded
+		 */
+		bool OpenFile(void)
+		{
+			CurrentFile = FileOpenRead(CurrentFileName.c_str());
+			CurrentFileOpen = FileValid(CurrentFile);
+			return CurrentFileOpen;
+		}
+
+		//! Close the current file
+		/*! Required for ListOfFiles */
+		void CloseFile(void)
+		{
+			if(CurrentFileOpen) FileClose(CurrentFile);
+			CurrentFileOpen = false;
+		}
+
+		//! Is the current file open?
+		/*! Required for ListOfFiles */
+		bool IsFileOpen(void) { return CurrentFileOpen; }
+
+	protected:
+		//! Set the sequential source to use the EssenceSource from the currently open and identified source file
+		/*! \return true if all OK, false if no EssenceSource available
+		 */
+		bool GetFirstSource(void);
+
+		//! Set the sequential source to use an EssenceSource from the next available source file
+		/*! \return true if all OK, false if no EssenceSource available
+		 */
+		bool GetNextSource(void);
+
+		//! Essence Source that manages a sequence of essence sources from a list of file patterns
+		class SequentialEssenceSource : public EssenceSource
+		{
+		protected:
+			EssenceSourcePtr CurrentSource;				//!< An EssenceSource for the current source file
+			FileParserPtr Outer;						//!< The outer file parser which is owned by us to prevent it being released until be are done
+			Length PreviousLength;						//!< The total size of all previously read essence sources for this set
+			Length PreviousMassagedSize;				//!< The ?massaged? total size of all previously read essence sources for this set
+			
+			//! Option pair for OptionList
+			typedef std::pair<std::string, Int64> OptionPair;
+			
+			//! List of all options set for this source
+			std::list<OptionPair> OptionList;
+
+			// Prevent default construction
+			SequentialEssenceSource();
+
+		public:
+			// Construct a SequentialEssenceSource
+			SequentialEssenceSource(FileParser *Outer) : Outer(Outer), PreviousLength(0), PreviousMassagedSize(0) {}
+
+			//! Set the new source to use
+			void SetSource(EssenceSourcePtr NewSource) 
+			{ 
+				CurrentSource = NewSource;
+
+				// Set all options
+				std::list<OptionPair>::iterator it = OptionList.begin();
+				while(it != OptionList.end())
+				{
+					NewSource->SetOption((*it).first, (*it).second);
+					it++;
+				}
+
+				// Set the index manager
+				if(IndexMan) NewSource->SetIndexManager(IndexMan, IndexStreamID);
+			}
+
+			//! Get the size of the essence data in bytes
+			virtual Length GetEssenceDataSize(void) 
+			{ 
+				if(!ValidSource()) return 0;
+
+				// If we have emptied all files then exit now
+				if(Outer->AtEOF) return 0;
+
+				Length Ret = CurrentSource->GetEssenceDataSize();
+
+				// If no more data move to the next source file
+				if(!Ret)
+				{
+					// Work out how much was read from this file
+					Length CurrentSize = (Length)CurrentSource->GetCurrentPosition();
+
+					if(Outer->GetNextSource())
+					{
+						// Add this length to the previous lengths
+						PreviousLength += CurrentSize;
+
+						return GetEssenceDataSize();
+					}
+				}
+
+				// Return the source size
+				return Ret;
+			}
+
+			//! Get the next "installment" of essence data
+			virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0);
+
+			//! Did the last call to GetEssenceData() return the end of a wrapping item
+			virtual bool EndOfItem(void) { if(ValidSource()) return CurrentSource->EndOfItem(); else return true; }
+
+			//! Is all data exhasted?
+			virtual bool EndOfData(void) { if(ValidSource()) return CurrentSource->EndOfItem(); else return true; }
+
+			//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
+			virtual UInt8 GetGCEssenceType(void) { if(ValidSource()) return CurrentSource->GetGCEssenceType(); else return 0; }
+
+			//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
+			virtual UInt8 GetGCElementType(void) { if(ValidSource()) return CurrentSource->GetGCElementType(); else return 0; }
+
+			//! Is the last data read the start of an edit point?
+			virtual bool IsEditPoint(void) { if(ValidSource()) return CurrentSource->IsEditPoint(); else return true; }
+
+			//! Get the edit rate of this wrapping of the essence
+			virtual Rational GetEditRate(void) { if(ValidSource()) return CurrentSource->GetEditRate(); else return Rational(0,0); }
+
+			//! Get the current position in GetEditRate() sized edit units
+			virtual Position GetCurrentPosition(void)
+			{ 
+				if(!ValidSource()) return 0;
+
+				return CurrentSource->GetCurrentPosition() + (Position)PreviousLength;
+			}
+
+			//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
+			virtual int GetBERSize(void) 
+			{ 
+				if(!ValidSource()) return 0;
+
+				return CurrentSource->GetBERSize();
+			}
+
+			//! Set a source type or parser specific option
+			virtual bool SetOption(std::string Option, Int64 Param = 0) 
+			{ 
+				if(!ValidSource()) return false;
+
+				// Record this option to allow us to reconfigure sources if we switch source
+				OptionList.push_back(OptionPair(Option, Param));
+
+				return CurrentSource->SetOption(Option, Param);
+			}
+
+			//! Get BytesPerEditUnit if Constant, else 0
+			virtual UInt32 GetBytesPerEditUnit(UInt32 KAGSize = 1) { if(ValidSource()) return CurrentSource->GetBytesPerEditUnit(KAGSize); else return 0; }
+
+			//! Can this stream provide indexing
+			virtual bool CanIndex() { if(ValidSource()) return CurrentSource->CanIndex(); else return false; }
+
+			//! Set the index manager to use for building index tables for this essence
+			virtual void SetIndexManager(IndexManagerPtr &Manager, int StreamID) 
+			{ 
+				IndexMan = Manager;
+				IndexStreamID = StreamID;
+
+				if(ValidSource()) CurrentSource->SetIndexManager(Manager, StreamID); 
+			}
+
+			//! Get the index manager
+			virtual IndexManagerPtr &GetIndexManager(void) { return IndexMan; }
+
+			//! Get the index manager sub-stream ID
+			virtual int GetIndexStreamID(void) { return IndexStreamID; }
+
+		protected:
+			//! Ensure that CurrentSource is valid and ready for reading - if not select the next source file
+			/*! \return true if all OK, false if no EssenceSource available
+			 */
+			bool ValidSource(void)
+			{
+				if(CurrentSource) return true;
+
+				// If this is the first time through when we will have a file open but no source set to get current not text source
+				if(Outer->CurrentFileOpen) return Outer->GetFirstSource(); 
+				
+				return Outer->GetNextSource();
+			}
+
+			// Allow the parser to access our internals
+			friend class FileParser;
+		};
+		
+		// Allow out protected member to access our internals
+		friend class SequentialEssenceSource;
 	};
 
-	//! Smart pointer to an EssenceParser
-	typedef SmartPtr<EssenceParser> EssenceParserPtr;
+
 }
 
 
@@ -1473,27 +2054,7 @@ namespace mxflib
 		size_type SubStreamCount(void) { return size(); }
 
 		//! Add a new sub-stream
-		void AddSubStream(EssenceSourcePtr &SubSource, DataChunkPtr Key = NULL, bool NonGC = false) 
-		{
-			// Add the new stream
-			push_back(SubSource); 
-
-			// If a key has been specified inform the source
-			if(Key) SubSource->SetKey(Key, NonGC);
-
-			// If the writer has already been defined add this stream to it
-			if(StreamWriter)
-			{
-				GCStreamID EssenceID;
-
-				if(Key)
-					EssenceID = StreamWriter->AddEssenceElement(Key, SubSource->GetBERSize(), NonGC);
-				else
-					EssenceID = StreamWriter->AddEssenceElement(SubSource->GetGCEssenceType(), SubSource->GetGCElementType(), SubSource->GetBERSize());
-
-				SubSource->SetStreamID(EssenceID);
-			}
-		}
+		void AddSubStream(EssenceSourcePtr &SubSource, DataChunkPtr Key = NULL, bool NonGC = false);
 
 		//! Get this stream's BodySID
 		UInt32 GetBodySID(void) { return BodySID; }
@@ -1546,34 +2107,7 @@ namespace mxflib
 		WrapType GetWrapType(void) { return StreamWrap; }
 
 		//! Set the current GCWriter
-		void SetWriter(GCWriterPtr &Writer) 
-		{ 
-			// Check that we haven't tried to add two writers
-			if(StreamWriter)
-			{
-				error("BodyStream::SetWriter called - but this stream already has a GCWriter\n");
-				return;
-			}
-
-			// Set the writer
-			StreamWriter = Writer;
-
-			// Add each existing stream to the new writer
-			BodyStream::iterator it = begin();
-			while(it != end())
-			{
-				GCStreamID EssenceID;
-				
-				if((*it)->GetKey())
-					EssenceID = StreamWriter->AddEssenceElement((*it)->GetKey(), (*it)->GetBERSize(), (*it)->GetNonGC());
-				else
-					EssenceID = StreamWriter->AddEssenceElement((*it)->GetGCEssenceType(), (*it)->GetGCElementType(), (*it)->GetBERSize());
-
-				(*it)->SetStreamID(EssenceID);
-
-				it++;
-			}
-		}
+		void SetWriter(GCWriterPtr &Writer);
 
 		//! Get the current index manager
 		IndexManagerPtr &GetIndexManager(void) 

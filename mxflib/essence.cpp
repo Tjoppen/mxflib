@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.17 2006/06/10 14:26:48 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.18 2006/06/25 14:26:04 matt-beard Exp $
  *
  */
 /*
@@ -128,7 +128,7 @@ GCStreamID GCWriter::AddSystemElement(bool CPCompatible, unsigned int RegistryDe
 	Stream->LenSize = 0;
 
 	// "Default" system item write order:
-	//  0000100s 10SSSSSS Seeeeeee 0nnnnnnn
+	//  00001000 s10SSSSS SSeeeeee ennnnnnn
 	// Where:
 	//   TTTTTTT = Type (GC types mapped to CP versions)
 	//         s = 0 for CP, 1 for GC
@@ -137,9 +137,12 @@ GCStreamID GCWriter::AddSystemElement(bool CPCompatible, unsigned int RegistryDe
 	//	 nnnnnnn = Sub ID
 	//
 
-	if(CPCompatible) Stream->WriteOrder = 0x08800000; else Stream->WriteOrder = 0x09800000;
+	if(CPCompatible) Stream->WriteOrder = 0x08400000; else Stream->WriteOrder = 0x08c00000;
 
-	Stream->WriteOrder |= (Stream->SchemeOrCount << 15) | (Stream->Element << 8) | Stream->SubOrNumber;
+	Stream->WriteOrder |= (Stream->SchemeOrCount << 14) | (Stream->Element << 7) | Stream->SubOrNumber;
+
+	// Add this value to the map
+	WriteOrderMap.insert(std::map<UInt32, GCStreamID>::value_type(Stream->WriteOrder, ID));
 
 	return ID;
 }
@@ -223,18 +226,20 @@ GCStreamID GCWriter::AddEssenceElement(unsigned int EssenceType, unsigned int El
 	// Set BER length size for essence items
 	Stream->LenSize = LenSize;
 
-
 	// "Default" essence item write order:
-	//  TTTTTTTs 10eeeeee e0000000 0nnnnnnn
+	//  TTTTTTT0 s10eeeee ee000000 0nnnnnnn
 	// Where:
 	//   TTTTTTT = Type (GC types mapped to CP versions)
 	//         s = 0 for CP, 1 for GC
 	//   eeeeeee = Element ID
 	//	 nnnnnnn = Element Number
 
-	if(CPCompatible) Stream->WriteOrder = 0x00800000; else Stream->WriteOrder = 0x01800000;
+	if(CPCompatible) Stream->WriteOrder = 0x00400000; else Stream->WriteOrder = 0x00c00000;
 
-	Stream->WriteOrder |= (Type << 25) | (Stream->SchemeOrCount << 15) | Stream->SubOrNumber;
+	Stream->WriteOrder |= (Type << 25) | (Stream->SchemeOrCount << 14) | Stream->SubOrNumber;
+
+	// Add this value to the map
+	WriteOrderMap.insert(std::map<UInt32, GCStreamID>::value_type(Stream->WriteOrder, ID));
 
 	return ID;
 }
@@ -325,18 +330,20 @@ GCStreamID GCWriter::AddEssenceElement(DataChunkPtr &Key, int LenSize /*=0*/, bo
 	// Set BER length size for essence items
 	Stream->LenSize = LenSize;
 
-
 	// "Default" essence item write order:
-	//  TTTTTTTs 10eeeeee e0000000 0nnnnnnn
+	//  TTTTTTT0 s10eeeee ee000000 0nnnnnnn
 	// Where:
 	//   TTTTTTT = Type (GC types mapped to CP versions)
 	//         s = 0 for CP, 1 for GC
 	//   eeeeeee = Element ID
 	//	 nnnnnnn = Element Number
 
-	if(CPCompatible) Stream->WriteOrder = 0x00800000; else Stream->WriteOrder = 0x01800000;
+	if(CPCompatible) Stream->WriteOrder = 0x00400000; else Stream->WriteOrder = 0x00c00000;
 
-	Stream->WriteOrder |= (Type << 25) | (Stream->SchemeOrCount << 15) | Stream->SubOrNumber;
+	Stream->WriteOrder |= (Type << 25) | (Stream->SchemeOrCount << 14) | Stream->SubOrNumber;
+
+	// Add this value to the map
+	WriteOrderMap.insert(std::map<UInt32, GCStreamID>::value_type(Stream->WriteOrder, ID));
 
 	return ID;
 }
@@ -1007,7 +1014,7 @@ void GCWriter::Flush(void)
  *		  of streams that have not had a write order set. Elements with a WriteOrder >= 0x8000
  *		  will be written after elements of streams that have not had a write order set.
  */
-void GCWriter::SetWriteOrder(GCStreamID ID, int WriteOrder /*=-1*/, int Type /*=-1*/)
+void GCWriter::SetWriteOrder(GCStreamID ID, Int32 WriteOrder /*=-1*/, int Type /*=-1*/)
 {
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -1051,26 +1058,39 @@ void GCWriter::SetWriteOrder(GCStreamID ID, int WriteOrder /*=-1*/, int Type /*=
 	}
 
 	// Set the new write order
-	Stream->WriteOrder = (Type << 25) | ((WriteOrder & 0x0000ffff) << 6);
+	UInt32 NewWriteOrder = (static_cast<UInt32>(Type) << 25) | ((static_cast<UInt32>(WriteOrder) & 0x0000ffff) << 5);
 
 	// Add bits for CP/GC ordering
-	if(!CPCompatible) Stream->WriteOrder |= 0x01000000;
+	if(!CPCompatible) NewWriteOrder |= 0x00800000;
 
 	// Add bits to move the write order to after the "default" order if required
-	if(WriteOrder & 0x8000) Stream->WriteOrder |= 0x00c00000;
+	if(WriteOrder & 0x8000) NewWriteOrder |= 0x00600000;
+
+	/* De-deplicate write order */
+	for(;;)
+	{
+		// See if this value is used yet
+		std::map<UInt32, GCStreamID>::iterator it = WriteOrderMap.find(NewWriteOrder);
+
+		// If not, all done
+		if(it == WriteOrderMap.end()) break;
+
+		// Else try the next position
+		NewWriteOrder++;
+	}
+
+	// Add this value to the map
+	WriteOrderMap.insert(std::map<UInt32, GCStreamID>::value_type(NewWriteOrder, ID));
+
+	// Record the new value
+	Stream->WriteOrder = NewWriteOrder;
 }
 
 
-// Manually set write order:
-//  TTTTTTTs XXWWWWWW WWWWWWWW WW000000
-// Where:
-//   TTTTTTT = Type (GC types mapped to CP versions)
-//         s = 0 for CP, 1 for GC
-//		  XX = MSB of Write Order (2 copies of)
-//   WW...WW = Write order (as specified or last + 1 for auto)
-//
+
+
 // "Default" system item write order:
-//  0000100s 10SSSSSS Seeeeeee 0nnnnnnn
+//  00001000 s10SSSSS SSeeeeee ennnnnnn
 // Where:
 //   TTTTTTT = Type (GC types mapped to CP versions)
 //         s = 0 for CP, 1 for GC
@@ -1078,18 +1098,133 @@ void GCWriter::SetWriteOrder(GCStreamID ID, int WriteOrder /*=-1*/, int Type /*=
 //   eeeeeee = Element ID
 //	 nnnnnnn = Sub ID
 //
+
 // "Default" essence item write order:
-//  TTTTTTTs 10eeeeee e0000000 0nnnnnnn
+//  TTTTTTT0 s10eeeee ee000000 0nnnnnnn
 // Where:
 //   TTTTTTT = Type (GC types mapped to CP versions)
 //         s = 0 for CP, 1 for GC
 //   eeeeeee = Element ID
 //	 nnnnnnn = Element Number
-//
-// Note: Many items are 7-bit because they are short-form OID encoded in keys
+
+// "Default" essence item write order:
+//  TTTTTTT0 s10eeeee ee000000 0nnnnnnn
+// Where:
+//   TTTTTTT = Type (GC types mapped to CP versions)
+//         s = 0 for CP, 1 for GC
+//   eeeeeee = Element ID
+//	 nnnnnnn = Element Number
+
+// Manually set write order:
+//  TTTTTTT0 sXXWWWWW WWWWWWWW WWW00000
+// Where:
+//   TTTTTTT = Type (GC types mapped to CP versions)
+//         s = 0 for CP, 1 for GC
+//		  XX = MSB of Write Order (2 copies of)
+//   WW...WW = Write order (as specified or last + 1 for auto)
 //
 
+// Special set write order:
+//  TTTTTTT1 110WWWWW WWWWWWWW WWW00000
+// Where:
+//   TTTTTTT = Type (GC types mapped to CP versions)
+//         s = 0 for CP, 1 for GC
+//   WW...WW = Write order as calculated...
+//
 
+//! Set a write-order relative to all items of a specified type
+/*! This allows a stream to be written "before all audio items" or "after all system items"
+ *  rather than in its default position for its own type.
+ *
+ *  \param ID The ID of the stream whose write-order is being set
+ *  \param Type The type to position this stream relative to
+ *  \param Position A signed position indicating before (-ve) or after (+ve) and strength of positioning
+ *
+ * The value of Position (rather than its sign) is important when more than one stream is positioned
+ * before or after the same general type. The further Position is from zero, the nearer it will be placed to
+ * "immediately before" or "immediately after" all items of the specified type. For example the following
+ * list shows the order of some system items and items specified as being before or after system items
+ * with a specified relative-position:
+ *
+ *    Position = -1
+ *    Position = -100
+ *    Position = -25000
+ *    Position = -32768
+ *    First System Item
+ *    ...
+ *    Last System Item
+ *    Position = 32767
+ *    Position = 15000
+ *    Position = 1
+ *    Position = 0
+ *
+ * Although Position is a UInt32, only the sign bit, and the lowest 15 bits are significant.
+ *
+ * \note To set a stream's write order to be before all picture essence use Type = 0x05 and Position < 0, 
+ *       using Type = 0x15 will place it between the CP picture essence and GC Picture essence. To set
+ *       the write order to be after all picture essence use Type = 0x15 and Position >= 0. The same
+ *       principle applies to other GC/CP types.
+ */
+void GCWriter::SetRelativeWriteOrder(GCStreamID ID, int Type, Int32 Position)
+{
+	// Index the data block for this stream
+	if((ID < 0) || (ID >= StreamCount))
+	{
+		error("Unknown stream ID in GCWriter::SetRelativeWriteOrder()\n");
+		return;
+	}
+	GCStreamData *Stream = &StreamTable[ID];
+
+	UInt32 WriteOrder;
+
+	// Sort the CP/GC ordering
+	bool CPCompatible = false;
+	switch(Type)
+	{
+		case 0x04: CPCompatible = true; break;		// CP System
+		case 0x05: CPCompatible = true; break;		// CP Picture
+		case 0x06: CPCompatible = true; break;		// CP Sound
+		case 0x07: CPCompatible = true; break;		// CP Data
+		case 0x14: Type = 0x04; break;				// Treat GC System as "System"
+		case 0x15: Type = 0x05; break;				// Treat GC Picture as "Picture"
+		case 0x16: Type = 0x06; break;				// Treat GC Sound as "Sound"
+		case 0x17: Type = 0x07; break;				// Treat GC Data as "Data"
+		case 0x18: Type = 0x08; break;				// Treat GC Compound as "Compound"
+													// (even though there is no CP-Compound)
+	}
+
+	if(Position >= 0)
+	{
+		WriteOrder = (static_cast<UInt32>(Type) << 25) | 0x01c00000 | ((static_cast<UInt32>(Position & 0xffff) ^ 0xffff) << 5);
+	}
+	else
+	{
+		WriteOrder = (static_cast<UInt32>(Type-1) << 25) | 0x01c00000 | ((static_cast<UInt32>(Position & 0xffff) ^ 0xffff) << 5);
+	}
+
+	// Add bits for CP/GC ordering
+	if(!CPCompatible) Stream->WriteOrder |= 0x00800000;
+
+	/* De-deplicate write order */
+	for(;;)
+	{
+		// See if this value is used yet
+		std::map<UInt32, GCStreamID>::iterator it = WriteOrderMap.find(WriteOrder);
+
+		// If not, all done
+		if(it == WriteOrderMap.end()) break;
+
+		// Else try the next position away
+		if(Position >= 0) WriteOrder++;
+		else WriteOrder--;
+	}
+
+	// Add this value to the map
+	WriteOrderMap.insert(std::map<UInt32, GCStreamID>::value_type(WriteOrder, ID));
+
+	// Record the new value
+	Stream->WriteOrder = WriteOrder;
+}
 
 //! Calculate how many bytes would be written if the specified object were written with WriteRaw()
 Length GCWriter::CalcRawSize(KLVObjectPtr Object)
@@ -1195,32 +1330,6 @@ void GCWriter::WriteRaw(KLVObjectPtr Object)
 }
 
 
-
-
-//! List of pointers to known parsers
-/*! Used only for building parsers to parse essence - the parses 
- *  in this list must not themselves be used for essence parsing 
- */
-EssenceParserList EssenceParser::EPList;
-
-//! Initialization flag for EPList
-bool EssenceParser::EPListInited = false;
-
-
-// Build an essence parser with all known sub-parsers
-EssenceParser::EssenceParser()
-{
-	if(!EPListInited)
-	{
-		//! Add one instance of all known essence parsers
-		EPList.push_back(new MPEG2_VES_EssenceSubParser);
-		EPList.push_back(new WAVE_PCM_EssenceSubParser);
-		EPList.push_back(new DV_DIF_EssenceSubParser);
-		EPList.push_back(new JP2K_EssenceSubParser);
-
-		EPListInited = true;
-	}
-}
 
 
 //! Create a new GCReader, optionally with a given default item handler and filler handler
@@ -1773,9 +1882,12 @@ UInt32 mxflib::GetGCTrackNumber(ULPtr TheUL)
 //! Build a list of parsers with their descriptors for a given essence file
 ParserDescriptorListPtr EssenceParser::IdentifyEssence(FileHandle InFile)
 {
+	// Ensure the EPList is initialized
+	if(!Inited) Init();
+
 	ParserDescriptorListPtr Ret = new ParserDescriptorList;
 
-	EssenceParserList::iterator it = EPList.begin();
+	EssenceSubParserFactoryList::iterator it = EPList.begin();
 	while(it != EPList.end())
 	{
 		EssenceSubParserPtr EP = (*it)->NewParser();
@@ -1808,64 +1920,11 @@ EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle 
 		EssenceStreamDescriptorList::iterator it = (*pdit).second.begin();
 		while(it != (*pdit).second.end())
 		{
-			WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, (*it));
+			WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, *(*it));
 
-			WrappingOptionList::iterator it2 = WO.begin();
-			while(it2 != WO.end())
-			{
-				// Only accept wrappings of the specified type
-				if(ForceWrap != WrappingOption::None)
-				{
-					if((*it2)->ThisWrapType != ForceWrap)
-					{
-						it2++;
-						continue;
-					}
-				}
+			// Extract the valid options from those identified by the parser, and add them to Ret
+			ExtractValidWrappingOptions(Ret, InFile, (*it), WO, ForceEditRate, ForceWrap);
 
-				// Attempt to build a wrapping config for this wrapping option
-				EssenceParser::WrappingConfigPtr Config = new WrappingConfig;
-
-				Config->EssenceDescriptor = (*it).Descriptor;
-				MDObjectPtr SampleRate = Config->EssenceDescriptor[SampleRate_UL];
-
-				// Work out what edit rate to use
-				if((!SampleRate) || (ForceEditRate.Numerator != 0))
-				{
-					Config->EditRate.Numerator = ForceEditRate.Numerator;
-					Config->EditRate.Denominator = ForceEditRate.Denominator;
-				}
-				else
-				{
-					Rational Preferred = (*it2)->Handler->GetPreferredEditRate();
-
-					// No preferrred rate given so use the sample rate
-					if(Preferred.Numerator == 0)
-					{
-						Config->EditRate.Numerator = SampleRate->GetInt("Numerator");
-						Config->EditRate.Denominator = SampleRate->GetInt("Denominator");
-					}
-					else
-					{
-						Config->EditRate = Preferred;
-					}
-				}
-
-				// Set the parser up to wrap this essence stream
-				Config->Parser = (*it2)->Handler;
-				Config->WrapOpt = (*it2);
-				Config->Stream = (*it).ID;
-				Config->Parser->Use(Config->Stream, Config->WrapOpt);
-
-				// Check if the edit rate is acceptable
-				if( Config->Parser->SetEditRate(Config->EditRate) )
-				{
-					// All OK, including requested edit rate - add this option to the list
-					Ret.push_back(Config);
-				}
-
-				it2++;
-			}
 			it++;
 		}
 		pdit++;
@@ -1874,6 +1933,83 @@ EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle 
 	return Ret;
 }
 
+
+//! Take a list of wrapping options and validate them agains a specifier edit rate and wrapping type
+/*! All valid options are built into a WrappingConfig object and added to a specified WrappingConfigList,
+ *  which may already contain other items.
+ */
+void EssenceParser::ExtractValidWrappingOptions(WrappingConfigList &Ret, FileHandle InFile, EssenceStreamDescriptorPtr &ESDescriptor, WrappingOptionList &WO, Rational &ForceEditRate, WrappingOption::WrapType ForceWrap)
+{
+	WrappingOptionList::iterator it = WO.begin();
+	while(it != WO.end())
+	{
+		// Only accept wrappings of the specified type
+		if(ForceWrap != WrappingOption::None)
+		{
+			if((*it)->ThisWrapType != ForceWrap)
+			{
+				it++;
+				continue;
+			}
+		}
+
+		// Attempt to build a wrapping config for this wrapping option
+		EssenceParser::WrappingConfigPtr Config = new WrappingConfig;
+
+		Config->EssenceDescriptor = ESDescriptor->Descriptor;
+		MDObjectPtr SampleRate = Config->EssenceDescriptor[SampleRate_UL];
+
+		// Work out what edit rate to use
+		if((!SampleRate) || (ForceEditRate.Numerator != 0))
+		{
+			Config->EditRate.Numerator = ForceEditRate.Numerator;
+			Config->EditRate.Denominator = ForceEditRate.Denominator;
+		}
+		else
+		{
+			Rational Preferred = (*it)->Handler->GetPreferredEditRate();
+
+			// No preferrred rate given so use the sample rate
+			if(Preferred.Numerator == 0)
+			{
+				Config->EditRate.Numerator = SampleRate->GetInt("Numerator");
+				Config->EditRate.Denominator = SampleRate->GetInt("Denominator");
+			}
+			else
+			{
+				Config->EditRate = Preferred;
+			}
+		}
+
+		// Set the parser up to wrap this essence stream
+		Config->Parser = (*it)->Handler;
+		Config->WrapOpt = (*it);
+		Config->Stream = ESDescriptor->ID;
+		Config->Parser->Use(Config->Stream, Config->WrapOpt);
+
+		// Check if the edit rate is acceptable
+		if( Config->Parser->SetEditRate(Config->EditRate) )
+		{
+			/* All OK, including requested edit rate - now check for any sub-streams (from the same parser) */
+
+			EssenceStreamDescriptorList::iterator subit = ESDescriptor->SubStreams.begin();
+			while(subit != ESDescriptor->SubStreams.end())
+			{
+				WrappingOptionList SubWO = Config->Parser->IdentifyWrappingOptions(InFile, *(*subit));
+
+				// Extract the valid options from those identified by the parser, and add them to Ret
+				ExtractValidWrappingOptions(Config->SubStreams, InFile, (*subit), SubWO, Config->EditRate, (*it)->ThisWrapType);
+
+				subit++;
+			}
+
+			// Add this option to the list
+			Ret.push_back(Config);
+		}
+
+		it++;
+	}
+}
 
 
 //! Select the best wrapping option
@@ -1891,7 +2027,7 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 		EssenceStreamDescriptorList::iterator it = (*pdit).second.begin();
 		while(it != (*pdit).second.end())
 		{
-			WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, (*it));
+			WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, *(*it));
 
 			WrappingOptionList::iterator it2 = WO.begin();
 			while(it2 != WO.end())
@@ -1909,7 +2045,7 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 				Ret = new WrappingConfig;
 
 				// DRAGONS: Default to the first valid option!
-				Ret->EssenceDescriptor = (*it).Descriptor;
+				Ret->EssenceDescriptor = (*it)->Descriptor;
 				MDObjectPtr SampleRate = Ret->EssenceDescriptor[SampleRate_UL];
 
 				if((!SampleRate) || (ForceEditRate.Numerator != 0))
@@ -1935,7 +2071,7 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 
 				Ret->Parser = (*it2)->Handler;
 				Ret->WrapOpt = (*it2);
-				Ret->Stream = (*it).ID;
+				Ret->Stream = (*it)->ID;
 
 				Ret->Parser->Use(Ret->Stream, Ret->WrapOpt);
 				if( Ret->Parser->SetEditRate(Ret->EditRate) )
@@ -1948,6 +2084,26 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 					{
 						SampleRate->SetInt("Numerator", Ret->EditRate.Numerator);
 						SampleRate->SetInt("Denominator", Ret->EditRate.Denominator);
+					}
+
+					EssenceStreamDescriptorList::iterator subit = (*it)->SubStreams.begin();
+					while(subit != (*it)->SubStreams.end())
+					{
+						// Make a mini Parser Descriptor list with only the current parser and the current sub-stream
+						ParserDescriptorPair PDPair;
+						PDPair.first = (*pdit).first;
+						PDPair.second.push_back(*subit);
+
+						ParserDescriptorListPtr MiniPDList = new ParserDescriptorList;
+						MiniPDList->push_back(PDPair);
+
+						// See if this works as a wrapping option
+						EssenceParser::WrappingConfigPtr SubWrap = SelectWrappingOption(InFile, MiniPDList, Ret->EditRate, (*it2)->ThisWrapType);
+
+						// If this sub-stream can be used, add its wrapping config to the sub-streams list
+						if(SubWrap) Ret->SubStreams.push_back(SubWrap);
+
+						subit++;
 					}
 
 					// FIXME: This does not take into account the KAG
@@ -3373,3 +3529,503 @@ bool mxflib::BodyWriter::AddStream(BodyStreamPtr &Stream, Length StopAfter /*=0*
 
 
 
+//! Add a new sub-stream
+void BodyStream::AddSubStream(EssenceSourcePtr &SubSource, DataChunkPtr Key /*=NULL*/, bool NonGC /*=false*/) 
+{
+	// Add the new stream
+	push_back(SubSource); 
+
+	// If a key has been specified inform the source
+	if(Key) SubSource->SetKey(Key, NonGC);
+
+	// If the writer has already been defined add this stream to it
+	if(StreamWriter)
+	{
+		GCStreamID EssenceID;
+
+		if(Key)
+			EssenceID = StreamWriter->AddEssenceElement(Key, SubSource->GetBERSize(), NonGC);
+		else
+			EssenceID = StreamWriter->AddEssenceElement(SubSource->GetGCEssenceType(), SubSource->GetGCElementType(), SubSource->GetBERSize());
+
+		SubSource->SetStreamID(EssenceID);
+
+		// Ensure the write-order is corrected if required
+		if(SubSource->RelativeWriteOrder())
+		{
+			StreamWriter->SetRelativeWriteOrder(EssenceID, SubSource->RelativeWriteOrderType(), SubSource->RelativeWriteOrder());
+		}
+	}
+}
+
+
+//! Set the current GCWriter
+void BodyStream::SetWriter(GCWriterPtr &Writer) 
+{ 
+	// Check that we haven't tried to add two writers
+	if(StreamWriter)
+	{
+		error("BodyStream::SetWriter called - but this stream already has a GCWriter\n");
+		return;
+	}
+
+	// Set the writer
+	StreamWriter = Writer;
+
+	// Add each existing stream to the new writer
+	BodyStream::iterator it = begin();
+	while(it != end())
+	{
+		GCStreamID EssenceID;
+		
+		if((*it)->GetKey())
+			EssenceID = StreamWriter->AddEssenceElement((*it)->GetKey(), (*it)->GetBERSize(), (*it)->GetNonGC());
+		else
+			EssenceID = StreamWriter->AddEssenceElement((*it)->GetGCEssenceType(), (*it)->GetGCElementType(), (*it)->GetBERSize());
+
+		(*it)->SetStreamID(EssenceID);
+
+		// Ensure the write-order is corrected if required
+		if((*it)->RelativeWriteOrder())
+		{
+			StreamWriter->SetRelativeWriteOrder(EssenceID, (*it)->RelativeWriteOrderType(), (*it)->RelativeWriteOrder());
+		}
+
+		it++;
+	}
+}
+
+//! Parse a given multi-file name
+void ListOfFiles::ParseFileName(std::string FileName)
+{
+	// Initialize settings
+	ListOrigin = 0;
+	ListIncrement = 1;
+	ListNumber = -1;
+	ListEnd = -1;
+	FileList = false;
+
+	// Length of input string including terminating zero
+	int InLength = FileName.size() + 1;
+
+	// Build a buffer long enough for the longest base name
+	char *NameBuffer = new char[InLength];
+
+	// Build a buffer to receive a copy of the input string
+	char *InBuffer = new char[InLength];
+
+	// Make a safe copy of the input data so we can walk it for parsing
+	memcpy(InBuffer, FileName.c_str(), InLength);
+
+	char *pIn = InBuffer;
+	char *pOut = NameBuffer;
+	bool InBrackets = false;
+	bool InCount = false;
+	bool InStep = false;
+	bool InEnd = false;
+
+	while(*pIn)
+	{
+		if(!InBrackets)
+		{
+			if(*pIn == '[')
+			{
+				InBrackets = true;
+				pIn++;
+				continue;
+			}
+			else
+			{
+				// Handle escapes
+				if(*pIn == '\\')
+				{
+					if(pIn[1] == '[') pIn++;
+				}
+				
+				*pOut++ = *pIn++;
+				continue;
+			}
+		}
+
+		if(*pIn == ']')
+		{
+			InBrackets = false;
+			FileList = true;
+			pIn++;
+			continue;
+		}
+
+		if(isdigit(*pIn))
+		{
+			if(InStep)
+				ListIncrement = ListIncrement * 10 + (*pIn - '0');
+			else if(InCount)
+				ListNumber = ListNumber * 10 + (*pIn - '0');
+			else if(InEnd)
+				ListEnd = ListEnd * 10 + (*pIn - '0');
+			else
+				ListOrigin = ListOrigin * 10 + (*pIn - '0');
+		}
+		else
+		{
+			if(*pIn == '#')
+			{
+				InCount = true;
+				InEnd = false;
+				InStep = false;
+				ListNumber = 0;
+			}
+			else if(*pIn == '+')
+			{
+				InCount = false;
+				InEnd = false;
+				InStep = true;
+				ListIncrement = 0;
+			}
+			else if(*pIn == ':')
+			{
+				InCount = false;
+				InEnd = true;
+				InStep = false;
+				ListEnd = 0;
+			}
+			else
+			{
+				error("Unknown pattern in multiple filename \"%s\"\n", InBuffer);
+			}
+		}
+
+		pIn++;
+	}
+
+	// Set the base filename and initialize list
+	*pOut = '\0';
+	FileNumber = ListOrigin;
+	
+	// Calculate how many files we should read
+	// Note that we stop at the earliest of either the count or the end file number
+	FilesRemaining = ListNumber;
+	if((ListNumber < 0) || ((ListEnd > 0) && (ListOrigin + (ListIncrement * FilesRemaining) > ListEnd)))
+	{
+		if(ListIncrement) FilesRemaining = ((ListEnd - FileNumber) / ListIncrement) + 1;
+	}
+
+	AtEOF = false;
+
+
+	// Use the processed filename if we have identified a file list, otherwise leave unchanged
+	if(FileList) BaseFileName = std::string(NameBuffer);
+	else BaseFileName = FileName;
+
+	// Free the name buffers
+	delete[] NameBuffer;
+	delete[] InBuffer;
+}
+
+
+//! Identify the essence type in the first file in the set of possible files
+ParserDescriptorListPtr FileParser::IdentifyEssence(void)
+{
+	ParserDescriptorListPtr Ret;
+
+	// If we haven't got a source file open - open it
+	if(!CurrentFileOpen) 
+	{
+		if(!GetNextFile()) return Ret;
+	}
+
+	// Identify the options
+	Ret = EssenceParser::IdentifyEssence(CurrentFile);
+
+	return Ret;
+}
+
+
+//! Produce a list of available wrapping options
+EssenceParser::WrappingConfigList FileParser::ListWrappingOptions(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+{
+	return EssenceParser::ListWrappingOptions(CurrentFile, PDList, ForceEditRate, ForceWrap);
+}
+
+
+//! Select the best wrapping option with a forced edit rate
+EssenceParser::WrappingConfigPtr FileParser::SelectWrappingOption(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+{
+	EssenceParser::WrappingConfigPtr Ret = EssenceParser::SelectWrappingOption(CurrentFile, PDList, ForceEditRate, ForceWrap);
+
+	// Record the selected stream and sub-parser
+	if(Ret)
+	{
+		CurrentStream = Ret->Stream;
+		SubParser = Ret->Parser;
+		CurrentDescriptor = Ret->EssenceDescriptor;
+	}
+	else 
+		SubParser = NULL;
+	
+	return Ret;
+}
+
+
+//! Select the specified wrapping options
+void FileParser::SelectWrappingOption(EssenceParser::WrappingConfigPtr Config)
+{
+	EssenceParser::SelectWrappingOption(Config);
+
+	// Record the selected stream and sub-parser
+	CurrentStream = Config->Stream;
+	SubParser = Config->Parser;
+	CurrentDescriptor = Config->EssenceDescriptor;
+}
+
+
+//! Set a wrapping option for this essence
+/*! IdentifyEssence() and IdentifyWrappingOptions() must have been called first
+ */
+void FileParser::Use(UInt32 Stream, WrappingOptionPtr &UseWrapping)
+{
+	if(!SubParser) return;
+	
+	if(Stream != CurrentStream)
+	{
+		error("FileParsers can currently only parse one stream at a time\n");
+		return;
+	}
+
+	// Record the wrapping options
+	CurrentWrapping = UseWrapping;
+
+	SubParser->Use(Stream, UseWrapping);
+}
+
+
+//! Open the next file in the set of source files
+/*! \return true if all OK, false if no file or error
+ */
+bool ListOfFiles::GetNextFile(void)
+{
+	// Close any currently open file
+	if(IsFileOpen())
+	{
+		CloseFile();
+
+		// Don't move to the next file if there are no more files
+		if((!FileList) || (FilesRemaining == 0))
+		{
+			AtEOF = true;
+			return false;
+		}
+	}
+
+	// Allocate a buffer to build the file name
+	char *NameBuffer = new char[1024];
+
+	// Build the first file name
+	sprintf(NameBuffer, BaseFileName.c_str(), FileNumber);
+
+	// Get the current name as a srting
+	CurrentFileName = std::string(NameBuffer);
+
+	// Free the name buffer
+	delete[] NameBuffer;
+
+	// Get the next file number
+	FileNumber += ListIncrement;
+
+	// Decrement the count if required
+	if(FilesRemaining > 0) FilesRemaining--;
+
+	// Inform our handler (who may change or even invalidate the file name)
+	if(Handler) Handler->NewFile(CurrentFileName);
+
+	// Validate the file open 
+	if(!OpenFile())
+	{
+		AtEOF = true;
+		return false;
+	}
+
+	return true;
+}
+
+
+
+//! Set the sequential source to use the EssenceSource from the currently open and identified source file
+/*! \return true if all OK, false if no EssenceSource available
+ */
+bool FileParser::GetFirstSource(void)
+{
+	// We need to have a file open
+	if(!CurrentFileOpen) return false;
+
+	// Must have a sub-parser set already
+	if(!SubParser) return false;
+
+	// Set the new EssenceSource
+	SequentialEssenceSource *Source = SmartPtr_Cast(SeqSource, SequentialEssenceSource);
+	Source->SetSource(SubParser->GetEssenceSource(CurrentFile, CurrentStream));
+
+	return true;
+}
+
+
+//! Set the sequential source to use an EssenceSource from the next available source file
+/*! \return true if all OK, false if no EssenceSource available
+ */
+bool FileParser::GetNextSource(void)
+{
+	// Must have a sub-parser set already
+	if(!SubParser) return false;
+
+	// Open the next file, unless the current source is being requested
+	if(!GetNextFile()) return false;
+
+	// If this essence parser supports a quick re-validate of a new file, do it
+	if(SubParser->CanReValidate())
+	{
+		if(!SubParser->ReValidate(CurrentFile, CurrentStream, CurrentDescriptor, CurrentWrapping))
+		{
+			error("File \"%s\" exists but is not the same essence type as the previous file\n", CurrentFileName.c_str());
+			return false;
+		}
+
+		return true;
+	}
+
+	/** Must restart parsing the hard way **/
+
+	// Sanity check that we don't have sub-streams
+	// If we do the ESP is incorrect and could well do nasty things when we close the file!
+	if(!SubStreams.empty())
+	{
+		error("EssenceSubParsers that extract sub-streams must support the ReValidate() method\n");
+	}
+
+	// Build a new parser of the same type as there is no guarantee that older parsers can be re-used
+	EssenceSubParserPtr NewParser = SubParser->NewParser();
+
+	// Identify the essence
+	EssenceStreamDescriptorList ESDList = NewParser->IdentifyEssence(CurrentFile);
+
+	// Scan for a matching wrapping
+	bool FoundMatch = false;
+	EssenceStreamDescriptorList::iterator it = ESDList.begin();
+	while(it != ESDList.end())
+	{
+		if((*it)->ID == CurrentStream)
+		{
+			WrappingOptionList WOList = NewParser->IdentifyWrappingOptions(CurrentFile, *(*it));
+		
+			WrappingOptionList::iterator WO_it = WOList.begin();
+			while(WO_it != WOList.end())
+			{
+				// If the mapping seems to match, use it
+				if(    (*(*WO_it)->WrappingUL == *CurrentWrapping->WrappingUL)
+					&& ((*WO_it)->ThisWrapType == CurrentWrapping->ThisWrapType) )
+				{
+					NewParser->Use(CurrentStream, (*WO_it));
+					
+					FoundMatch = true;
+
+					break;
+				}
+
+				WO_it++;
+			}
+		}
+
+		if(FoundMatch) break;
+
+		it++;
+	}
+
+	if(!FoundMatch)
+	{
+		error("File \"%s\" exists but is not the same essence type as the previous file\n", CurrentFileName.c_str());
+		return false;
+	}
+
+	// Switch to the new parser
+	SubParser = NewParser;
+
+	// Set the new EssenceSource
+	SequentialEssenceSource *Source = SmartPtr_Cast(SeqSource, SequentialEssenceSource);
+	Source->SetSource(SubParser->GetEssenceSource(CurrentFile, CurrentStream));
+
+	return true;
+}
+
+
+//! Get the next "installment" of essence data
+DataChunkPtr FileParser::SequentialEssenceSource::GetEssenceData(UInt64 Size /*=0*/, UInt64 MaxSize /*=0*/ )
+{ 
+	// We need a valid source to continue
+	if(!ValidSource()) return NULL;
+
+	// If we have emptied all files then exit now
+	if(Outer->AtEOF) return NULL;
+
+	// Get the next data from the current source
+	DataChunkPtr Ret = CurrentSource->GetEssenceData(Size, MaxSize);
+
+	// If no more data move to the next source file
+	if(!Ret)
+	{
+		// Work out how much was read from this file
+		Length CurrentSize = (Length)CurrentSource->GetCurrentPosition();
+
+		if(Outer->GetNextSource())
+		{
+			// Add this length to the previous lengths
+			PreviousLength += CurrentSize;
+
+			return GetEssenceData(Size, MaxSize);
+		}
+	}
+
+	return Ret;
+}
+
+
+//! Return the sequential EssenceSource for the main stream (already aquired internally, so no need to use the stream ID)
+EssenceSourcePtr FileParser::GetEssenceSource(UInt32 Stream) 
+{
+	if(Stream != CurrentStream)
+	{
+		error("A stream of ID 0x%04x was requested from a file parser that is configured for ID 0x%04x\n", Stream, CurrentStream);
+		return NULL;
+	}
+
+	// Ensure that the master source is installed - this is required if there are any sub-streams
+	GetFirstSource();
+
+	return SeqSource; 
+}
+
+
+//! Build an EssenceSource to read from the specified sub-stream
+EssenceSourcePtr FileParser::GetSubSource(UInt32 Stream)
+{
+	// First check if there is already a source for this stream
+	SubStreamList::iterator it = SubStreams.begin();
+	while(it != SubStreams.end())
+	{
+		if((*it).StreamID == Stream) return (*it).Source;
+		it++;
+	}
+
+	// If we don't have a parser for the main stream - quit now
+	if(!SubParser) return NULL;
+
+
+	//! Build a new info block
+	SubStreamInfo Info;
+	Info.StreamID = Stream;
+	Info.Source = SubParser->GetEssenceSource(CurrentFile, Stream);
+
+	// Only add if successful
+	if(Info.Source) SubStreams.push_back(Info);
+
+	// Return the result of the sub-get
+	return Info.Source;
+}
