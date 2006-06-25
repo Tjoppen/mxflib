@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.9 2006/02/11 16:17:12 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.10 2006/06/25 14:37:45 matt-beard Exp $
  *
  */
 /*
@@ -140,7 +140,7 @@ namespace mxflib
 	class Component : public ObjectInterface, public RefCount<Component>
 	{
 	protected:
-		TrackParent Parent;					// Track containing this component
+		TrackParent Parent;					//!< Track containing this component
 
 		//! Protected constructor used to create from an existing MDObject
 		Component(MDObjectPtr BaseObject) : ObjectInterface(BaseObject) {}
@@ -159,6 +159,18 @@ namespace mxflib
 
 		//! Set the track containing this component
 		void SetParent(IRefCount<Track> *NewParent) { Parent = TrackParent(NewParent); }
+
+		//! Make a link to a specified track
+		/*! \note This is a stub because some sub-classes of Component can be linked (in various ways, through the same interface) */
+		virtual bool MakeLink(TrackPtr SourceTrack, Int64 StartPosition = 0) { return false; }
+
+		//! Make a link to a UMID and TrackID
+		/*! \note This is a stub because some sub-classes of Component can be linked (in various ways, through the same interface) */
+		virtual bool MakeLink(UMIDPtr LinkUMID, UInt32 LinkTrackID, Int64 StartPosition = 0) { return false; }
+
+		//! Set the duration for this Component and update any parent object durations
+		/*! \param Duration The duration of this Component, -1 or omitted for unknown */
+		virtual void SetDuration(Length Duration = -1);
 
 		//! Allow polymorphic destructors
 		virtual ~Component() {};
@@ -265,15 +277,11 @@ namespace mxflib
 		SourceClip(const UL &BaseUL) : Component(BaseUL) {};
 		SourceClip(ULPtr &BaseUL) : Component(BaseUL) {};
 
-		//! Set the duration for this SourceClip and update the track's sequence duration
-		/*! \param Duration The duration of this SourceClip, -1 or omitted for unknown */
-		void SetDuration(Int64 Duration = -1);
-
 		//! Make a link to a specified track
-		bool MakeLink(TrackPtr SourceTrack, Int64 StartPosition = 0);
+		virtual bool MakeLink(TrackPtr SourceTrack, Int64 StartPosition = 0);
 
 		//! Make a link to a UMID and TrackID
-		bool MakeLink(UMIDPtr LinkUMID, UInt32 LinkTrackID, Int64 StartPosition = 0);
+		virtual bool MakeLink(UMIDPtr LinkUMID, UInt32 LinkTrackID, Int64 StartPosition = 0);
 
 		//! Return the containing "SourceClip" object for this MDObject
 		/*! \return NULL if MDObject is not contained in a SourceClip object
@@ -327,10 +335,6 @@ namespace mxflib
 		TimecodeComponent(const UL &BaseUL) : Component(BaseUL) {};
 		TimecodeComponent(ULPtr &BaseUL) : Component(BaseUL) {};
 
-		//! Set the duration for this Timecode Component and update the track's sequence duration
-		/*! \param Duration The duration of this Timecode Component, -1 or omitted for unknown */
-		void SetDuration(Int64 Duration = -1);
-
 		//! Return the containing "TimecodeComponent" object for this MDObject
 		/*! \return NULL if MDObject is not contained in a TimecodeComponent object
 		 */
@@ -355,10 +359,6 @@ namespace mxflib
 		DMSegment(MDOTypePtr BaseType) : Component(BaseType) {};
 		DMSegment(const UL &BaseUL) : Component(BaseUL) {};
 		DMSegment(ULPtr &BaseUL) : Component(BaseUL) {};
-
-		//! Set the duration for this DMSegment and update the track's sequence duration
-		/*! \param Duration The duration of this DMSegment, -1 or omitted for unknown */
-		void SetDuration(Int64 Duration = -1);
 
 //		//! Make a link to a specified track (in the same Package)
 //		bool MakeLink(TrackPtr SourceTrack);
@@ -711,6 +711,7 @@ namespace mxflib
 		PackagePtr AddSourcePackage(UInt32 BodySID, UMIDPtr PackageUMID) { return AddPackage(SourcePackage_UL, "", PackageUMID, BodySID); }
 		PackagePtr AddSourcePackage(UInt32 BodySID, std::string PackageName = "", UMIDPtr PackageUMID = NULL) { return AddPackage(SourcePackage_UL, PackageName, PackageUMID, BodySID); }
 
+		//! Add an entry into the essence container data set for a given essence stream
 		bool AddEssenceContainerData(UMIDPtr TheUMID, UInt32 BodySID, UInt32 IndexSID = 0);
 
 		//! Set the primary package property of the preface
@@ -721,7 +722,7 @@ namespace mxflib
 		{
 			MDObjectPtr Ptr = Object->Child(PrimaryPackage_UL);
 			if(!Ptr) Ptr = Object->AddChild(PrimaryPackage_UL);
-			Ptr->MakeLink(Package);
+			Ptr->MakeRef(Package);
 		}
 
 		//! Get a pointer to the primary package

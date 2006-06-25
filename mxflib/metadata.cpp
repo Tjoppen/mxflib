@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.9 2006/02/11 16:03:46 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.10 2006/06/25 14:37:45 matt-beard Exp $
  *
  */
 /*
@@ -82,7 +82,7 @@ void Metadata::Init(void)
 	Content->AddChild(Packages_UL);
 	Content->AddChild(EssenceContainerDataBatch_UL);
 
-	Object->AddChild(ContentStorage_UL)->MakeLink(Content);
+	Object->AddChild(ContentStorage_UL)->MakeRef(Content);
 }
 
 // Add a package of the specified type to the matadata
@@ -98,7 +98,7 @@ PackagePtr mxflib::Metadata::AddPackage(const UL &PackageType, std::string Packa
 	if(!Ret) return Ret;
 
 	// Set the package name if one supplied
-	if(PackageName.length()) Ret->SetString(GenericPackage_Name_UL, PackageName);
+	if(PackageName.length()) Ret->SetString(Name_UL, PackageName);
 
 	// Set the package's properties
 	Ret->AddChild(PackageUID_UL)->ReadValue(PackageUMID->GetValue(), 32);
@@ -110,7 +110,7 @@ PackagePtr mxflib::Metadata::AddPackage(const UL &PackageType, std::string Packa
 	MDObjectPtr Ptr = Object->Child(ContentStorage_UL);
 	if(Ptr) Ptr = Ptr->GetLink();
 	if(Ptr) Ptr = Ptr[Packages_UL];
-	if(Ptr) Ptr->AddChild()->MakeLink(Ret->Object);
+	if(Ptr) Ptr->AddChild()->MakeRef(Ret->Object);
 
 	if(BodySID) AddEssenceContainerData(PackageUMID, BodySID);
 
@@ -164,28 +164,6 @@ PackagePtr Metadata::GetPrimaryPackage(void)
 }
 
 
-//! Set the duration for this SourceClip and update the track's sequence duration
-/*! \param Duration The duration of this SourceClip, -1 or omitted for unknown */
-void SourceClip::SetDuration(Int64 Duration /*=-1*/)
-{
-	if(Duration < 0)
-		SetDValue(Duration_UL);
-	else
-		SetInt64(Duration_UL, Duration);
-
-	// Update the duration in the sequence
-	if(Duration < 0) 
-	{
-		MDObjectPtr Sequence = Parent[SequenceSet_UL]->GetLink();
-		Sequence->SetDValue(Duration_UL);
-	}
-	else
-	{
-		Parent->UpdateDuration();
-	}
-}
-
-
 //! Make a link to a specified track
 /*! \return true if the link was made, else false */
 bool SourceClip::MakeLink(TrackPtr SourceTrack, Int64 StartPosition /*=0*/)
@@ -211,20 +189,20 @@ bool SourceClip::MakeLink(UMIDPtr LinkUMID, UInt32 LinkTrackID, Int64 StartPosit
 }
 
 
-//! Set the duration for this Timecode Component and update the track's sequence duration
-/*! \param Duration The duration of this Timecode Component, -1 or omitted for unknown */
-void TimecodeComponent::SetDuration(Int64 Duration /*=-1*/)
+//! Set the duration for this Component and update any parent object durations
+/*! \param Duration The duration of this Component, -1 or omitted for unknown */
+void Component::SetDuration(Int64 Duration /*=-1*/)
 {
 	if(Duration < 0)
 		SetDValue(Duration_UL);
 	else
 		SetInt64(Duration_UL, Duration);
 
-	// Update the duration in the sequence
+	// Update the duration in the parent sequence
 	if(Duration < 0) 
 	{
 		MDObjectPtr Sequence = Parent[SequenceSet_UL]->GetLink();
-		Sequence->SetDValue(Duration_UL);
+		if(Sequence) Sequence->SetDValue(Duration_UL);
 	}
 	else
 	{
@@ -233,6 +211,7 @@ void TimecodeComponent::SetDuration(Int64 Duration /*=-1*/)
 }
 
 
+//! Add an entry into the essence container data set for a given essence stream
 bool Metadata::AddEssenceContainerData(UMIDPtr TheUMID, UInt32 BodySID, UInt32 IndexSID /*=0*/)
 {
 	MDObjectPtr EssenceContainerData = new MDObject(EssenceContainerDataSet_UL);
@@ -250,7 +229,7 @@ bool Metadata::AddEssenceContainerData(UMIDPtr TheUMID, UInt32 BodySID, UInt32 I
 	MDObjectPtr Ptr = Content[EssenceContainerDataBatch_UL];
 	if(!Ptr) return false;
 
-	Ptr->AddChild()->MakeLink(EssenceContainerData);
+	Ptr->AddChild()->MakeRef(EssenceContainerData);
 
 	return true;
 }
@@ -327,7 +306,7 @@ bool Metadata::UpdateGenerations(MDObjectPtr Ident, std::string UpdateTime /*=""
 	}
 
 	Object->SetString(LastModifiedDate_UL, ModificationTime);
-	Identifications->AddChild()->MakeLink(NewIdent);
+	Identifications->AddChild()->MakeRef(NewIdent);
 	NewIdent->SetValue(ThisGenerationUID_UL, DataChunk(16, ThisGeneration->GetValue()));
 
 	// It's just too confusing to record Identification as being modified!
@@ -430,7 +409,7 @@ SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
 
 	// Add this SourceClip to the sequence for this track
 	MDObjectPtr Sequence = Child(Sequence_UL)->GetLink();
-	Sequence[StructuralComponents_UL]->AddChild()->MakeLink(Ret->Object);
+	Sequence[StructuralComponents_UL]->AddChild()->MakeRef(Ret->Object);
 
 	// Copy the data definition from the sequence
 	Ret->AddChild(DataDefinition_UL)->ReadValue(Sequence[DataDefinition_UL]->PutData());
@@ -482,7 +461,7 @@ TimecodeComponentPtr Track::AddTimecodeComponent(UInt16 FPS, bool DropFrame, Int
 
 	// Add this Timecode Component to the sequence for this track
 	MDObjectPtr Sequence = Child(Sequence_UL)->GetLink();
-	Sequence[StructuralComponents_UL]->AddChild()->MakeLink(Ret->Object);
+	Sequence[StructuralComponents_UL]->AddChild()->MakeRef(Ret->Object);
 
 	// Copy the data definition from the sequence
 	Ret->AddChild(DataDefinition_UL)->ReadValue(Sequence[DataDefinition_UL]->PutData());
@@ -526,7 +505,7 @@ DMSegmentPtr Track::AddDMSegment(Int64 EventStart /*=-1*/,Int64 Duration /*=-1*/
 
 	// Add this SourceClip to the sequence for this track
 	MDObjectPtr Sequence = Child(Sequence_UL)->GetLink();
-	Sequence[StructuralComponents_UL]->AddChild()->MakeLink(Ret->Object);
+	Sequence[StructuralComponents_UL]->AddChild()->MakeRef(Ret->Object);
 
 	// Copy the data definition from the sequence
 	Ret->AddChild(DataDefinition_UL)->ReadValue(Sequence[DataDefinition_UL]->PutData());
@@ -623,10 +602,10 @@ TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate,
 	Sequence->AddChild(StructuralComponents_UL);
 
 	// Add the sequence
-	Ret->AddChild(Sequence_UL)->MakeLink(Sequence);
+	Ret->AddChild(Sequence_UL)->MakeRef(Sequence);
 
 	// Add this track to the package
-	Child(Tracks_UL)->AddChild()->MakeLink(Ret->Object);
+	Child(Tracks_UL)->AddChild()->MakeRef(Ret->Object);
 
 	// Add this track to our "owned" tracks
 	Tracks.push_back(Ret);
@@ -694,18 +673,18 @@ TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate,
 
 	// Pass DefaultDuration on to the Sequence
 	if( DefaultDuration == DurationUnspecified )
-		Sequence->SetDValue(Length_UL);
+		Sequence->SetDValue(Duration_UL);
 	else
-		Sequence->SetInt64(Length_UL, DefaultDuration);
+		Sequence->SetInt64(Duration_UL, DefaultDuration);
 
 
 	Sequence->AddChild(StructuralComponents_UL);
 
 	// Add the sequence
-	Ret->AddChild(Sequence_UL)->MakeLink(Sequence);
+	Ret->AddChild(Sequence_UL)->MakeRef(Sequence);
 
 	// Add this track to the package
-	Child(Tracks_UL)->AddChild()->MakeLink(Ret->Object);
+	Child(Tracks_UL)->AddChild()->MakeRef(Ret->Object);
 
 	// Add this track to our "owned" tracks
 	Tracks.push_back(Ret);
@@ -745,10 +724,10 @@ TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, std::string TrackN
 	Sequence->AddChild(StructuralComponents_UL);
 
 	// Add the sequence
-	Ret->AddChild(Sequence_UL)->MakeLink(Sequence);
+	Ret->AddChild(Sequence_UL)->MakeRef(Sequence);
 
 	// Add this track to the package
-	Child(Tracks_UL)->AddChild()->MakeLink(Ret->Object);
+	Child(Tracks_UL)->AddChild()->MakeRef(Ret->Object);
 
 	// Add this track to our "owned" tracks
 	Tracks.push_back(Ret);
@@ -829,6 +808,7 @@ DMSegmentPtr DMSegment::GetDMSegment(MDObjectPtr Object)
 }
 
 
+//! Make a link to a given DMFramework
 bool DMSegment::MakeLink(MDObjectPtr DMFramework)
 {
 	MDObjectPtr SourceFramework=Child(DMFramework_UL);
