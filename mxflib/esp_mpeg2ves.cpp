@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.5 2005/10/08 15:35:33 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.6 2006/06/25 14:14:11 matt-beard Exp $
  *
  */
 /*
@@ -32,6 +32,9 @@
 #include <math.h>	// For "floor"
 
 using namespace mxflib;
+
+#include <mxflib/esp_mpeg2ves.h>
+
 
 //! Local definitions
 namespace
@@ -102,11 +105,11 @@ EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHand
 	if(!DescObj) return Ret;
 
 	// Build a descriptor with a zero ID (we only support single stream files)
-	EssenceStreamDescriptor Descriptor;
-	Descriptor.ID = 0;
-	Descriptor.Description = "MPEG2 video essence";
-	Descriptor.SourceFormat.Set(MPEG2_VES_Format);
-	Descriptor.Descriptor = DescObj;
+	EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
+	Descriptor->ID = 0;
+	Descriptor->Description = "MPEG2 video essence";
+	Descriptor->SourceFormat.Set(MPEG2_VES_Format);
+	Descriptor->Descriptor = DescObj;
 
 	// Record a pointer to the descriptor so we can check if we are asked to process this source
 	CurrentDescriptor = DescObj;
@@ -142,6 +145,7 @@ WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandl
 	FrameWrap->Description = "SMPTE 381M frame wrapping of MPEG2 video elementary stream";
 
 	BaseUL[15] = 0x01;									// Frame wrapping
+	FrameWrap->Name = "frame";							// Set the wrapping name
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	FrameWrap->GCEssenceType = 0x15;					// GC Picture wrapping type
 	FrameWrap->GCElementType = 0x05;					// Frame wrapped picture elemenet
@@ -158,6 +162,7 @@ WrappingOptionList MPEG2_VES_EssenceSubParser::IdentifyWrappingOptions(FileHandl
 	ClipWrap->Description = "SMPTE 381M clip wrapping of MPEG2 video elementary stream";
 
 	BaseUL[15] = 0x02;									// Clip wrapping
+	ClipWrap->Name = "clip";							// Set the wrapping name
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	ClipWrap->GCEssenceType = 0x15;						// GC Picture wrapping type
 	ClipWrap->GCElementType = 0x06;						// Clip wrapped picture elemenet

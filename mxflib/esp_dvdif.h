@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.6 2006/06/25 14:14:11 matt-beard Exp $
  *
  */
 /*
@@ -130,9 +130,6 @@ namespace mxflib
 			if(Buffer) delete[] Buffer;
 		}
 
-		//! Build a new parser of this type and return a pointer to it
-		virtual EssenceSubParserPtr NewParser(void) const { return new DV_DIF_EssenceSubParser; }
-
 		//! Report the extensions of files this sub-parser is likely to handle
 		virtual StringList HandledExtensions(void)
 		{
@@ -196,7 +193,7 @@ namespace mxflib
 		virtual DataChunkPtr Read(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/)
+		virtual EssenceSourcePtr GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/)
 		{
 			return new ESP_EssenceSource(this, InFile, Stream, Count/*, Index*/);
 		};
@@ -208,6 +205,13 @@ namespace mxflib
 		/*! \return true if the option was successfully set */
 		virtual bool SetOption(std::string Option, Int64 Param = 0);
 
+		//! Get a unique name for this sub-parser
+		/*! The name must be all lower case, and must be unique.
+		 *  The recommended name is the part of the filename of the parser header after "esp_" and before the ".h".
+		 *  If the parser has no name return "" (however this will prevent named wrapping option selection for this sub-parser)
+		 */
+		virtual std::string GetParserName(void) const { return "dvdif"; }
+
 	protected:
 		//! Read the header at the specified position in a DV file to build an essence descriptor
 		MDObjectPtr BuildCDCIEssenceDescriptor(FileHandle InFile, UInt64 Start = 0);
@@ -215,6 +219,16 @@ namespace mxflib
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
 		Length ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count/*, IndexTablePtr Index = NULL*/);
 	};
+
+
+	//! Factory class for making DV-DIF parsers
+	class DV_DIF_EssenceSubParserFactory : public EssenceSubParserFactory
+	{
+	public:
+		//! Build a new DV-DIF parser and return a pointer to it
+		virtual EssenceSubParserPtr NewParser(void) const { return new DV_DIF_EssenceSubParser; }
+	};
+
 }
 
 #endif // MXFLIB__ESP_DVDIF_H

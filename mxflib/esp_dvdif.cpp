@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.7 2006/02/11 16:14:30 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.8 2006/06/25 14:14:11 matt-beard Exp $
  *
  */
 /*
@@ -32,6 +32,9 @@
 #include <math.h>	// For "floor"
 
 using namespace mxflib;
+
+#include <mxflib/esp_dvdif.h>
+
 
 //! Local definitions
 namespace
@@ -182,11 +185,11 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	DIFEnd = FileTell(InFile);
 
 	// Build a descriptor with a zero ID (we only support single stream files)
-	EssenceStreamDescriptor Descriptor;
-	Descriptor.ID = 0;
-	Descriptor.Description = "DV-DIF audio/video essence";
-	Descriptor.SourceFormat.Set(DV_DIF_RAW_Format);
-	Descriptor.Descriptor = DescObj;
+	EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
+	Descriptor->ID = 0;
+	Descriptor->Description = "DV-DIF audio/video essence";
+	Descriptor->SourceFormat.Set(DV_DIF_RAW_Format);
+	Descriptor->Descriptor = DescObj;
 
 	// Record a pointer to the descriptor so we can check if we are asked to process this source
 	CurrentDescriptor = DescObj;
@@ -222,6 +225,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video data";
 
 	BaseUL[15] = 0x02;									// Clip wrapping
+	ClipWrap->Name = "clip";							// Set the wrapping name
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	ClipWrap->GCEssenceType = 0x18;						// GC Compound wrapping type
 	ClipWrap->GCElementType = 0x02;						// Clip wrapped picture elemenet
@@ -238,6 +242,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video data";
 
 	BaseUL[15] = 0x01;									// Frame wrapping
+	FrameWrap->Name = "frame";							// Set the wrapping name
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	FrameWrap->GCEssenceType = 0x18;					// GC Compound wrapping type
 	FrameWrap->GCElementType = 0x01;					// Frame wrapped picture elemenet
@@ -523,6 +528,9 @@ Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, U
 		if((Ret + ReadStart) > DIFEnd)
 		{
 			Ret = DIFEnd - ReadStart;
+			
+			// Fix for an incomplete frame at the end of the previous read
+			if(Ret < 0) Ret = 0;
 
 			// Work out the picture number
 			// DRAGONS: Add SeqSize-1 to ensure that a truncated edit unit is counted as a whole one (relies on '/' rounding down)

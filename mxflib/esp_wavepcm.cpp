@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.6 2005/10/08 15:35:33 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.7 2006/06/25 14:14:12 matt-beard Exp $
  *
  */
 /*
@@ -32,6 +32,10 @@
 #include <math.h>	// For "floor"
 
 using namespace mxflib;
+
+#include <mxflib/esp_wavepcm.h>
+
+
 
 //! Local definitions
 namespace
@@ -69,11 +73,11 @@ EssenceStreamDescriptorList mxflib::WAVE_PCM_EssenceSubParser::IdentifyEssence(F
 	if(!DescObj) return Ret;
 
 	// Build a descriptor with a zero ID (we only support single stream files)
-	EssenceStreamDescriptor Descriptor;
-	Descriptor.ID = 0;
-	Descriptor.Description = "Wave audio essence";
-	Descriptor.SourceFormat.Set(WAVE_PCM_RIFF_Format);
-	Descriptor.Descriptor = DescObj;
+	EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
+	Descriptor->ID = 0;
+	Descriptor->Description = "Wave audio essence";
+	Descriptor->SourceFormat.Set(WAVE_PCM_RIFF_Format);
+	Descriptor->Descriptor = DescObj;
 
 	// Record a pointer to the descriptor so we can check if we are asked to process this source
 	CurrentDescriptor = DescObj;
@@ -109,6 +113,7 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	ClipWrap->Description = "SMPTE 382M clip wrapping of wave audio";
 
 	BaseUL[14] = 0x02;									// Clip wrapping
+	ClipWrap->Name = "clip";							// Set the wrapping name
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	ClipWrap->GCEssenceType = 0x16;						// GP Sound wrapping type
 	ClipWrap->GCElementType = 0x02;						// Wave clip wrapped elemenet
@@ -125,6 +130,7 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	FrameWrap->Description = "SMPTE 382M frame wrapping of wave audio";
 
 	BaseUL[14] = 0x01;									// Frame wrapping
+	FrameWrap->Name = "frame";							// Set the wrapping name
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	FrameWrap->GCEssenceType = 0x16;					// GP Sound wrapping type
 	FrameWrap->GCElementType = 0x01;					// Wave frame wrapped elemenet

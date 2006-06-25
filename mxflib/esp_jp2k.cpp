@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.8 2006/05/01 17:27:52 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.9 2006/06/25 14:14:11 matt-beard Exp $
  *
  */
 /*
@@ -32,6 +32,9 @@
 #include <math.h>	// For "floor"
 
 using namespace mxflib;
+
+#include <mxflib/esp_jp2k.h>
+
 
 //! Local definitions
 namespace
@@ -138,11 +141,11 @@ EssenceStreamDescriptorList mxflib::JP2K_EssenceSubParser::IdentifyEssence(FileH
 		 */
 
 		// Build a descriptor with a zero ID (we only support single stream files)
-		EssenceStreamDescriptor Descriptor;
-		Descriptor.ID = 0;
-		Descriptor.Description = "JPEG 2000 Image data";
-		Descriptor.SourceFormat.Set(JP2K_Format);
-		Descriptor.Descriptor = DescObj;
+		EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
+		Descriptor->ID = 0;
+		Descriptor->Description = "JPEG 2000 Image data";
+		Descriptor->SourceFormat.Set(JP2K_Format);
+		Descriptor->Descriptor = DescObj;
 
 		// Record a pointer to the descriptor so we can check if we are asked to process this source
 		CurrentDescriptor = DescObj;
@@ -159,11 +162,11 @@ EssenceStreamDescriptorList mxflib::JP2K_EssenceSubParser::IdentifyEssence(FileH
 	if(!DescObj) return Ret;
 
 	// Build a descriptor with a zero ID (we only support single stream files)
-	EssenceStreamDescriptor Descriptor;
-	Descriptor.ID = 0;
-	Descriptor.Description = "JPEG 2000 Image data";
-	Descriptor.SourceFormat.Set(JP2K_Format);
-	Descriptor.Descriptor = DescObj;
+	EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
+	Descriptor->ID = 0;
+	Descriptor->Description = "JPEG 2000 Image data";
+	Descriptor->SourceFormat.Set(JP2K_Format);
+	Descriptor->Descriptor = DescObj;
 
 	// Record a pointer to the descriptor so we can check if we are asked to process this source
 	CurrentDescriptor = DescObj;
@@ -202,6 +205,7 @@ WrappingOptionList mxflib::JP2K_EssenceSubParser::IdentifyWrappingOptions(FileHa
 	ClipWrap->Description = "SMPTE 422M clip wrapping of JPEG 2000 image data";
 
 	BaseUL[14] = 0x02;									// Clip wrapping
+	ClipWrap->Name = "clip";							// Set the wrapping name
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	ClipWrap->GCEssenceType = 0x15;						// GC Picture wrapping type
 	ClipWrap->GCElementType = 0x09;						// Clip wrapped elemenet
@@ -218,6 +222,7 @@ WrappingOptionList mxflib::JP2K_EssenceSubParser::IdentifyWrappingOptions(FileHa
 	FrameWrap->Description = "SMPTE 422M frame wrapping of JPEG 2000 image data";
 
 	BaseUL[14] = 0x01;									// Frame wrapping
+	FrameWrap->Name = "frame";							// Set the wrapping name
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	FrameWrap->GCEssenceType = 0x15;					// GC Picture wrapping type
 	FrameWrap->GCElementType = 0x08;					// Frame wrapped elemenet
@@ -502,7 +507,7 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 	
 	// Link the sub-descrioptor to the file descriptor
 	MDObjectPtr Link = Ret->AddChild(SubDescriptor_UL);
-	if(Link) Link->MakeLink(SubDescriptor);
+	if(Link) Link->MakeRef(SubDescriptor);
 
 	return Ret;
 }

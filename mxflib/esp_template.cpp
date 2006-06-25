@@ -1,7 +1,7 @@
 /*! \file	esp_template.cpp
  *	\brief	Implementation of class that handles parsing of <File Type>
  *
- *	\version $Id: esp_template.cpp,v 1.1 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: esp_template.cpp,v 1.2 2006/06/25 14:14:12 matt-beard Exp $
  *
  */
 /*
@@ -32,6 +32,9 @@
 #include <math.h>	// For "floor"
 
 using namespace mxflib;
+
+#include <mxflib/esp_template.h>
+
 
 //! Local definitions
 namespace
@@ -67,11 +70,11 @@ EssenceStreamDescriptorList mxflib::TEMPLATE_EssenceSubParser::IdentifyEssence(F
 	if(!DescObj) return Ret;
 
 	// Build a descriptor with a zero ID (we only support single stream files)
-	EssenceStreamDescriptor Descriptor;
-	Descriptor.ID = 0;
-	Descriptor.Description = <File Type>;
-	Descriptor.SourceFormat.Set(TEMPLATE_Format);
-	Descriptor.Descriptor = DescObj;
+	EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
+	Descriptor->ID = 0;
+	Descriptor->Description = <File Type>;
+	Descriptor->SourceFormat.Set(TEMPLATE_Format);
+	Descriptor->Descriptor = DescObj;
 
 	// Record a pointer to the descriptor so we can check if we are asked to process this source
 	CurrentDescriptor = DescObj;
@@ -110,6 +113,7 @@ WrappingOptionList mxflib::TEMPLATE_EssenceSubParser::IdentifyWrappingOptions(Fi
 	ClipWrap->Description = "SMPTE xxxM clip wrapping of <File Type>";
 
 	BaseUL[14] = 0x02;									// Clip wrapping
+	ClipWrap->Name = "clip";							// Set the wrapping name
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	ClipWrap->GCEssenceType = 0x<yy>;					// <xx> wrapping type
 	ClipWrap->GCElementType = 0x<zz>;					// Clip wrapped elemenet
@@ -126,6 +130,7 @@ WrappingOptionList mxflib::TEMPLATE_EssenceSubParser::IdentifyWrappingOptions(Fi
 	FrameWrap->Description = "SMPTE xxxM frame wrapping of <File Type>";
 
 	BaseUL[14] = 0x01;									// Frame wrapping
+	FrameWrap->Name = "frame";							// Set the wrapping name
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	FrameWrap->GCEssenceType = 0x<yy>;					// <xx> wrapping type
 	FrameWrap->GCElementType = 0x<zz>;					// Frame wrapped elemenet

@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.7 2006/02/11 16:13:11 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.8 2006/06/25 14:14:12 matt-beard Exp $
  *
  */
 /*
@@ -238,13 +238,20 @@ namespace mxflib
 		virtual DataChunkPtr Read(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/);
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/)
+		virtual EssenceSourcePtr GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/)
 		{
 			return new ESP_EssenceSource(this, InFile, Stream, Count/*, Index*/);
 		};
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
 		virtual Length Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/);
+
+		//! Get a unique name for this sub-parser
+		/*! The name must be all lower case, and must be unique.
+		 *  The recommended name is the part of the filename of the parser header after "esp_" and before the ".h".
+		 *  If the parser has no name return "" (however this will prevent named wrapping option selection for this sub-parser)
+		 */
+		virtual std::string GetParserName(void) const { return "wavepcm"; }
 
 
 	protected:

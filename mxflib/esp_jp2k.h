@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.h
  *	\brief	Definition of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.h,v 1.3 2005/10/08 15:35:33 matt-beard Exp $
+ *	\version $Id: esp_jp2k.h,v 1.4 2006/06/25 14:14:11 matt-beard Exp $
  *
  */
 /*
@@ -197,13 +197,20 @@ namespace mxflib
 		virtual DataChunkPtr Read(FileHandle InFile, UInt32 Stream, UInt64 Count = 1);
 
 		//! Build an EssenceSource to read a number of wrapping items from the specified stream
-		virtual EssenceSubParserBase::ESP_EssenceSource *GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1)
+		virtual EssenceSourcePtr GetEssenceSource(FileHandle InFile, UInt32 Stream, UInt64 Count = 1)
 		{
 			return new ESP_EssenceSource(this, InFile, Stream, Count);
 		};
 
 		//! Write a number of wrapping items from the specified stream to an MXF file
 		virtual Length Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count = 1);
+
+		//! Get a unique name for this sub-parser
+		/*! The name must be all lower case, and must be unique.
+		 *  The recommended name is the part of the filename of the parser header after "esp_" and before the ".h".
+		 *  If the parser has no name return "" (however this will prevent named wrapping option selection for this sub-parser)
+		 */
+		virtual std::string GetParserName(void) const { return "jp2k"; }
 
 
 	protected:
