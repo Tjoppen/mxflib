@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2006/02/11 15:55:57 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2006/06/25 14:59:26 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -37,105 +37,105 @@
 <!-- 2005-08-03 Oliver Removed static Tags for JP2K -->
 <MXFDictionary>
 	<MXFTypes>
-		<Basic>
-			<Float32 detail="32 bit IEEE Floating Point" size="4" endian="no" ref="IEEE 754-1985"/>
-			<Float64 detail="64 bit IEEE Floating Point" size="8" endian="no" ref="IEEE 754-1985"/>
-			<Float80 detail="80 bit IEEE Floating Point" size="10" endian="no" ref="IEEE 754-1985"/>
-			<Int8 detail="8 bit integer" size="1" endian="no"/>
-			<Int16 detail="16 bit integer" size="2" endian="yes"/>
-			<Int24 detail="24 bit integer" size="3" endian="yes"/>
-			<Int32 detail="32 bit integer" size="4" endian="yes"/>
-			<Int64 detail="64 bit integer" size="8" endian="yes"/>
-			<UInt8 detail="8 bit unsigned integer" size="1" endian="no"/>
-			<UInt16 detail="16 bit unsigned integer" size="2" endian="yes"/>
-			<UInt24 detail="24 bit unsigned integer" size="3" endian="yes"/>
-			<UInt32 detail="32 bit unsigned integer" size="4" endian="yes"/>
-			<UInt64 detail="64 bit unsigned integer" size="8" endian="yes"/>
-		</Basic>
-		<Interpretation>
-			<VersionType detail="Version number (created from major*256 + minor)" base="UInt16"/>
-			<UTF16 detail="Unicode UTF-16 coded character" base="UInt16"/>
-			<Boolean detail="Boolean" base="UInt8"/>
-			<ISO7 detail="ISO 7-Bit Coded Character" base="UInt8" ref="ISO/IEC 646:1991"/>
-			<Length detail="Length in Edit Units" base="Int64"/>
-			<Position detail="Position measured in Edit Units" base="Int64"/>
-			<RGBACode detail="Enumerated value specifying component in an RGBALayoutItem" base="UInt8"/>
-		</Interpretation>
-		<Multiple>
-			<UTF16String detail="Unicode UTF-16 coded string" base="UTF16" type="Array"/>
-			<Int32Array detail="Array of Int32" base="Int32" type="Array"/>
-			<UInt32Array detail="Array of UInt32" base="UInt32" type="Array"/>
-			<Int64Array detail="Array of Int64" base="Int64" type="Array"/>
-			<UInt8Array detail="Array of UInt8" base="UInt8" type="Array"/>
-			<ISO7String detail="ISO 7-Bit coded string" base="ISO7" type="Array"/>
-			<Int32Batch detail="Batch of Int32 values" base="Int32" type="Batch"/>
-			<UInt32Batch detail="Batch of UInt32 values" base="UInt32" type="Batch"/>
-		</Multiple>
-		<Basic>
-			<RAW detail="Raw data bytes, unknown representation" size="0" endian="no"/>
-		</Basic>
-		<Interpretation>
-			<Stream detail="Data mapped to AAF Stream, MXF represents using a SID" base="RAW"/>
-			<DataValue detail="Data represented as AAF varying array of UInt8" base="UInt8Array"/>
-		</Interpretation>
-		<Interpretation>
-			<Identifier detail="Generic Identifier" base="UInt8Array"/>
-			<Opaque detail="Opaque Data" base="UInt8Array"/>
-			<UMID detail="SMPTE UMID" base="Identifier" size="32"/>
-			<UID detail="UID" base="Identifier"/>
-			<Label detail="SMPTE Universal Label" base="Identifier" size="16"/>
-			<UUID detail="UUID" base="Identifier" size="16"/>
-			<AUID detail="AUID is a Label or a swapped UUID" base="Label"/>
-			<PackageID detail="Package ID" base="UMID"/>
-			<StrongRef detail="Strong Reference" base="UUID"/>
-			<WeakRef detail="Weak Reference" base="UUID"/>
-		</Interpretation>
-		<Multiple>
-			<AUIDArray detail="Array of AUIDs" base="AUID" type="Array"/>
-			<LabelBatch detail="Batch of SMPTE Universal Labels" base="Label" type="Batch"/>
-			<StrongRefArray detail="Array of StrongRefs" base="StrongRef" type="Array"/>
-			<StrongRefBatch detail="Batch of StrongRefs" base="StrongRef" type="Batch"/>
-			<WeakRefArray detail="Array of WeakRefs" base="StrongRef" type="Array"/>
-			<WeakRefBatch detail="Batch of WeakRefs" base="WeakRef" type="Batch"/>
-		</Multiple>
-		<Compound>
-			<Rational detail="Rational">
-				<Numerator detail="Numerator" type="Int32"/>
-				<Denominator detail="Denominator" type="Int32"/>
-			</Rational>
-			<Timestamp detail="Date and Time">
-				<Year detail="Year" type="UInt16"/>
-				<Month detail="Month" type="UInt8"/>
-				<Day detail="Day" type="UInt8"/>
-				<Hours detail="Hours" type="UInt8"/>
-				<Minutes detail="Minutes" type="UInt8"/>
-				<Seconds detail="Seconds" type="UInt8"/>
-				<msBy4 detail="msBy4" type="UInt8"/>
-			</Timestamp>
-			<ProductVersion detail="Product Version Number">
-				<Major detail="Major" type="UInt16"/>
-				<Minor detail="Minor" type="UInt16"/>
-				<Patch detail="Patch" type="UInt16"/>
-				<Build detail="Build" type="UInt16"/>
-				<Release detail="Release" type="UInt16"/>
-			</ProductVersion>
-			<Indirect detail="Indirect Data">
-				<Type detail="Type of Data" type="Label"/>
-				<Data detail="Data" type="UInt8Array"/>
-			</Indirect>
-			<RGBALayoutItem detail="Item in an RGBALayout array">
-				<Code detail="Enumerated value specifying component" type="RGBACode"/>
-				<Depth detail="Number of bits occupied" type="UInt8"/>
-			</RGBALayoutItem>
-		</Compound>
-		<Multiple>
-			<RationalArray detail="Array of Rational" base="Rational" type="Array"/>
-			<RGBALayout detail="Specifies the type, order and size of the components within the pixel" base="RGBALayoutItem" type="Array" size="8"/>
-		</Multiple>
-	</MXFTypes>
+        <Basic>
+            <Float32 detail="32 bit IEEE Floating Point" size="4" endian="no" ref="IEEE 754-1985"/>
+            <Float64 detail="64 bit IEEE Floating Point" size="8" endian="no" ref="IEEE 754-1985"/>
+            <Float80 detail="80 bit IEEE Floating Point" size="10" endian="no" ref="IEEE 754-1985"/>
+            <Int8 detail="8 bit integer" size="1" endian="no" ul="urn:x-ul:060E2B34.0104.0101.01010500.00000000"/>
+            <Int16 detail="16 bit integer" size="2" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010600.00000000"/>
+            <Int24 detail="24 bit integer" size="3" endian="yes"/>
+            <Int32 detail="32 bit integer" size="4" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010700.00000000"/>
+            <Int64 detail="64 bit integer" size="8" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010800.00000000"/>
+            <UInt8 detail="8 bit unsigned integer" size="1" endian="no" ul="urn:x-ul:060E2B34.0104.0101.01010100.00000000"/>
+            <UInt16 detail="16 bit unsigned integer" size="2" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010200.00000000"/>
+            <UInt24 detail="24 bit unsigned integer" size="3" endian="yes"/>
+            <UInt32 detail="32 bit unsigned integer" size="4" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010300.00000000"/>
+            <UInt64 detail="64 bit unsigned integer" size="8" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010400.00000000"/>
+        </Basic>
+        <Interpretation>
+            <VersionType detail="Version number (created from major*256 + minor)" base="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010300.00000000"/>
+            <UTF16 detail="Unicode UTF-16 coded character" base="UInt16" ul="urn:x-ul:060E2B34.0104.0101.01100100.00000000"/>
+            <Boolean detail="Boolean" base="urn:x-ul:060E2B34.0104.0101.01010100.00000000" ul="urn:x-ul:060E2B34.0104.0101.01040100.00000000"/>
+            <ISO7 detail="ISO 7-Bit Coded Character" base="UInt8" ref="ISO/IEC 646:1991" ul="urn:x-ul:060E2B34.0104.0101.01100300.00000000"/>
+            <Length detail="Length in Edit Units" base="Int64" ul="urn:x-ul:060E2B34.0104.0101.01012002.00000000"/>
+            <Position detail="Position measured in Edit Units" base="Int64" ul="urn:x-ul:060E2B34.0104.0101.01012001.00000000"/>
+            <RGBACode detail="Enumerated value specifying component in an RGBALayoutItem" base="UInt8" ul="urn:x-ul:060E2B34.0104.0101.0201010e.00000000"/>
+        </Interpretation>
+        <Multiple>
+            <UTF16String detail="Unicode UTF-16 coded string" base="UTF16" type="Array" ul="urn:x-ul:060E2B34.0104.0101.01100200.00000000"/>
+            <Int32Array detail="Array of Int32" base="Int32" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010300.00000000"/>
+            <UInt32Array detail="Array of UInt32" base="UInt32" type="Array"/>
+            <Int64Array detail="Array of Int64" base="Int64" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010400.00000000"/>
+            <UInt8Array detail="Array of UInt8" base="UInt8" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010100.00000000"/>
+            <ISO7String detail="ISO 7-Bit coded string" base="ISO7" type="Array" ul="urn:x-ul:060E2B34.0104.0101.01100400.00000000"/>
+            <Int32Batch detail="Batch of Int32 values" base="Int32" type="Batch"/>
+            <UInt32Batch detail="Batch of UInt32 values" base="UInt32" type="Batch" ul="urn:x-ul:060E2B34.0104.0101.04030200.00000000"/>
+        </Multiple>
+        <Basic>
+            <RAW detail="Raw data bytes, unknown representation" size="0" endian="no"/>
+        </Basic>
+        <Interpretation>
+            <Stream detail="Data mapped to AAF Stream, MXF represents using a SID" base="RAW" ul="urn:x-ul:060E2B34.0104.0101.04100200.00000000"/>
+            <DataValue detail="Data represented as AAF varying array of UInt8" base="UInt8Array" ul="urn:x-ul:060E2B34.0104.0101.04100100.00000000"/>
+        </Interpretation>
+        <Interpretation>
+            <Identifier detail="Generic Identifier" base="UInt8Array"/>
+            <Opaque detail="Opaque Data" base="UInt8Array" ul="urn:x-ul:060E2B34.0104.0101.04100400.00000000"/>
+            <UMID detail="SMPTE UMID" base="Identifier" size="32" ul="urn:x-ul:060E2B34.0104.0101.01300100.00000000"/>
+            <UID detail="UID" base="Identifier"/>
+            <Label detail="SMPTE Universal Label" base="Identifier" size="16"/>
+            <UUID detail="UUID" base="Identifier" size="16"/>
+            <AUID detail="AUID is a Label or a swapped UUID" base="Label" ul="urn:x-ul:060E2B34.0104.0101.01030100.00000000"/>
+            <PackageID detail="Package ID" base="UMID" ul="urn:x-ul:060E2B34.0104.0101.01030200.00000000"/>
+            <StrongRef detail="Strong Reference" base="UUID" ul="urn:x-ul:060E2B34.0104.0101.05020000.00000000"/>
+            <WeakRef detail="Weak Reference" base="UUID" ul="urn:x-ul:060E2B34.0104.0101.05010000.00000000"/>
+        </Interpretation>
+        <Multiple>
+            <AUIDArray detail="Array of AUIDs" base="AUID" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010600.00000000"/>
+            <LabelBatch detail="Batch of SMPTE Universal Labels" base="Label" type="Batch"/>
+            <StrongRefArray detail="Array of StrongRefs" base="StrongRef" type="Array"/>
+            <StrongRefBatch detail="Batch of StrongRefs" base="StrongRef" type="Batch"/>
+            <WeakRefArray detail="Array of WeakRefs" base="StrongRef" type="Array"/>
+            <WeakRefBatch detail="Batch of WeakRefs" base="WeakRef" type="Batch"/>
+        </Multiple>
+        <Compound>
+            <Rational detail="Rational" ul="urn:x-ul:060E2B34.0104.0101.03010100.00000000">
+                <Numerator detail="Numerator" type="urn:x-ul:060E2B34.0104.0101.01010700.00000000" ul="urn:x-ul:060E2B34.0104.0101.03010101.00000000"/>
+                <Denominator detail="Denominator" type="Int32" ul="urn:x-ul:060E2B34.0104.0101.03010102.00000000"/>
+            </Rational>
+            <Timestamp detail="Date and Time" ul="urn:x-ul:060E2B34.0104.0101.03010700.00000000">
+                <Year detail="Year" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010501.00000000"/>
+                <Month detail="Month" type="UInt8" ul="urn:x-ul:060E2B34.0104.0101.03010502.00000000"/>
+                <Day detail="Day" type="UInt8" ul="urn:x-ul:060E2B34.0104.0101.03010503.00000000"/>
+                <Hours detail="Hours" type="UInt8" ul="urn:x-ul:060E2B34.0104.0101.03010601.00000000"/>
+                <Minutes detail="Minutes" type="UInt8" ul="urn:x-ul:060E2B34.0104.0101.03010602.00000000"/>
+                <Seconds detail="Seconds" type="UInt8" ul="urn:x-ul:060E2B34.0104.0101.03010603.00000000"/>
+                <msBy4 detail="msBy4" type="UInt8" ul="urn:x-ul:060E2B34.0104.0101.03010604.00000000"/>
+            </Timestamp>
+            <ProductVersion detail="Product Version Number" ul="urn:x-ul:060E2B34.0104.0101.03010200.00000000">
+                <Major detail="Major" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010201.00000000"/>
+                <Minor detail="Minor" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010202.00000000"/>
+                <Patch detail="Patch" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010203.00000000"/>
+                <Build detail="Build" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010204.00000000"/>
+                <Release detail="Release" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010205.00000000"/>
+            </ProductVersion>
+            <Indirect detail="Indirect Data" ul="urn:x-ul:060E2B34.0104.0101.04100300.00000000">
+                <Type detail="Type of Data" type="Label"/>
+                <Data detail="Data" type="UInt8Array"/>
+            </Indirect>
+            <RGBALayoutItem detail="Item in an RGBALayout array" ul="urn:x-ul:060E2B34.0104.0101.03010400.00000000">
+                <Code detail="Enumerated value specifying component" type="RGBACode"/>
+                <Depth detail="Number of bits occupied" type="UInt8"/>
+            </RGBALayoutItem>
+        </Compound>
+        <Multiple>
+            <RationalArray detail="Array of Rational" base="Rational" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04020200.00000000"/>
+            <RGBALayout detail="Specifies the type, order and size of the components within the pixel" base="RGBALayoutItem" type="Array" size="8" ul="urn:x-ul:060E2B34.0104.0101.04020100.00000000"/>
+        </Multiple>
+    </MXFTypes>
 	<MXFClasses>
 		<KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 01 03 01 02 10 01 00 00 00"/>
-		<PartitionMetadata detail="Identifies a Partition Pack" type="fixedPack" key="06 0E 2B 34 02 06 01 01 0D 01 02 00 00 00 00 00">
+        <PartitionMetadata detail="Identifies a Partition Pack" type="fixedPack" key="urn:x-ul:060E2B34.0206.0101.0D010200.00000000">
 			<MajorVersion detail="Major Version number of MXF byte-level format (non-backwards compatible version number)" use="required" type="UInt16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 04  03 01 02 01 06 00 00 00" default="0001h"/>
 			<MinorVersion detail="Minor Version number of MXF byte-level format (backwards compatible version number)" use="required" type="UInt16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 04  03 01 02 01 07 00 00 00" default="0002h"/>
 			<KAGSize detail="Size of the KLV Alignment Grid (KAG) for this partition, in bytes" use="required" type="UInt32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 05  03 01 02 01 09 00 00 00"/>
@@ -247,7 +247,7 @@
 				<DMScheme detail="Universal Labels of Descriptive Metadata Scheme" type="Label" minLength="16" maxLength="16"/>
 			</DMSchemes>
 		</Preface>
-		<Identification base="InterchangeObject" detail="Identification set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 30 00">
+        <Identification base="InterchangeObject" detail="Identification set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 30 00">
 			<ThisGenerationUID detail="This Generation Identifier" use="required" type="UUID" minLength="16" maxLength="16" key="3c 09" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 01 00 00 00"/>
 			<CompanyName detail="Manufacturer of the equipment or application that created or modified the file" use="required" type="UTF16String" key="3c 01" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 02 01 00 00"/>
 			<ProductName detail="Name of the application which created or modified this file" use="required" type="UTF16String" key="3c 02" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 03 01 00 00"/>
@@ -265,13 +265,13 @@
 			<EssenceContainerData detail="Unordered batch of strong references to Essence Container Data sets used in this file" use="optional" type="subVector" ref="strong" target="EssenceContainerData" key="19 02" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 05 02 00 00">
 				<EssenceContainer detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
 			</EssenceContainerData>
-		</ContentStorage>
+        </ContentStorage>
 		<ContentStorageKludge detail="Kludge for Version 10 Content Storage set" type="localSet">
 			<V10Packages detail="Unordered batch of all packages used in this file" use="required" type="subVector" ref="strong" target="GenericPackage" key="19 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 05 00 00 00">
 				<V10Package detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
 			</V10Packages>
 		</ContentStorageKludge>
-		<EssenceContainerData base="GenerationInterchangeObject" detail="Essence Container Data set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 23 00">
+        <EssenceContainerData base="GenerationInterchangeObject" detail="Essence Container Data set" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 23 00">
 			<LinkedPackageUID detail="Identifier of the Package to which this set is linked as a UMID" use="required" type="UMID" minLength="32" maxLength="32" key="27 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 06 01 00 00 00"/>
 			<IndexSID detail="ID of the Index Table for the Essence Container to which this set is linked" use="optional" type="UInt32" minLength="4" maxLength="4" key="3f 06" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00"/>
 			<BodySID detail="ID of the Essence Container to which this set is linked" use="required" type="UInt32" minLength="4" maxLength="4" key="3f 07" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00"/>
@@ -284,7 +284,7 @@
 			<Tracks detail="Array of Unique IDs of Tracks" use="required" type="subVector" ref="strong" target="GenericTrack" key="44 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 05 00 00">
 				<Track detail="Track ID" type="UUID" minLength="16" maxLength="16"/>
 			</Tracks>
-		</GenericPackage>
+        </GenericPackage>
 		<Locator base="GenerationInterchangeObject"/>
 		<NetworkLocator base="Locator" detail="Network Locator set for location with a URL" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 32 00">
 			<URLString detail="A URL indicating where the essence may be found." use="required" type="UTF16String" key="40 01" globalKey="06 0e 2b 34 01 01 01 01  01 02 01 01 01 00 00 00"/>
@@ -308,10 +308,10 @@
 			<EventOrigin detail="An Offset used to resolved timeline references to this event track. The start of the event track has this timeline value measured in Edit Units." use="optional" type="Position" minLength="8" maxLength="8" key="49 02" globalKey="06 0e 2b 34 01 01 01 05  07 02 01 03 01 0b 00 00" default="0"/>
 		</EventTrack>
 		<StructuralComponent base="GenerationInterchangeObject" detail="Structural Component Superclass" type="localSet">
-			<DataDefinition detail="Data Definition - kind of data or metadata this structure refers to" use="required" type="Label" minLength="16" maxLength="16" key="02 01" globalKey="06 0e 2b 34 01 01 01 02  04 07 01 00 00 00 00 00"/>
-			<Duration detail="Duration (in units of edit rate)" use="best effort" dvalue="-1" type="Length" minLength="8" maxLength="8" key="02 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 02 01 01 03 00 00"/>
+            <DataDefinition detail="Data Definition - kind of data or metadata this structure refers to" use="required" type="Label" minLength="16" maxLength="16" key="02 01" globalKey="06 0e 2b 34 01 01 01 02  04 07 01 00 00 00 00 00"/>
+            <Duration detail="Duration (in units of edit rate)" use="best effort" dvalue="-1" type="Length" minLength="8" maxLength="8" key="02 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 02 01 01 03 00 00"/>
 		</StructuralComponent>
-		<Sequence base="StructuralComponent" detail="Sequence" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 0f 00">
+        <Sequence base="StructuralComponent" detail="Sequence" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 0f 00">
 			<StructuralComponents detail="Ordered array of strong references to Structural Components" use="required" type="subVector" ref="strong" target="StructuralComponent" key="10 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 09 00 00">
 				<StructuralComponent detail="Structural Component" type="UUID" minLength="16" maxLength="16"/>
 			</StructuralComponents>
@@ -354,8 +354,8 @@
 			<LinkedTrackID detail="Link to (i.e. value of) the Track ID of the Track in this Package to which the Descriptor applies" use="optional" type="UInt32" key="30 06" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 03 05 00 00 00"/>
 			<SampleRate detail="The field or frame rate of the Essence Container (not the essence sampling clock rate)" use="required" type="Rational" minLength="8" maxLength="8" key="30 01" globalKey="06 0e 2b 34 01 01 01 01  04 06 01 01 00 00 00 00"/>
 			<ContainerDuration detail="Duration of Essence Container (measured in Edit Units)" use="optional" type="Length" minLength="8" maxLength="8" key="30 02" globalKey="06 0e 2b 34 01 01 01 01  04 06 01 02 00 00 00 00"/>
-			<EssenceContainer detail="The UL identifying the Essence Container described by this Descriptor" use="required" type="Label" minLength="16" maxLength="16" key="30 04" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 01 02 00 00"/>
-			<Codec detail="UL to identify a codec compatible with this Essence Container" use="optional" type="Label" minLength="16" maxLength="16" key="30 05" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 01 03 00 00"/>
+            <EssenceContainer detail="The UL identifying the Essence Container described by this Descriptor" use="required" type="Label" minLength="16" maxLength="16" key="30 04" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 01 02 00 00"/>
+            <Codec detail="UL to identify a codec compatible with this Essence Container" use="optional" type="Label" minLength="16" maxLength="16" key="30 05" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 01 03 00 00"/>
 		</FileDescriptor>
 		<GenericPictureEssenceDescriptor base="FileDescriptor" detail="Defines the Picture Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 27 00">
 			<SignalStandard detail="Underlying signal standard" type="UInt8" minLength="1" maxLength="1" key="32 15" globalKey="06 0e 2b 34 01 01 01 05  04 05 01 13 00 00 00 00" use="optional" default="1"/>
@@ -420,6 +420,7 @@
 		<GenericDataEssenceDescriptor base="FileDescriptor" detail="Defines the Data Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 43 00">
 			<DataEssenceCoding detail="Specifies the data essence coding type" type="Label" minLength="16" maxLength="16" key="3e 01" globalKey="06 0e 2b 34 01 01 01 05  04 03 03 02 00 00 00 00" use="decoder required"/>
 		</GenericDataEssenceDescriptor>
+        <VBIDataDescriptor base="GenericDataEssenceDescriptor" detail="Defines the VBI Data Descriptor Set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 5b 00"/>
 		<MultipleDescriptor base="FileDescriptor" detail="Defines the Multiple Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 44 00">
 			<SubDescriptorUIDs detail="Unordered array of strong references to File Descriptor sets (1 per interleaved item within the Essence Container)" use="required" type="subVector" ref="strong" target="FileDescriptor" key="3f 01" globalKey="06 0e 2b 34 01 01 01 04  06 01 01 04 06 0b 00 00">
 				<SubDescriptorUID detail="File Descriptor" type="UUID" minLength="16" maxLength="16"/>
