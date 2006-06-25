@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.9 2005/10/08 15:41:19 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.10 2006/06/25 14:40:48 matt-beard Exp $
  *
  */
 /*
@@ -246,7 +246,7 @@ namespace mxflib
 				}
 				
 				// Calculate the pack length
-				RIPObject->SetUInt(Length_UL, 16 + 4 + (FileRIP.size() * 12) + 4);
+				RIPObject->SetUInt(Length_UL, 16 + 4 + (static_cast<UInt32>(FileRIP.size()) * 12) + 4);
 
 				DataChunkPtr Buffer = RIPObject->WriteObject();
 
