@@ -1,7 +1,7 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.h,v 1.4 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: datachunk.h,v 1.5 2006/06/25 14:10:53 matt-beard Exp $
  *
  */
 /*
@@ -93,24 +93,7 @@ namespace mxflib
 		 *  ownership will still be transferred
 		 *	\return pointer to the buffer or NULL if no buffer or not owned by this object
 		 */
-		UInt8 *StealBuffer(bool MakeEmpty = false)
-		{
-//debug("StealBuffer @ 0x%08x\n", (int)Data);
-			UInt8 *Ret = Data;
-			
-			if(ExternalBuffer) return NULL;
-
-			if(MakeEmpty)
-			{
-				Size = 0;
-				DataSize = 0;
-				Data = NULL;
-			}
-			else
-				ExternalBuffer = true;
-
-			return Ret;
-		}
+		UInt8 *StealBuffer(bool MakeEmpty = false);
 
 		//! Set some data into a data chunk (expanding it if required)
 		void Set(const DataChunk &Buffer, UInt32 Start = 0)
