@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.11 2006/04/05 17:44:20 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.12 2006/06/25 14:09:46 matt-beard Exp $
  *
  */
 /*
@@ -622,7 +622,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	}
 
 	// Link us to the framework
-	ContextSR->MakeLink(CryptoContext);
+	ContextSR->MakeRef(CryptoContext);
 	
 	// Build a new UUID for the Crypto Context ID
 	UUIDPtr ContextID = new mxflib::UUID;
