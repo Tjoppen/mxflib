@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.29 2006/02/11 16:23:19 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.30 2006/06/25 14:56:15 matt-beard Exp $
  *
  */
 /*
@@ -188,7 +188,8 @@ namespace
 	bool IsolatedIndex = false;				//!< Don't write essence and index in same partition
 	bool VeryIsolatedIndex = false;			//!< Don't write metadata and index in same partition
 
-	int SelectedWrappingOption = -1;		//!< Selected wrapping option: -1 = auto, 0 = list choices
+	int SelectedWrappingOption = -1;		//!< Selected wrapping option number: -1 = auto, 0 = list choices (or use SelectedWrappingName)
+	std::string SelectedWrappingOptionText;	//!< Selected wrapping option name
 
 	Position LastEditUnit[128];				//!< Table of last edit units written in sparse index tables (per BodySID)
 
@@ -263,9 +264,6 @@ int main_process(int argc, char *argv[])
 {
 	printf( "MXFlib File Wrapper\n\n" );
 
-	// Build an essence parser
-	EssenceParser EssParse;
-
 	// Parse command line options and exit on error
 	ForceEditRate.Numerator = 0;
 	if(!ParseCommandLine(argc, argv))
@@ -308,6 +306,7 @@ int main_process(int argc, char *argv[])
 	// The edit rate for all tracks in this file
 	Rational EditRate;
 
+
 	// Identify the wrapping options
 	// DRAGONS: Not flexible yet
 	int i;
@@ -323,7 +322,7 @@ int main_process(int argc, char *argv[])
 		}
 
 		// Build a list of parsers with their descriptors for this essence
-		ParserDescriptorListPtr PDList = EssParse.IdentifyEssence(InFile[i]);
+		ParserDescriptorListPtr PDList = EssenceParser::IdentifyEssence(InFile[i]);
 
 		if((!PDList) || (PDList->empty()))
 		{
@@ -338,8 +337,8 @@ int main_process(int argc, char *argv[])
 		if(SelectedWrappingOption < 0)
 		{
 			// Select the best wrapping option
-			if(FrameGroup) WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
-			else WCP = EssParse.SelectWrappingOption(InFile[i], PDList, ForceEditRate);
+			if(FrameGroup) WCP = EssenceParser::SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
+			else WCP = EssenceParser::SelectWrappingOption(InFile[i], PDList, ForceEditRate);
 		}
 		else
 		// Manual wrapping selection
@@ -348,8 +347,8 @@ int main_process(int argc, char *argv[])
 			int Ret = 0;
 
 			EssenceParser::WrappingConfigList WCList;
-			if(FrameGroup) WCList = EssParse.ListWrappingOptions(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
-			else WCList = EssParse.ListWrappingOptions(InFile[i], PDList, ForceEditRate);
+			if(FrameGroup) WCList = EssenceParser::ListWrappingOptions(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
+			else WCList = EssenceParser::ListWrappingOptions(InFile[i], PDList, ForceEditRate);
 
 			// Ensure that there are enough wrapping options
 			if(SelectedWrappingOption > (int)WCList.size())
@@ -359,30 +358,67 @@ int main_process(int argc, char *argv[])
 				Ret = 6;
 			}
 
+			// List iterator for wrapping selection
+			EssenceParser::WrappingConfigList::iterator it;
+
 			// If the caller has requested a list of wrapping options, list them and exit
 			if(SelectedWrappingOption == 0)
 			{
-				int Opt = 0;
-				printf("\nAvailable wrapping options:\n");
-
-				EssenceParser::WrappingConfigList::iterator it = WCList.begin();
-				while(it != WCList.end())
+				// First try and match the text - if this fails we will drop through and list the options
+				if(SelectedWrappingOptionText.length())
 				{
-					printf("  %d: %s\n", (++Opt), (*it)->WrapOpt->Description.c_str());
-					it++;
+					EssenceParser::WrappingConfigList::iterator it = WCList.begin();
+					while(it != WCList.end())
+					{
+						std::string Name = (*it)->WrapOpt->Handler->GetParserName();
+						if(Name.length() && (*it)->WrapOpt->Name.length()) Name += "::" + (*it)->WrapOpt->Name;
+
+						if(Name == SelectedWrappingOptionText)
+						{
+							WCP = *it;
+							break;
+						}
+
+						it++;
+					}
+
+					if(!WCP) printf("\nWrapping \"%s\" not available\n", SelectedWrappingOptionText.c_str());
 				}
 
-				if(Opt == 0) printf("  NONE\n");
+				// The caller has requested a list of wrapping options (or entered an invalid name), list them and exit
+				if(!WCP)
+				{
+					int Opt = 0;
+					printf("\nAvailable wrapping options:\n");
 
-				return Ret;
+					EssenceParser::WrappingConfigList::iterator it = WCList.begin();
+					while(it != WCList.end())
+					{
+						std::string Name = (*it)->WrapOpt->Handler->GetParserName();
+						if(Name.length() && (*it)->WrapOpt->Name.length()) Name += "::" + (*it)->WrapOpt->Name;
+						
+						if(Name.length())
+							printf("  %d: {%s} %s\n", (++Opt), Name.c_str(), (*it)->WrapOpt->Description.c_str());
+						else
+							printf("  %d: %s\n", (++Opt), (*it)->WrapOpt->Description.c_str());
+
+						it++;
+					}
+
+					if(Opt == 0) printf("  NONE\n");
+
+					return Ret;
+				}
+			}
+			else
+			{
+				// Select the nth config
+				EssenceParser::WrappingConfigList::iterator it = WCList.begin();
+				while(SelectedWrappingOption-- > 1) it++;
+				WCP = *it;
 			}
 
-			// Select the nth config
-			EssenceParser::WrappingConfigList::iterator it = WCList.begin();
-			while(SelectedWrappingOption-- > 1) it++;
-			WCP = *it;
-			
-			EssParse.SelectWrappingOption(WCP);
+			EssenceParser::SelectWrappingOption(WCP);
 		}
 
 		if(!WCP)
@@ -643,7 +679,10 @@ bool ParseCommandLine(int &argc, char **argv)
 			else if(Opt == 'w') 
 			{
 				char *temp;
-				SelectedWrappingOption = strtoul(Val, &temp, 0);
+				char *name=(p+1); // default name
+				if( '='==*(p+1) || ':'==*(p+1))	name=p+2; // explicit name
+				SelectedWrappingOption = strtoul(name, &temp, 0);
+				SelectedWrappingOptionText = name;
 			}
 
 			else if(Opt == 'd')
@@ -1134,7 +1173,7 @@ int Process(	int OutFileNum,
 	}
 
 	// Build the Material Package
-	// DRAGONS: We should really try and determine the UMID type rather than cop-out!
+	// FIXME: We should really try and determine the UMID type rather than cop-out!
 	UMIDPtr pUMID = MakeUMID( 0x0d ); // mixed type
 
 	// DMStiny
@@ -1411,7 +1450,7 @@ int Process(	int OutFileNum,
 			if( WriteFP ) // (iTrack == OutFileNum)
 			{
 				(*WrapCfgList_it)->EssenceDescriptor->SetUInt(LinkedTrackID_UL, FPTrack[iTrack]->GetUInt(TrackID_UL));
-				FilePackage->AddChild(Descriptor_UL)->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+				FilePackage->AddChild(Descriptor_UL)->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
 
 				MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
 
@@ -1437,7 +1476,7 @@ int Process(	int OutFileNum,
 					MuxDescriptor->AddChild(EssenceContainer_UL,false)->SetValue(DataChunk(16,mxflib::GCMulti_Data));
 
 					MuxDescriptor->AddChild(SubDescriptorUIDs_UL);
-					FilePackage->AddChild(Descriptor_UL)->MakeLink(MuxDescriptor);
+					FilePackage->AddChild(Descriptor_UL)->MakeRef(MuxDescriptor);
 			}
 
 			// Write a SubDescriptor
@@ -1445,7 +1484,7 @@ int Process(	int OutFileNum,
 			
 			MDObjectPtr MuxDescriptor = FilePackage[Descriptor_UL]->GetLink();
 
-			MuxDescriptor[SubDescriptorUIDs_UL]->AddChild()->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+			MuxDescriptor[SubDescriptorUIDs_UL]->AddChild()->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
 
 			MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
 
@@ -1457,7 +1496,7 @@ int Process(	int OutFileNum,
 			// Write a FileDescriptor
 			// DRAGONS Can we ever need a MultipleDescriptor?
 			(*WrapCfgList_it)->EssenceDescriptor->SetUInt(LinkedTrackID_UL, FPTrack[iTrack]->GetUInt(TrackID_UL));
-			FilePackage->AddChild(Descriptor_UL)->MakeLink((*WrapCfgList_it)->EssenceDescriptor);
+			FilePackage->AddChild(Descriptor_UL)->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
 
 			MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
 
