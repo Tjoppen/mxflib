@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.7 2006/02/11 14:32:01 matt-beard Exp $
+ *	\version $Id: dictconvert.cpp,v 1.8 2006/06/25 14:08:07 matt-beard Exp $
  *
  */
 /*
@@ -91,6 +91,7 @@ namespace
 	class ULData;
 	typedef SmartPtr<ULData> ULDataPtr;
 
+	//! Class holding information about an item that is UL indexed (class, class member or type)
 	class ULData : public RefCount<ULData>
 	{
 	public:
@@ -100,8 +101,12 @@ namespace
 		bool IsSet;
 		bool IsPack;
 		bool IsMulti;
+		bool IsType;
 		ULPtr UL;
 		Tag LocalTag;
+
+	public:
+		ULData() : IsSet(false), IsPack(false), IsMulti(false), IsType(false) {};
 	};
 
 	typedef std::map<std::string, ULDataPtr> ULDataMap;
@@ -144,6 +149,10 @@ struct ConvertState
 	bool FoundMulti;							//!< Found new multi-style dictionary
 	std::string SymSpace;						//!< The symbol space attribute of the classes tag (stored if deferring the header line)
 };
+
+
+//! Add a ULData item for a type
+void AddType(ConvertState *State, std::string Name, std::string Detail, std::string TypeUL);
 
 
 
@@ -351,6 +360,7 @@ int main_process(int argc, char *argv[])
 			int ArrayCount = 0;
 			int BatchCount = 0;
 			int ItemCount = 0;
+			int TypeCount = 0;
 			ListIt2 = WorkingList.begin();
 			while(ListIt2 != WorkingList.end())
 			{
@@ -373,6 +383,7 @@ int main_process(int argc, char *argv[])
 						ArrayCount++;
 					}
 				}
+				else if((*ListIt2)->IsType) TypeCount++;
 				else if((*ListIt2)->Parent)
 				{
 					if((*ListIt2)->Parent->IsMulti) ItemCount++;
@@ -382,8 +393,8 @@ int main_process(int argc, char *argv[])
 			}
 
 			// We can use appending if there are no duplicates
-			if(   (SetCount <= 1) && (PackCount <= 1) && (ArrayCount <= 1) && (BatchCount <= 1)
-			   && (WorkingList.size() - (SetCount + PackCount + ArrayCount + BatchCount + ItemCount) <= 1) )
+			if(   (SetCount <= 1) && (PackCount <= 1) && (ArrayCount <= 1) && (BatchCount <= 1) && (TypeCount <= 1)
+			   && (WorkingList.size() - (SetCount + PackCount + ArrayCount + BatchCount + ItemCount + TypeCount) <= 1) )
 			{
 				ULDataList::iterator ListIt2 = WorkingList.begin();
 				while(ListIt2 != WorkingList.end())
@@ -408,6 +419,7 @@ int main_process(int argc, char *argv[])
 							NewName += "Array";
 						}
 					}
+					else if((*ListIt2)->IsType) NewName += "Type";
 					else if((*ListIt2)->Parent)
 					{
 						if((*ListIt2)->Parent->IsMulti)
@@ -524,21 +536,47 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 				State->State = StateTypes;
 
+				/* Check for symSpace */
+				const char *SymSpace = NULL;
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "symSpace") == 0)
+						{
+							SymSpace = val;
+						}
+					}
+				}
+
 				if((ClassesCount + TypesCount) > 0)	fprintf(State->OutFile, "\n");
 
 				fprintf(State->OutFile, "\t// Types definitions converted from file %s\n", InputFile);
-				
+
 				if(!State->FoundMulti)
 				{
-					fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s)\n", UseName.c_str());
+					if(!SymSpace)
+						fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s)\n", UseName.c_str());
+					else
+						fprintf(State->OutFile, "\tMXFLIB_TYPE_START_SYM(%s, \"%s\")\n", UseName.c_str(), SymSpace);
 				}
 				else if(TypesCount <= 1)
 				{
-					fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s_Types)\n", UseName.c_str());
+					if(!SymSpace)
+						fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s_Types)\n", UseName.c_str());
+					else
+						fprintf(State->OutFile, "\tMXFLIB_TYPE_START_SYM(%s_Types, \"%s\")\n", UseName.c_str(), SymSpace);
 				}
 				else
 				{
-					fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s_Types_%d)\n", UseName.c_str(), TypesCount);
+					if(!SymSpace)
+						fprintf(State->OutFile, "\tMXFLIB_TYPE_START(%s_Types_%d)\n", UseName.c_str(), TypesCount);
+					else
+						fprintf(State->OutFile, "\tMXFLIB_TYPE_START_SYM(%s_Types_%d, \"%s\")\n", UseName.c_str(), TypesCount, SymSpace);
 				}
 			}
 			else if((strcmp(name, "MXFDictionary") == 0) || (strcmp(name, "MXFClasses") == 0))
@@ -546,7 +584,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				State->State = StateClasses;
 
 				/* Check for symSpace */
-				std::string SymSpace;
+				const char *SymSpace = NULL;
 				if(attrs != NULL)
 				{
 					int this_attr = 0;
@@ -580,30 +618,30 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					
 					if(!State->FoundMulti)
 					{
-						if(SymSpace.size() == 0)
+						if(!SymSpace)
 							fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s)\n", UseName.c_str());
 						else
-							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s, %s)\n", UseName.c_str(), SymSpace.c_str());
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s, \"%s\")\n", UseName.c_str(), SymSpace);
 					}
 					else if(ClassesCount <= 1)
 					{
-						if(SymSpace.size() == 0)
+						if(!SymSpace)
 							fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s_Classes)\n", UseName.c_str());
 						else
-							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s_Classes, %s)\n", UseName.c_str(), SymSpace.c_str());
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s_Classes, \"%s\")\n", UseName.c_str(), SymSpace);
 					}
 					else
 					{
-						if(SymSpace.size() == 0)
+						if(!SymSpace)
 							fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s_Classes_%d)\n", UseName.c_str(), ClassesCount);
 						else
-							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s_Classes_%d, %s)\n", UseName.c_str(), ClassesCount, SymSpace.c_str());
+							fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s_Classes_%d, \"%s\")\n", UseName.c_str(), ClassesCount, SymSpace);
 					}
 				}
 				// Otherwise we store the symspace (if any) for later when we do send the header
 				else
 				{
-					State->SymSpace = SymSpace;
+					if(SymSpace) State->SymSpace = SymSpace;
 				}
 			}
 			else
@@ -637,6 +675,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 		case StateTypesBasic:
 		{
 			std::string Detail;
+			std::string TypeUL;
+			const char *SymSpace = NULL;
 
 			int Size = 1;
 			bool Endian = false;
@@ -664,7 +704,11 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					}
 					else if(strcmp(attr, "ul") == 0)
 					{
-						// TODO: Implement this
+						TypeUL = CConvert(val);
+					}
+					else if(strcmp(attr, "symSpace") == 0)
+					{
+						SymSpace = val;
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
@@ -677,14 +721,22 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				}
 			}
 
-			fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC(\"%s\", \"%s\", %d, %s)\n", name, Detail.c_str(), Size, Endian ? "true" : "false");
-			
+			// Add this type to the ULData map (if it has a UL)
+			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
+
+			if(!SymSpace)
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC(\"%s\", \"%s\", \"%s\", %d, %s)\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false");
+			else
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_SYM(\"%s\", \"%s\", \"%s\", %d, %s, \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", SymSpace);
+
 			break;
 		}
 
 		case StateTypesInterpretation:
 		{
-			const char *Detail = "";
+			std::string Detail;
+			std::string TypeUL;
+			const char *SymSpace = NULL;
 			const char *Base = "";
 			int Size = 0;
 			
@@ -699,7 +751,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					
 					if(strcmp(attr, "detail") == 0)
 					{
-						Detail = val;
+						Detail = CConvert(val);
 					}
 					else if(strcmp(attr, "base") == 0)
 					{
@@ -708,6 +760,14 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					else if(strcmp(attr, "size") == 0)
 					{
 						Size = atoi(val);
+					}
+					else if(strcmp(attr, "ul") == 0)
+					{
+						TypeUL = CConvert(val);
+					}
+					else if(strcmp(attr, "symSpace") == 0)
+					{
+						SymSpace = val;
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
@@ -720,15 +780,23 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				}
 			}
 
-			fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION(\"%s\", \"%s\", \"%s\", %d)\n", name, Detail, Base, Size);
+			// Add this type to the ULData map (if it has a UL)
+			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
+
+			if(!SymSpace)
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION(\"%s\", \"%s\", \"%s\", \"%s\", %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size);
+			else
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, SymSpace);
 
 			break;
 		}
 
 		case StateTypesMultiple:
 		{
-			const char *Detail = "";
+			std::string Detail;
+			std::string TypeUL;
 			const char *Base = "";
+			const char *SymSpace = NULL;
 			bool IsBatch = false;
 			int Size = 0;
 
@@ -743,7 +811,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					
 					if(strcmp(attr, "detail") == 0)
 					{
-						Detail = val;
+						Detail = CConvert(val);
 					}
 					else if(strcmp(attr, "base") == 0)
 					{
@@ -757,6 +825,14 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						if(strcasecmp(val, "Batch") == 0) IsBatch = true;
 					}
+					else if(strcmp(attr, "ul") == 0)
+					{
+						TypeUL = val;
+					}
+					else if(strcmp(attr, "symSpace") == 0)
+					{
+						SymSpace = val;
+					}
 					else if(strcmp(attr, "ref") == 0)
 					{
 						// Ignore
@@ -768,14 +844,21 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				}
 			}
 
-			fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE(\"%s\", \"%s\", \"%s\", %s, %d)\n", name, Detail, Base, IsBatch ? "true" : "false", Size);
+			// Add this type to the ULData map (if it has a UL)
+			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
 
+			if(!SymSpace)
+                fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size);
+			else
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size, SymSpace);
 			break;
 		}
 
 		case StateTypesCompound:
 		{
-			const char *Detail = "";
+			std::string Detail;
+			std::string TypeUL;
+			const char *SymSpace = NULL;
 
 			/* Process attributes */
 			if(attrs != NULL)
@@ -788,7 +871,15 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					
 					if(strcmp(attr, "detail") == 0)
 					{
-						Detail = val;
+						Detail = CConvert(val);
+					}
+					else if(strcmp(attr, "ul") == 0)
+					{
+						TypeUL = CConvert(val);
+					}
+					else if(strcmp(attr, "symSpace") == 0)
+					{
+						SymSpace = val;
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
@@ -801,7 +892,13 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				}
 			}
 
-			fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND(\"%s\", \"%s\")\n", name, Detail);
+			// Add this type to the ULData map (if it has a UL)
+			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
+
+			if(!SymSpace)
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND(\"%s\", \"%s\", \"%s\")\n", name, Detail.c_str(), TypeUL.c_str());
+			else
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND_SYM(\"%s\", \"%s\", \"%s\", \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), SymSpace);
 
 			State->State = StateTypesCompoundItem;
 			State->Parent = name;
@@ -811,7 +908,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 		case StateTypesCompoundItem:
 		{
-			const char *Detail = "";
+			std::string Detail;
+			std::string TypeUL;
 			const char *Type = "";
 			int Size = 0;
 			
@@ -826,7 +924,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					
 					if(strcmp(attr, "detail") == 0)
 					{
-						Detail = val;
+						Detail = CConvert(val);
 					}
 					else if(strcmp(attr, "type") == 0)
 					{
@@ -835,6 +933,10 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					else if(strcmp(attr, "size") == 0)
 					{
 						Size = atoi(val);
+					}
+					else if(strcmp(attr, "ul") == 0)
+					{
+						TypeUL = CConvert(val);
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
@@ -847,7 +949,10 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				}
 			}
 
-			fprintf(State->OutFile, "\t\t\tMXFLIB_TYPE_COMPOUND_ITEM(\"%s\", \"%s\", \"%s\", %d)\n", name, Detail, Type, Size);
+			// Add this type to the ULData map (if it has a UL)
+			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
+
+			fprintf(State->OutFile, "\t\t\tMXFLIB_TYPE_COMPOUND_ITEM(\"%s\", \"%s\", \"%s\", \"%s\", %d)\n", name, Detail.c_str(), Type, TypeUL.c_str(), Size);
 
 			break;
 		}
@@ -881,7 +986,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				if(State->SymSpace.size() == 0)
 					fprintf(State->OutFile, "\tMXFLIB_CLASS_START(%s)\n", UseName.c_str());
 				else
-					fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s, %s)\n", UseName.c_str(), State->SymSpace.c_str());
+					fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s, \"%s\")\n", UseName.c_str(), State->SymSpace.c_str());
 			}
 
 			bool HasGlobalKey = false;
@@ -1412,6 +1517,54 @@ void Convert_endElement(void *user_data, const char *name)
 			State->Depth--;
 		
 			break;
+		}
+	}
+}
+
+
+//! Add a ULData item for a type
+void AddType(ConvertState *State, std::string Name, std::string Detail, std::string TypeUL)
+{
+	ULDataPtr ThisItem;
+	if(ULConsts && (TypeUL.length() > 0))
+	{
+		ULPtr ThisTypeUL = StringToUL(TypeUL);
+		if(ThisTypeUL)
+		{
+			// Build a ULData item for this entry
+			ThisItem = new ULData;
+			ThisItem->Name = Name;
+			ThisItem->Detail = Detail;
+			ThisItem->Parent = State->ParentData;
+			ThisItem->IsType = true;
+			ThisItem->UL = ThisTypeUL;
+			ThisItem->LocalTag = 0;
+
+			// Build the name to use for the const
+			std::string ItemName = ThisItem->Name;
+			if(LongFormConsts && (ThisItem->Parent)) ItemName = ThisItem->Parent->Name + "_" + ItemName;
+
+			// See if this is a duplicate entry
+			ULDataMap::iterator it = ULMap.find(ItemName);
+			if(it != ULMap.end())
+			{
+				if(*(ThisItem->UL) == *((*it).second->UL))
+				{
+					{
+						printf("Multiple entries for type %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem->UL->GetString().c_str());
+					}
+				}
+				else
+				{
+					printf("Duplicate name %s - will attempt to resolve later\n", ItemName.c_str());
+
+					ULFixupList.push_back(ThisItem);
+				}
+			}
+			else
+			{
+				ULMap.insert(ULDataMap::value_type(ItemName, ThisItem));
+			}
 		}
 	}
 }

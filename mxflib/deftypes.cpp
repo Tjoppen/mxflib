@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.16 2006/03/03 12:37:17 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.17 2006/06/25 14:11:47 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 #include <stdarg.h>
 
@@ -143,6 +143,7 @@ namespace
 		TypesCurrentState State;			//!< Current state of the parser state-machine
 		TypeRecordList Types;				//!< The types being built
 		TypeRecordPtr Compound;				//!< The current compound being built (or NULL)
+		SymbolSpacePtr DefaultSymbolSpace;	//!< Default symbol space to use for all types (in current MXFTypes section)
 	};
 
 	//! Build the map of all known traits
@@ -162,7 +163,7 @@ namespace
 		AddTraitsMapping("Default-Compound", new MDTraits_BasicCompound);
 
 		AddTraitsMapping("RAW", new MDTraits_Raw);
-		AddTraitsMapping("Unknown", new MDTraits_Raw);
+		AddTraitsMapping("UnknownType", new MDTraits_Raw);
 
 		AddTraitsMapping("Int8", new MDTraits_Int8);
 		AddTraitsMapping("UInt8", new MDTraits_UInt8);
@@ -207,7 +208,7 @@ namespace
 /*! \return 0 if all OK
  *  \return -1 on error
  */
-int mxflib::LoadTypes(char *TypesFile)
+int mxflib::LoadTypes(char *TypesFile, SymbolSpacePtr DefaultSymbolSpace /*=MXFLibSymbols*/)
 {
 	// Define the known traits
 	// Test before calling as two partial definition files could be loaded!
@@ -218,7 +219,9 @@ int mxflib::LoadTypes(char *TypesFile)
 
 	// Initialize the state
 	State.State = StateIdle;
+	State.DefaultSymbolSpace = DefaultSymbolSpace;
 
+	// Get the qualified filename
 	std::string XMLFilePath = LookupDictionaryPath(TypesFile);
 
 	// Parse the file
@@ -243,7 +246,7 @@ int mxflib::LoadTypes(char *TypesFile)
  *  \return 0 if all OK
  *  \return -1 on error
  */
-int mxflib::LoadTypes(const ConstTypeRecord *TypesData)
+int mxflib::LoadTypes(const ConstTypeRecord *TypesData, SymbolSpacePtr DefaultSymbolSpace /*=MXFLibSymbols*/)
 {
 	// Pointer to walk through the array
 	const ConstTypeRecord *CurrentType = TypesData;
@@ -253,6 +256,19 @@ int mxflib::LoadTypes(const ConstTypeRecord *TypesData)
 
 	while(CurrentType->Class != TypeNULL)
 	{
+		if(CurrentType->Class == TypeSymbolSpace)
+		{
+			// A default symbol space has been specified - look it up
+			DefaultSymbolSpace = SymbolSpace::FindSymbolSpace(CurrentType->SymSpace);
+
+			// If it does not already exist, create it
+			if(!DefaultSymbolSpace) DefaultSymbolSpace = new SymbolSpace(CurrentType->SymSpace);
+
+			// Don't create a record for this entry
+			CurrentType++;
+			continue;
+		}
+
 		TypeRecordPtr ThisType = new TypeRecord;
 
 		// Copy over the attributes
@@ -263,6 +279,15 @@ int mxflib::LoadTypes(const ConstTypeRecord *TypesData)
 		ThisType->Size = CurrentType->Size;
 		ThisType->Endian = CurrentType->Endian;
 		ThisType->IsBatch = CurrentType->IsBatch;
+		if(CurrentType->UL && *CurrentType->UL) ThisType->UL = StringToUL(CurrentType->UL);
+		if(CurrentType->SymSpace) 
+		{
+			// A symbol space has been specified - look it up
+			ThisType->SymSpace = SymbolSpace::FindSymbolSpace(CurrentType->SymSpace);
+
+			// If it does not already exist, create it
+			if(!ThisType->SymSpace) ThisType->SymSpace = new SymbolSpace(CurrentType->SymSpace);
+		}
 
 		// Add all children to compounds
 		if(CurrentType->Class == TypeCompound)
@@ -280,6 +305,15 @@ int mxflib::LoadTypes(const ConstTypeRecord *TypesData)
 				SubType->Size = CurrentType->Size;
 				SubType->Endian = CurrentType->Endian;
 				SubType->IsBatch = CurrentType->IsBatch;
+				if(CurrentType->UL && *CurrentType->UL) SubType->UL = StringToUL(CurrentType->UL);
+				if(CurrentType->SymSpace) 
+				{
+					// A symbol space has been specified - look it up
+					SubType->SymSpace = SymbolSpace::FindSymbolSpace(CurrentType->SymSpace);
+
+					// If it does not already exist, create it
+					if(!SubType->SymSpace) SubType->SymSpace = new SymbolSpace(CurrentType->SymSpace);
+				}
 
 				// Add this child to the current compound
 				ThisType->Children.push_back(SubType);
@@ -304,8 +338,8 @@ int mxflib::LoadTypes(const ConstTypeRecord *TypesData)
 namespace mxflib
 {
 	MXFLIB_TYPE_START(BasicInternalTypes)
-		MXFLIB_TYPE_BASIC("Internal-UInt8", "Internally used 8 bit unsigned integer", 1, false)
-		MXFLIB_TYPE_MULTIPLE("Unknown", "Array of bytes", "Internal-UInt8", false, 0)
+		MXFLIB_TYPE_BASIC("Internal-UInt8", "Internally used 8 bit unsigned integer", "8f 64 35 9b fe 75 36 89 8c 4e 57 91 cd 68 6c e3", 1, false )
+		MXFLIB_TYPE_MULTIPLE("UnknownType", "Array of bytes", "Internal-UInt8", "8f 64 35 9b fe 75 36 89 8c 4e 57 91 cd 68 6c e4", false, 0 )
 	MXFLIB_TYPE_END
 }
 
@@ -314,7 +348,7 @@ namespace mxflib
 /*! \return 0 if all OK
  *  \return -1 on error
  */
-int mxflib::LoadTypes(TypeRecordList &TypesData)
+int mxflib::LoadTypes(TypeRecordList &TypesData, SymbolSpacePtr DefaultSymbolSpace /*=MXFLibSymbols*/)
 {
 	// Define the basic "internally required" types (enough to hold an "unknown")
 	static bool BasicDefined = false;
@@ -334,16 +368,35 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 	TypeRecordList::iterator it = TypesData.begin();
 	while(it != TypesData.end())
 	{
+		// Set the symbol space
+		if(!(*it)->SymSpace) (*it)->SymSpace = DefaultSymbolSpace;
+
+		//! Set true if we generate a UUID for this type (rather than using a supplied one)
+		bool GeneratedUUID = false;
+
+		// Any types without a UL will be given a UUID
+		if(!(*it)->UL)
+		{
+			UUIDPtr ID = new UUID;
+			(*it)->UL = new UL(ID);
+			GeneratedUUID = true;
+		}
+
 		switch((*it)->Class)
 		{
 			// Basic type definition
 			case TypeBasic:
 			{
-				MDTypePtr Ptr = MDType::AddBasic((*it)->Type, (*it)->Size);
+				MDTypePtr Ptr = MDType::AddBasic((*it)->Type, (*it)->UL, (*it)->Size);
 				if((*it)->Endian) Ptr->SetEndian(true);
 
-				MDTraitsPtr Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Basic");
+				MDTraitsPtr Traits;
+				if(!GeneratedUUID) Traits = MDType::LookupTraitsMapping((*it)->UL);
+				if(!Traits) Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Basic");
 				if(Traits) Ptr->SetTraits(Traits);
+
+				// Add the name and UL to the symbol space
+				(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
 
 				break;
 			}
@@ -351,23 +404,38 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 			// Interpretation type
 			case TypeInterpretation:
 			{
+				// Search for the name first
 				MDTypePtr BaseType = MDType::Find((*it)->Base);
 				if(!BaseType)
 				{
-					debug("Interpretation \"%s\" is based on (as yet) undefined base \"%s\"\n", (*it)->Type.c_str(), (*it)->Base.c_str());
+					// If the name is not found, we try looking for a UL
+					ULPtr TypeUL = StringToUL((*it)->Base);
 
-					// Add to the "do later" pile
-					Unresolved.push_back(*it);
+					if(TypeUL) BaseType = MDType::Find(TypeUL);
+
+					if(!BaseType)
+					{
+						debug("Interpretation \"%s\" is based on (as yet) undefined base \"%s\"\n", (*it)->Type.c_str(), (*it)->Base.c_str());
+
+						// Add to the "do later" pile
+						Unresolved.push_back(*it);
+					}
 				}
-				else
-				{
-					MDTypePtr Ptr = MDType::AddInterpretation((*it)->Type, BaseType, (*it)->Size);
 
-					MDTraitsPtr Traits = MDType::LookupTraitsMapping((*it)->Type);
+				if(BaseType)
+				{
+					MDTypePtr Ptr = MDType::AddInterpretation((*it)->Type, BaseType, (*it)->UL, (*it)->Size);
+
+					MDTraitsPtr Traits;
+					if(!GeneratedUUID) Traits = MDType::LookupTraitsMapping((*it)->UL);
+					if(!Traits) Traits = MDType::LookupTraitsMapping((*it)->Type);
 
 					// If we don't have specific traits for this type
 					// it will inherit the base type's traits
 					if(Traits) Ptr->SetTraits(Traits);
+
+					// Add the name and UL to the symbol space
+					(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
 				}
 
 				break;
@@ -376,21 +444,36 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 			// Multiple type
 			case TypeMultiple:
 			{
+				// Search for the name first
 				MDTypePtr BaseType = MDType::Find((*it)->Base);
 				if(!BaseType)
 				{
-					debug("Multiple \"%s\" is based on (as yet) undefined base \"%s\"\n", (*it)->Type.c_str(), (*it)->Base.c_str());
+					// If the name is not found, we try looking for a UL
+					ULPtr TypeUL = StringToUL((*it)->Base);
 
-					// Add to the "do later" pile
-					Unresolved.push_back(*it);
+					if(TypeUL) BaseType = MDType::Find(TypeUL);
+
+					if(!BaseType)
+					{
+						debug("Multiple \"%s\" is based on (as yet) undefined base \"%s\"\n", (*it)->Type.c_str(), (*it)->Base.c_str());
+
+						// Add to the "do later" pile
+						Unresolved.push_back(*it);
+					}
 				}
-				else
+
+				if(BaseType)
 				{
-					MDTypePtr Ptr = MDType::AddArray((*it)->Type, BaseType, (*it)->Size);
+					MDTypePtr Ptr = MDType::AddArray((*it)->Type, BaseType, (*it)->UL, (*it)->Size);
 					if((*it)->IsBatch) Ptr->SetArrayClass(ARRAYBATCH);
 
-					MDTraitsPtr Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Array");
+					MDTraitsPtr Traits;
+					if(!GeneratedUUID) Traits = MDType::LookupTraitsMapping((*it)->UL);
+					if(!Traits) Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Array");
 					if(Traits) Ptr->SetTraits(Traits);
+
+					// Add the name and UL to the symbol space
+					(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
 				}
 
 				break;
@@ -399,45 +482,69 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 			// Compound type
 			case TypeCompound:
 			{
-				// First check that we currently have all types required
+				/* First check that we currently have all types required (and store them in a list for quick access later) */
+
+				MDTypeList ChildList;
+
 				TypeRecordList::iterator subit = (*it)->Children.begin();
 				while(subit != (*it)->Children.end())
 				{
-					MDTypePtr SubType = MDType::Find((*subit)->Base);
-					if(!SubType)
+					// Search for the name first
+					MDTypePtr BaseType = MDType::Find((*subit)->Base);
+					if(!BaseType)
 					{
-						debug("Compound item \"%s\" in \"%s\" is based on (as yet) undefined base \"%s\"\n", (*subit)->Type.c_str(), (*it)->Type.c_str(), (*subit)->Base.c_str());
+						// If the name is not found, we try looking for a UL
+						ULPtr TypeUL = StringToUL((*subit)->Base);
 
-						// Add to the "do later" pile
-						Unresolved.push_back(*it);
+						if(TypeUL) BaseType = MDType::Find(TypeUL);
 
-						break;
+						if(!BaseType)
+						{
+							debug("Compound item \"%s\" in \"%s\" is based on (as yet) undefined base \"%s\"\n", (*subit)->Type.c_str(), (*it)->Type.c_str(), (*subit)->Base.c_str());
+
+							// Add to the "do later" pile
+							Unresolved.push_back(*it);
+
+							break;
+						}
 					}
+
+					// Add this child type to the list
+					ChildList.push_back(BaseType);
+
 					subit++;
 				}
-				
+
 				// If we quit the loop due to an unresolved item skip this type
 				if(subit != (*it)->Children.end()) break;
 
-				MDTypePtr Ptr = MDType::AddCompound((*it)->Type);
+				MDTypePtr Ptr = MDType::AddCompound((*it)->Type, (*it)->UL);
 
-				MDTraitsPtr Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Compound");
+				MDTraitsPtr Traits;
+				if(!GeneratedUUID) Traits = MDType::LookupTraitsMapping((*it)->UL);
+				if(!Traits) Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Compound");
 				if(Traits) Ptr->SetTraits(Traits);
+
+				// Add the name and UL to the symbol space
+				(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
+
 
 				/* Process sub-items */
 
+				MDTypeList::iterator childit = ChildList.begin();
 				subit = (*it)->Children.begin();
 				while(subit != (*it)->Children.end())
 				{
-					MDTypePtr SubType = MDType::Find((*subit)->Base);
-					ASSERT(SubType);
-
 					// Add this child item
-					Ptr->insert(MDType::value_type((*subit)->Type, SubType));
+					Ptr->insert(MDType::value_type((*subit)->Type, (*childit)));
 
 					// Add the child to the order list
 					Ptr->ChildOrder.push_back((*subit)->Type);
-				
+
+					// Add the name and UL to the symbol space
+					(*it)->SymSpace->AddSymbol((*it)->Type + "/" + (*subit)->Type, (*subit)->UL);
+
+					childit++;
 					subit++;
 				}
 
@@ -448,7 +555,7 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 			default:
 				ASSERT(0);
 		}
-	
+
 		it++;
 	}
 
@@ -460,7 +567,15 @@ int mxflib::LoadTypes(TypeRecordList &TypesData)
 		// Unless we were stuck this time (cannot resolve any more)
 		if(UnresolvedCount == (int)TypesData.size())
 		{
-			error("Undefined base class or circular reference in types definitions\n");
+			error("Undefined base class or circular reference in types definitions (first unresolvable = %s)\n", Unresolved.front()->Type.c_str());
+
+			it = Unresolved.begin();
+			while(it != Unresolved.end())
+			{
+				debug("Unresolved Type: %s\n", (*it)->Type.c_str());
+				it++;
+			}
+
 			return -1;
 		}
 
@@ -492,6 +607,31 @@ namespace
 
 				State->State = StateTypes;
 
+				/* Check for symSpace */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "symSpace") == 0)
+						{
+							// See if this symbol space already exists
+							SymbolSpacePtr DefaultSymbolSpace = SymbolSpace::FindSymbolSpace(val);
+
+							// If it doesn't exist we must create it
+							if(!DefaultSymbolSpace)
+							{
+								DefaultSymbolSpace = new SymbolSpace(val);
+							}
+
+							State->DefaultSymbolSpace = DefaultSymbolSpace;
+						}
+					}
+				}
+
 				break;
 			}
 
@@ -514,6 +654,8 @@ namespace
 			case StateTypesBasic:
 			{
 				const char *Detail = "";
+				const char *TypeUL = NULL;
+				const char *SymSpace = NULL;
 				int Size = 1;
 				bool Endian = false;
 				
@@ -540,7 +682,11 @@ namespace
 						}
 						else if(strcmp(attr, "ul") == 0)
 						{
-							// TODO: Implement this
+							TypeUL = val;
+						}
+						else if(strcmp(attr, "symSpace") == 0)
+						{
+							SymSpace = val;
 						}
 						else if(strcmp(attr, "ref") == 0)
 						{
@@ -560,6 +706,19 @@ namespace
 				ThisType->Type = name;
 				ThisType->Detail = Detail;
 				ThisType->Base = "";
+				if(TypeUL) ThisType->UL = StringToUL(TypeUL);
+				if(SymSpace)
+				{
+					// A symbol space has been specified - look it up
+					ThisType->SymSpace = SymbolSpace::FindSymbolSpace(SymSpace);
+
+					// If it does not already exist, create it
+					if(!ThisType->SymSpace) ThisType->SymSpace = new SymbolSpace(SymSpace);
+				}
+				else
+				{
+					ThisType->SymSpace = State->DefaultSymbolSpace;
+				}
 				ThisType->Size = Size;
 				ThisType->Endian = Endian;
 				ThisType->IsBatch = false;
@@ -574,6 +733,8 @@ namespace
 			{
 				const char *Detail = "";
 				const char *Base = "";
+				const char *TypeUL = NULL;
+				const char *SymSpace = NULL;
 				int Size = 0;
 				
 				/* Process attributes */
@@ -597,6 +758,14 @@ namespace
 						{
 							Size = atoi(val);
 						}
+						else if(strcmp(attr, "ul") == 0)
+						{
+							TypeUL = val;
+						}
+						else if(strcmp(attr, "symSpace") == 0)
+						{
+							SymSpace = val;
+						}
 						else if(strcmp(attr, "ref") == 0)
 						{
 							// Ignore
@@ -615,6 +784,19 @@ namespace
 				ThisType->Type = name;
 				ThisType->Detail = Detail;
 				ThisType->Base = Base;
+				if(TypeUL) ThisType->UL = StringToUL(TypeUL);
+				if(SymSpace)
+				{
+					// A symbol space has been specified - look it up
+					ThisType->SymSpace = SymbolSpace::FindSymbolSpace(SymSpace);
+
+					// If it does not already exist, create it
+					if(!ThisType->SymSpace) ThisType->SymSpace = new SymbolSpace(SymSpace);
+				}
+				else
+				{
+					ThisType->SymSpace = State->DefaultSymbolSpace;
+				}
 				ThisType->Size = Size;
 				ThisType->Endian = false;
 				ThisType->IsBatch = false;
@@ -629,6 +811,8 @@ namespace
 			{
 				const char *Detail = "";
 				const char *Base = "";
+				const char *TypeUL = NULL;
+				const char *SymSpace = NULL;
 				bool IsBatch = false;
 				int Size = 0;
 
@@ -657,6 +841,14 @@ namespace
 						{
 							if(strcasecmp(val, "Batch") == 0) IsBatch = true;
 						}
+						else if(strcmp(attr, "ul") == 0)
+						{
+							TypeUL = val;
+						}
+						else if(strcmp(attr, "symSpace") == 0)
+						{
+							SymSpace = val;
+						}
 						else if(strcmp(attr, "ref") == 0)
 						{
 							// Ignore
@@ -675,6 +867,19 @@ namespace
 				ThisType->Type = name;
 				ThisType->Detail = Detail;
 				ThisType->Base = Base;
+				if(TypeUL) ThisType->UL = StringToUL(TypeUL);
+				if(SymSpace)
+				{
+					// A symbol space has been specified - look it up
+					ThisType->SymSpace = SymbolSpace::FindSymbolSpace(SymSpace);
+
+					// If it does not already exist, create it
+					if(!ThisType->SymSpace) ThisType->SymSpace = new SymbolSpace(SymSpace);
+				}
+				else
+				{
+					ThisType->SymSpace = State->DefaultSymbolSpace;
+				}
 				ThisType->Size = Size;
 				ThisType->Endian = false;
 				ThisType->IsBatch = IsBatch;
@@ -688,6 +893,8 @@ namespace
 			case StateTypesCompound:
 			{
 				const char *Detail = "";
+				const char *TypeUL = NULL;
+				const char *SymSpace = NULL;
 
 				/* Process attributes */
 				if(attrs != NULL)
@@ -701,6 +908,14 @@ namespace
 						if(strcmp(attr, "detail") == 0)
 						{
 							Detail = val;
+						}
+						else if(strcmp(attr, "ul") == 0)
+						{
+							TypeUL = val;
+						}
+						else if(strcmp(attr, "symSpace") == 0)
+						{
+							SymSpace = val;
 						}
 						else if(strcmp(attr, "ref") == 0)
 						{
@@ -720,6 +935,19 @@ namespace
 				ThisType->Type = name;
 				ThisType->Detail = Detail;
 				ThisType->Base = "";
+				if(TypeUL) ThisType->UL = StringToUL(TypeUL);
+				if(SymSpace)
+				{
+					// A symbol space has been specified - look it up
+					ThisType->SymSpace = SymbolSpace::FindSymbolSpace(SymSpace);
+
+					// If it does not already exist, create it
+					if(!ThisType->SymSpace) ThisType->SymSpace = new SymbolSpace(SymSpace);
+				}
+				else
+				{
+					ThisType->SymSpace = State->DefaultSymbolSpace;
+				}
 				ThisType->Size = 0;
 				ThisType->Endian = false;
 				ThisType->IsBatch = false;
@@ -737,8 +965,10 @@ namespace
 			{
 				const char *Detail = "";
 				const char *Type = "";
+				const char *TypeUL = NULL;
+				// DRAGONS: Not supporting separate symbol space for sub-items in a compound
 				int Size = 0;
-				
+
 				/* Process attributes */
 				if(attrs != NULL)
 				{
@@ -760,6 +990,10 @@ namespace
 						{
 							Size = atoi(val);
 						}
+						else if(strcmp(attr, "ul") == 0)
+						{
+							TypeUL = val;
+						}
 						else if(strcmp(attr, "ref") == 0)
 						{
 							// Ignore
@@ -778,6 +1012,7 @@ namespace
 				ThisType->Type = name;
 				ThisType->Detail = Detail;
 				ThisType->Base = Type;
+				if(TypeUL) ThisType->UL = StringToUL(TypeUL);
 				ThisType->Size = Size;
 				ThisType->Endian = false;
 				ThisType->IsBatch = false;
@@ -861,7 +1096,7 @@ namespace
 namespace mxflib
 {
 	MXFLIB_CLASS_START(BasicInternalClasses)
-		MXFLIB_CLASS_ITEM("Unknown", "Unknown Set", ClassUsageOptional, "Unknown", 0, 0, 0x0000, "", NULL, NULL)
+		MXFLIB_CLASS_ITEM("Unknown", "Unknown Set", ClassUsageOptional, "UnknownType", 0, 0, 0x0000, "", NULL, NULL)
 	MXFLIB_CLASS_END
 }
 
@@ -885,23 +1120,11 @@ int mxflib::LoadClasses(ClassRecordList &ClassesData, SymbolSpacePtr DefaultSymb
 	ClassRecordList::iterator it = ClassesData.begin();
 	while(it != ClassesData.end())
 	{
-		ClassRecordPtr Dat = (*it);
-		if((*it)->Class == ClassSymbolSpace)
-		{
-			// A symbol space has been specified - look it up
-			DefaultSymbolSpace = SymbolSpace::FindSymbolSpace((*it)->SymSpace);
+		// All other entries are used to build classes
+		MDOTypePtr ThisType = MDOType::DefineClass(*it, DefaultSymbolSpace);
 
-			// If it does not already exist, create it
-			if(!DefaultSymbolSpace) DefaultSymbolSpace = new SymbolSpace((*it)->SymSpace);
-		}
-		else
-		{
-			// All other entries are used to build classes
-			MDOTypePtr ThisType = MDOType::DefineClass(*it, DefaultSymbolSpace);
-
-			// If anything went wrong with this definition stack it for later
-			if(!ThisType) Unresolved.push_back(*it);
-		}
+		// If anything went wrong with this definition stack it for later
+		if(!ThisType) Unresolved.push_back(*it);
 
 		it++;
 	}
@@ -913,7 +1136,15 @@ int mxflib::LoadClasses(ClassRecordList &ClassesData, SymbolSpacePtr DefaultSymb
 		// Unless we were stuck this time (cannot resolve any more)
 		if(UnresolvedCount == (int)ClassesData.size())
 		{
-			error("Undefined base class or circular reference in class definitions\n");
+			error("Undefined base class or circular reference in class definitions (first unresolvable = %s)\n", Unresolved.front()->Name.c_str());
+
+			it = Unresolved.begin();
+			while(it != Unresolved.end())
+			{
+				debug("Unresolved Class: %s\n", (*it)->Name.c_str());
+				it++;
+			}
+
 			return -1;
 		}
 
@@ -938,7 +1169,7 @@ namespace
 	 *  \note There must be enough terminating entries (with Class == TypeNULL) to end any children
 	 *  \return The root class, or NULL on error
 	 */
-	ClassRecordPtr LoadClassesSub(ConstClassRecordPTR &ClassData)
+	ClassRecordPtr LoadClassesSub(ConstClassRecordPTR &ClassData, SymbolSpacePtr DefaultSymbolSpace)
 	{
 		ClassRecordPtr ThisClass = new ClassRecord;
 
@@ -958,9 +1189,7 @@ namespace
 		if(Count == 16) 
 		{
 			ThisClass->UL = new UL(ULBuffer);
-			// printf("Class %s : UL = %02x %02x %02x ...\n", ThisClass->Name.c_str(), ULBuffer[0], ULBuffer[1], ULBuffer[2]);
 		}
-		// else printf("Class %s : * NO-UL * Count = %d\n", ThisClass->Name.c_str(), Count);
 
 		if(ClassData->Default)
 		{
@@ -981,8 +1210,18 @@ namespace
 		ThisClass->RefType = ClassData->RefType;
 		ThisClass->RefTarget = ClassData->RefTarget;
 
-		if(ClassData->SymSpace == NULL) ThisClass->SymSpace = "";
-		else ThisClass->SymSpace = ClassData->SymSpace;
+		if(ClassData->SymSpace)
+		{
+			// A symbol space has been specified - look it up
+			ThisClass->SymSpace = SymbolSpace::FindSymbolSpace(ClassData->SymSpace);
+
+			// If it does not already exist, create it
+			if(!ThisClass->SymSpace) ThisClass->SymSpace = new SymbolSpace(ClassData->SymSpace);
+		}
+		else
+		{
+			ThisClass->SymSpace = DefaultSymbolSpace;
+		}
 
 		ThisClass->ExtendSubs = ClassData->ExtendSubs;
 
@@ -995,7 +1234,7 @@ namespace
 			while(ClassData->Class != ClassNULL)
 			{
 				// DRAGONS: ClassData is changed by LoadClassesSub
-				ClassRecordPtr Child = LoadClassesSub(ClassData);
+				ClassRecordPtr Child = LoadClassesSub(ClassData, DefaultSymbolSpace);
 				
 				// Propergate error flag by returning the NULL
 				if(!Child) return Child;
@@ -1025,8 +1264,21 @@ int mxflib::LoadClasses(const ConstClassRecord *ClassData, SymbolSpacePtr Defaul
 	// Add top-level classes (lower levels will be added for each top-level class)
 	while(ClassData->Class != ClassNULL)
 	{
+		if(ClassData->Class == ClassSymbolSpace)
+		{
+			// A default symbol space has been specified - look it up
+			DefaultSymbolSpace = SymbolSpace::FindSymbolSpace(ClassData->SymSpace);
+
+			// If it does not already exist, create it
+			if(!DefaultSymbolSpace) DefaultSymbolSpace = new SymbolSpace(ClassData->SymSpace);
+
+			// Don't create a record for this entry
+			ClassData++;
+			continue;
+		}
+
 		// DRAGONS: ClassData is changed by LoadClassesSub
-		ClassRecordPtr ThisClass = LoadClassesSub(ClassData);
+		ClassRecordPtr ThisClass = LoadClassesSub(ClassData, DefaultSymbolSpace);
 		
 		// Propergate error flag
 		if(!ThisClass) return -1;
@@ -1062,6 +1314,10 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		DICT_LEN_4_BYTE
 	};
 
+	// The symbol space to use for this class
+	SymbolSpacePtr ThisSymbolSpace;
+	if(ThisClass->SymSpace) ThisSymbolSpace = ThisClass->SymSpace; else ThisSymbolSpace = DefaultSymbolSpace;
+
 	// Does this entry have a valid UL (rather than a UUID)
 	bool ValidUL = false;
 
@@ -1091,7 +1347,7 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 	if(ValidUL && Parent) 
 		Ret = Parent->Child(TypeUL);
 	else
-		Ret = MDOType::Find(RootName + ThisClass->Name);
+		Ret = MDOType::Find(RootName + ThisClass->Name, ThisSymbolSpace);
 
 	// Initially assume that we aren't extending
 	bool Extending = false;
@@ -1117,10 +1373,10 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		if(ThisClass->Class == ClassItem)
 		{
 			// Find the type of this item
-			MDTypePtr Type = MDType::Find(ThisClass->Base);
+			MDTypePtr Type = MDType::Find(ThisClass->Base, ThisSymbolSpace);
 			if(!Type)
 			{
-				XML_error(NULL, "Item %s is of type %s which is not known\n", ThisClass->Name.c_str(), ThisClass->Base.c_str());
+				error(NULL, "Item %s is of type %s which is not known\n", ThisClass->Name.c_str(), ThisClass->Base.c_str());
 				return Ret;
 			}
 
@@ -1129,7 +1385,7 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		// Are we defining a derived class?
 		else if(ThisClass->Base.size())
 		{
-			MDOTypePtr BaseType = MDOType::Find(ThisClass->Base);
+			MDOTypePtr BaseType = MDOType::Find(ThisClass->Base, ThisSymbolSpace);
 
 			// If the base type not found quit this attempt (deliberately returning the NULL)
 			if(!BaseType) return BaseType;
@@ -1246,21 +1502,21 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		PutU16(ThisClass->Tag, Ret->Key.Data);
 	}
 
-	// Determine the symbol space to use for this and any children - this is done irrespective of
-	// whether a UL exists for this item as thier may be children that have a UL defined
-	SymbolSpacePtr ThisSymbolSpace;
-	if(ThisClass->SymSpace.size())
-	{
-		/* A symbol space has been specified - look it up */
-		ThisSymbolSpace = SymbolSpace::FindSymbolSpace(ThisClass->SymSpace);
-
-		// If it does not already exist, create it
-		if(!ThisSymbolSpace) ThisSymbolSpace = new SymbolSpace(ThisClass->SymSpace);
-	}
-	else 
-	{
-		ThisSymbolSpace = DefaultSymbolSpace;
-	}
+//	// Determine the symbol space to use for this and any children - this is done irrespective of
+//	// whether a UL exists for this item as there may be children that have a UL defined
+//	SymbolSpacePtr ThisSymbolSpace;
+//	if(ThisClass->SymSpace.size())
+//	{
+//		/* A symbol space has been specified - look it up */
+//		ThisSymbolSpace = SymbolSpace::FindSymbolSpace(ThisClass->SymSpace);
+//
+//		// If it does not already exist, create it
+//		if(!ThisSymbolSpace) ThisSymbolSpace = new SymbolSpace(ThisClass->SymSpace);
+//	}
+//	else 
+//	{
+//		ThisSymbolSpace = DefaultSymbolSpace;
+//	}
 
 	// Set the global key (even if we have to use the UUID generated above)
 	if(!Extending)
@@ -1325,6 +1581,19 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 
 		// Add the name and UL to the symbol space
 		ThisSymbolSpace->AddSymbol(Ret->FullName(), TypeUL);
+
+		/* Add a version 1 UL for versionless compares */
+
+		// Only add the version 1 lookup for SMPTE ULs (other labels may have other version rules)
+		if((TypeUL->GetValue()[0] == 0x06) && (TypeUL->GetValue()[1] == 0x0e) && (TypeUL->GetValue()[2] == 0x2b) && (TypeUL->GetValue()[3] == 0x34))
+		{
+			// Make a version 1 copy of this UL
+			ULPtr Ver1 = new UL(TypeUL);
+			Ver1->Set(7,1);
+
+			// Insert it into the version 1 lookup
+			ULLookupVer1[*Ver1] = Ret;
+		}
 	}
 
 	if(!Parent)
@@ -1584,6 +1853,8 @@ namespace
 				{
 					// Found an indicator that we are starting new-style unified dictionary classes
 
+					SymbolSpacePtr DefaultSymbolSpace = State->DefaultSymbolSpace;
+					
 					/* Check for symSpace */
 					if(attrs != NULL)
 					{
@@ -1596,7 +1867,7 @@ namespace
 							if(strcmp(attr, "symSpace") == 0)
 							{
 								// See if this symbol space already exists
-								SymbolSpacePtr DefaultSymbolSpace = SymbolSpace::FindSymbolSpace(val);
+								DefaultSymbolSpace = SymbolSpace::FindSymbolSpace(val);
 
 								// If it doesn't exist we must create it
 								if(!DefaultSymbolSpace)
@@ -1605,6 +1876,8 @@ namespace
 								}
 
 								State->DefaultSymbolSpace = DefaultSymbolSpace;
+
+								break;
 							}
 						}
 					}
@@ -1620,7 +1893,7 @@ namespace
 			case DictStateClasses:
 			{
 				ProcessClassElement(user_data, name, attrs);
-			
+
 				break;
 			}
 
@@ -1683,17 +1956,18 @@ namespace
 
 		if(!State->ClassList.empty())
 		{
-			ClassRecordList::iterator it = State->ClassList.end();
-			Parent = *(--it);
+			Parent = State->ClassList.back();
 		}
 
 		if(!Parent)
 		{
 			ThisClass->ExtendSubs = true;
+			ThisClass->SymSpace = State->DefaultSymbolSpace;
 		}
 		else
 		{
 			ThisClass->ExtendSubs = Parent->ExtendSubs;		// Carry on extending subs if we were, not if we weren't
+			ThisClass->SymSpace = Parent->SymSpace;			// Copy over our parents symbol space (we may override this)
 		}
 
 		/* Scan attributes */
@@ -1834,7 +2108,11 @@ namespace
 				}
 				else if(strcmp(attr, "symSpace") == 0)
 				{
-					ThisClass->SymSpace = std::string(val);
+					// A symbol space has been specified - look it up
+					ThisClass->SymSpace = SymbolSpace::FindSymbolSpace(val);
+
+					// If it does not already exist, create it
+					if(!ThisClass->SymSpace) ThisClass->SymSpace = new SymbolSpace(val);
 				}
 				else if(strcmp(attr, "extendSubs") == 0)
 				{
@@ -1888,7 +2166,7 @@ namespace
 
 		// Add this class to the list of classes (one class per level)
 		State->ClassList.push_back(ThisClass);
-	
+
 		return Ret;
 	}
 }
@@ -1936,6 +2214,9 @@ namespace
 			{
 				// Load the types that were found
 				LoadTypes(State->ClassState.Types);
+
+				// Clear these types now they have been loaded
+				State->ClassState.Types.clear();
 
 				// Back to the outer level of the dictionary
 				State->State = DictStateDictionary;

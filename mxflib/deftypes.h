@@ -1,6 +1,6 @@
 /*! \file	deftypes.h
  *	\brief	Definition of classes that load type and class dictionaries
- *	\version $Id: deftypes.h,v 1.8 2006/02/11 16:15:40 matt-beard Exp $
+ *	\version $Id: deftypes.h,v 1.9 2006/06/25 14:11:47 matt-beard Exp $
  *
  */
 /*
@@ -53,7 +53,8 @@ namespace mxflib
 		TypeInterpretation,					//!< Interpretation - physically identical to another type, but with different symantics
 		TypeMultiple,						//!< Multiple an array or batch of zero or more of another single type
 		TypeCompound,						//!< Compound structure of two or more of another type, which may be different types, with a fixed layout
-		TypeSub								//!< An individual sub-item in a compound
+		TypeSub,							//!< An individual sub-item in a compound
+		TypeSymbolSpace						//!< Define the default symbol space for all types in this list
 	};
 
 	//! Single entry for a type to be defined - can be stored as a compile-time built structure
@@ -63,9 +64,11 @@ namespace mxflib
 		const char *Type;					//!< The name of this type
 		const char *Detail;					//!< The human readable description of this type
 		const char *Base;					//!< The base type for an interpretation or multiple, or the type for a compound type sub-item
+		const char *UL;						//!< The UL for this type (if known)
 		int Size;							//!< The size in bytes of a basic type, or the number of entries in a multiple
 		bool Endian;						//!< Used with basic types: "true" if this type gets endian swapped on reading/writing on a little-endian platform
 		bool IsBatch;						//!< Used with multiple types: "true" is this type has an 8-byte Count-and-Size header
+		const char *SymSpace;				//!< SymbolSpace for this type, or NULL if none specified (will inherit)
 	};
 
 	// Forward declare TypeRecord to allow TypeRecordPtr to be defined early
@@ -88,9 +91,11 @@ namespace mxflib
 		std::string Type;					//!< The name of this type
 		std::string Detail;					//!< The human readable description of this type
 		std::string Base;					//!< The base type for an interpretation or multiple, or the type for a compound type sub-item
+		ULPtr UL;							//!< The UL for this type (NULL or "" if not known)
 		int Size;							//!< The size in bytes of a basic type, or the number of entries in a multiple
 		bool Endian;						//!< Used with basic types: "true" if this type gets endian swapped on reading/writing on a little-endian platform
 		bool IsBatch;						//!< Used with multiple types: "true" is this type has an 8-byte Count-and-Size header
+		SymbolSpacePtr SymSpace;			//!< SymbolSpace for this type, or NULL if none specified (will inherit)
 		TypeRecordList Children;			//!< Used with compound types: Sub-items within this compound
 	};
 
@@ -98,7 +103,7 @@ namespace mxflib
 	/*! \return 0 if all OK
 	 *  \return -1 on error
 	 */
-	int LoadTypes(char *TypesFile);
+	int LoadTypes(char *TypesFile, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols);
 
 	//! Load types from the specified in-memory definitions
 	/*! \note The last entry in the array must be a terminating entry with Class == TypeNULL
@@ -106,14 +111,14 @@ namespace mxflib
 	 *  \return -1 on error
 	 *  \note If any part of the dictionary loading fails the loading will continue unless FastFail is set to true
 	 */
-	int LoadTypes(const ConstTypeRecord *TypesData);
+	int LoadTypes(const ConstTypeRecord *TypesData, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols);
 
 	//! Load types from the specified in-memory definitions
 	/*! \return 0 if all OK
 	 *  \return -1 on error
 	 *  \note If any part of the dictionary loading fails the loading will continue unless FastFail is set to true
 	 */
-	int LoadTypes(TypeRecordList &TypesData);
+	int LoadTypes(TypeRecordList &TypesData, SymbolSpacePtr DefaultSymbolSpace = MXFLibSymbols);
 
 	//! Find the traits for a given type - DEPRECATED
 	/*! <b>DEPRECATED - Use MDTraits::Find()</B>
@@ -132,69 +137,114 @@ namespace mxflib
 //! MXFLIB_TYPE_START - Use to start a type definition block
 #define MXFLIB_TYPE_START(Name) const ConstTypeRecord Name[] = {
 
+//! MXFLIB_TYPE_START_SYM - Use to start a type definition block and define a default symbol space
+#define MXFLIB_TYPE_START_SYM(Name, Sym) const ConstTypeRecord Name[] = { { TypeSymbolSpace, "", "", "", "", 0, false, false, Sym },
+
 //! MXFLIB_TYPE_BASIC - Use to define a "Basic" type
 /*! \param Name The name of the type being defined
  *  \param Detail A human readable description of the type
  *  \param Size The number of bytes used to store this type (must be > 0)
+ *  \param UL The UL, or endian-swapped UUID, for this type (or "" to force one to be generated)
  *  \param Endian "true" if this type gets endian swapped on reading/writing on a little-endian platform
  */
-#define MXFLIB_TYPE_BASIC(Name, Detail, Size, Endian) { TypeBasic, Name, Detail, "", Size, Endian, false },
+#define MXFLIB_TYPE_BASIC(Name, Detail, UL, Size, Endian) { TypeBasic, Name, Detail, "", UL, Size, Endian, false, NULL },
+
+//! MXFLIB_TYPE_BASIC_SYM - Use to define a "Basic" type and override the default symbol space
+/*! \param Name The name of the type being defined
+ *  \param Detail A human readable description of the type
+ *  \param Size The number of bytes used to store this type (must be > 0)
+ *  \param UL The UL, or endian-swapped UUID, for this type (or "" to force one to be generated)
+ *  \param Endian "true" if this type gets endian swapped on reading/writing on a little-endian platform
+ *  \param Sym The name of the symbol space for this type
+ */
+#define MXFLIB_TYPE_BASIC_SYM(Name, Detail, UL, Size, Endian, Sym) { TypeBasic, Name, Detail, "", UL, Size, Endian, false, Sym },
 
 //! MXFLIB_TYPE_INTERPRETATION - Use to define an "Interpretation" type
 /*! \param Name The name of the type being defined
  *  \param Detail A human readable description of the type
  *  \param Base The type that this is an interpretation of
+ *  \param UL The UL, or endian-swapped UUID, for this type (or "" to force one to be generated)
  *  \param Size If non-zero this fixes the number of entries in the variable-length base array
  */
-#define MXFLIB_TYPE_INTERPRETATION(Name, Detail, Base, Size) { TypeInterpretation, Name, Detail, Base, Size, false, false },
+#define MXFLIB_TYPE_INTERPRETATION(Name, Detail, Base, UL, Size) { TypeInterpretation, Name, Detail, Base, UL, Size, false, false, NULL },
+
+//! MXFLIB_TYPE_INTERPRETATION_SYM - Use to define an "Interpretation" type and override the default symbol space
+/*! \param Name The name of the type being defined
+ *  \param Detail A human readable description of the type
+ *  \param Base The type that this is an interpretation of
+ *  \param UL The UL, or endian-swapped UUID, for this type (or "" to force one to be generated)
+ *  \param Size If non-zero this fixes the number of entries in the variable-length base array
+ *  \param Sym The name of the symbol space for this type
+ */
+#define MXFLIB_TYPE_INTERPRETATION_SYM(Name, Detail, Base, UL, Size, Sym) { TypeInterpretation, Name, Detail, Base, UL, Size, false, false, Sym },
 
 //! MXFLIB_TYPE_MULTIPLE - Use to define a "Multiple" type
 /*! \param Name The name of the type being defined
  *  \param Detail A human readable description of the type
  *  \param Base The type of which this is a multiple
+ *  \param UL The UL, or endian-swapped UUID, for this type (or "" to force one to be generated)
  *  \param IsBatch "true" is this type has an 8-byte Count-and-Size header
  *  \param Size If non-zero this fixes the number of entries, if zero the size is variable
  */
-#define MXFLIB_TYPE_MULTIPLE(Name, Detail, Base, IsBatch, Size) { TypeMultiple, Name, Detail, Base, Size, false, IsBatch },
+#define MXFLIB_TYPE_MULTIPLE(Name, Detail, Base, UL, IsBatch, Size) { TypeMultiple, Name, Detail, Base, UL, Size, false, IsBatch, NULL },
+
+//! MXFLIB_TYPE_MULTIPLE_SYM - Use to define a "Multiple" type and override the default symbol space
+/*! \param Name The name of the type being defined
+ *  \param Detail A human readable description of the type
+ *  \param Base The type of which this is a multiple
+ *  \param UL The UL, or endian-swapped UUID, for this type (or "" to force one to be generated)
+ *  \param IsBatch "true" is this type has an 8-byte Count-and-Size header
+ *  \param Size If non-zero this fixes the number of entries, if zero the size is variable
+ *  \param Sym The name of the symbol space for this type
+ */
+#define MXFLIB_TYPE_MULTIPLE_SYM(Name, Detail, Base, UL, IsBatch, Size, Sym) { TypeMultiple, Name, Detail, Base, UL, Size, false, IsBatch, Sym },
 
 //! MXFLIB_TYPE_COMPOUND - Use to start the definition of a "Compound" type
 /*! \param Name The name of the type being defined
  *  \param Detail A human readable description of the type
  */
-#define MXFLIB_TYPE_COMPOUND(Name, Detail) { TypeCompound, Name, Detail, "", 0, false, false },
+#define MXFLIB_TYPE_COMPOUND(Name, Detail, UL) { TypeCompound, Name, Detail, "", UL, 0, false, false, NULL },
+
+//! MXFLIB_TYPE_COMPOUND_SYM - Use to start the definition of a "Compound" type and override the default symbol space
+/*! \param Name The name of the type being defined
+ *  \param Detail A human readable description of the type
+ *  \param Sym The name of the symbol space for this type
+ */
+#define MXFLIB_TYPE_COMPOUND_SYM(Name, Detail, UL, Sym) { TypeCompound, Name, Detail, "", UL, 0, false, false, Sym },
 
 //! MXFLIB_TYPE_COMPOUND_ITEM - Use to define an item within the current "Compound" type
 /*! \param Name The name of the item being defined
  *  \param Detail A human readable description of the item
  *  \param Type The type of this item within the compound
+ *  \param UL The UL, or endian-swapped UUID, for this item (or "" to force one to be generated)
  *  \param Size If non-zero this fixes the number of entries in a variable-length array
  */
-#define MXFLIB_TYPE_COMPOUND_ITEM(Name, Detail, Type, Size) { TypeSub, Name, Detail, Type, Size, false, false },
+#define MXFLIB_TYPE_COMPOUND_ITEM(Name, Detail, Type, UL, Size) { TypeSub, Name, Detail, Type, UL, Size, false, false, NULL },
 
 //! MXFLIB_TYPE_COMPOUND_END - Use to end definition of a "Compound" type
 #define MXFLIB_TYPE_COMPOUND_END
 
 //! MXFLIB_TYPE_END - Use to end a type definition block
-#define MXFLIB_TYPE_END { TypeNULL, "", "", "", 0, false, false} };
+#define MXFLIB_TYPE_END { TypeNULL, "", "", "", "", 0, false, false, NULL } };
 
 /* Example usage:
 	MXFLIB_TYPE_START(TypeArray)
-		MXFLIB_TYPE_BASIC("UInt8", "Unsigned 8 bit integer", 1, false)
-		MXFLIB_TYPE_BASIC("UInt16", "Unsigned 16 bit integer", 2, true)
-		MXFLIB_TYPE_BASIC("Int32", "32 bit integer", 4, true)
+		MXFLIB_TYPE_BASIC("UInt8", "Unsigned 8 bit integer", "urn:x-ul:060E2B34.0104.0101.01010100.00000000", 1, false)
+		MXFLIB_TYPE_BASIC("UInt16", "Unsigned 16 bit integer", "urn:x-ul:060E2B34.0104.0101.01010200.00000000", 2, true)
+		MXFLIB_TYPE_BASIC("Int32", "32 bit integer", "urn:x-ul:060E2B34.0104.0101.01010700.00000000", 4, true)
 		
-		MXFLIB_TYPE_INTERPRETATION("VersionType", "Version number (created from major*256 + minor)", "UInt16", 0)
-		MXFLIB_TYPE_INTERPRETATION("UTF16", "Unicode UTF-16 coded character", "UInt16", 0)
-		MXFLIB_TYPE_INTERPRETATION("Boolean", "Boolean", "UInt8", 0)
+		MXFLIB_TYPE_INTERPRETATION("VersionType", "Version number (created from major*256 + minor)", "UInt16", "urn:x-ul:060E2B34.0104.0101.03010300.00000000", 0)
+		MXFLIB_TYPE_INTERPRETATION("UTF16", "Unicode UTF-16 coded character", "UInt16", "urn:x-ul:060E2B34.0104.0101.01100100.00000000", 0)
+		MXFLIB_TYPE_INTERPRETATION("Boolean", "Boolean", "UInt8", "urn:x-ul:060E2B34.0104.0101.01040100.00000000", 0)
 
-		MXFLIB_TYPE_MULTIPLE("UTF16String", "Unicode UTF-16 coded string", "UTF16", false, 0)
-		MXFLIB_TYPE_MULTIPLE("Int32Array", "Array of Int32 values", "Int32", false, 0)
-		MXFLIB_TYPE_MULTIPLE("Int32Batch", "Batch of Int32 values", "Int32", true, 0)
-		MXFLIB_TYPE_MULTIPLE("Int32Pair", "Pair of Int32 values", "Int32", false, 2)
+		MXFLIB_TYPE_MULTIPLE("UTF16String", "Unicode UTF-16 coded string", "UTF16", "urn:x-ul:060E2B34.0104.0101.01100200.00000000", false, 0)
+		MXFLIB_TYPE_MULTIPLE("Int32Array", "Array of Int32 values", "Int32", "urn:x-ul:060E2B34.0104.0101.04010900.00000000", false, 0)
+		MXFLIB_TYPE_MULTIPLE("Int32Batch", "Batch of Int32 values", "Int32", "urn:x-ul:060E2B34.0104.0101.04030200.00000000", true, 0)
+		MXFLIB_TYPE_MULTIPLE("Int32Pair", "Pair of Int32 values", "Int32", "", false, 2)
 
-		MXFLIB_TYPE_COMPOUND("Rational", "Rational")
-			MXFLIB_TYPE_COMPOUND_ITEM("Numerator", "Numerator", "Int32", 0)
-			MXFLIB_TYPE_COMPOUND_ITEM("Denominator", "Denominator", "Int32", 0)
+		MXFLIB_TYPE_COMPOUND("Rational", "Rational", "urn:x-ul:060E2B34.0104.0101.03010100.00000000")
+			MXFLIB_TYPE_COMPOUND_ITEM("Numerator", "Numerator", "Int32", "urn:x-ul:060E2B34.0104.0101.03010101.00000000", 0)
+			MXFLIB_TYPE_COMPOUND_ITEM("Denominator", "Denominator", "Int32", "urn:x-ul:060E2B34.0104.0101.03010102.00000000", 0)
 		MXFLIB_TYPE_COMPOUND_END
 	MXFLIB_TYPE_END
 */
@@ -290,7 +340,7 @@ namespace mxflib
 		ClassRecordList Children;			//!< Sub-items within this class (if it is a set or pack)
 		ClassRef RefType;					//!< Reference type of this item (if a reference or target)
 		std::string RefTarget;				//!< Type of the reference target (if this is a referencing type)
-		std::string SymSpace;				//!< SymbolSpace for this class, or "" if none specified (will inherit)
+		SymbolSpacePtr SymSpace;			//!< SymbolSpace for this class, or NULL if none specified (will inherit)
 		bool ExtendSubs;					//!< If this entry is extending a class, should sub-classes also be extended?
 	
 	public:
@@ -326,10 +376,10 @@ namespace mxflib
 
 	/* Define macros for static type definitions */
 
-//! MXFLIB_CLASS_START - Use to start a type definition block
+//! MXFLIB_CLASS_START - Use to start a class definition block
 #define MXFLIB_CLASS_START(Name) const ConstClassRecord Name[] = {
 
-//! MXFLIB_CLASS_START_SYM - Use to start a type definition block and define a default symbol space
+//! MXFLIB_CLASS_START_SYM - Use to start a class definition block and define a default symbol space
 #define MXFLIB_CLASS_START_SYM(Name, Sym) const ConstClassRecord Name[] = { { ClassSymbolSpace, 0, 0, "", "", ClassUsageNULL, "", 0, "", NULL, NULL, ClassRefNone, "", Sym, true },
 
 //! MXFLIB_CLASS_SET - Use to define a local set that has 2-byte tags and 2-byte lengths
