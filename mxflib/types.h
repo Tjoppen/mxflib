@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.5 2005/11/15 13:43:08 matt-beard Exp $
+ *	\version $Id: types.h,v 1.6 2006/06/25 14:51:41 matt-beard Exp $
  *
  */
 /*
@@ -169,7 +169,7 @@ namespace mxflib
 		/*! We use an unrolled loop with modified order for best efficiency
 		 *  DRAGONS: There may be a slightly faster way that will prevent pipeline stalling, but this is fast enough!
 		 */
-		bool operator==(const UL RHS) 
+		bool operator==(const UL RHS) const
 		{
 			// Most differences are in the second 8 bytes so we check those first
 			UInt8 const *pLHS = &Ident[8];
@@ -188,8 +188,46 @@ namespace mxflib
 			// We use predecrement from the original start values so that the compiler will optimize the address calculation if possible
 			pLHS = &Ident[8];
 			pRHS = &RHS.Ident[8];
-			
+
 			if(*--pLHS != *--pRHS) return false;		// Test byte 7
+			if(*--pLHS != *--pRHS) return false;		// Test byte 6
+			if(*--pLHS != *--pRHS) return false;		// Test byte 5
+			if(*--pLHS != *--pRHS) return false;		// Test byte 4
+			if(*--pLHS != *--pRHS) return false;		// Test byte 3
+			if(*--pLHS != *--pRHS) return false;		// Test byte 2
+			if(*--pLHS != *--pRHS) return false;		// Test byte 1
+			
+			return (*--pLHS == *--pRHS);				// Test byte 0
+		}
+
+		//! Fast compare a UL based on testing most-likely to fail bytes first *IGNORING THE VERSION NUMBER*
+		/*! We use an unrolled loop with modified order for best efficiency
+		 *  DRAGONS: There may be a slightly faster way that will prevent pipeline stalling, but this is fast enough!
+		 */
+		bool Matches(const UL RHS) const
+		{
+			// Most differences are in the second 8 bytes so we check those first
+			UInt8 const *pLHS = &Ident[8];
+			UInt8 const *pRHS = &RHS.Ident[8];
+			
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 8
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 9
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 10
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 11
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 12
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 13
+			if(*pLHS++ != *pRHS++) return false;		// Test byte 14
+			if(*pLHS != *pRHS) return false;			// Test byte 15
+
+			// Now we test the first 8 bytes, but in reverse as the first 4 are almost certainly "06 0e 2b 34"
+			// We use predecrement from the original start values so that the compiler will optimize the address calculation if possible
+			pLHS = &Ident[8];
+			pRHS = &RHS.Ident[8];
+
+			// Skip the UL version number
+			--pLHS;
+			--pRHS;
+
 			if(*--pLHS != *--pRHS) return false;		// Test byte 6
 			if(*--pLHS != *--pRHS) return false;		// Test byte 5
 			if(*--pLHS != *--pRHS) return false;		// Test byte 4
@@ -365,7 +403,7 @@ namespace mxflib
 
 		//! Set the UMID's instance number
 		/*! \note The number is set as big-endian */
-		//	DRAGONS: Should add an option to generate a random instance number
+		//	TODO: Should add an option to generate a random instance number
 		void SetInstance(int Instance, int Method = -1)
 		{
 			UInt8 Buffer[4];
@@ -400,8 +438,9 @@ namespace mxflib
 namespace mxflib
 {
 	//! Structure for holding fractions
-	struct Rational
+	class Rational
 	{
+	public:
 		Int32 Numerator;				//!< Numerator of the fraction (top number)
 		Int32 Denominator;				//!< Denominator of the fraction (bottom number)
 	
@@ -410,7 +449,146 @@ namespace mxflib
 
 		//! Initialise a Rational with a value
 		Rational(Int32 Num, Int32 Den) : Numerator(Num), Denominator(Den) {};
+
+		//! Determine the greatest common divisor using the Euclidean algorithm
+		Int32 GreatestCommonDivisor(void) 
+		{
+			Int32 a;			//! The larger value for Euclidean algorithm
+			Int32 b;			//! The smaller value for Euclidean algorithm
+			
+			// Set the larger and smaller values
+			if(Numerator>Denominator)
+			{
+				a = Numerator;
+				b = Denominator;
+			}
+			else
+			{
+				a = Denominator;
+				b = Numerator;
+			}
+			
+			// Euclid's Algorithm
+			while (b != 0) 
+			{
+				Int32 Temp = b;
+				b = a % b;
+				a = Temp;
+			}
+
+			// Return the GCD
+			return a;
+		}
+
+		//! Reduce a rational to its lowest integer form
+		void Reduce(void)
+		{
+			Int32 GCD = GreatestCommonDivisor();
+			Numerator /= GCD;
+			Denominator /= GCD;
+		}
 	};
+
+	//! Determine the greatest common divisor of a 64-bit / 64-bit pair using the Euclidean algorithm
+	inline Int64 GreatestCommonDivisor( Int64 Numerator, Int64 Denominator )
+	{
+		Int64 a;			//! The larger value for Euclidean algorithm
+		Int64 b;			//! The smaller value for Euclidean algorithm
+		
+		// Set the larger and smaller values
+		if(Numerator>Denominator)
+		{
+			a = Numerator;
+			b = Denominator;
+		}
+		else
+		{
+			a = Denominator;
+			b = Numerator;
+		}
+		
+		// Euclid's Algorithm
+		while (b != 0) 
+		{
+			Int64 Temp = b;
+			b = a % b;
+			a = Temp;
+		}
+
+		// Return the GCD
+		return a;
+	}
+
+	//! Divide one rational by another
+	inline Rational operator/(const Rational Dividend, const Rational Divisor)
+	{
+		// Multiply the numerator of the dividend by the denominator of the divisor (getting a 64-bit result)
+		Int64 Numerator = Dividend.Numerator;
+		Numerator *= Divisor.Denominator;
+
+		// Multiply the denominator of the dividend by the numerator of the divisor (getting a 64-bit result)
+		Int64 Denominator = Dividend.Denominator;
+		Denominator *= Divisor.Numerator;
+
+		// Calculate the greated common divisor
+		Int64 GCD = GreatestCommonDivisor(Numerator, Denominator);
+		
+		Numerator /= GCD;
+		Denominator /= GCD;
+
+		// Lossy-reduction of any fractions that won't fit in a 32-bit/ 32-bit rational
+		// TDOD: Check if this is ever required
+		while( (Numerator & INT64_C(0xffffffff00000000)) ||  (Denominator & INT64_C(0xffffffff00000000)))
+		{
+			Numerator >>= 1;
+			Denominator >>= 1;
+		}
+
+		return Rational(static_cast<Int32>(Numerator), static_cast<Int32>(Denominator));
+	}
+
+	//! Multiply one rational by another
+	inline Rational operator*(const Rational Multiplicand, const Rational Multiplier)
+	{
+		// Multiply the numerator of the multiplicand by the numerator of the multiplier (getting a 64-bit result)
+		Int64 Numerator = Multiplicand.Numerator;
+		Numerator *= Multiplier.Numerator;
+
+		// Multiply the denominator of the multiplicand by the denominator of the multiplier (getting a 64-bit result)
+		Int64 Denominator = Multiplicand.Denominator;
+		Denominator *= Multiplier.Denominator;
+
+		// Calculate the greated common divisor
+		Int64 GCD = GreatestCommonDivisor(Numerator, Denominator);
+		
+		Numerator /= GCD;
+		Denominator /= GCD;
+
+		// Lossy-reduction of any fractions that won't fit in a 32-bit/ 32-bit rational
+		// TDOD: Check if this is ever required
+		while( (Numerator & INT64_C(0xffffffff00000000)) ||  (Denominator & INT64_C(0xffffffff00000000)))
+		{
+			Numerator >>= 1;
+			Denominator >>= 1;
+		}
+
+		return Rational(static_cast<Int32>(Numerator), static_cast<Int32>(Denominator));
+	}
+
+	//! Multiply a position by a rational
+	inline Position operator*(const Position Multiplicand, const Rational Multiplier)
+	{
+		Position Ret = Multiplicand * Multiplier.Numerator;
+
+		Int64 Remainder = Ret % Multiplier.Denominator;
+
+        Ret = Ret / Multiplier.Denominator;
+
+		// Round up any result that is nearer to the next position
+		if(Remainder >= (Multiplier.Denominator/2)) Ret++;
+
+		return Ret;
+	}
 }
 
 
