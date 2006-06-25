@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.8 2006/02/11 16:04:34 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.9 2006/06/25 14:34:21 matt-beard Exp $
  *
  */
 /*
@@ -36,7 +36,7 @@
  */
 
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
@@ -51,18 +51,45 @@ namespace
 //! Map of type names to thair handling traits
 MDType::TraitsMapType MDType::TraitsMap;
 
+//! Map of type ULs to thair handling traits
+MDType::TraitsULMapType MDType::TraitsULMap;
+
+
+//! Add a given type to the lookups
+void MDType::AddType(MDTypePtr &Type, ULPtr &TypeUL)
+{
+	// Add the name to the name lookup
+	NameLookup[Type->TypeName] = Type;
+
+	// Add the UL to the UL lookup
+	ULLookup[*TypeUL] = Type;
+
+	/* Add a version 1 UL for versionless compares */
+
+	// Only add the version 1 lookup for SMPTE ULs (other labels may have other version rules)
+	if((TypeUL->GetValue()[0] == 0x06) && (TypeUL->GetValue()[1] == 0x0e) && (TypeUL->GetValue()[2] == 0x2b) && (TypeUL->GetValue()[3] == 0x34))
+	{
+		// Make a version 1 copy of this UL
+		ULPtr Ver1UL = new UL(TypeUL);
+		Ver1UL->Set(7,1);
+
+		// Insert it into the version 1 lookup
+		ULLookupVer1[*Ver1UL] = Type;
+	}
+}
+
 
 //! Add a definition for a basic type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddBasic(std::string TypeName, int TypeSize)
+MDTypePtr MDType::AddBasic(std::string TypeName, ULPtr &UL, int TypeSize)
 {
 	// Can't have a zero length basic type!
 	// But we can have a variable size (==0)
 	// ASSERT(TypeSize != 0);
 
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, BASIC, DefaultTraits);
+	MDTypePtr NewType = new MDType(TypeName, BASIC, UL, DefaultTraits);
 
 	// Set no base type
 	NewType->Base = NULL;
@@ -74,7 +101,7 @@ MDTypePtr MDType::AddBasic(std::string TypeName, int TypeSize)
 	Types.push_back(NewType);
 
 	// Set the lookup
-	NameLookup[TypeName] = NewType;
+	AddType(NewType, UL);
 
 	// Return a pointer to the new type
 	return NewType;
@@ -84,13 +111,13 @@ MDTypePtr MDType::AddBasic(std::string TypeName, int TypeSize)
 //! Add a definition for an interpretation type (With optional fixed size)
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType, int Size /* = 0 */)
+MDTypePtr MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int Size /* = 0 */)
 {
 	// Can't base on nothing!
 	ASSERT(BaseType);
 
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, INTERPRETATION, BaseType->Traits);
+	MDTypePtr NewType = new MDType(TypeName, INTERPRETATION, UL, BaseType->Traits);
 
 	// Set base type
 	NewType->Base = BaseType;
@@ -113,7 +140,7 @@ MDTypePtr MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType, in
 	Types.push_back(NewType);
 
 	// Set the lookup
-	NameLookup[TypeName] = NewType;
+	AddType(NewType, UL);
 
 	// Return a pointer to the new type
 	return NewType;
@@ -123,13 +150,13 @@ MDTypePtr MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType, in
 //! Add a definition for an array type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddArray(std::string TypeName, MDTypePtr BaseType, int Size /* = 0 */)
+MDTypePtr MDType::AddArray(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int Size /* = 0 */)
 {
 	// Can't base on nothing!
 	ASSERT(BaseType);
 
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, TYPEARRAY, BaseType->Traits);
+	MDTypePtr NewType = new MDType(TypeName, TYPEARRAY, UL, BaseType->Traits);
 
 	// Set base type
 	NewType->Base = BaseType;
@@ -141,7 +168,7 @@ MDTypePtr MDType::AddArray(std::string TypeName, MDTypePtr BaseType, int Size /*
 	Types.push_back(NewType);
 
 	// Set the lookup
-	NameLookup[TypeName] = NewType;
+	AddType(NewType, UL);
 
 	// Return a pointer to the new type
 	return NewType;
@@ -151,10 +178,10 @@ MDTypePtr MDType::AddArray(std::string TypeName, MDTypePtr BaseType, int Size /*
 //! Add a definition for a compound type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddCompound(std::string TypeName)
+MDTypePtr MDType::AddCompound(std::string TypeName, ULPtr &UL)
 {
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, COMPOUND, DefaultTraits);
+	MDTypePtr NewType = new MDType(TypeName, COMPOUND, UL, DefaultTraits);
 
 	// Set no base type
 	NewType->Base = NULL;
@@ -166,7 +193,7 @@ MDTypePtr MDType::AddCompound(std::string TypeName)
 	Types.push_back(NewType);
 
 	// Set the lookup
-	NameLookup[TypeName] = NewType;
+	AddType(NewType, UL);
 
 	// Return a pointer to the new type
 	return NewType;
@@ -176,18 +203,68 @@ MDTypePtr MDType::AddCompound(std::string TypeName)
 //! Find the MDType object that defines a named type
 /*! \return Pointer to the object
  *  \return NULL if there is no type of that name
+ *	\note If BaseType contains a qualified name of the format "symbolspace::name" then only 
+ *        the specified symbolspace is searched
  */
-MDTypePtr MDType::Find(const std::string& TypeName)
+MDTypePtr MDType::Find(std::string TypeName, SymbolSpacePtr &SymSpace, bool SearchAll /*=false*/)
+{
+	// Check for a symbol space given in the name
+	size_type Pos = TypeName.find("::");
+
+	if(Pos != std::string::npos)
+	{
+		SymbolSpacePtr Sym;
+
+		// DRAGONS: A zero length namespace represents the default namespace
+		if(Pos == 0) Sym = MXFLibSymbols;
+		else Sym = SymbolSpace::FindSymbolSpace(TypeName.substr(0, Pos));
+
+		if(Sym)
+		{
+			ULPtr ThisUL = Sym->Find(TypeName.substr(Pos+2), false);
+			if(ThisUL) return MDType::Find(ThisUL);
+		}
+	}
+	else
+	{
+		ULPtr ThisUL = SymSpace->Find(TypeName, SearchAll);
+		if(ThisUL) return MDType::Find(ThisUL);
+	}
+
+	return NULL;
+}
+
+
+
+//! Find the MDType object that defines a type with a specified UL
+/*! \return Pointer to the object
+ *  \return NULL if there is no type with that UL
+ */
+MDTypePtr MDType::Find(const UL& BaseUL)
 {
 	MDTypePtr theType;
 
-	std::map<std::string,MDTypePtr>::iterator it = NameLookup.find(TypeName);
-	if(it == NameLookup.end())
-	{
-		return NULL;
-	}
+	std::map<UL, MDTypePtr>::iterator it = ULLookup.find(BaseUL);
 
-	theType = (*it).second;
+	if(it != ULLookup.end())
+	{
+		theType = (*it).second;
+	}
+	else
+	{
+		// If the exact match is not found try a version-less lookup by changing the version number to 1
+		if((BaseUL.GetValue()[0] == 0x06) && (BaseUL.GetValue()[1] == 0x0e) && (BaseUL.GetValue()[2] == 0x2b) && (BaseUL.GetValue()[3] == 0x34))
+		{
+			UL Ver1UL = BaseUL;
+			Ver1UL.Set(7, 1);
+
+			std::map<UL, MDTypePtr>::iterator it2 = ULLookupVer1.find(Ver1UL);
+			if(it2 != ULLookupVer1.end())
+			{
+				theType = (*it2).second;
+			}
+		}
+	}
 
 	return theType;
 }
@@ -303,8 +380,12 @@ bool MDType::AddTraitsMapping(std::string TypeName, std::string TraitsName)
 			if(((*it).second->Class == INTERPRETATION) && ((*it).second->EffectiveType()->Name() == TypeName))
 			{
 				// ...and it does not have a trait mapping itself, we will update it
-				TraitsMapType::iterator Map_it = TraitsMap.find((*it).second->Name());
-				if(Map_it == TraitsMap.end()) UpdateThis = true;
+				TraitsULMapType::iterator ULMap_it = TraitsULMap.find((*it).second->TypeUL);
+				if(ULMap_it == TraitsULMap.end())
+				{
+					TraitsMapType::iterator Map_it = TraitsMap.find((*it).second->Name());
+					if(Map_it == TraitsMap.end()) UpdateThis = true;
+				}
 			}
 		}
 
@@ -320,31 +401,72 @@ bool MDType::AddTraitsMapping(std::string TypeName, std::string TraitsName)
 }
 
 
-//! Update an existing mapping and apply to any existing type of the given name
-bool MDType::UpdateTraitsMapping(std::string TypeName, std::string TraitsName)
+//! Add a mapping to be applied to all types of a given type UL
+/*! \note This will act retrospectively - all existing traits will be updated as required
+	*/
+bool MDType::AddTraitsMapping(const UL &TypeUL, std::string TraitsName)
 {
 	MDTraitsPtr Traits;
 	if(!TraitsName.empty()) Traits = MDTraits::Find(TraitsName);
 	if(!Traits) Traits = DefaultTraits;
 
-	TraitsMap[TypeName] = Traits;
+	TraitsULMap[TypeUL] = Traits;
 
 	/* Apply these traits to any type that will need them */
-	std::map<std::string, MDTypePtr>::iterator it = NameLookup.begin();
-	while(it != NameLookup.end())
+	std::map<UL, MDTypePtr>::iterator it = ULLookup.begin();
+	while(it != ULLookup.end())
 	{
 		bool UpdateThis = false;
 
-		// Exact name matches will be updated
-		if((*it).first == TypeName) UpdateThis = true;
+		// Exact matches will be updated
+		if((*it).first == TypeUL) UpdateThis = true;
 		else
 		{
-			// If the type is an interpretation type, and its base type matches this type name...
-			if(((*it).second->Class == INTERPRETATION) && ((*it).second->EffectiveType()->Name() == TypeName))
+			// If the type is an interpretation type, and its base type matches this type UL...
+			if(((*it).second->Class == INTERPRETATION) && (*(*it).second->EffectiveType()->TypeUL == TypeUL))
 			{
 				// ...and it does not have a trait mapping itself, we will update it
-				TraitsMapType::iterator Map_it = TraitsMap.find((*it).second->Name());
-				if(Map_it == TraitsMap.end()) UpdateThis = true;
+				TraitsULMapType::iterator ULMap_it = TraitsULMap.find((*it).second->TypeUL);
+				if(ULMap_it == TraitsULMap.end())
+				{
+					TraitsMapType::iterator Map_it = TraitsMap.find((*it).second->Name());
+					if(Map_it == TraitsMap.end()) UpdateThis = true;
+				}
+			}
+		}
+
+		if(UpdateThis)
+		{
+			(*it).second->SetTraits(Traits);
+		}
+
+		it++;
+	}
+
+	/* Apply these traits to any match with a version 1 UL */
+
+	UL Ver1UL(TypeUL);
+	Ver1UL.Set(7,1);
+
+	it = ULLookupVer1.begin();
+	while(it != ULLookupVer1.end())
+	{
+		bool UpdateThis = false;
+
+		// Exact matches will be updated
+		if((*it).first == TypeUL) UpdateThis = true;
+		else
+		{
+			// If the type is an interpretation type, and its base type matches this type UL...
+			if(((*it).second->Class == INTERPRETATION) && (*(*it).second->EffectiveType()->TypeUL == TypeUL))
+			{
+				// ...and it does not have a trait mapping itself, we will update it
+				TraitsULMapType::iterator ULMap_it = TraitsULMap.find((*it).second->TypeUL);
+				if(ULMap_it == TraitsULMap.end())
+				{
+					TraitsMapType::iterator Map_it = TraitsMap.find((*it).second->Name());
+					if(Map_it == TraitsMap.end()) UpdateThis = true;
+				}
 			}
 		}
 
@@ -394,6 +516,93 @@ MDTraitsPtr MDType::LookupTraitsMapping(std::string TypeName, std::string Defaul
 }
 
 
+//! Lookup the traits for a specified type name
+/*! If no traits have been defined for the specified type the traits with the UL given in DefaultTraitsUL is used
+ */
+MDTraitsPtr MDType::LookupTraitsMapping(std::string TypeName, const UL &DefaultTraitsUL)
+{
+	MDTraitsPtr Ret;
+
+	// First lookup this type's traits
+	TraitsMapType::iterator it = TraitsMap.find(TypeName);
+	if(it != TraitsMap.end())
+	{
+		Ret = (*it).second;
+	}
+	else
+	{
+		TraitsULMapType::iterator it2 = TraitsULMap.find(DefaultTraitsUL);
+		if(it2 != TraitsULMap.end())
+		{
+			Ret = (*it2).second;
+		}
+	}
+
+	return Ret;
+}
+
+
+//! Lookup the traits for a specified type UL
+/*! If no traits have been defined for the specified type the traits with the UL given in DefaultTraitsUL is used
+ */
+MDTraitsPtr MDType::LookupTraitsMapping(const UL &TypeUL, const UL &DefaultTraitsUL )
+{
+	MDTraitsPtr Ret;
+
+	// First lookup this type's traits
+	TraitsULMapType::iterator it = TraitsULMap.find(TypeUL);
+	if(it != TraitsULMap.end())
+	{
+		Ret = (*it).second;
+	}
+	else
+	{
+		it = TraitsULMap.find(DefaultTraitsUL);
+		if(it != TraitsULMap.end())
+		{
+			Ret = (*it).second;
+		}
+	}
+
+	return Ret;
+}
+
+
+
+//! Lookup the traits for a specified type UL
+/*! If no traits have been defined for the specified type the traits with the UL given in DefaultTraitsName is used (if specified)
+ */
+MDTraitsPtr MDType::LookupTraitsMapping(const UL &TypeUL, std::string DefaultTraitsName /*=""*/)
+{
+	MDTraitsPtr Ret;
+
+	// First lookup this type's traits
+	TraitsULMapType::iterator it = TraitsULMap.find(TypeUL);
+	if(it != TraitsULMap.end())
+	{
+		Ret = (*it).second;
+	}
+	else
+	{
+		if(!DefaultTraitsName.empty())
+		{
+			TraitsMapType::iterator it2 = TraitsMap.find(DefaultTraitsName);
+			if(it2 != TraitsMap.end())
+			{
+				Ret = (*it2).second;
+			}
+			else
+			{
+				// If that doesn't work, look up the named default traits
+				Ret = MDTraits::Find(DefaultTraitsName);
+			}
+		}
+	}
+
+	return Ret;
+}
+
+
 
 //! MDValue named constructor
 /*! Builds a "blank" variable of a named type
@@ -406,7 +615,7 @@ MDValue::MDValue(const std::string &BaseType)
 	{
 		error("Metadata variable type \"%s\" doesn't exist\n", BaseType.c_str());
 
-		Type = MDType::Find("Unknown");
+		Type = MDType::Find("UnknownType");
 
 		ASSERT(Type);
 	}
@@ -527,7 +736,7 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 		// Can only specify an index for arrays
 		ASSERT( Class == TYPEARRAY );
 
-		int Num = size();
+		int Num = static_cast<int>(size());
 
 		// Replacing a current entry
 		if(Num >= Index)
@@ -563,7 +772,7 @@ void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
 	}
 
 	// Add to the list of children
-	insert(MDValue::value_type(size(), Child));
+	insert(MDValue::value_type(static_cast<UInt32>(size()), Child));
 }
 
 
@@ -586,7 +795,7 @@ void MDValue::Resize(UInt32 Count)
 		return;
 	}
 
-	unsigned int Current = size();
+	unsigned int Current = static_cast<unsigned int>(size());
 
 	// Extra padding items required
 	if(Current < Count)
@@ -618,8 +827,27 @@ MDValuePtr MDValue::operator[](int Index)
 
 	MDValue::iterator it = find(Index);
 
-	// Return a smart pointer to the object
-	if(it != end()) Ret = (*it).second;
+	// Did we find this index?
+	if(it != end())
+	{
+		// Return a smart pointer to the object
+		Ret = (*it).second;
+	}
+	else
+	{
+		// If not a match, it may be a valid attempt to index the nth member of a compound
+		if(Type->EffectiveClass() == COMPOUND)
+		{
+			// Check the index bounds
+			if((Index >= 0) && (Index < static_cast<int>(size())))
+			{
+				// No need to validate the map iteration as we have just checked the bounds
+				it = begin();
+				while(Index--) it++;
+				Ret = (*it).second;
+			}
+		}
+	}
 
 	return Ret;
 }
@@ -639,6 +867,32 @@ MDValuePtr MDValue::operator[](const std::string ChildName)
 	if(it != end()) Ret = (*it).second;
 
 	return Ret;
+}
+
+
+//! Access UL indexed sub-item within a compound MDValue
+/*! DRAGONS: This doesn't work well with SmartPtrs
+ *           so member function Child() is also available
+*/
+MDValuePtr MDValue::operator[](const UL &Child)
+{
+	// Scan all children for a matching UL
+	MDValue::iterator it = begin();
+	while(it != end())
+	{
+		if(*((*it).second->Type->GetTypeUL()) == Child) return (*it).second;
+		it++;
+	}
+
+	/* Before giving up and saying no match - check again without comparing the version byte */
+	it = begin();
+	while(it != end())
+	{
+		if((*it).second->Type->GetTypeUL()->Matches(Child)) return (*it).second;
+		it++;
+	}
+
+	return NULL;
 }
 
 
@@ -682,7 +936,7 @@ DataChunkPtr MDValue::PutData(void)
 	if(EffType->GetArrayClass() == ARRAYBATCH)
 	{
 		UInt8 Buffer[8];
-		PutU32(size(), Buffer);
+		PutU32(static_cast<UInt32>(size()), Buffer);
 		PutU32(Type->EffectiveSize(), &Buffer[4]);
 
 		// Set the header
@@ -734,5 +988,11 @@ DataChunkPtr MDValue::PutData(void)
 
 MDTypeList MDType::Types;	//!< All types managed by the MDType class
 
+//! Map for UL lookups
+std::map<UL, MDTypePtr> MDType::ULLookup;
+
+//! Map for UL lookups - ignoring the version number (all entries use version = 1)
+std::map<UL, MDTypePtr> MDType::ULLookupVer1;
+
 //! Map for reverse lookups based on type name
-std::map<std::string, MDTypePtr> MDType::NameLookup;
+MDTypeMap MDType::NameLookup;

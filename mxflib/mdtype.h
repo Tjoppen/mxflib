@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.9 2006/03/03 12:37:17 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.10 2006/06/25 14:34:21 matt-beard Exp $
  *
  */
 /*
@@ -140,9 +140,18 @@ namespace mxflib
 			return *this;
 		};
 
+		//! Cast to a char string
 		const char *c_str() const
 		{
 			return (const char *)String.c_str();
+		}
+
+		//! Equality check
+		bool operator==(const MapIndex& Other) const
+		{
+			if(Other.IsNum != IsNum) return false;
+			if(IsNum) return (Number == Other.Number);
+			return (String == Other.String);
 		}
 	};
 }
@@ -180,6 +189,7 @@ namespace mxflib
 		MDTypeClass Class;				//!< Class of this MDType
 		MDArrayClass ArrayClass;		//!< Sub-class of array
 		MDTraitsPtr Traits;				//!< Traits for this MDType
+		ULPtr TypeUL;					//!< The UL for this type
 		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 
 	public:
@@ -197,12 +207,9 @@ namespace mxflib
 		/*! This constructor is private so the ONLY way to create
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
-		MDType(std::string TypeName, MDTypeClass TypeClass, MDTraitsPtr TypeTraits)
-			: TypeName(TypeName) , Class(TypeClass) , ArrayClass(ARRAYARRAY) , Traits(TypeTraits) , Endian(false) 
-		{
-			// Ensure that the traits are initialized
-//			TypeTraits->Init();
-		};
+		MDType(std::string TypeName, MDTypeClass TypeClass, ULPtr &UL, MDTraitsPtr TypeTraits)
+			: TypeName(TypeName), Class(TypeClass), ArrayClass(ARRAYARRAY), Traits(TypeTraits), TypeUL(UL), Endian(false) 
+		{ };
  
 		//! Prevent auto construction by NOT having an implementation to this constructor
 		MDType();
@@ -251,29 +258,49 @@ namespace mxflib
 		//! Get the name of this type
 		const std::string &Name(void) const { return TypeName; }
 
+		//! Read-only access to the type UL
+		const ULPtr &GetTypeUL(void) const { return TypeUL; }
+
+
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
 	protected:
 		static MDTypeList Types;		//!< All types managed by this object
 
+		//! Map for UL lookups
+		static std::map<UL, MDTypePtr> ULLookup;
+		
+		//! Map for UL lookups - ignoring the version number (all entries use version = 1)
+		static std::map<UL, MDTypePtr> ULLookupVer1;
+
 		//! Map for reverse lookups based on type name
-		static std::map<std::string, MDTypePtr> NameLookup;
+		static MDTypeMap NameLookup;
 
 	public:
 		//! Add a new basic type
-		static MDTypePtr AddBasic(std::string TypeName, int TypeSize);
+		static MDTypePtr AddBasic(std::string TypeName, ULPtr &UL, int TypeSize);
 
 		//! Add a new interpretation type
-		static MDTypePtr AddInterpretation(std::string TypeName, MDTypePtr BaseType, int Size = 0);
+		static MDTypePtr AddInterpretation(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int Size = 0);
 
 		//! Add a new array type
-		static MDTypePtr AddArray(std::string TypeName, MDTypePtr BaseType, int ArraySize = 0);
+		static MDTypePtr AddArray(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int ArraySize = 0);
 
 		//! Add a new compound type
-		static MDTypePtr AddCompound(std::string TypeName);
+		static MDTypePtr AddCompound(std::string TypeName, ULPtr &UL);
 
-		static MDTypePtr Find(const std::string& TypeName);
-	
+		//! Find a type in the default symbol space, optionally searching all others
+		static MDTypePtr Find(std::string TypeName, bool SearchAll = false) { return Find(TypeName, MXFLibSymbols, SearchAll); }
+		
+		//! Find a type in a specified symbol space, optionally searching all others
+		static MDTypePtr Find(std::string TypeName, SymbolSpacePtr &SymSpace, bool SearchAll = false);
+
+		//! Find a type by UL
+		static MDTypePtr Find(const UL &BaseUL);
+
+		//! Find a type by ULPtr
+		static MDTypePtr Find(ULPtr &BaseUL) { return Find(*BaseUL); }
+
 
 	/* Traits handling */
 	/*******************/
@@ -283,9 +310,6 @@ namespace mxflib
 		void SetTraits(MDTraitsPtr Tr) 
 		{ 
 			Traits = Tr; 
-			
-			// Ensure that the traits are initialized
-//			Tr->Init();
 		};
 
 		//! Access the traits for this type
@@ -293,10 +317,20 @@ namespace mxflib
 
 	protected:
 		//! Type to map type names to their handling traits
-		typedef std::map<std::string,MDTraitsPtr> TraitsMapType;
+		typedef std::map<std::string, MDTraitsPtr> TraitsMapType;
 
 		//! Map of type names to thair handling traits
 		static TraitsMapType TraitsMap;
+
+		//! Type to map type ULs to their handling traits
+		typedef std::map<UL, MDTraitsPtr> TraitsULMapType;
+
+		//! Map of type ULs to thair handling traits
+		static TraitsULMapType TraitsULMap;
+
+	protected:
+		//! Add a given type to the lookups
+		static void AddType(MDTypePtr &Type, ULPtr &TypeUL);
 
 	public:
 		//! Add a mapping to be applied to all types of a given type name
@@ -305,12 +339,43 @@ namespace mxflib
 		static bool AddTraitsMapping(std::string TypeName, std::string TraitsName);
 
 		//! Update an existing mapping and apply to any existing type of the given name
-		static bool UpdateTraitsMapping(std::string TypeName, std::string TraitsName);
+		static bool UpdateTraitsMapping(std::string TypeName, std::string TraitsName)
+		{
+			// DRAGONS: For the moment this does exactly the same ass AddTraitsMapping - it may differ in future versions
+			return AddTraitsMapping(TypeName, TraitsName);
+		}
+
+		//! Add a mapping to be applied to all types of a given type UL
+		/*! \note This will act retrospectively
+		 */
+		static bool AddTraitsMapping(const UL &TypeUL, std::string TraitsName);
+
+		//! Update an existing mapping and apply to any existing type of the given UL
+		static bool UpdateTraitsMapping(const UL &TypeUL, std::string TraitsName)
+		{
+			// DRAGONS: For the moment this does exactly the same ass AddTraitsMapping - it may differ in future versions
+			return AddTraitsMapping(TypeUL, TraitsName);
+		}
 
 		//! Lookup the traits for a specified type name
 		/*! If no traits have been defined for the specified type the traits with the name given in DefaultTraitsName is used (if specified)
 		 */
 		static MDTraitsPtr LookupTraitsMapping(std::string TypeName, std::string DefaultTraitsName = "");
+
+		//! Lookup the traits for a specified type UL
+		/*! If no traits have been defined for the specified type the traits with the UL given in DefaultTraitsName is used
+		*/
+		static MDTraitsPtr LookupTraitsMapping(const UL &TypeUL, const UL &DefaultTraitsUL);
+
+		//! Lookup the traits for a specified type name
+		/*! If no traits have been defined for the specified type the traits with the UL given in DefaultTraitsName is used
+		 */
+		static MDTraitsPtr LookupTraitsMapping(std::string TypeName, const UL &DefaultTraitsUL);
+
+		//! Lookup the traits for a specified type UL
+		/*! If no traits have been defined for the specified type the traits with the name given in DefaultTraitsName is used (if specified)
+		*/
+		static MDTraitsPtr LookupTraitsMapping(const UL &TypeUL, std::string DefaultTraitsName = "");
 
 		/* Allow MDValue class to view internals of this class */
 		friend class MDValue;
@@ -351,6 +416,40 @@ namespace mxflib
 		else
 			return "";
 	}
+
+
+	//! Add a mapping to apply a given set of traits to a certain type
+	/*! \ret The name of the traits
+	 */
+	/*template<class C>*/ inline std::string AddTraitsMapping(const UL &Type, MDTraitsPtr Tr)
+	{
+//		MDTraitsPtr Tr = new C;
+		MDTraitsPtr TrLookup = MDTraits::Find(Tr->Name());
+
+		if(!TrLookup) MDTraits::Add(Tr->Name(), Tr);
+
+		if(MDType::AddTraitsMapping(Type, Tr->Name()))
+			return Tr->Name();
+		else
+			return "";
+	}
+
+
+	//! Update an existing mapping and apply to any existing type of the given name
+	/*! \ret The name of the traits
+	 */
+	/*template<class C>*/ inline std::string UpdateTraitsMapping(const UL &Type, MDTraitsPtr Tr)
+	{
+//		MDTraitsPtr Tr = new C;
+		MDTraitsPtr TrLookup = MDTraits::Find(Tr->Name());
+
+		if(!TrLookup) MDTraits::Add(Tr->Name(), Tr);
+
+		if(MDType::UpdateTraitsMapping(Type, Tr->Name()))
+			return Tr->Name();
+		else
+			return "";
+	}
 }
 
 
@@ -379,8 +478,7 @@ namespace mxflib
 		MDValue(const std::string &BaseType);
 		MDValue(MDTypePtr BaseType);
 		void Init(void);
-//		~MDValue();
-~MDValue() {}; // ## DRAGONS: For debug ONLY!!
+		~MDValue() {};
 
 		void AddChild(MDValuePtr Child, int Index = -1);
 		void Resize(UInt32 Index);
@@ -391,6 +489,10 @@ namespace mxflib
 		//! Access function for child values of compound items
 		MDValuePtr operator[](const std::string ChildName);
 		MDValuePtr Child(const std::string ChildName) { return operator[](ChildName); };
+
+		//! Access function for child values of compound items
+		MDValuePtr operator[](const UL &Child);
+		MDValuePtr Child(const UL &Child) { return operator[](Child); };
 
 //		std::string ChildName(int Child);
 
@@ -426,9 +528,28 @@ namespace mxflib
 		void SetUint64(const char *ChildName, UInt64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
 		void SetString(const char *ChildName, std::string Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetString(Val); };
 		
-		void ReadValue(const char *ChildName, const DataChunk &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
+		// Child value access
+		// DRAGONS: May need to add code to check inside "optimised" compounds
+		Int32 GetInt(const UL &Child, Int32 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetInt(); else return Default; };
+		Int64 GetInt64(const UL &Child, Int64 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetInt64(); else return Default; };
+		UInt32 GetUInt(const UL &Child, UInt32 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetUInt(); else return Default; };
+		UInt64 GetUInt64(const UL &Child, UInt64 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetUInt64(); else return Default; };
+		UInt32 GetUint(const UL &Child, UInt32 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetUInt(); else return Default; };
+		UInt64 GetUint64(const UL &Child, UInt64 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetUInt64(); else return Default; };
+		std::string GetString(const UL &Child, std::string Default = "") { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetString(); else return Default; };
+		void SetInt(const UL &Child, Int32 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetInt(Val); };
+		void SetInt64(const UL &Child, Int64 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetInt64(Val); };
+		void SetUInt(const UL &Child, UInt32 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetUInt(Val); };
+		void SetUInt64(const UL &Child, UInt64 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetUInt64(Val); };
+		void SetUint(const UL &Child, UInt32 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetUInt(Val); };
+		void SetUint64(const UL &Child, UInt64 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetUInt64(Val); };
+		void SetString(const UL &Child, std::string Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetString(Val); };
 
+		void ReadValue(const char *ChildName, const DataChunk &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
 		void ReadValue(const char *ChildName, DataChunkPtr &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
+
+		void ReadValue(const UL &Child, const DataChunk &Source) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->ReadValue(Source); };
+		void ReadValue(const UL &Child, DataChunkPtr &Source) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->ReadValue(Source); };
 
 		// DRAGONS: These should probably be private and give access via MDTraits
 		// to prevent users tinkering!
