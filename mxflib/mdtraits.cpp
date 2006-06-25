@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.10 2006/02/11 18:22:30 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.11 2006/06/25 14:32:11 matt-beard Exp $
  *
  */
 /*
@@ -1283,7 +1283,7 @@ UInt32 MDTraits_Raw::GetUInt(MDValuePtr Object)
 	}
 	else if(Object->GetData().Size >= 4)
 	{
-		return UInt32(Object->GetData().Data);
+		return GetU32(Object->GetData().Data);
 	}
 	else if(Object->GetData().Size >= 2)
 	{
