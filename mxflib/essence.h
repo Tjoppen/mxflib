@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.15 2006/06/25 14:26:04 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.16 2006/06/29 14:40:41 matt-beard Exp $
  *
  */
 /*
@@ -1237,7 +1237,7 @@ namespace mxflib
 	
 	protected:
 		//! Initialise the sub-parser list
-		static Init(void);
+		static void Init(void);
 	};
 }
 

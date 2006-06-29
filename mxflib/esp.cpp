@@ -1,7 +1,7 @@
 /*! \file	esp.cpp
  *	\brief	Initialisation of the essence sub-parser list
  *
- *	\version $Id: esp.cpp,v 1.1 2006/06/25 14:24:20 matt-beard Exp $
+ *	\version $Id: esp.cpp,v 1.2 2006/06/29 14:40:41 matt-beard Exp $
  *
  */
 /*
@@ -55,7 +55,7 @@ bool EssenceParser::Inited = false;
 
 
 // Build an essence parser with all known sub-parsers
-EssenceParser::Init()
+void EssenceParser::Init()
 {
 	if(!Inited)
 	{
