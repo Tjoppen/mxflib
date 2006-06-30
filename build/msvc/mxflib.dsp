@@ -97,6 +97,10 @@ SOURCE=..\..\mxflib\deftypes.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\mxflib\esp.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\mxflib\esp_dvdif.cpp
 # End Source File
 # Begin Source File
@@ -162,6 +166,10 @@ SOURCE=..\..\mxflib\rip.cpp
 # Begin Source File
 
 SOURCE=..\..\mxflib\sopsax.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\mxflib\vbi.cpp
 # End Source File
 # Begin Source File
 
@@ -290,6 +298,10 @@ SOURCE=..\..\mxflib\types.h
 # Begin Source File
 
 SOURCE=..\..\mxflib\ulmap.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\mxflib\vbi.h
 # End Source File
 # Begin Source File
 
