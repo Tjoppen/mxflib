@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.6 2006/06/25 14:14:11 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.7 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -84,7 +84,7 @@ namespace mxflib
 			//! Get the size of the essence data in bytes
 			/*! \note There is intentionally no support for an "unknown" response 
 			 */
-			virtual Length GetEssenceDataSize(void) 
+			virtual size_t GetEssenceDataSize(void) 
 			{
 				DV_DIF_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, DV_DIF_EssenceSubParser);
 				return pCaller->ReadInternal(File, Stream, RequestedCount/*, Index*/);
@@ -96,7 +96,7 @@ namespace mxflib
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 			 */
-			virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0)
+			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0)
 			{
 				// Allow us to differentiate the first call
 				if(!Started)
@@ -217,7 +217,7 @@ namespace mxflib
 		MDObjectPtr BuildCDCIEssenceDescriptor(FileHandle InFile, UInt64 Start = 0);
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
-		Length ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count/*, IndexTablePtr Index = NULL*/);
+		size_t ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count/*, IndexTablePtr Index = NULL*/);
 	};
 
 

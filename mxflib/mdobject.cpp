@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.20 2006/06/25 14:30:13 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.21 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -897,10 +897,10 @@ MDObjectListPtr MDObject::ChildList(const UL &ChildType)
  *
  *  \return Number of bytes read
  */
-UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer /*=NULL*/)
+size_t MDObject::ReadValue(const UInt8 *Buffer, size_t Size, PrimerPtr UsePrimer /*=NULL*/)
 {
-	UInt32 Bytes = 0;
-	UInt32 Count = 0;
+	size_t Bytes = 0;
+	size_t Count = 0;
 	UInt32 ItemSize = 0;
 
 	SetModified(false); 
@@ -979,7 +979,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 			// Find the first (or only) child type
 			MDOTypeList::const_iterator it = Type->GetChildList().begin();
 
-			int ChildCount = Type->size();
+			size_t ChildCount = Type->size();
 			while(Size || Count)
 			{
 				MDObjectPtr NewItem = new MDObject(*it);
@@ -990,7 +990,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 				NewItem->ParentOffset = Bytes;
 				NewItem->KLSize = 0;
 
-				UInt32 ThisBytes = NewItem->ReadValue(Buffer, Size);
+				size_t ThisBytes = NewItem->ReadValue(Buffer, Size);
 
 				Bytes += ThisBytes;
 				Buffer += ThisBytes;
@@ -1032,7 +1032,6 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 			if( Type->GetLenFormat() == DICT_LEN_NONE )
 			{
 				// Fixed pack - items know their own length
-				UInt32 Bytes = 0;
 				MDObjectULList::iterator it = begin();
 				if(Size) for(;;)
 				{
@@ -1053,9 +1052,10 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 					// are some cases where MXF packs have arrays that are not the last entry
 					// This section deals with each in turn (Nasty!!)
 
-					UInt32 ValueSize = Size;
+					size_t ValueSize = Size;
 					if((*it).second->Type->GetContainerType() == ARRAY)
 					{
+						// FIXME: Shouldn't we do UL lookups here?
 						std::string FullName = (*it).second->FullName();
 						if(FullName == "IndexTableSegment/IndexEntryArray/SliceOffsetArray")
 						{
@@ -1071,7 +1071,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 						}
 					}
 
-					UInt32 ThisBytes = (*it).second->ReadValue(Buffer, ValueSize);
+					size_t ThisBytes = (*it).second->ReadValue(Buffer, ValueSize);
 
 //					debug("  at 0x%s Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
 //						  (*it).first.c_str(), (*it).second->GetString().c_str());
@@ -1097,7 +1097,6 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 			else
 			{
 				// Variable pack - each item has a length
-				UInt32 Bytes = 0;
 				MDObjectULList::iterator it = begin();
 				if(Size) for(;;)
 				{
@@ -1113,17 +1112,24 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 					(*it).second->KLSize = 0;
 
 					// Read Length
-					UInt32 Length;
-					UInt32 ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
+					Length Length;
+					size_t ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
 
 					// Advance counters and pointers past Length
 					Size -= ThisBytes;
 					Buffer += ThisBytes;
 					Bytes += ThisBytes;
 
+					// Sanity check the length of this value
+					if((sizeof(size_t) < 8) && (Length > 0xffffffff))
+					{
+						error("Tried to read %s at 0x%s in %s which is > 4GBytes, but this platform can only handle <= 4GByte chunks\n", FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
+						return 0;
+					}
+
 					if(Length)
 					{
-						if(Size < Length)
+						if(Size < static_cast<size_t>(Length))
 						{
 							error("Not enough bytes for value for %s at 0x%s in %s\n", 
 								  FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
@@ -1132,7 +1138,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 							Length = Size;
 						}
 
-						ThisBytes = (*it).second->ReadValue(Buffer, Length);
+						ThisBytes = (*it).second->ReadValue(Buffer, static_cast<size_t>(Length));
 
 //						debug("  at 0x%s Variable Pack item %s = %s\n", Int64toHexString((*it).second->GetLocation(), 8).c_str(), 
 //							  (*it).first.c_str(), (*it).second->GetString().c_str());
@@ -1169,18 +1175,16 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 		{
 			debug("Reading set at 0x%s\n", Int64toHexString(GetLocation(), 8).c_str());
 
-			UInt32 Bytes = 0;
-
 			// Start with an empty list
 			clear();
 
 			// Scan until out of data
 			while(Size)
 			{
-				UInt32 BytesAtItemStart = Bytes;
+				size_t BytesAtItemStart = Bytes;
 
 				DataChunk Key;
-				UInt32 ThisBytes = ReadKey(Type->GetKeyFormat(), Size, Buffer, Key);
+				size_t ThisBytes = ReadKey(Type->GetKeyFormat(), Size, Buffer, Key);
 
 				// Abort if we can't read the key
 				// this prevents us looping for ever if we
@@ -1192,13 +1196,20 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 				Buffer += ThisBytes;
 				Bytes += ThisBytes;
 
-				UInt32 Length;
+				Length Length;
 				ThisBytes = ReadLength(Type->GetLenFormat(), Size, Buffer, Length);
 
 				// Advance counters and pointers passed Length
 				Size -= ThisBytes;
 				Buffer += ThisBytes;
 				Bytes += ThisBytes;
+
+				// Sanity check the length of this value
+				if((sizeof(size_t) < 8) && (Length > 0xffffffff))
+				{
+					error("Tried to read %s at 0x%s in %s which is > 4GBytes, but this platform can only handle <= 4GByte chunks\n", FullName().c_str(), Int64toHexString(GetLocation(), 8).c_str(), GetSource().c_str());
+					return 0;
+				}
 
 				if(Length)
 				{
@@ -1235,7 +1246,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 					
 					NewItem->Parent = this;
 					NewItem->ParentOffset = BytesAtItemStart;
-					NewItem->KLSize = Bytes - BytesAtItemStart;
+					NewItem->KLSize = static_cast<UInt32>(Bytes - BytesAtItemStart);
 
 					// Handle cases where a batch has burst the 2-byte length (non-standard)
 					if((Length == 0xffff) && (Type->GetLenFormat() == DICT_LEN_2_BYTE) && (NewItem->Type->GetContainerType() == BATCH))
@@ -1244,7 +1255,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 					}
 					else
 					{
-						ThisBytes = NewItem->ReadValue(Buffer, Length);
+						ThisBytes = NewItem->ReadValue(Buffer, static_cast<size_t>(Length));
 
 //						debug("  at 0x%s Set item (%s) %s = %s\n", Int64toHexString(NewItem->GetLocation(), 8).c_str(), Key.GetString().c_str(), NewItem->Name().c_str(), NewItem->GetString().c_str());
 
@@ -1255,7 +1266,7 @@ UInt32 MDObject::ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer
 								NewItem->GetSource().c_str(), Length, ThisBytes);
 							
 							// Skip anything left over
-							if(Length > ThisBytes) ThisBytes = Length;
+							if(Length > ThisBytes) ThisBytes = static_cast<size_t>(Length);
 						}
 					}
 
@@ -1348,7 +1359,7 @@ bool MDObject::SetGenerationUID(UUIDPtr NewGen)
 
 
 //! Read a key from a memory buffer
-UInt32 MDObject::ReadKey(DictKeyFormat Format, UInt32 Size, const UInt8 *Buffer, DataChunk& Key)
+UInt32 MDObject::ReadKey(DictKeyFormat Format, size_t Size, const UInt8 *Buffer, DataChunk& Key)
 {
 	UInt32 KeySize;
 
@@ -1382,7 +1393,7 @@ UInt32 MDObject::ReadKey(DictKeyFormat Format, UInt32 Size, const UInt8 *Buffer,
 
 
 //! Read a length field from a memory buffer
-UInt32 MDObject::ReadLength(DictLenFormat Format, UInt32 Size, const UInt8 *Buffer, UInt32& Length)
+UInt32 MDObject::ReadLength(DictLenFormat Format, size_t Size, const UInt8 *Buffer, Length& Length)
 {
 //	int LenSize;
 
@@ -1541,9 +1552,9 @@ const DataChunkPtr MDObject::PutData(PrimerPtr UsePrimer /* =NULL */)
  *	The objects are appended to the buffer
  *	\return The number of bytes written
  */
-UInt32 MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*=NULL*/)
+size_t MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*=NULL*/)
 {
-	UInt32 Bytes = 0;
+	size_t Bytes = 0;
 
 	Bytes = WriteObject(Buffer, NULL, UsePrimer);
 
@@ -1588,9 +1599,9 @@ UInt32 MDObject::WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer /*
  */
 #define DEBUG_WRITEOBJECT(x)
 //#define DEBUG_WRITEOBJECT(x) x
-UInt32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer /*=NULL*/, UInt32 BERSize /*=0*/)
+size_t MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer /*=NULL*/, UInt32 BERSize /*=0*/)
 {
-	UInt32 Bytes = 0;
+	size_t Bytes = 0;
 
 	DictLenFormat LenFormat;
 
@@ -1643,7 +1654,8 @@ UInt32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 		DataChunkPtr Val = new DataChunk();
 
 		// Work out how many sub-items per child 
-		UInt32 SubCount = Type->GetChildOrder().size();
+		// DRAGONS: We assume < 4 billion
+		UInt32 SubCount = static_cast<UInt32>(Type->GetChildOrder().size());
 		
 		// Count of remaining subs for this item
 		UInt32 Subs = 0;
@@ -1659,7 +1671,7 @@ UInt32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 				Count++;
 			}
 			// DRAGONS: do NOT force embedded objects to inherit BERSize
-			UInt32 ThisBytes = (*it).second->WriteObject(Val, this, UsePrimer);
+			UInt32 ThisBytes = static_cast<UInt32>((*it).second->WriteObject(Val, this, UsePrimer));
 			//Bytes += ThisBytes;
 			Size += ThisBytes;
 			
@@ -1680,7 +1692,7 @@ UInt32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
 				Ptr->WriteObject(Temp, this, UsePrimer, BERSize);
 				it++;
 			}
-			Size = Temp->Size;
+			Size = static_cast<UInt32>(Temp->Size);
 		}
 
 		if(CType == BATCH)
@@ -1796,7 +1808,7 @@ UInt32 MDObject::WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, Pri
  *	\note If the format is BER and a size is specified it will be overridden for
  *		  lengths that will not fit. However an error message will be produced.
  */
-UInt32 MDObject::WriteLength(DataChunkPtr &Buffer, UInt64 Length, DictLenFormat Format, UInt32 Size /*=0*/)
+UInt32 MDObject::WriteLength(DataChunkPtr &Buffer, Length Length, DictLenFormat Format, UInt32 Size /*=0*/)
 {
 	switch(Format)
 	{
@@ -1808,7 +1820,7 @@ UInt32 MDObject::WriteLength(DataChunkPtr &Buffer, UInt64 Length, DictLenFormat 
 		{
 			DataChunkPtr BER = MakeBER(Length, Size);
 			Buffer->Append(*BER);
-			return BER->Size;
+			return static_cast<UInt32>(BER->Size);
 		}
 
 	case DICT_LEN_1_BYTE:

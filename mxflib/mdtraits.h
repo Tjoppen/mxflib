@@ -1,7 +1,7 @@
 /*! \file	mdtraits.h
  *	\brief	Definition of traits for MDType definitions
  *
- *	\version $Id: mdtraits.h,v 1.5 2006/02/11 16:04:34 matt-beard Exp $
+ *	\version $Id: mdtraits.h,v 1.6 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -131,7 +131,7 @@ namespace mxflib
 		virtual UInt64 GetUInt64(MDValuePtr Object);
 		virtual std::string GetString(MDValuePtr Object);
 
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 
 		//! Support old capitalization of SetUInt
 		inline void SetUint(MDValuePtr Object, UInt32 Val) { SetUInt(Object, Val); }
@@ -182,11 +182,11 @@ namespace mxflib
 		virtual UInt64 GetUInt64(MDValuePtr Object);
 		virtual std::string GetString(MDValuePtr Object);
 
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 	};
 
 	//! Special unsigned integer ReadValue
-	UInt32 ReadValueUInt(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+	size_t ReadValueUInt(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 
 	class MDTraits_Int8 : public MDTraits_BasicInt
 	{
@@ -208,7 +208,7 @@ namespace mxflib
 
 	protected:
 		virtual std::string GetString(MDValuePtr Object);
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 	};
 
 	class MDTraits_Int16 : public MDTraits_BasicInt
@@ -231,7 +231,7 @@ namespace mxflib
 
 	protected:
 		virtual std::string GetString(MDValuePtr Object);
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 	};
 
 	class MDTraits_Int32 : public MDTraits_BasicInt
@@ -254,7 +254,7 @@ namespace mxflib
 
 	protected:
 		virtual std::string GetString(MDValuePtr Object);
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 	};
 
 	class MDTraits_Int64 : public MDTraits
@@ -284,7 +284,7 @@ namespace mxflib
 
 	protected:
 		virtual std::string GetString(MDValuePtr Object);
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 	};
 
 	class MDTraits_ISO7 : public MDTraits_UInt8
@@ -328,7 +328,7 @@ namespace mxflib
 		virtual UInt64 GetUInt64(MDValuePtr Object);
 		virtual std::string GetString(MDValuePtr Object);
 
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 	};
 
 
@@ -350,7 +350,7 @@ namespace mxflib
 		virtual UInt64 GetUInt64(MDValuePtr Object);
 		virtual std::string GetString(MDValuePtr Object);
 
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 	};
 
 	class MDTraits_BasicStringArray : public MDTraits_BasicArray
@@ -453,7 +453,7 @@ namespace mxflib
 		virtual void SetString(MDValuePtr Object, std::string Val);
 		virtual std::string GetString(MDValuePtr Object);
 
-		virtual UInt32 ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count=0);
+		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
 	};
 
 	class MDTraits_Rational : public MDTraits_BasicCompound

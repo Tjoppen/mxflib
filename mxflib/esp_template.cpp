@@ -1,7 +1,7 @@
 /*! \file	esp_template.cpp
  *	\brief	Implementation of class that handles parsing of <File Type>
  *
- *	\version $Id: esp_template.cpp,v 1.2 2006/06/25 14:14:12 matt-beard Exp $
+ *	\version $Id: esp_template.cpp,v 1.3 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -165,11 +165,10 @@ DataChunkPtr mxflib::TEMPLATE_EssenceSubParser::Read(FileHandle InFile, UInt32 S
 	FileSeek(InFile, CurrentPos);
 	
 	// Find out how many bytes to read
-	Length Bytes = ReadInternal(InFile, Stream, Count);
+	size_t Bytes = ReadInternal(InFile, Stream, Count);
 
 	// Make a datachunk with enough space
-	DataChunkPtr Ret = new DataChunk;
-	Ret->Resize((UInt32)Bytes);
+	DataChunkPtr Ret = new DataChunk(Bytes);
 
 	// Read the data
 	FileRead(InFile, Ret->Data, Bytes);
@@ -199,12 +198,12 @@ Length mxflib::TEMPLATE_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream
 	FileSeek(InFile, CurrentPos);
 	
 	// Find out how many bytes to transfer
-	Length Bytes = ReadInternal(InFile, Stream, Count);
-	Length Ret = Bytes;
+	size_t Bytes = ReadInternal(InFile, Stream, Count);
+	Length Ret = static_cast<Length>(Bytes);
 
 	while(Bytes)
 	{
-		int ChunkSize;
+		size_t ChunkSize;
 		
 		// Number of bytes to transfer in this chunk
 		if(Bytes < BUFFERSIZE) ChunkSize =(int) Bytes; else ChunkSize = BUFFERSIZE;
@@ -217,6 +216,9 @@ Length mxflib::TEMPLATE_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream
 
 	// Update the file pointer
 	CurrentPos = FileTell(InFile);
+
+	// Free the buffer
+	delete[] Buffer;
 
 	return Ret; 
 }
@@ -388,7 +390,7 @@ MDObjectPtr mxflib::TEMPLATE_EssenceSubParser::BuildDescriptor(FileHandle InFile
 /*! \note The file position pointer is left at the start of the chunk at the end of 
  *		  this function
  */
-Length mxflib::TEMPLATE_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count) 
+size_t mxflib::TEMPLATE_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count) 
 { 
 	Length Ret;
 	UInt32 SamplesPerEditUnit;
@@ -435,5 +437,12 @@ Length mxflib::TEMPLATE_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 		Ret = Max;
 	}
 
-	return Ret;
+	// Validate the size
+	if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
+	{
+		error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
+		return 0;
+	}
+
+	return static_cast<size_t>(Ret);
 }

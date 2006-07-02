@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.20 2006/06/25 14:30:13 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.21 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -1007,13 +1007,13 @@ namespace mxflib
 		const DataChunkPtr PutData(PrimerPtr UsePrimer = NULL);
 
 		//! Read the object's value from a data chunk
-		UInt32 ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
+		size_t ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
 
 		//! Read the object's value from a data chunk pointer
-		UInt32 ReadValue(DataChunkPtr &Chunk) { return ReadValue(Chunk->Data, Chunk->Size); };
+		size_t ReadValue(DataChunkPtr &Chunk) { return ReadValue(Chunk->Data, Chunk->Size); };
 
 		//! Read the object's value from a memory buffer
-		UInt32 ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer = NULL);
+		size_t ReadValue(const UInt8 *Buffer, size_t Size, PrimerPtr UsePrimer = NULL);
 
 		//! Write this object to a new memory buffer
 		DataChunkPtr WriteObject(MDObjectPtr ParentObject, PrimerPtr UsePrimer, UInt32 BERSize = 0)
@@ -1024,7 +1024,7 @@ namespace mxflib
 		}
 
 		//! Write this object to a memory buffer
-		UInt32 WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer, UInt32 BERSize = 0);
+		size_t WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer, UInt32 BERSize = 0);
 
 		//! Write this top level object to a new memory buffer
 		/*! The object must be at the outer or top KLV level
@@ -1041,13 +1041,13 @@ namespace mxflib
 		/*! The object must be at the outer or top KLV level. The object is appended to the buffer
 		 *	\return The number of bytes written
 		 */
-		UInt32 WriteObject(DataChunkPtr &Buffer, PrimerPtr UsePrimer = NULL, UInt32 BERSize = 0)
+		size_t WriteObject(DataChunkPtr &Buffer, PrimerPtr UsePrimer = NULL, UInt32 BERSize = 0)
 		{
 			return WriteObject(Buffer, NULL, UsePrimer, BERSize);
 		}
 
 		//! Write this object, and any strongly linked sub-objects, to a memory buffer
-		UInt32 WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer = NULL);
+		size_t WriteLinkedObjects(DataChunkPtr &Buffer, PrimerPtr UsePrimer = NULL);
 
 		//! Report the name of this item (the name of its type)
 		std::string Name(void) const { return ObjectName; };
@@ -1229,10 +1229,10 @@ namespace mxflib
 
 	protected:
 		// Some private helper functions
-		static UInt32 ReadKey(DictKeyFormat Format, UInt32 Size, const UInt8 *Buffer, DataChunk& Key);
-		static UInt32 ReadLength(DictLenFormat Format, UInt32 Size, const UInt8 *Buffer, UInt32& Length);
+		static UInt32 ReadKey(DictKeyFormat Format, size_t Size, const UInt8 *Buffer, DataChunk& Key);
+		static UInt32 ReadLength(DictLenFormat Format, size_t Size, const UInt8 *Buffer, Length& Length);
 		UInt32 WriteKey(DataChunkPtr &Buffer, DictKeyFormat Format, PrimerPtr UsePrimer = NULL);
-		static UInt32 WriteLength(DataChunkPtr &Buffer, UInt64 Length, DictLenFormat Format, UInt32 Size = 0);
+		static UInt32 WriteLength(DataChunkPtr &Buffer, Length Length, DictLenFormat Format, UInt32 Size = 0);
 	};
 }
 
@@ -1361,19 +1361,19 @@ namespace mxflib
 		DataChunkPtr PutData(PrimerPtr UsePrimer = NULL) { if(Object) return Object->PutData(UsePrimer); else return new DataChunk(); };
 
 		//! Read the object's value from a data chunk
-		UInt32 ReadValue(const DataChunk &Chunk) { return Object->ReadValue(Chunk.Data, Chunk.Size); };
+		size_t ReadValue(const DataChunk &Chunk) { return Object->ReadValue(Chunk.Data, Chunk.Size); };
 
 		//! Read the object's value from a data chunk pointer
-		UInt32 ReadValue(const DataChunkPtr &Chunk) { return Object->ReadValue(Chunk->Data, Chunk->Size); };
+		size_t ReadValue(const DataChunkPtr &Chunk) { return Object->ReadValue(Chunk->Data, Chunk->Size); };
 
 		//! Read the object's value from a memory buffer
-		UInt32 ReadValue(const UInt8 *Buffer, UInt32 Size, PrimerPtr UsePrimer = NULL) { return Object->ReadValue(Buffer, Size, UsePrimer); };
+		size_t ReadValue(const UInt8 *Buffer, size_t Size, PrimerPtr UsePrimer = NULL) { return Object->ReadValue(Buffer, Size, UsePrimer); };
 
 		//! Write this object to a new memory buffer
 		DataChunkPtr WriteObject(MDObjectPtr ParentObject, PrimerPtr UsePrimer) { return Object->WriteObject(ParentObject, UsePrimer); };
 
 		//! Write this object to a memory buffer
-		UInt32 WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer) { return Object->WriteObject(Buffer, ParentObject, UsePrimer); };
+		size_t WriteObject(DataChunkPtr &Buffer, MDObjectPtr ParentObject, PrimerPtr UsePrimer) { return Object->WriteObject(Buffer, ParentObject, UsePrimer); };
 
 		//! Write this top level object to a new memory buffer
 		/*! The object must be at the outer or top KLV level
@@ -1388,7 +1388,7 @@ namespace mxflib
 		/*! The object must be at the outer or top KLV level. The object is appended to the buffer
 		 *	\return The number of bytes written
 		 */
-		UInt32 WriteObject(DataChunkPtr &Buffer, PrimerPtr UsePrimer = NULL)
+		size_t WriteObject(DataChunkPtr &Buffer, PrimerPtr UsePrimer = NULL)
 		{
 			return Object->WriteObject(Buffer, NULL, UsePrimer);
 		}

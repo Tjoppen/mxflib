@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.8 2006/06/25 14:14:11 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.9 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -353,7 +353,7 @@ Position DV_DIF_EssenceSubParser::GetCurrentPosition(void)
 DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/) 
 { 
 	// Scan the stream and find out how many bytes to read
-	Length Bytes = ReadInternal(InFile, Stream, Count);
+	size_t Bytes = ReadInternal(InFile, Stream, Count);
 
 	// Read the data
 	return FileReadChunk(InFile, Bytes);
@@ -374,21 +374,24 @@ Length DV_DIF_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFileP
 	UInt8 *Buffer = new UInt8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
-	Length Bytes = ReadInternal(InFile, Stream, Count);
-	Length Ret = Bytes;
+	size_t Bytes = ReadInternal(InFile, Stream, Count);
+	Length Ret = static_cast<Length>(Bytes);
 
 	while(Bytes)
 	{
-		Length ChunkSize;
+		size_t ChunkSize;
 		
 		// Number of bytes to transfer in this chunk
 		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
 
 		FileRead(InFile, Buffer, ChunkSize);
-		OutFile->Write(Buffer, (UInt32)ChunkSize);
+		OutFile->Write(Buffer, ChunkSize);
 
 		Bytes -= ChunkSize;
 	}
+
+	// Free the buffer
+	delete[] Buffer;
 
 	return Ret; 
 }
@@ -506,7 +509,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
  *
  *  TODO: Currently assumes 25Mbit - needs fixing
  */
-Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count)
+size_t DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count)
 {	
 	// Return anything remaining if clip wrapping
 	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip)) Count = ((DIFEnd - DIFStart) / (150 * 80)) - PictureNumber;
@@ -538,7 +541,13 @@ Length DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, U
 		}
 
 		// Return the number of bytes to read
-		return Ret;
+		if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
+		{
+			error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
+			return 0;
+		}
+
+		return static_cast<size_t>(Ret);
 	}
 
 	error("Non-native edit rate not yet supported\n");

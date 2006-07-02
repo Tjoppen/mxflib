@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.7 2006/04/05 17:02:39 matt-beard Exp $
+ *	\version $Id: index.h,v 1.8 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -288,7 +288,7 @@ namespace mxflib
 		void Purge(UInt64 FirstPosition, UInt64 LastPosition);
 
 		//! Write this index table to a memory buffer
-		UInt32 WriteIndex(DataChunk &Buffer);
+		size_t WriteIndex(DataChunk &Buffer);
 
 		//! Get a pointer to the reorder index object (if one has been enabled)
 		ReorderIndexPtr GetReorder(void)

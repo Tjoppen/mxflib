@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.13 2006/02/11 16:00:57 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.14 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -91,7 +91,7 @@ bool mxflib::MXFFile::OpenNew(std::string FileName)
 }
 
 
-bool mxflib::MXFFile::OpenMemory(DataChunkPtr Buff /*=NULL*/, UInt64 Offset /*=0*/)
+bool mxflib::MXFFile::OpenMemory(DataChunkPtr Buff /*=NULL*/, Position Offset /*=0*/)
 {
 	if(isOpen) Close();
 
@@ -150,7 +150,7 @@ bool mxflib::MXFFile::ReadRunIn()
 	Seek(0);
 	DataChunkPtr Search = Read(0x10000 + 11);
 
-	UInt32 Scan = Search->Size - 11;
+	UInt32 Scan = static_cast<UInt32>(Search->Size - 11);
 	UInt8 *ScanPtr = Search->Data;
 	while(Scan)
 	{
@@ -195,23 +195,18 @@ bool mxflib::MXFFile::Close(void)
 
 
 //! Read data from the file into a DataChunk
-DataChunkPtr mxflib::MXFFile::Read(UInt64 Size)
+DataChunkPtr mxflib::MXFFile::Read(size_t Size)
 {
 	DataChunkPtr Ret = new DataChunk(Size);
 
 	if(Size)
 	{
+		// DRAGONS: We use a UInt64 rather than a size_t so we can test for an error return code
 		UInt64 Bytes;
 
 		if(isMemoryFile)
 		{
-			if(Size > 0xffffffff)
-			{
-				error("Memory file reading is limited to 4Gb\n");
-				Size = 0xffffffff;
-			}
-
-			Bytes = MemoryRead(Ret->Data, (UInt32)Size);
+			Bytes = MemoryRead(Ret->Data, Size);
 		}
 		else
 		{
@@ -225,7 +220,7 @@ DataChunkPtr mxflib::MXFFile::Read(UInt64 Size)
 			Bytes = 0;
 		}
 
-		if(Bytes != Size) Ret->Resize((UInt32)Bytes);
+		if(Bytes != static_cast<UInt64>(Size)) Ret->Resize(static_cast<size_t>(Bytes));
 	}
 
 	return Ret;
@@ -233,25 +228,20 @@ DataChunkPtr mxflib::MXFFile::Read(UInt64 Size)
 
 
 //! Read data from the file into a supplied buffer
-UInt64 mxflib::MXFFile::Read(UInt8 *Buffer, UInt64 Size)
+size_t mxflib::MXFFile::Read(UInt8 *Buffer, size_t Size)
 {
+	// DRAGONS: We use a UInt64 rather than a size_t so we can test for an error return code
 	UInt64 Ret = 0;
 
 	if(Size)
 	{
 		if(isMemoryFile)
 		{
-			if(Size > 0xffffffff)
-			{
-				error("Memory file reading is limited to 4Gb\n");
-				Size = 0xffffffff;
-			}
-
-			Ret = MemoryRead(Buffer,(UInt32) Size);
+			Ret = MemoryRead(Buffer, Size);
 		}
 		else
 		{
-			Ret = FileRead(Handle, Buffer, (UInt32)Size);
+			Ret = FileRead(Handle, Buffer, Size);
 		}
 
 		// Handle errors
@@ -262,7 +252,7 @@ UInt64 mxflib::MXFFile::Read(UInt8 *Buffer, UInt64 Size)
 		}
 	}
 
-	return Ret;
+	return static_cast<size_t>(Ret);
 }
 
 
@@ -399,7 +389,7 @@ bool mxflib::MXFFile::ScanRIP(Length MaxScan /* = 1024*1024 */ )
 	// Header not found (might not be an error - the file could be empty)
 	if(!Header) return false;
 
-	UInt64 FooterPos = Header->GetInt64(FooterPartition_UL);
+	Position FooterPos = Header->GetInt64(FooterPartition_UL);
 	
 	if(FooterPos == 0)
 	{
@@ -456,24 +446,27 @@ bool mxflib::MXFFile::ScanRIP(Length MaxScan /* = 1024*1024 */ )
 
 //! Scan for the footer
 /*! \return The location of the footer, or 0 if scan failed */
-UInt64 MXFFile::ScanRIP_FindFooter(Length MaxScan)
+Position MXFFile::ScanRIP_FindFooter(Length MaxScan)
 {
-	UInt64 FooterPos = 0;
+	Position FooterPos = 0;
 
 	// Size of scan chunk when looking for footer key
-	static const unsigned int ScanChunkSize = 4096;
+	static const unsigned int ScanChunkSize = 16384;
+
+	// Check that the scan chunk size is valid
+	ASSERT( (sizeof(size_t) >= 8) || (ScanChunkSize <= 0xffffffff));
 
 	// If too small a scan range is given we can't scan!
 	if(MaxScan < 20) return 0;
 
-	UInt64 ScanLeft = MaxScan;			// Number of bytes left to scan
+	Length ScanLeft = MaxScan;			// Number of bytes left to scan
 	SeekEnd();
-	UInt64 FileEnd = Tell();			// The file end
-	UInt64 ScanPos = FileEnd;			// Last byte of the current scan chunk
+	Position FileEnd = Tell();			// The file end
+	Position ScanPos = FileEnd;			// Last byte of the current scan chunk
 
 	while(ScanLeft)
 	{
-		UInt64 ThisScan;				// Number of bytes to scan this time
+		Length ThisScan;				// Number of bytes to scan this time
 		
 		// Scan the number of bytes left, limited to the chunk size
 		if(ScanLeft > ScanChunkSize) ThisScan = ScanChunkSize; else ThisScan = ScanLeft;
@@ -486,13 +479,13 @@ UInt64 MXFFile::ScanRIP_FindFooter(Length MaxScan)
 
 		// Read this chunk
 		Seek(ScanPos - ThisScan);
-		DataChunkPtr Chunk = Read(ThisScan);
+		DataChunkPtr Chunk = Read(static_cast<size_t>(ThisScan));
 
 		// Quit if the read failed
 		if(Chunk->Size != ThisScan) return 0;
 
 		unsigned char *p = Chunk->Data;
-		UInt64 i;
+		Position i;
 		for(i=0; i<ThisScan; i++)
 		{
 			if(*p == 0x06)
@@ -1319,7 +1312,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 }
 
 
-UInt32 MXFFile::MemoryWrite(UInt8 const *Data, UInt32 Size)
+size_t MXFFile::MemoryWrite(UInt8 const *Data, size_t Size)
 {
 	if(BufferCurrentPos < BufferOffset)
 	{
@@ -1328,7 +1321,7 @@ UInt32 MXFFile::MemoryWrite(UInt8 const *Data, UInt32 Size)
 	}
 
 	// Copy the data to the buffer
-	Buffer->Set((UInt32)Size, Data, (UInt32)(BufferCurrentPos - BufferOffset));
+	Buffer->Set(Size, Data, static_cast<size_t>(BufferCurrentPos - BufferOffset));
 
 	// Update the pointer
 	BufferCurrentPos += Size;
@@ -1338,7 +1331,7 @@ UInt32 MXFFile::MemoryWrite(UInt8 const *Data, UInt32 Size)
 }
 
 
-UInt32 MXFFile::MemoryRead(UInt8 *Data, UInt32 Size)
+size_t MXFFile::MemoryRead(UInt8 *Data, size_t Size)
 {
 	if(BufferCurrentPos < BufferOffset)
 	{
@@ -1353,16 +1346,16 @@ UInt32 MXFFile::MemoryRead(UInt8 *Data, UInt32 Size)
 	}
 
 	// Work out how many bytes we can read
-	unsigned int MaxBytes =(UInt32)( Buffer->Size - (UInt32)(BufferCurrentPos - BufferOffset));
+	size_t MaxBytes = Buffer->Size - static_cast<size_t>(BufferCurrentPos - BufferOffset);
 
 	// Limit our read to the max available
 	if(Size > MaxBytes) Size = MaxBytes;
 
 //debug("Copy %d bytes from 0x%08x to 0x%08x\n", Size, &Buffer->Data[BufferCurrentPos - BufferOffset], Data);
 	// Copy the data from the buffer
-if(Buffer->Data != 0)
-	memcpy(Data, &Buffer->Data[BufferCurrentPos - BufferOffset], Size);
-else Size = 0;
+	if(Buffer->Data != 0)
+		memcpy(Data, &Buffer->Data[static_cast<size_t>(BufferCurrentPos - BufferOffset)], Size);
+	else Size = 0;
 
 	// Update the pointer
 	BufferCurrentPos += Size;

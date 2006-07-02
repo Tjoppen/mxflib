@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.6 2005/10/27 11:01:31 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.7 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -64,7 +64,7 @@ namespace mxflib
 		//! Set an encryption key
 		/*! \return True if key is accepted
 		 */
-		virtual bool SetKey(UInt32 KeySize, const UInt8 *Key) = 0;
+		virtual bool SetKey(size_t KeySize, const UInt8 *Key) = 0;
 
 		//! Set an encryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -74,7 +74,7 @@ namespace mxflib
 		 *        and false for any other calls.  This allows different schemes to be
 		 *        used with minimal changes in the calling code.
 		 */
-		virtual bool SetIV(UInt32 IVSize, const UInt8 *IV, bool Force = false) = 0;
+		virtual bool SetIV(size_t IVSize, const UInt8 *IV, bool Force = false) = 0;
 
 		//! Set an encryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -107,12 +107,12 @@ namespace mxflib
 		/*! If BlockSize is 0 this function will return true if encryption of all block sizes can be "in place".
 		 *  Otherwise the result will indicate whether the given blocksize can be encrypted "in place".
 		 */
-		virtual bool CanEncryptInPlace(UInt32 BlockSize = 0) = 0;
+		virtual bool CanEncryptInPlace(size_t BlockSize = 0) = 0;
 
 		//! Encrypt data bytes in place
 		/*! \return true if the encryption is successful
 		 */
-		virtual bool EncryptInPlace(UInt32 Size, UInt8 *Data) = 0;
+		virtual bool EncryptInPlace(size_t Size, UInt8 *Data) = 0;
 
 		//! Encrypt data bytes in place
 		/*! \return true if the encryption is successful
@@ -127,7 +127,7 @@ namespace mxflib
 		//! Encrypt data and return in a new buffer
 		/*! \return NULL pointer if the encryption is unsuccessful
 		 */
-		virtual DataChunkPtr Encrypt(UInt32 Size, const UInt8 *Data) = 0;
+		virtual DataChunkPtr Encrypt(size_t Size, const UInt8 *Data) = 0;
 
 		//! Encrypt data and return in a new buffer
 		/*! \return NULL pointer if the encryption is unsuccessful
@@ -166,7 +166,7 @@ namespace mxflib
 		//! Set a decryption key
 		/*! \return True if key is accepted
 		 */
-		virtual bool SetKey(UInt32 KeySize, const UInt8 *Key) = 0;
+		virtual bool SetKey(size_t KeySize, const UInt8 *Key) = 0;
 
 		//! Set a decryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -176,7 +176,7 @@ namespace mxflib
 		 *        and false for any other calls.  This allows different schemes to be
 		 *        used with minimal changes in the calling code.
 		 */
-		virtual bool SetIV(UInt32 IVSize, const UInt8 *IV, bool Force = false) = 0;
+		virtual bool SetIV(size_t IVSize, const UInt8 *IV, bool Force = false) = 0;
 
 		//! Set a decryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
@@ -209,12 +209,12 @@ namespace mxflib
 		/*! If BlockSize is 0 this function will return true if decryption of all block sizes can be "in place".
 		 *  Otherwise the result will indicate whether the given blocksize can be decrypted "in place".
 		 */
-		virtual bool CanDecryptInPlace(UInt32 BlockSize = 0) = 0;
+		virtual bool CanDecryptInPlace(size_t BlockSize = 0) = 0;
 
 		//! Decrypt data bytes in place
 		/*! \return true if the decryption <i>appears to be</i> successful
 		 */
-		virtual bool DecryptInPlace(UInt32 Size, UInt8 *Data) = 0;
+		virtual bool DecryptInPlace(size_t Size, UInt8 *Data) = 0;
 
 		//! Decrypt data bytes in place
 		/*! \return true if the decryption <i>appears to be</i> successful
@@ -229,7 +229,7 @@ namespace mxflib
 		//! Decrypt data and return in a new buffer
 		/*! \return NULL pointer if the decryption is unsuccessful
 		 */
-		virtual DataChunkPtr Decrypt(UInt32 Size, const UInt8 *Data) = 0;
+		virtual DataChunkPtr Decrypt(size_t Size, const UInt8 *Data) = 0;
 
 		//! Decrypt data and return in a new buffer
 		/*! \return NULL pointer if the decryption is unsuccessful
@@ -272,7 +272,7 @@ namespace mxflib
 		//! Set a hashing key (if required)
 		/*! \return True if key is accepted
 		 */
-		virtual bool SetKey(UInt32 Size, const UInt8 *Key) 
+		virtual bool SetKey(size_t Size, const UInt8 *Key) 
 		{ 
 			UNUSED_PARAMETER(Key); 
 			UNUSED_PARAMETER(Size); 
@@ -286,7 +286,7 @@ namespace mxflib
 		void HashData(DataChunkPtr &Data) { HashData(Data->Size, Data->Data); }
 
 		//! Add the given data to the current hash being calculated
-		virtual void HashData(UInt32 Size, const UInt8 *Data) = 0;
+		virtual void HashData(size_t Size, const UInt8 *Data) = 0;
 
 		//! Get the finished hash value
 		virtual DataChunkPtr GetHash(void) = 0;
@@ -331,7 +331,7 @@ namespace mxflib
 		bool HasSequenceNumber;						//!< True if SequenceNumber has been set or read
 		DataChunkPtr MIC;							//!< The optional MIC (if loaded or computed when reading or computed when writing) else NULL
 
-		Int32 DataOffset;							//!< Offset of the start of the excrypted value from the start of the KLV value
+		size_t DataOffset;							//!< Offset of the start of the encrypted value from the start of the KLV value
 
 		DataChunkPtr EncryptionIV;					//!< Encryption IV if one has been specified
 
@@ -371,7 +371,7 @@ namespace mxflib
 		//! Set an encryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
 		 */
-		virtual bool SetEncryptIV(UInt32 IVSize, const UInt8 *IV, bool Force = false)
+		virtual bool SetEncryptIV(size_t IVSize, const UInt8 *IV, bool Force = false)
 		{
 			Force = !(!Force);		// Unused parameter
 
@@ -383,7 +383,7 @@ namespace mxflib
 		//! Set a decryption Initialization Vector
 		/*! \return False if Initialization Vector is rejected
 		 */
-		virtual bool SetDecryptIV(UInt32 IVSize, const UInt8 *IV, bool Force = false);
+		virtual bool SetDecryptIV(size_t IVSize, const UInt8 *IV, bool Force = false);
 
 		//! Get the Initialization Vector that will be used for the next encryption
 		virtual DataChunkPtr GetEncryptIV(void);
@@ -440,17 +440,17 @@ namespace mxflib
 		virtual Int32 ReadKL(void);
 
 		//! Read data from the start of the KLV value into the current DataChunk
-		/*! \param Size Number of bytes to read, if zero all available bytes will be read (which could be billions!)
+		/*! \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The number of bytes read
 		 */
-		virtual Length ReadData(Length Size = 0) { return Base_ReadDataFrom(0, Size); }
+		virtual size_t ReadData(size_t Size = static_cast<size_t>(-1)) { return Base_ReadDataFrom(0, Size); }
 
 		//! Read data from a specified position in the KLV value field into the DataChunk
 		/*! \param Offset Offset from the start of the KLV value from which to start reading
-		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The number of bytes read
 		 */
-		virtual Length ReadDataFrom(Position Offset, Length Size = -1);
+		virtual size_t ReadDataFrom(Position Offset, size_t Size = static_cast<size_t>(-1));
 
 		//! Write the key and length of the current DataChunk to the destination file
 		/*! The key and length will be written to the source file as set by SetSource.
@@ -460,40 +460,47 @@ namespace mxflib
 		virtual Int32 WriteKL(Int32 LenSize = 0);
 
 		//! Write (some of) the current data to the same location in the destination file
-		/*! \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		/*! \param Size The number of bytes to write, if -1 all available bytes will be written
 		 *  \return The number of bytes written
 		 */
-		virtual Length WriteData(Length Size = -1) { return WriteDataFromTo(0, 0, Size); }
+		virtual size_t WriteData(size_t Size = static_cast<size_t>(-1)) { return WriteDataFromTo(0, 0, Size); }
 
 		//! Write (some of) the current data to the same location in the destination file
 		/*! \param Start The offset within the current DataChunk of the first byte to write
-		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \param Size The number of bytes to write, if -1 all available bytes will be written
 		 *  \return The number of bytes written
 		 */
-		virtual Length WriteDataFrom(Position Start, Length Size = -1) { return WriteDataFromTo(0, Start, Size); }
+		virtual size_t WriteDataFrom(Position Start, size_t Size = static_cast<size_t>(-1)) { return WriteDataFromTo(0, Start, Size); }
 
 		//! Write (some of) the current data to a different location in the destination file
 		/*! \param Offset The offset within the KLV value field of the first byte to write
-		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \param Size The number of bytes to write, if -1 all available bytes will be written
 		 *  \return The number of bytes written
 		 */
-		virtual Length WriteDataTo(Position Offset, Length Size = -1) { return WriteDataFromTo(Offset, 0, Size); }
+		virtual size_t WriteDataTo(Position Offset, size_t Size = static_cast<size_t>(-1)) { return WriteDataFromTo(Offset, 0, Size); }
 
 		//! Write (some of) the current data to the same location in the destination file
 		/*! \param Offset The offset within the KLV value field of the first byte to write
 		 *  \param Start The offset within the current DataChunk of the first byte to write
-		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \param Size The number of bytes to write, if -1 all available bytes will be written
 		 *  \return The number of bytes written
 		 */
-		virtual Length WriteDataFromTo(Position Offset, Position Start, Length Size = -1)
+		virtual size_t WriteDataFromTo(Position Offset, Position Start, size_t Size = static_cast<size_t>(-1))
 		{
 			// Calculate default number of bytes to write
 			Length BytesToWrite = Data.Size - Start;
 
 			// Write the requested size (if valid)
-			if((Size > 0) && (Size < BytesToWrite)) BytesToWrite = Size;
+			if((Size != static_cast<size_t>(-1)) && (Size < BytesToWrite)) BytesToWrite = Size;
 
-			return WriteDataTo(&Data.Data[Start], Offset, BytesToWrite);
+			// Sanity check the size of this chunk
+			if((sizeof(size_t) < 8) && (BytesToWrite > 0xffffffff))
+			{
+				error("Tried to write > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
+				return 0;
+			}
+
+			return WriteDataTo(&Data.Data[Start], Offset, static_cast<size_t>(BytesToWrite));
 		}
 
 		//! Write data from a given buffer to a given location in the destination file
@@ -504,7 +511,7 @@ namespace mxflib
 		 *  \note As there may be a need for the implementation to know where within the value field
 		 *        this data lives, there is no WriteData(Buffer, Size) function.
 		 */
-		virtual Length WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size);
+		virtual size_t WriteDataTo(const UInt8 *Buffer, Position Offset, size_t Size);
 
 		//! Get the length of the value field
 		virtual Length GetLength(void) 
@@ -551,21 +558,21 @@ namespace mxflib
 
 		//! Read data from a specified position in the encrypted portion of the KLV value field into the DataChunk
 		/*! \param Offset Offset from the start of the KLV value from which to start reading
-		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The number of bytes read
 		 *	The IV must have already been set.
 		 *  Only encrypted parts of the value may be read using this function (i.e. Offset >= PlaintextOffset)
 		 */
-		Length ReadCryptoDataFrom(Position Offset, Length Size = -1);
+		size_t ReadCryptoDataFrom(Position Offset, size_t Size = static_cast<size_t>(-1));
 
 		//! Read an integer set of chunks from a specified position in the encrypted portion of the KLV value field into the DataChunk
 		/*! \param Offset Offset from the start of the KLV value from which to start reading
-		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The number of bytes read
 		 *	The IV must have already been set, Size must be a multiple of 16 as must (Offset - PlaintextOffset). 
 		 *  Only encrypted parts of the value may be read using this function (i.e. Offset >= PlaintextOffset)
 		 */
-		Length ReadChunkedCryptoDataFrom(Position Offset, Length Size);
+		size_t ReadChunkedCryptoDataFrom(Position Offset, size_t Size);
 	
 		//! Write encrypted data from a given buffer to a given location in the destination file
 		/*! \param Buffer Pointer to data to be written
@@ -575,7 +582,7 @@ namespace mxflib
 		 *	The IV must have already been set.
 		 *  Only encrypted parts of the value may be written using this function (i.e. Offset >= PlaintextOffset)
 		 */
-		Length WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, Length Size);
+		size_t WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, size_t Size);
 	};
 
 	//! Smart pointer to a KLVEObject (cannot point to KLVObjects)

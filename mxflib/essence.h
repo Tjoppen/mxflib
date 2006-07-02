@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.16 2006/06/29 14:40:41 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.17 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -114,7 +114,7 @@ namespace mxflib
 
 		//! Get the size of the essence data in bytes
 		/*! \note There is intentionally no support for an "unknown" response */
-		virtual Length GetEssenceDataSize(void) = 0;
+		virtual size_t GetEssenceDataSize(void) = 0;
 
 		//! Get the next "installment" of essence data
 		/*! This will attempt to return an entire wrapping unit (e.g. a full frame for frame-wrapping) but will return it in
@@ -127,7 +127,7 @@ namespace mxflib
 		 *	\note If Size = 0 the object will decide the size of the chunk to return
 		 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 		 */
-		virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0) = 0;
+		virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0) = 0;
 
 		//! Did the last call to GetEssenceData() return the end of a wrapping item
 		/*! \return true if the last call to GetEssenceData() returned an entire wrapping unit.
@@ -738,10 +738,10 @@ namespace mxflib
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 			 */
-			virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0) { return BaseGetEssenceData(Size, MaxSize); };
+			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0) { return BaseGetEssenceData(Size, MaxSize); };
 
 			//! Non-virtual basic version of GetEssenceData() that can be called by derived classes
-			DataChunkPtr BaseGetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0)
+			DataChunkPtr BaseGetEssenceData(size_t Size = 0, size_t MaxSize = 0)
 			{
 				// Allow us to differentiate the first call
 				if(!Started) Started = true;
@@ -1492,14 +1492,14 @@ namespace mxflib
 			}
 
 			//! Get the size of the essence data in bytes
-			virtual Length GetEssenceDataSize(void) 
+			virtual size_t GetEssenceDataSize(void) 
 			{ 
 				if(!ValidSource()) return 0;
 
 				// If we have emptied all files then exit now
 				if(Outer->AtEOF) return 0;
 
-				Length Ret = CurrentSource->GetEssenceDataSize();
+				size_t Ret = CurrentSource->GetEssenceDataSize();
 
 				// If no more data move to the next source file
 				if(!Ret)
@@ -1521,7 +1521,7 @@ namespace mxflib
 			}
 
 			//! Get the next "installment" of essence data
-			virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0);
+			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0);
 
 			//! Did the last call to GetEssenceData() return the end of a wrapping item
 			virtual bool EndOfItem(void) { if(ValidSource()) return CurrentSource->EndOfItem(); else return true; }

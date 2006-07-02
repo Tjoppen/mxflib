@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.cpp,v 1.7 2006/06/25 14:44:57 matt-beard Exp $
+ *	\version $Id: primer.cpp,v 1.8 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -190,12 +190,12 @@ UInt32 Primer::WritePrimer(DataChunkPtr &Buffer)
 	ASSERT(PrimerType);
 
 	Buffer->Append(PrimerType->GetKey());
-	Bytes = PrimerType->GetKey().Size;
+	Bytes = static_cast<UInt32>(PrimerType->GetKey().Size);
 
 	// Add the length
 	DataChunkPtr BER = MakeBER(PrimerLen);
 	Buffer->Append(*BER);
-	Bytes += BER->Size;
+	Bytes += static_cast<UInt32>(BER->Size);
 
 	// Add the vector header
 	UInt8 Temp[4];

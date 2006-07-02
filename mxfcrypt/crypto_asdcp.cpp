@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.cpp
  *	\brief	AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.cpp,v 1.5 2006/04/05 17:07:21 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.cpp,v 1.6 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -45,7 +45,7 @@ bool ForceKeyMode = false;
  *  - trunc( HMAC-SHA-1( CipherKey, 0x00112233445566778899aabbccddeeff ) )
  *  Where trunc(x) is the first 128 bits of x
  */
-DataChunkPtr BuildHashKey(int Size, const UInt8 *CryptoKey)
+DataChunkPtr BuildHashKey(size_t Size, const UInt8 *CryptoKey)
 {
 	//! Constant value to be hashed with cypher key to produce the hashing key
 	const UInt8 KeyConst[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff };
@@ -67,7 +67,7 @@ DataChunkPtr BuildHashKey(int Size, const UInt8 *CryptoKey)
 //! Set the key and start hashing
 /*  \return True if key is accepted
  */
-bool HashHMACSHA1::SetKey(UInt32 Size, const UInt8 *Key)
+bool HashHMACSHA1::SetKey(size_t Size, const UInt8 *Key)
 {
 	if(Size > 64)
 	{
@@ -114,7 +114,7 @@ printf("Writing hash data to \"%s\"\n", Name);
 
 
 //! Add the given data to the current hash being calculated
-void HashHMACSHA1::HashData(UInt32 Size, const UInt8 *Data)
+void HashHMACSHA1::HashData(size_t Size, const UInt8 *Data)
 {
 //FileWrite(OutFile, Data, Size);
 	if(!KeyInited)
@@ -123,7 +123,13 @@ void HashHMACSHA1::HashData(UInt32 Size, const UInt8 *Data)
 		return;
 	}
 
-	SHA1_Update(&Context, Data, Size);
+	if((sizeof(size_t) > 4) &&(Size > 0xffffffff))
+	{
+		error("Maximum hashable chunk size in HashHMACSHA1::HashData() is 4GBytes\n");
+		return;
+	}
+
+	SHA1_Update(&Context, Data, static_cast<unsigned long>(Size));
 }
 
 
@@ -140,7 +146,7 @@ DataChunkPtr HashHMACSHA1::GetHash(void)
 	// Hash the inner hash with the outer key
 	SHA1_Init(&Context);
 	SHA1_Update(&Context, KeyBuffer_o, 64);
-	SHA1_Update(&Context, Ret->Data, Ret->Size);
+	SHA1_Update(&Context, Ret->Data, static_cast<unsigned long>(Ret->Size));
 	SHA1_Final(Ret->Data, &Context);
 
 /*
@@ -159,15 +165,15 @@ printf("\n");
 //! Encrypt data and return in a new buffer
 /*! \return NULL pointer if the encryption is unsuccessful
  */
-DataChunkPtr AESEncrypt::Encrypt(UInt32 Size, const UInt8 *Data)
+DataChunkPtr AESEncrypt::Encrypt(size_t Size, const UInt8 *Data)
 {
 	// Calculate size of encrypted data (always a multiple of 16-bytes)
-	UInt32 RetSize = (Size + 15) / 16;
+	size_t RetSize = (Size + 15) / 16;
 	RetSize *= 16;
 
 	DataChunkPtr Ret = new DataChunk(RetSize);
 
-	AES_cbc_encrypt(Data, Ret->Data, Size, &CurrentKey, CurrentIV, AES_ENCRYPT);
+	AES_cbc_encrypt(Data, Ret->Data, static_cast<unsigned long>(Size), &CurrentKey, CurrentIV, AES_ENCRYPT);
 
 	return Ret;
 }
@@ -180,10 +186,10 @@ Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID,
 	char Buffer[45];
 
 	FileHandle KeyFile = FileOpenRead(KeyFileName.c_str());
-	int Bytes = 0;
+	size_t Bytes = 0;
 	if(FileValid(KeyFile))
 	{
-		Bytes = (int)FileRead(KeyFile, (UInt8*)Buffer, 32);
+		Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
 		FileClose(KeyFile);
 
 		if(Bytes != 32) error("Failed to read key from key-file \"%s\"\n", Buffer);
@@ -307,11 +313,17 @@ bool Encrypt_GCReadHandler::HandleData(GCReaderPtr Caller, KLVObjectPtr Object)
 //! Decrypt data and return in a new buffer
 /*! \return NULL pointer if the encryption is unsuccessful
  */
-DataChunkPtr AESDecrypt::Decrypt(UInt32 Size, const UInt8 *Data)
+DataChunkPtr AESDecrypt::Decrypt(size_t Size, const UInt8 *Data)
 {
+	if((sizeof(size_t) > 4) &&(Size > 0xffffffff))
+	{
+		error("Maximum chunk size in AESDecrypt::Decrypt() is 4GBytes\n");
+		return NULL;
+	}
+
 	DataChunkPtr Ret = new DataChunk(Size);
 
-	AES_cbc_encrypt(Data, Ret->Data, Size, &CurrentKey, CurrentIV, AES_DECRYPT);
+	AES_cbc_encrypt(Data, Ret->Data, static_cast<unsigned long>(Size), &CurrentKey, CurrentIV, AES_DECRYPT);
 
 	return Ret;
 }
@@ -323,10 +335,10 @@ Decrypt_GCEncryptionHandler::Decrypt_GCEncryptionHandler(UInt32 BodySID, DataChu
 	char Buffer[45];
 
 	FileHandle KeyFile = FileOpenRead(KeyFileName.c_str());
-	int Bytes = 0;
+	size_t Bytes = 0;
 	if(FileValid(KeyFile))
 	{
-		Bytes = (int)FileRead(KeyFile, (UInt8*)Buffer, 32);
+		Bytes = FileRead(KeyFile, (UInt8*)Buffer, 32);
 		FileClose(KeyFile);
 
 		if(Bytes != 32) error("Failed to read key from key-file \"%s\"\n", Buffer);

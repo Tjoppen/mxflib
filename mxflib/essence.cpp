@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.18 2006/06/25 14:26:04 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.19 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -399,7 +399,7 @@ void GCWriter::AddSystemData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 	// Add the length and work out the start of the data field
 	DataChunkPtr BER = MakeBER(Size);
 	memcpy(&Buffer[16], BER->Data, BER->Size);
-	int ValStart = 16 + BER->Size;
+	size_t ValStart = 16 + BER->Size;
 
 	// Copy the value into the buffer
 	memcpy(&Buffer[ValStart], Data, (size_t)Size);
@@ -487,7 +487,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 	// Add the length and work out the start of the data field
 	DataChunkPtr BER = MakeBER(Size);
 	memcpy(&Buffer[16], BER->Data, BER->Size);
-	int ValStart = 16 + BER->Size;
+	size_t ValStart = 16 + BER->Size;
 
 	// Copy the value into the buffer
 	memcpy(&Buffer[ValStart], Data, (size_t)Size);
@@ -772,7 +772,7 @@ UInt64 GCWriter::CalcWriteSize(void)
 			// to flag that we cannot know the size of the next write
 			if((*it).second.FastClipWrap) return (UInt64)-1;
 
-			Length Size = (*it).second.Source->GetEssenceDataSize();
+			size_t Size = (*it).second.Source->GetEssenceDataSize();
 			DataChunkPtr BER = MakeBER(Size);
 			Ret += BER->Size + Size;
 		}
@@ -1731,8 +1731,8 @@ bool BodyReader::ReSync()
 			
 			if(Buffer->Size < 16) return false;
 
-			Int32 i;									// Loop variable
-			Int32 End = Buffer->Size - 15;				// End of loop - 15 bytes early to allow 16-byte compares
+			size_t i;									// Loop variable
+			size_t End = Buffer->Size - 15;				// End of loop - 15 bytes early to allow 16-byte compares
 			UInt8 *p = Buffer->Data;						// Use moving pointer for faster compares
 			for(i=0; i<End; i++)
 			{
@@ -1809,7 +1809,7 @@ GCElementKind mxflib::GetGCElementKind(ULPtr TheUL)
 			DataChunkList::iterator it = GCEssenceKeyAlternatives.begin();
 			while(it != GCEssenceKeyAlternatives.end())
 			{
-				int Size = (*it)->Size;
+				size_t Size = (*it)->Size;
 				
 				if(Size > 8)
 				{
@@ -3394,7 +3394,7 @@ void mxflib::BodyWriter::SetNextStream(void)
 	if(State == BodyStateDone) return;
 
 	// As we will loop at the end of the list check that we don't loop forever
-	int MaxIters = StreamList.size();
+	int MaxIters = static_cast<int>(StreamList.size());
 
 
 	/* Update the state if required */
@@ -3606,7 +3606,7 @@ void ListOfFiles::ParseFileName(std::string FileName)
 	FileList = false;
 
 	// Length of input string including terminating zero
-	int InLength = FileName.size() + 1;
+	size_t InLength = FileName.size() + 1;
 
 	// Build a buffer long enough for the longest base name
 	char *NameBuffer = new char[InLength];
@@ -3957,7 +3957,7 @@ bool FileParser::GetNextSource(void)
 
 
 //! Get the next "installment" of essence data
-DataChunkPtr FileParser::SequentialEssenceSource::GetEssenceData(UInt64 Size /*=0*/, UInt64 MaxSize /*=0*/ )
+DataChunkPtr FileParser::SequentialEssenceSource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/ )
 { 
 	// We need a valid source to continue
 	if(!ValidSource()) return NULL;

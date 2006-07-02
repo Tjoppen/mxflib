@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.10 2006/06/25 14:34:21 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.11 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -553,11 +553,11 @@ namespace mxflib
 
 		// DRAGONS: These should probably be private and give access via MDTraits
 		// to prevent users tinkering!
-		UInt32 MakeSize(UInt32 NewSize);
+		size_t MakeSize(size_t NewSize);
 
-		UInt32 ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
-		UInt32 ReadValue(DataChunkPtr &Chunk) { return ReadValue(Chunk->Data, Chunk->Size); };
-		UInt32 ReadValue(const UInt8 *Buffer, UInt32 Size, int Count=0);
+		size_t ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
+		size_t ReadValue(DataChunkPtr &Chunk) { return ReadValue(Chunk->Data, Chunk->Size); };
+		size_t ReadValue(const UInt8 *Buffer, size_t Size, int Count=0);
 
 		//! Get a reference to the data chunk (const to prevent setting!!)
 		const DataChunk& GetData(void) { return (const DataChunk&) Data; };
@@ -567,7 +567,7 @@ namespace mxflib
 
 		//! Set data into the datachunk
 		// DRAGONS: This is dangerous!!
-		void SetData(UInt32 MemSize, const UInt8 *Buffer) 
+		void SetData(size_t MemSize, const UInt8 *Buffer) 
 		{ 
 			Data.Resize(MemSize); 
 			Data.Set(MemSize, Buffer); 

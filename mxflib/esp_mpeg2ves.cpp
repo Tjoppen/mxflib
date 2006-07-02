@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.6 2006/06/25 14:14:11 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.7 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -267,16 +267,15 @@ Position MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
 DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/ /*, IndexTablePtr Index *//*=NULL*/) 
 { 
 	// Scan the stream and find out how many bytes to read
-	UInt64 Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
+	size_t Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
 
 	// Make a datachunk with enough space
-	DataChunkPtr Ret = new DataChunk;
-	Ret->Resize((UInt32)Bytes);
+	DataChunkPtr Ret = new DataChunk(Bytes);
 
 	// Read the data
 	FileRead(InFile, Ret->Data, Bytes);
 
-	return Ret; 
+	return Ret;
 };
 
 
@@ -294,21 +293,24 @@ Length MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFi
 	UInt8 *Buffer = new UInt8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
-	UInt64 Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
-	UInt64 Ret = Bytes;
+	size_t Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
+	Length Ret = static_cast<Length>(Bytes);
 
 	while(Bytes)
 	{
-		int ChunkSize;
+		size_t ChunkSize;
 		
 		// Number of bytes to transfer in this chunk
-		if(Bytes < BUFFERSIZE) ChunkSize = (int)Bytes; else ChunkSize = BUFFERSIZE;
+		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
 
 		FileRead(InFile, Buffer, ChunkSize);
 		OutFile->Write(Buffer, ChunkSize);
 
 		Bytes -= ChunkSize;
 	}
+
+	// Free the buffer
+	delete[] Buffer;
 
 	return Ret; 
 }
@@ -522,12 +524,12 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
  *
  *	\note PictureNumber is incremented for each picture found
  */
-Length MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count)
+size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count)
 {
 	// Don't bother if there is no more data
 	if(EndOfStream) return 0;
 
-	UInt64 CurrentStart = CurrentPos;
+	Position CurrentStart = CurrentPos;
 
 	// Apply any edit rate factor for integer multiples of native edit rate 
 	Count *= EditRatio;
@@ -671,7 +673,15 @@ Length MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 	// Move to the start of the data
 	FileSeek(InFile, CurrentStart);
 
-	return CurrentPos - CurrentStart;
+	Length Ret = CurrentPos - CurrentStart;
+
+	if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
+	{
+		error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
+		return 0;
+	}
+
+	return static_cast<size_t>(Ret);
 }
 
 

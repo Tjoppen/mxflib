@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.13 2006/06/25 14:46:06 matt-beard Exp $
+ *	\version $Id: system.h,v 1.14 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -237,8 +237,8 @@ namespace mxflib
 	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END) == -1 ? -1 : 0; }
 	
 	// DRAGONS: MSVC can't read or write more than 4Gb in one go currently
-	inline UInt64 FileRead(FileHandle file, unsigned char *dest, UInt64 size) { return read(file, dest, (unsigned int)size); }
-	inline UInt64 FileWrite(FileHandle file, const unsigned char *source, UInt64 size) { return write(file, source, (unsigned int)size); }
+	inline size_t FileRead(FileHandle file, unsigned char *dest, size_t size) { return read(file, dest, (unsigned int)size); }
+	inline size_t FileWrite(FileHandle file, const unsigned char *source, size_t size) { return write(file, source, (unsigned int)size); }
 
 	inline int FileGetc(FileHandle file) { UInt8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return open(filename, _O_BINARY | _O_RDWR ); }
@@ -394,8 +394,8 @@ namespace mxflib
 	typedef FILE *FileHandle;
 	inline int FileSeek(FileHandle file, UInt64 offset) { return fseeko(file, offset, SEEK_SET); }
 	inline int FileSeekEnd(FileHandle file) { return fseeko(file, 0, SEEK_END); }
-	inline UInt64 FileRead(FileHandle file, unsigned char *dest, UInt64 size) { return fread(dest, 1, size, file); }
-	inline UInt64 FileWrite(FileHandle file, const unsigned char *source, UInt64 size) { return fwrite(source, 1, size, file); }
+	inline size_t FileRead(FileHandle file, unsigned char *dest, size_t size) { return fread(dest, 1, size, file); }
+	inline size_t FileWrite(FileHandle file, const unsigned char *source, size_t size) { return fwrite(source, 1, size, file); }
 	inline int FileGetc(FileHandle file) { UInt8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return fopen(filename, "r+b" ); }
 	inline FileHandle FileOpenRead(const char *filename) { return fopen(filename, "rb" ); }

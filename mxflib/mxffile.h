@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.10 2006/06/25 14:40:48 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.11 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -76,7 +76,7 @@ namespace mxflib
 
 		virtual bool Open(std::string FileName, bool ReadOnly = false );
 		virtual bool OpenNew(std::string FileName);
-		virtual bool OpenMemory(DataChunkPtr Buff = NULL, UInt64 Offset = 0);
+		virtual bool OpenMemory(DataChunkPtr Buff = NULL, Position Offset = 0);
 		virtual bool Close(void);
 
 		bool ReadRunIn(void);
@@ -158,8 +158,8 @@ namespace mxflib
 			return mxflib::FileEof(Handle) ? true : false; 
 		};
 
-		DataChunkPtr Read(UInt64 Size);
-		UInt64 Read(UInt8 *Buffer, UInt64 Size);
+		DataChunkPtr Read(size_t Size);
+		size_t Read(UInt8 *Buffer, size_t Size);
 
 //		MDObjectPtr ReadObject(void);
 //		template<class TP, class T> TP ReadObjectBase(void) { TP x; return x; };
@@ -271,10 +271,10 @@ namespace mxflib
 		 *	\note If the size is specified it will be overridden for lengths
 		 *		  that will not fit. However an error message will be produced.
 		 */
-		UInt32 WriteBER(UInt64 Length, UInt32 Size = 0) { DataChunkPtr BER = MakeBER(Length, Size); Write(*BER); return BER->Size; };
+		UInt32 WriteBER(UInt64 Length, UInt32 Size = 0) { DataChunkPtr BER = MakeBER(Length, Size); Write(*BER); return static_cast<UInt32>(BER->Size); };
 
 		//! Write raw data
-		UInt64 Write(const UInt8 *Buffer, UInt32 Size) 
+		size_t Write(const UInt8 *Buffer, size_t Size) 
 		{ 
 			if(isMemoryFile) return MemoryWrite(Buffer, Size);
 
@@ -282,7 +282,7 @@ namespace mxflib
 		};
 
 		//! Write the contents of a DataChunk by reference
-		UInt64 Write(const DataChunk &Data) 
+		size_t Write(const DataChunk &Data) 
 		{ 
 			if(isMemoryFile) return MemoryWrite(Data.Data, Data.Size);
 
@@ -290,11 +290,11 @@ namespace mxflib
 		};
 
 		//! Write the contents of a DataChunk by SmartPtr
-		UInt64 Write(DataChunkPtr Data)
+		size_t Write(DataChunkPtr Data)
 		{ 
 			if(isMemoryFile) return MemoryWrite(Data->Data, Data->Size);
 
-			return FileWrite(Handle, Data->Data, Data->Size); 
+			return static_cast<size_t>(FileWrite(Handle, Data->Data, Data->Size)); 
 		};
 
 		//! Write 8-bit unsigned integer
@@ -367,15 +367,15 @@ namespace mxflib
 		bool IsBlockAligned(void) { return (BlockAlign != 0); }
 
 	protected:
-		UInt64 ScanRIP_FindFooter(Length MaxScan);
+		Position ScanRIP_FindFooter(Length MaxScan);
 
 		//! Write to memory file buffer
 		/*! \note This can be overridden in classes derived from MXFFile to give different memory write behaviour */
-		virtual UInt32 MemoryWrite(UInt8 const *Data, UInt32 Size);
+		virtual size_t MemoryWrite(UInt8 const *Data, size_t Size);
 
 		//! Read from a memory file buffer
 		/*! \note This can be overridden in classes derived from MXFFile to give different memory read behaviour */
-		virtual UInt32 MemoryRead(UInt8 *Data, UInt32 Size);
+		virtual size_t MemoryRead(UInt8 *Data, size_t Size);
 	};
 }
 
@@ -397,15 +397,27 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 	ASSERT(Ret);
 
 	Length Length = This->ReadBER();
+	if((sizeof(size_t) < 8) && Length > 0xffffffff)
+	{
+		error("Maximum read size on this platform is 4Gbytes - However, requested to read object %s at 0x%s which has size of 0x%s\n",
+			  Ret->Name().c_str(), Int64toHexString(Location,8).c_str(), Int64toHexString(Length,8).c_str());
+
+		// Skip over the item
+		This->Seek(This->Tell() + Length);
+
+		// Return an empty object
+		return Ret;
+	}
+
 	if(Length > 0)
 	{
 		// Work out how big the key and length are in the file
-		UInt32 KLSize = (UInt32)(This->Tell() - Location);
+		UInt32 KLSize = static_cast<UInt32>(This->Tell() - Location);
 
 		// Read the actual data
-		DataChunkPtr Data = This->Read(Length);
+		DataChunkPtr Data = This->Read(static_cast<size_t>(Length));
 
-		if(Data->Size != Length)
+		if(Data->Size != static_cast<size_t>(Length))
 		{
 			error("Not enough data in file for object %s at 0x%s\n", Ret->Name().c_str(), Int64toHexString(Location,8).c_str());
 		}

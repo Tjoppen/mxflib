@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.8 2006/06/25 14:14:12 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.9 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -66,7 +66,7 @@ namespace mxflib
 		protected:
 			Position EssenceBytePos;
 			bool CountSet;
-			Length ByteCount;
+			size_t ByteCount;
 			Position Offset;
 
 		public:
@@ -84,7 +84,7 @@ namespace mxflib
 			//! Get the size of the essence data in bytes
 			/*! \note There is intentionally no support for an "unknown" response 
 			 */
-			virtual Length GetEssenceDataSize(void) 
+			virtual size_t GetEssenceDataSize(void) 
 			{
 				CountSet = true;
 				Offset = 0;
@@ -99,7 +99,7 @@ namespace mxflib
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 			 */
-			virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0)
+			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0)
 			{
 				// Allow us to differentiate the first call
 				if(!Started)
@@ -262,8 +262,7 @@ namespace mxflib
 		MDObjectPtr BuildWaveAudioDescriptor(FileHandle InFile, UInt64 Start = 0);
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
-		Length ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count);
-
+		size_t ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count);
 	};
 }
 

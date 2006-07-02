@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.17 2006/02/12 12:21:37 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.18 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -506,7 +506,7 @@ static void DumpIndex( PartitionPtr ThisPartition )
 			MDObjectPtr DeltaEntryArray = (*it)[DeltaEntryArray_UL];
 			if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
 			{
-				Streams = DeltaEntryArray->size() / DeltaEntryArray->GetType()->size();
+				Streams = static_cast<Uint32>(DeltaEntryArray->size() / DeltaEntryArray->GetType()->size());
 				if(Streams == 0) Streams = 1;	// Fix for bad DeltaEntryArray
 			}
 
@@ -838,7 +838,7 @@ static void DumpBody( PartitionPtr ThisPartition )
 					if(CurrentSize <= 0) break;
 					if(CurrentSize > MaxSize) CurrentSize = MaxSize;
 
-					Length Bytes = anElement->ReadDataFrom(Offset, CurrentSize);
+					size_t Bytes = anElement->ReadDataFrom(Offset, static_cast<size_t>(CurrentSize));
 					if(!Bytes) break;
 					Offset += Bytes;
 

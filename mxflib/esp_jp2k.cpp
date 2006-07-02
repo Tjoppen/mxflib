@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.9 2006/06/25 14:14:11 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.10 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -259,14 +259,13 @@ DataChunkPtr mxflib::JP2K_EssenceSubParser::Read(FileHandle InFile, UInt32 Strea
 	FileSeek(InFile, CurrentPos);
 	
 	// Find out how many bytes to read
-	Length Bytes = ReadInternal(InFile, Stream, Count);
+	size_t Bytes = ReadInternal(InFile, Stream, Count);
 
 	// If there is no data left return a NULL pointer as a signal
 	if(!Bytes) return Ret;
 
 	// Make a datachunk with enough space
-	Ret = new DataChunk;
-	Ret->Resize((UInt32)Bytes);
+	Ret = new DataChunk(Bytes);
 
 	// Read the data
 	FileRead(InFile, Ret->Data, Bytes);
@@ -299,15 +298,15 @@ Length mxflib::JP2K_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MX
 	FileSeek(InFile, CurrentPos);
 	
 	// Find out how many bytes to transfer
-	Length Bytes = ReadInternal(InFile, Stream, (Length)Count);
-	Length Ret = Bytes;
+	size_t Bytes = ReadInternal(InFile, Stream, (Length)Count);
+	Length Ret = static_cast<Length>(Bytes);
 
 	while(Bytes)
 	{
-		int ChunkSize;
+		size_t ChunkSize;
 		
 		// Number of bytes to transfer in this chunk
-		if(Bytes < BUFFERSIZE) ChunkSize =(int) Bytes; else ChunkSize = BUFFERSIZE;
+		if(Bytes < BUFFERSIZE) ChunkSize = Bytes; else ChunkSize = BUFFERSIZE;
 
 		FileRead(InFile, Buffer, ChunkSize);
 		OutFile->Write(Buffer, ChunkSize);
@@ -317,6 +316,9 @@ Length mxflib::JP2K_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MX
 
 	// Update the file pointer
 	CurrentPos = FileTell(InFile);
+
+	// Free the buffer
+	delete[] Buffer;
 
 	return Ret; 
 }
@@ -560,10 +562,9 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromJP2(FileHandle InF
 /*! \note The file position pointer is left at the start of the chunk at the end of 
  *		  this function
  */
-Length mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, Length Count) 
+size_t mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, Length Count) 
 { 
 	// TODO: Add better error reporting - it currently just exits on most errors
-	
 	Length Ret = 0;
 
 	// Move to the current position
@@ -575,13 +576,13 @@ Length mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Str
 	{
 		Ret = DataSize - (CurrentPos - DataStart);
 		if(Ret < 0) Ret = 0;
-		return Ret;
+		return static_cast<size_t>(Ret);
 	}
 
 	// If the size is unknown we assume the rest of the file is data
 	// DRAGONS: Should work even for JP2 files as an "unknown" length must be the last item in a JP2 file
 	FileSeekEnd(InFile);
-	Ret = Length(FileTell(InFile)) - CurrentPos;
+	Ret = static_cast<Length>(FileTell(InFile) - CurrentPos);
 	
 	// Move back to the current position
 	FileSeek(InFile, CurrentPos);
@@ -593,7 +594,14 @@ Length mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Str
 		Manager->OfferEditUnit(ManagedStreamID, PictureNumber, 0, 0x80);
 	}
 
-	return Ret;
+	// Validate the size
+	if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
+	{
+		error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
+		return 0;
+	}
+
+	return static_cast<size_t>(Ret);
 
 /* Codestream scanning code...
 
@@ -821,13 +829,14 @@ bool mxflib::JP2K_EssenceSubParser::ParseJP2Header(FileHandle InFile)
 		else
 		{
 			// DRAGONS: Currently limit to 1k
+			// TODO: We should probably report errors if the box is bogger
 			const int MaxBoxSize = 1024;
 
 			int ReadLength;
 			if((BoxLength > MaxBoxSize) || (BoxLength < 0)) ReadLength = MaxBoxSize;
 			else ReadLength = (int)BoxLength;
 
-			DataChunkPtr ThisData = new DataChunk(BoxLength);
+			DataChunkPtr ThisData = new DataChunk(ReadLength);
 			int Bytes = (int)FileRead(InFile, ThisData->Data, ReadLength);
 
 			// Resize the value if not all bytes read

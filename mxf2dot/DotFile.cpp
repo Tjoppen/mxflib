@@ -483,7 +483,7 @@ void DotObjectAttribute::addPropertyValueOrDef(string name, string typeOrValue,
 
 string DotObjectAttribute::getDisplayWidth(float fixedPitch)
 {
-    float nodeWidth;
+    double nodeWidth;
     if (fixedPitch <= 0.0)
     {
         // conservative estimate
@@ -497,7 +497,7 @@ string DotObjectAttribute::getDisplayWidth(float fixedPitch)
     }
     
     char buffer[7];
-    sprintf(buffer, "%6.2f", nodeWidth);
+    sprintf(buffer, "%6.2f", static_cast<float>(nodeWidth));
     return buffer;
 }
 

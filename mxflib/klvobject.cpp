@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: klvobject.cpp,v 1.5 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -98,14 +98,14 @@ Int32 KLVObject::Base_ReadKL(void)
 
 //! Base verion: Read data from a specified position in the KLV value field into a DataChunk
 /*! \param Offset Offset from the start of the KLV value from which to start reading
- *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+ *  \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
  *  \return The number of bytes read
  *
  *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
  *           It is therefore vital that the function does not call any "virtual" KLVObject
  *           functions, directly or indirectly.
  */
-Length KLVObject::Base_ReadDataFrom(DataChunk &Buffer, Position Offset, Length Size /*=-1*/)
+size_t KLVObject::Base_ReadDataFrom(DataChunk &Buffer, Position Offset, size_t Size /*=-1*/)
 {
 	// Delagate to ReadHandler if defined
 	if(ReadHandler) return ReadHandler->ReadData(Buffer, this, Offset, Size);
@@ -135,6 +135,13 @@ Length KLVObject::Base_ReadDataFrom(DataChunk &Buffer, Position Offset, Length S
 		return 0;
 	}
 
+	// Sanity check the size of this read
+	if((sizeof(size_t) < 8) && (BytesToRead > 0xffffffff))
+	{
+		error("Tried to read > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
+		return 0;
+	}
+
 	// Seek to the start of the requested data
 	Source.File->Seek(Source.Offset + Source.KLSize + Offset);
 
@@ -142,13 +149,13 @@ Length KLVObject::Base_ReadDataFrom(DataChunk &Buffer, Position Offset, Length S
 	// Discarding old data first (by setting Size to 0) prevents old data being 
 	// copied needlessly if the buffer is reallocated to increase its size
 	Buffer.Size = 0;
-	Buffer.Resize((UInt32)BytesToRead);
+	Buffer.Resize(static_cast<size_t>(BytesToRead));
 
 	// Read into the buffer (only as big as the buffer is!)
-	Length Bytes = (Length)Source.File->Read(Buffer.Data, Buffer.Size);
+	size_t Bytes = Source.File->Read(Buffer.Data, Buffer.Size);
 
 	// Resize the buffer if something odd happened (such as an early end-of-file)
-	if(Bytes != BytesToRead) Buffer.Resize((UInt32)Bytes);
+	if(Bytes != static_cast<size_t>(BytesToRead)) Buffer.Resize(Bytes);
 
 	return Bytes;
 }
@@ -213,7 +220,7 @@ Int32 KLVObject::Base_WriteKL(Int32 LenSize /*=0*/, Length NewLength /*=-1*/)
  *           It is therefore vital that the function does not call any "virtual" KLVObject
  *           functions, directly or indirectly.
  */
-Length KLVObject::Base_WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size)
+size_t KLVObject::Base_WriteDataTo(const UInt8 *Buffer, Position Offset, size_t Size)
 {
 	// Don't write zero bytes
 	if(Size == 0) return 0;
@@ -240,6 +247,6 @@ Length KLVObject::Base_WriteDataTo(const UInt8 *Buffer, Position Offset, Length 
 	Dest.File->Seek(Dest.Offset + Dest.KLSize + Offset);
 
 	// Write from the specified buffer
-	return (Length)Dest.File->Write(Buffer, (UInt32)Size);
+	return Dest.File->Write(Buffer, Size);
 }
 

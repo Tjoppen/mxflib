@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.11 2006/06/25 14:32:11 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.12 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -125,15 +125,15 @@ UInt32 mxflib::MDTraits::GetUInt(MDValuePtr Object) { error("NO BODY!\n"); retur
 UInt64 mxflib::MDTraits::GetUInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
 std::string mxflib::MDTraits::GetString(MDValuePtr Object) { return std::string("Base"); }
 
-UInt32 MDTraits::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
+size_t MDTraits::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	// If multiple items are found read them all "blindly"
-	UInt32 FullSize = Size;
+	size_t FullSize = Size;
 	if(Count) FullSize *= Count;
 
 	// Try and make exactly the right amount of room
 	// Some objects will not allow this and will return a different size
-	UInt32 ObjSize = Object->MakeSize(FullSize);
+	size_t ObjSize = Object->MakeSize(FullSize);
 
 	// If the object is too small, only read what we can
 	if(ObjSize < FullSize)
@@ -294,7 +294,7 @@ void mxflib::MDTraits_Int8::SetInt(MDValuePtr Object, Int32 Val)
 //! Get Int32 from an Int8
 Int32 mxflib::MDTraits_Int8::GetInt(MDValuePtr Object) 
 {
-	int Size = Object->GetData().Size;
+	size_t Size = Object->GetData().Size;
 
 	// Deal with a NULL variable
 	if(Size == 0) return 0;
@@ -317,7 +317,7 @@ Int32 mxflib::MDTraits_Int8::GetInt(MDValuePtr Object)
  */
 UInt32 mxflib::MDTraits_Int8::GetUInt(MDValuePtr Object)
 { 
-	int Size = Object->GetData().Size;
+	size_t Size = Object->GetData().Size;
 
 	// Deal with a NULL variable
 	if(Size == 0) return 0;
@@ -383,7 +383,7 @@ void mxflib::MDTraits_Int16::SetInt(MDValuePtr Object, Int32 Val)
 //! Get Int32 from an Int16
 Int32 mxflib::MDTraits_Int16::GetInt(MDValuePtr Object) 
 { 
-	int Size = Object->GetData().Size;
+	size_t Size = Object->GetData().Size;
 
 	// Deal with a NULL variable
 	if(Size == 0) return 0;
@@ -401,7 +401,7 @@ Int32 mxflib::MDTraits_Int16::GetInt(MDValuePtr Object)
 //! Get UInt32 from an Int16
 UInt32 mxflib::MDTraits_Int16::GetUInt(MDValuePtr Object) 
 { 
-	int Size = Object->GetData().Size;
+	size_t Size = Object->GetData().Size;
 
 	// Deal with a NULL variable
 	if(Size == 0) return 0;
@@ -467,7 +467,7 @@ void mxflib::MDTraits_Int32::SetInt(MDValuePtr Object, Int32 Val)
 //! Get Int32 from an Int32
 Int32 mxflib::MDTraits_Int32::GetInt(MDValuePtr Object) 
 { 
-	int Size = Object->GetData().Size;
+	size_t Size = Object->GetData().Size;
 
 	// Deal with a NULL variable
 	if(Size == 0) return 0;
@@ -570,7 +570,7 @@ UInt32 mxflib::MDTraits_Int64::GetUInt(MDValuePtr Object) { return (UInt32) GetU
 //! Get Int64
 Int64 mxflib::MDTraits_Int64::GetInt64(MDValuePtr Object) 
 { 
-	int Size = Object->GetData().Size;
+	size_t Size = Object->GetData().Size;
 
 	// Deal with a NULL variable
 	if(Size == 0) return 0;
@@ -824,13 +824,13 @@ So UTF8 -> UTF16 (surrogate-pair):
 */
 void MDTraits_UTF16String::SetString(MDValuePtr Object, std::string Val)
 {
-	int Len;							//!< Length of the UTF-8 version
+	UInt32 Len;							//!< Length of the UTF-8 version
 	char *Buffer;						//!< Buffer to hold the UTF-8 version
-	int RetLen;							//!< Length of returned UTF-16 string (in 16-bit words)
+	UInt32 RetLen;						//!< Length of returned UTF-16 string (in 16-bit words)
 	int Value;							//!< Built UTF-16 version of the current character
 
 	// Read the UTF-8 value
-	Len = Val.size();
+	Len = static_cast<UInt32>(Val.size());
 	Buffer = new char[Len + 1];
 	strcpy(Buffer, Val.c_str());
 
@@ -982,23 +982,24 @@ void MDTraits_BasicArray::SetString(MDValuePtr Object, std::string Val)
 {
 	MDValue::iterator it;
 
-	int LastComma = -1;
+	size_t LastComma = -1;
 	
 	it = Object->begin();
 
 	for(;;)
 	{
-		int Comma = Val.find(",",LastComma+1);
+		size_t Comma = Val.find(",", LastComma + 1);
 
 		// If we are already at the end of the list, add another
 		if(it == Object->end()) 
 		{
-			Object->Resize(Object->size()+1);
+			// DRAGONS: This will fail for arrays of more that 4 billion entries
+			Object->Resize(static_cast<UInt32>(Object->size() + 1));
 			it = Object->end();
 			it--;
 		}
 
-		if(Comma == (int)std::string::npos)
+		if(Comma == std::string::npos)
 		{
 			(*it).second->SetString(std::string(Val,LastComma+1, std::string::npos));
 			return;
@@ -1081,7 +1082,7 @@ std::string MDTraits_BasicArray::GetString(MDValuePtr Object)
 }
 
 
-UInt32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
+size_t MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	// Start with no children in the object
 	Object->clear();
@@ -1137,14 +1138,14 @@ UInt32 MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UI
 
 	// Count of actual items read, and bytes read in doing so
 	UInt32 ActualCount = 0;
-	UInt32 Bytes = 0;
+	size_t Bytes = 0;
 
 	// Either the size of each item to read, or the total size (for unknown count)
-	UInt32 ThisSize = Size;
+	size_t ThisSize = Size;
 
 	while(Count)
 	{
-		UInt32 ThisBytes;
+		size_t ThisBytes;
 
 		MDValuePtr NewItem = new MDValue(Object->EffectiveBase());
 
@@ -1210,8 +1211,9 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 {
 	MDValue::iterator it;
 
-	int Size = Val.length();
-	int Index = 0;
+	// TODO: Sanity check the range here
+	UInt32 Size = static_cast<UInt32>(Val.length());
+	size_t Index = 0;
 	
 	if(GetStringTermination())
 		Object->Resize(Size + 1);
@@ -1244,7 +1246,7 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 		}
 	}
 
-	Object->Resize(Index);
+	Object->Resize(static_cast<UInt32>(Index));
 }
 
 
@@ -1344,7 +1346,7 @@ UInt64 MDTraits_Raw::GetUInt64(MDValuePtr Object)
 std::string MDTraits_Raw::GetString(MDValuePtr Object)
 {
 	std::string Ret;
-	int Count = Object->GetData().Size;
+	size_t Count = Object->GetData().Size;
 	const UInt8 *Data = Object->GetData().Data;
 
 	Ret = "";
@@ -1366,7 +1368,7 @@ std::string MDTraits_Raw::GetString(MDValuePtr Object)
 
 void MDTraits_Raw::SetString(MDValuePtr Object, std::string Val)
 {
-	int Count = Object->GetData().Size;
+	size_t Count = Object->GetData().Size;
 	int Value = -1;
 	UInt8 *Data = new UInt8[Count];
 	UInt8 *pD = Data;
@@ -1443,7 +1445,7 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 
 		if(Ret.length() != 0) Ret += " ";
 
-		int Size = (*it).second->GetData().Size;
+		size_t Size = (*it).second->GetData().Size;
 		
 		// Invalidate buffer
 		Buffer[0] = 0;
@@ -1467,15 +1469,15 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 }
 
 
-UInt32 MDTraits_Raw::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
+size_t MDTraits_Raw::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	// If multiple items are found read them all "blindly"
-	UInt32 FullSize = Size;
+	size_t FullSize = Size;
 	if(Count) FullSize *= Count;
 
 	// Try and make exactly the right amount of room
 	// Some objects will not allow this and will return a different size
-	UInt32 ObjSize = Object->MakeSize(FullSize);
+	size_t ObjSize = Object->MakeSize(FullSize);
 
 	// If the object is too small, only read what we can
 	if(ObjSize < FullSize)
@@ -1576,7 +1578,7 @@ void MDTraits_UUID::SetString(MDValuePtr Object, std::string Val)
 	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
 	const char *p = ValueBuff;
 
-	UInt32 Count = Object->GetData().Size;
+	size_t Count = Object->GetData().Size;
 	int Value = -1;
 	UInt8 *Data = new UInt8[Count];
 	UInt8 *pD = Data;
@@ -1715,7 +1717,7 @@ void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
 	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
 	const char *p = ValueBuff;
 
-	UInt32 Count = Object->GetData().Size;
+	size_t Count = Object->GetData().Size;
 	int Value = -1;
 	UInt8 *Data = new UInt8[Count];
 	UInt8 *pD = Data;
@@ -1863,7 +1865,7 @@ void MDTraits_UMID::SetString(MDValuePtr Object, std::string Val)
 	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
 	const char *p = ValueBuff;
 
-	UInt32 Count = Object->GetData().Size;
+	size_t Count = Object->GetData().Size;
 	int Value = -1;
 	UInt8 *Data = new UInt8[Count];
 	UInt8 *pD = Data;
@@ -2006,8 +2008,8 @@ void MDTraits_RawArrayArray::SetString(MDValuePtr Object, std::string Val)
 {
 	MDValue::iterator it;
 
-	int OpenBracket;
-	int CloseBracket = -1;
+	size_t OpenBracket;
+	size_t CloseBracket = -1;
 	
 	it = Object->begin();
 
@@ -2022,7 +2024,7 @@ void MDTraits_RawArrayArray::SetString(MDValuePtr Object, std::string Val)
 		// If we are already at the end of the list, add another
 		if(it == Object->end()) 
 		{
-			Object->Resize(Object->size()+1);
+			Object->Resize(static_cast<UInt32>(Object->size() + 1));
 			it = Object->end();
 			it--;
 		}
@@ -2069,22 +2071,23 @@ std::string MDTraits_BasicCompound::GetString(MDValuePtr Object)
 
 void MDTraits_BasicCompound::SetString(MDValuePtr Object, std::string Val)
 {
-	int OpenQuote;
-	int CloseQuote = -1;
+	size_t OpenQuote;
+	size_t CloseQuote = static_cast<size_t>(-1);
 
 	StringList::iterator it = Object->EffectiveType()->ChildOrder.begin();
 	StringList::iterator itend = Object->EffectiveType()->ChildOrder.end();
 
 	for(;;)
 	{
-		OpenQuote = Val.find("\"",CloseQuote+1);
-		if(OpenQuote == (int)std::string::npos) return;
+		// DRAGONS: We scan from the start on the first iter, then from the last close quote + 1
+		OpenQuote = Val.find("\"", (CloseQuote == static_cast<size_t>(-1) ? 0 : CloseQuote + 1));
+		if(OpenQuote == std::string::npos) return;
 
 		// DRAGONS: Should add code here to allow out-of-order items
 		// TODO: not updated to match new GetString() above
 
 		CloseQuote = Val.find("\"",OpenQuote+1);
-		if(CloseQuote == (int)std::string::npos) return;
+		if(CloseQuote == std::string::npos) return;
 
 		// If we are already at the end of the list, we have too much data!
 		if(it == itend) 
@@ -2110,9 +2113,9 @@ void MDTraits_BasicCompound::SetString(MDValuePtr Object, std::string Val)
 //! Basic function to read a compound from a buffer
 /*! \note Count is ignored in this function
  */
-UInt32 MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
+size_t MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
-	UInt32 Bytes = 0;
+	size_t Bytes = 0;
 
 	StringList::iterator it = Object->EffectiveType()->ChildOrder.begin();
 	StringList::iterator itend = Object->EffectiveType()->ChildOrder.end();
@@ -2127,7 +2130,7 @@ UInt32 MDTraits_BasicCompound::ReadValue(MDValuePtr Object, const UInt8 *Buffer,
 		}
 		else
 		{
-			UInt32 ThisBytes = Value->ReadValue(Buffer, Size);
+			size_t ThisBytes = Value->ReadValue(Buffer, Size);
 			Bytes += ThisBytes;
 
 			Buffer += ThisBytes;

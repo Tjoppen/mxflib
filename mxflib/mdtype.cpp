@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.9 2006/06/25 14:34:21 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.10 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -685,7 +685,7 @@ void MDValue::Init(void)
  *  This function assumes that this is a viable thing to do!
  *  \return The size of the resized item
  */
-UInt32 MDValue::MakeSize(UInt32 NewSize)
+size_t MDValue::MakeSize(size_t NewSize)
 {
 	// Enforce fixed size if one exists for this type
 	if(Type->Size) NewSize = Type->Size;

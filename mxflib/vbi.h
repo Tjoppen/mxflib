@@ -1,7 +1,7 @@
 /*! \file	vbi.h
  *	\brief	Definition of classes that handle Vertical Inerval Blanking data
  *
- *	\version $Id: vbi.h,v 1.1 2006/06/25 14:53:31 matt-beard Exp $
+ *	\version $Id: vbi.h,v 1.2 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -166,10 +166,7 @@ namespace mxflib
 
 		//! Get the size of the essence data in bytes
 		/*! \note There is intentionally no support for an "unknown" response */
-		virtual Length GetEssenceDataSize(void);
-
-		//! Get the total count of bytes created from this Essence Source
-		virtual Length GetMassagedDataSize(void) { return GetEssenceDataSize(); }
+		virtual size_t GetEssenceDataSize(void);
 
 		//! Get the next "installment" of essence data
 		/*! This will attempt to return an entire wrapping unit (e.g. a full frame for frame-wrapping) but will return it in
@@ -182,7 +179,7 @@ namespace mxflib
 		 *	\note If Size = 0 the object will decide the size of the chunk to return
 		 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 		 */
-		virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0);
+		virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0);
 
 		//! Did the last call to GetEssenceData() return the end of a wrapping item
 		/*! \return true if the last call to GetEssenceData() returned an entire wrapping unit.

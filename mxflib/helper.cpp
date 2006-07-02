@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.13 2006/06/25 14:28:22 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.14 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -407,7 +407,7 @@ std::string mxflib::SearchPath(const char *Path, const char *Filename)
 		}
 
 		// Establish the length of this path
-		int len = strlen(Buffer);
+		size_t len = strlen(Buffer);
 
 		// Don't search a null path
 		if(len == 0) continue;
@@ -458,12 +458,12 @@ bool mxflib::IsPartitionKey(const UInt8 *Key)
 /*! \note This currently only checks if any bytes contain >127 so it is only safe to test strings that are either 7-bit ASCII or UTF-8 */
 bool mxflib::IsWideString(std::string &String)
 {
-	int Len = String.size();
+	size_t Len = String.size();
 	char *Buffer = new char[Len];
 	memcpy(Buffer, String.c_str(), Len);
 
 	// Look for any bytes > 127
-	int i;
+	size_t i;
 	char *p = Buffer;
 	for(i=0; i<Len; i++) 
 	{

@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.10 2006/02/12 12:30:05 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.11 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -269,16 +269,26 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 		}
 	}
 
+	// Sanity check the size for this platform
+	// TODO: Should we fix this so that we can read larger metadata - but if so where in memory would we put it if its > 4GB on a 32-bit machine?
+	if((sizeof(size_t) < 8) && Size > 0xffffffff)
+	{
+		error("Maximum read size on this platform is 4Gbytes - However, requested to read metadata at 0x%s which has size of 0x%s\n",
+			   Int64toHexString(Location,8).c_str(), Int64toHexString(Size,8).c_str());
+
+		return 0;
+	}
+
 	// Read enough bytes for the metadata
 	File->Seek(Location);
-	DataChunkPtr Data = File->Read(Size);
+	DataChunkPtr Data = File->Read(static_cast<size_t>(Size));
 
-	if(Data->Size != Size)
+	if(Data->Size != static_cast<size_t>(Size))
 	{
 		error("Header Metadata starting at 0x%s should contain 0x%s bytes, but only 0x%s could be read\n",
 			  Int64toHexString(Location,8).c_str(), Int64toHexString(Size,8).c_str(), Int64toHexString(Data->Size,8).c_str());
 
-		Size = Data->Size;
+		Size = static_cast<Length>(Data->Size);
 	}
 
 	// Start of data buffer
@@ -519,7 +529,7 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 {
 	DataChunkPtr Ret;
 
-	UInt64 IndexSize = GetInt64(IndexByteCount_UL);
+	Int64 IndexSize = GetInt64(IndexByteCount_UL);
 	if(IndexSize == 0) return Ret;
 
 	MXFFilePtr ParentFile = Object->GetParentFile();
@@ -530,13 +540,21 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 		return Ret;
 	}
 
-	UInt64 MetadataSize = GetInt64(HeaderByteCount_UL);
+	Int64 MetadataSize = GetInt64(HeaderByteCount_UL);
 
 	// Find the start of the index table
 	// DRAGONS: not the most efficient way - we could store a pointer to the end of the metadata
 	ParentFile->Seek(Object->GetLocation() + 16);
 	Length Len = ParentFile->ReadBER();
 	Position Location = ParentFile->Tell() + Len;
+
+	if((sizeof(size_t) < 8) && IndexSize > 0xffffffff)
+	{
+		error("Maximum read size on this platform is 4Gbytes - However, requested to read index data at 0x%s which has size of 0x%s\n",
+			   Int64toHexString(Location,8).c_str(), Int64toHexString(IndexSize,8).c_str());
+
+		return Ret;
+	}
 
 	ParentFile->Seek(Location);
 	ULPtr FirstUL = ParentFile->ReadKey();
@@ -559,14 +577,14 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 	ParentFile->Seek(Location + MetadataSize);
 
 	// Read the specified number of bytes
-	Ret = ParentFile->Read(IndexSize);
+	Ret = ParentFile->Read(static_cast<size_t>(IndexSize));
 
 	/* Remove any trailing filler */
 
 	// Scan backwards from the end of the index data
 	if(Ret->Size >= 16)
 	{
-		UInt32 Count = Ret->Size - 16;
+		size_t Count = Ret->Size - 16;
 		UInt8 *p = &Ret->Data[Count - 16];
 
 		// Do the scan (slightly optimized)
@@ -576,7 +594,7 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 			{
 				if(memcmp(p, KLVFill_UL.GetValue(), 16) == 0)
 				{
-					Ret->Resize((UInt32)(p - Ret->Data));
+					Ret->Resize((p - Ret->Data));
 					break;
 				}
 			}

@@ -1,7 +1,7 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.h,v 1.5 2006/06/25 14:10:53 matt-beard Exp $
+ *	\version $Id: datachunk.h,v 1.6 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -48,22 +48,22 @@ namespace mxflib
 	class DataChunk : public RefCount<DataChunk>
 	{
 	private:
-		UInt32 DataSize;						//! Size of the data buffer
-		UInt32 AllocationGranularity;			//! Granulatiry of new memory allocations
+		size_t DataSize;						//! Size of the data buffer
+		size_t AllocationGranularity;			//! Granulatiry of new memory allocations
 		bool ExternalBuffer;					//! True if the buffer is not owned by us
 
 	public:
-		UInt32 Size;							//! Size of the active data in the buffer
+		size_t Size;							//! Size of the active data in the buffer
 		UInt8 *Data;							//! The data buffer
 
 		//! Construct an empty data chunk
 		DataChunk() : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) {};
 
 		//! Construct a data chunk with a pre-allocated buffer
-		DataChunk(UInt64 BufferSize) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Resize((UInt32)BufferSize); };
+		DataChunk(size_t BufferSize) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Resize(BufferSize); };
 
 		//! Construct a data chunk with contents
-		DataChunk(UInt64 MemSize, const UInt8 *Buffer) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set((UInt32)MemSize, Buffer); };
+		DataChunk(size_t MemSize, const UInt8 *Buffer) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(MemSize, Buffer); };
 
 		//! Construct a data chunk from an identifier
 		template<int SIZE> DataChunk(const Identifier<SIZE> *ID)  : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Set(ID->Size(), ID->GetValue() ); }
@@ -80,11 +80,11 @@ namespace mxflib
 		};
 
 		//! Resize the data chunk, preserving contents if requested
-		void Resize(UInt32 NewSize, bool PreserveContents = true);
+		void Resize(size_t NewSize, bool PreserveContents = true);
 
 		//! Resize the data buffer, preserving contents if requested
 		/*! The buffer is resized to <b>at least</b> NewSize, but Size remains unchanged */
-		void ResizeBuffer(UInt32 NewSize, bool PreserveContents = true);
+		void ResizeBuffer(size_t NewSize, bool PreserveContents = true);
 
 		//! Steal the buffer belonging to this data chunk
 		/*! The buffer is detached and ownership moves to the caller.
@@ -96,21 +96,20 @@ namespace mxflib
 		UInt8 *StealBuffer(bool MakeEmpty = false);
 
 		//! Set some data into a data chunk (expanding it if required)
-		void Set(const DataChunk &Buffer, UInt32 Start = 0)
+		void Set(const DataChunk &Buffer, size_t Start = 0)
 		{
 			Set(Buffer.Size, Buffer.Data, Start);
 		}
 
 		//! Set some data into a data chunk (expanding it if required)
-		void Set(const DataChunkPtr &Buffer, UInt32 Start = 0)
+		void Set(const DataChunkPtr &Buffer, size_t Start = 0)
 		{
 			Set(Buffer->Size, Buffer->Data, Start);
 		}
 
 		//! Set some data into a data chunk (expanding it if required)
-		void Set(UInt32 MemSize, const UInt8 *Buffer, UInt32 Start = 0)
+		void Set(size_t MemSize, const UInt8 *Buffer, size_t Start = 0)
 		{
-//debug("Set MemSize = 0x%04x, Start = 0x%04x\n", (int)MemSize, (int)Start);
 			if(Size < (MemSize + Start)) Resize(MemSize + Start);
 
 			memcpy(&Data[Start], Buffer, MemSize);
@@ -129,7 +128,7 @@ namespace mxflib
 		}
 
 		//! Append some data to a data chunk
-		void Append(UInt32 MemSize, const UInt8 *Buffer)
+		void Append(size_t MemSize, const UInt8 *Buffer)
 		{
 			Set(MemSize, Buffer, Size);
 		}
@@ -152,21 +151,12 @@ namespace mxflib
 
 		bool operator!=(const DataChunk &Right) const { return !operator==(Right); };
 
-/*		UInt32 fread(FILE *fp, size_t Size, UInt32 Start = 0)
-		{
-			int Ret;
-			Resize(Size);
-			Ret=::fread(&Data[Start],1,Size,fp);
-			Size = Ret;
-			return Ret;
-		};
-*/
 		//! Get a (hex) string representation of the data in the buffer
 		std::string GetString(void);
 
 		//! Allocation granularity access functions
-		void SetGranularity(UInt32 Gran) { AllocationGranularity = Gran; };
-		UInt32 GetGranularity(void) { return AllocationGranularity; };
+		void SetGranularity(size_t Gran) { AllocationGranularity = Gran; };
+		size_t GetGranularity(void) { return AllocationGranularity; };
 
 		//! Set an external buffer as the data buffer
 		/*! \note If an external buffer has been set for a DataChunk it may not
@@ -175,7 +165,7 @@ namespace mxflib
 		 *		  important that the value of property <tt><b>Data</b></tt> is checked
 		 *		  before assuming the external buffer is still in use.
 		 */
-		void SetBuffer(UInt8 *Buffer, UInt32 BuffSize, UInt32 AllocatedSize = 0);
+		void SetBuffer(UInt8 *Buffer, size_t BuffSize, size_t AllocatedSize = 0);
 
 		//! Transfer ownership of a data buffer from another DataChunk
 		/*! This is a very efficient way to set one DataChunk to the value of another.

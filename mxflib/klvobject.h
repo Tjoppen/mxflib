@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.5 2006/07/02 13:27:51 matt-beard Exp $
  *
  */
 /*
@@ -91,12 +91,12 @@ namespace mxflib
 		/*! \param Buffer Reference to a buffer to receive the data
 		 *  \param Object KLVObject which is requesting the data
 		 *  \param Start Offset from the start of the KLV value to start reading
-		 *  \param Size Number of bytes to read, if zero all available bytes will be read (which could be billions!)
+		 *  \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The count of bytes read (may be less than Size if less available)
 		 *  \note A call to ReadData must replace the current contents of the KLVObject's DataChunk
 		 *        with the new data - no original data should be preserved
 		 */
-		virtual Length ReadData(DataChunk &Buffer, KLVObjectPtr Object, Position Start = 0, Length Size = 0) = 0;
+		virtual size_t ReadData(DataChunk &Buffer, KLVObjectPtr Object, Position Start = 0, size_t Size = static_cast<size_t>(-1)) = 0;
 
 //		//! Read the key and length of the KLVObject
 //		virtual Int32 ReadKL(KLVObjectPtr Object) { return -1;}
@@ -122,7 +122,7 @@ namespace mxflib
 //		 *  \param Size Number of bytes to be written
 //		 *  \return The count of bytes written
 //		 */
-//		virtual Length WriteData(KLVObjectPtr Object, const UInt8 *Buffer, Position Start = 0, Length Size = 0) = 0;
+//		virtual size_t WriteData(KLVObjectPtr Object, const UInt8 *Buffer, Position Start = 0, size_t Size = static_cast<size_t>(-1)) = 0;
 //	};
 //
 //	//! Smart pointer for the base KLVObject read handler
@@ -286,32 +286,32 @@ namespace mxflib
 		Int32 Base_ReadKL(void);
 
 		//! Read data from the start of the KLV value into the current DataChunk
-		/*! \param Size Number of bytes to read, if zero all available bytes will be read (which could be billions!)
+		/*! \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The number of bytes read
 		 */
-		virtual Length ReadData(Length Size = 0) { return Base_ReadDataFrom(0, Size); }
+		virtual size_t ReadData(size_t Size = static_cast<size_t>(-1)) { return Base_ReadDataFrom(0, Size); }
 
 		//! Read data from a specified position in the KLV value field into the DataChunk
 		/*! \param Offset Offset from the start of the KLV value from which to start reading
-		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The number of bytes read
 		 */
-		virtual Length ReadDataFrom(Position Offset, Length Size = -1) { return Base_ReadDataFrom(Offset, Size); }
+		virtual size_t ReadDataFrom(Position Offset, size_t Size = static_cast<size_t>(-1)) { return Base_ReadDataFrom(Offset, Size); }
 
 		//! Base verion: Read data from a specified position in the KLV value field into the DataChunk
 		/*! \param Offset Offset from the start of the KLV value from which to start reading
-		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The number of bytes read
 		 *
 		 *  DRAGONS: This base function may be called from derived class objects to get base behaviour.
 		 *           It is therefore vital that the function does not call any "virtual" KLVObject
 		 *           functions, directly or indirectly.
 		 */
-		inline Length Base_ReadDataFrom(Position Offset, Length Size = -1) { return Base_ReadDataFrom(Data, Offset, Size); }
+		inline size_t Base_ReadDataFrom(Position Offset, size_t Size = static_cast<size_t>(-1)) { return Base_ReadDataFrom(Data, Offset, Size); }
 
 		//! Base verion: Read data from a specified position in the KLV value field into the DataChunk
 		/*! \param Offset Offset from the start of the KLV value from which to start reading
-		 *  \param Size Number of bytes to read, if <=0 all available bytes will be read (which could be billions!)
+		 *  \param Size Number of bytes to read, if -1 all available bytes will be read (which could be billions!)
 		 *  \return The number of bytes read
 		 *
 		 *  \note This function can write to a buffer other than the KLVObject's main buffer if required, 
@@ -321,7 +321,7 @@ namespace mxflib
 		 *           It is therefore vital that the function does not call any "virtual" KLVObject
 		 *           functions, directly or indirectly.
 		 */
-		Length Base_ReadDataFrom(DataChunk &Buffer, Position Offset, Length Size = -1);
+		size_t Base_ReadDataFrom(DataChunk &Buffer, Position Offset, size_t Size = static_cast<size_t>(-1));
 
 		//! Write the key and length of the current DataChunk to the destination file
 		/*! The key and length will be written to the source file as set by SetSource.
@@ -342,32 +342,32 @@ namespace mxflib
 
 
 		//! Write (some of) the current data to the same location in the destination file
-		/*! \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		/*! \param Size The number of bytes to write, if -1 all available bytes will be written
 		 *  \return The number of bytes written
 		 */
-		virtual Length WriteData(Length Size = -1) { return WriteDataFromTo(0, 0, Size); }
+		virtual size_t WriteData(size_t Size = static_cast<size_t>(-1)) { return WriteDataFromTo(0, 0, Size); }
 
 		//! Write (some of) the current data to the same location in the destination file
 		/*! \param Start The offset within the current DataChunk of the first byte to write
-		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \param Size The number of bytes to write, if -1 all available bytes will be written
 		 *  \return The number of bytes written
 		 */
-		virtual Length WriteDataFrom(Position Start, Length Size = -1) { return WriteDataFromTo(0, Start, Size); }
+		virtual size_t WriteDataFrom(Position Start, size_t Size = static_cast<size_t>(-1)) { return WriteDataFromTo(0, Start, Size); }
 
 		//! Write (some of) the current data to a different location in the destination file
 		/*! \param Offset The offset within the KLV value field of the first byte to write
 		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
 		 *  \return The number of bytes written
 		 */
-		virtual Length WriteDataTo(Position Offset, Length Size = -1) { return WriteDataFromTo(Offset, 0, Size); }
+		virtual size_t WriteDataTo(Position Offset, size_t Size = static_cast<size_t>(-1)) { return WriteDataFromTo(Offset, 0, Size); }
 
 		//! Write (some of) the current data to the same location in the destination file
 		/*! \param Offset The offset within the KLV value field of the first byte to write
 		 *  \param Start The offset within the current DataChunk of the first byte to write
-		 *  \param Size The number of bytes to write, if <= 0 all available bytes will be written
+		 *  \param Size The number of bytes to write, if -1 all available bytes will be written
 		 *  \return The number of bytes written
 		 */
-		virtual Length WriteDataFromTo(Position Offset, Position Start, Length Size = -1)
+		virtual size_t WriteDataFromTo(Position Offset, Position Start, size_t Size = static_cast<size_t>(-1))
 		{
 			// Calculate default number of bytes to write
 			Length BytesToWrite = Data.Size - Start;
@@ -375,7 +375,14 @@ namespace mxflib
 			// Write the requested size (if valid)
 			if((Size > 0) && (Size < BytesToWrite)) BytesToWrite = Size;
 
-			return Base_WriteDataTo(&Data.Data[Start], Offset, BytesToWrite);
+			// Sanity check the size of this chunk
+			if((sizeof(size_t) < 8) && (BytesToWrite > 0xffffffff))
+			{
+				error("Tried to write > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
+				return 0;
+			}
+
+			return Base_WriteDataTo(&Data.Data[Start], Offset, static_cast<size_t>(BytesToWrite));
 		}
 
 		//! Write data from a given buffer to a given location in the destination file
@@ -386,7 +393,7 @@ namespace mxflib
 		 *  \note As there may be a need for the implementation to know where within the value field
 		 *        this data lives, there is no WriteData(Buffer, Size) function.
 		 */
-		virtual Length WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size) { return Base_WriteDataTo(Buffer, Offset, Size); }
+		virtual size_t WriteDataTo(const UInt8 *Buffer, Position Offset, size_t Size) { return Base_WriteDataTo(Buffer, Offset, Size); }
 
 		//! Base verion: Write data from a given buffer to a given location in the destination file
 		/*! \param Buffer Pointer to data to be written
@@ -398,7 +405,7 @@ namespace mxflib
 		 *           It is therefore vital that the function does not call any "virtual" KLVObject
 		 *           functions, directly or indirectly.
 		 */
-		Length Base_WriteDataTo(const UInt8 *Buffer, Position Offset, Length Size);
+		size_t Base_WriteDataTo(const UInt8 *Buffer, Position Offset, size_t Size);
 
 
 		//! Set a handler to supply data when a read is performed

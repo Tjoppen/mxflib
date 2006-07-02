@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.h
  *	\brief	Definitions for AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.h,v 1.3 2006/04/05 17:07:21 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.h,v 1.4 2006/07/02 13:27:50 matt-beard Exp $
  *
  */
 /*
@@ -49,7 +49,7 @@ extern bool ForceKeyMode;
  *  - trunc( HMAC-SHA-1( CipherKey, 0x00112233445566778899aabbccddeeff ) )
  *  Where trunc(x) is the first 128 bits of x
  */
-DataChunkPtr BuildHashKey(int Size, const UInt8 *CryptoKey);
+DataChunkPtr BuildHashKey(size_t Size, const UInt8 *CryptoKey);
 
 //! Build an AS-DCP hashing key from a given crypto key
 /*  The hashing key is: 
@@ -92,10 +92,10 @@ public:
 	//! Set the key and start hashing
 	/*  \return True if key is accepted
 	 */
-	bool SetKey(UInt32 Size, const UInt8 *Key);
+	bool SetKey(size_t Size, const UInt8 *Key);
 
 	//! Add the given data to the current hash being calculated
-	void HashData(UInt32 Size, const UInt8 *Data);
+	void HashData(size_t Size, const UInt8 *Data);
 
 	//! Get the finished hash value
 	DataChunkPtr GetHash(void);
@@ -116,7 +116,7 @@ public:
 	//! Set an encryption key
 	/*! \return True if key is accepted
 	 */
-	bool SetKey(UInt32 KeySize, const UInt8 *Key) 
+	bool SetKey(size_t KeySize, const UInt8 *Key) 
 	{
 		int Ret = AES_set_encrypt_key(Key, 128, &CurrentKey);
 
@@ -132,7 +132,7 @@ public:
 	 *        and false for any other calls.  This allows different schemes to be
 	 *        used with minimal changes in the calling code.
 	 */
-	bool SetIV(UInt32 IVSize, const UInt8 *IV, bool Force = false) 
+	bool SetIV(size_t IVSize, const UInt8 *IV, bool Force = false) 
 	{ 
 		if(!Force) return false;
 
@@ -161,17 +161,17 @@ public:
 	/*! If BlockSize is 0 this function will return true if encryption of all block sizes can be "in place".
 	 *  Otherwise the result will indicate whether the given blocksize can be encrypted "in place".
 	 */
-	bool CanEncryptInPlace(UInt32 BlockSize = 0) { return false; }
+	bool CanEncryptInPlace(size_t BlockSize = 0) { return false; }
 
 	//! Encrypt data bytes in place
 	/*! \return true if the encryption is successful
 	 */
-	bool EncryptInPlace(UInt32 Size, UInt8 *Data) { return false; }
+	bool EncryptInPlace(size_t Size, UInt8 *Data) { return false; }
 
 	//! Encrypt data and return in a new buffer
 	/*! \return NULL pointer if the encryption is unsuccessful
 	 */
-	DataChunkPtr Encrypt(UInt32 Size, const UInt8 *Data);
+	DataChunkPtr Encrypt(size_t Size, const UInt8 *Data);
 };
 
 
@@ -252,7 +252,7 @@ public:
 	//! Set an encryption key
 	/*! \return True if key is accepted
 	 */
-	virtual bool SetKey(UInt32 KeySize, const UInt8 *Key) 
+	virtual bool SetKey(size_t KeySize, const UInt8 *Key) 
 	{
 		int Ret = AES_set_decrypt_key(Key, 128, &CurrentKey);
 
@@ -268,7 +268,7 @@ public:
 	 *        and false for any other calls.  This allows different schemes to be
 	 *        used with minimal changes in the calling code.
 	 */
-	bool SetIV(UInt32 IVSize, const UInt8 *IV, bool Force = false)
+	bool SetIV(size_t IVSize, const UInt8 *IV, bool Force = false)
 	{ 
 		if(!Force) return false;
 
@@ -297,17 +297,17 @@ public:
 	/*! If BlockSize is 0 this function will return true if decryption of all block sizes can be "in place".
 	 *  Otherwise the result will indicate whether the given blocksize can be decrypted "in place".
 	 */
-	bool CanDecryptInPlace(UInt32 BlockSize = 0) { return false; }
+	bool CanDecryptInPlace(size_t BlockSize = 0) { return false; }
 
 	//! Decrypt data bytes in place
 	/*! \return true if the decryption <i>appears to be</i> successful
 	 */
-	bool DecryptInPlace(UInt32 Size, UInt8 *Data) { return false; }
+	bool DecryptInPlace(size_t Size, UInt8 *Data) { return false; }
 
 	//! Decrypt data and return in a new buffer
 	/*! \return true if the decryption <i>appears to be</i> successful
 	 */
-	DataChunkPtr Decrypt(UInt32 Size, const UInt8 *Data);
+	DataChunkPtr Decrypt(size_t Size, const UInt8 *Data);
 };
 
 

@@ -241,7 +241,7 @@ int main_process(int argc, char *argv[])
 							MDObjectPtr DeltaEntryArray = (*it)[DeltaEntryArray_UL];
 							if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
 							{
-								Streams = DeltaEntryArray->size() / DeltaEntryArray->GetType()->size();
+								Streams = static_cast<UInt32>(DeltaEntryArray->size() / DeltaEntryArray->GetType()->size());
 								if(Streams == 0) Streams = 1;	// Fix for bad DeltaEntryArray
 							}
 
