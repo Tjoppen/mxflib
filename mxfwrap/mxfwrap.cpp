@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.31 2006/08/16 08:51:07 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.32 2006/08/16 08:57:56 matt-beard Exp $
  *
  */
 /*
@@ -1261,7 +1261,7 @@ int Process(	int OutFileNum,
 
 				// Build a stream object to write
 				Stream[iTrack] = new BodyStream(iTrack + 1, Source);
-				SetStreamWrapType(Stream[iStream], (*WrapCfgList_it)->WrapOpt->ThisWrapType);
+				SetStreamWrapType(Stream[iTrack], (*WrapCfgList_it)->WrapOpt->ThisWrapType);
 
 				// Force edit-unit align if requested
 				if(EditAlign) Stream[iTrack]->SetEditAlign(true);
