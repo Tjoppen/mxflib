@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.30 2006/06/25 14:56:15 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.31 2006/08/16 08:51:07 matt-beard Exp $
  *
  */
 /*
@@ -1261,6 +1261,7 @@ int Process(	int OutFileNum,
 
 				// Build a stream object to write
 				Stream[iTrack] = new BodyStream(iTrack + 1, Source);
+				SetStreamWrapType(Stream[iStream], (*WrapCfgList_it)->WrapOpt->ThisWrapType);
 
 				// Force edit-unit align if requested
 				if(EditAlign) Stream[iTrack]->SetEditAlign(true);
@@ -1308,6 +1309,9 @@ int Process(	int OutFileNum,
 			{
 				// Build a stream object to write
 				Stream[0] = new BodyStream(iTrack + 1, Source);
+
+				// DRAGONS: This should always end up as frame wrapping - but in the future "Other" may be used
+				SetStreamWrapType(Stream[0], (*WrapCfgList_it)->WrapOpt->ThisWrapType);
 
 				// Force edit-unit align if requested
 				if(EditAlign) Stream[iTrack]->SetEditAlign(true);
@@ -1360,6 +1364,7 @@ int Process(	int OutFileNum,
 
 			// Build a stream object to write
 			Stream[iTrack] = new BodyStream(iTrack + 1, Source);
+			SetStreamWrapType(Stream[iTrack], (*WrapCfgList_it)->WrapOpt->ThisWrapType);
 
 			// Force edit-unit align if requested
 			if(EditAlign) Stream[iTrack]->SetEditAlign(true);
