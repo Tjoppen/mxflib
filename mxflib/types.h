@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.6 2006/06/25 14:51:41 matt-beard Exp $
+ *	\version $Id: types.h,v 1.7 2006/08/24 14:32:32 matt-beard Exp $
  *
  */
 /*
@@ -169,7 +169,7 @@ namespace mxflib
 		/*! We use an unrolled loop with modified order for best efficiency
 		 *  DRAGONS: There may be a slightly faster way that will prevent pipeline stalling, but this is fast enough!
 		 */
-		bool operator==(const UL RHS) const
+		bool operator==(const UL &RHS) const
 		{
 			// Most differences are in the second 8 bytes so we check those first
 			UInt8 const *pLHS = &Ident[8];
@@ -204,7 +204,7 @@ namespace mxflib
 		/*! We use an unrolled loop with modified order for best efficiency
 		 *  DRAGONS: There may be a slightly faster way that will prevent pipeline stalling, but this is fast enough!
 		 */
-		bool Matches(const UL RHS) const
+		bool Matches(const UL &RHS) const
 		{
 			// Most differences are in the second 8 bytes so we check those first
 			UInt8 const *pLHS = &Ident[8];
