@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.17 2006/06/25 14:11:47 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.18 2006/08/24 14:41:12 matt-beard Exp $
  *
  */
 /*
@@ -1096,7 +1096,7 @@ namespace
 namespace mxflib
 {
 	MXFLIB_CLASS_START(BasicInternalClasses)
-		MXFLIB_CLASS_ITEM("Unknown", "Unknown Set", ClassUsageOptional, "UnknownType", 0, 0, 0x0000, "", NULL, NULL)
+		MXFLIB_CLASS_ITEM("Unknown", "Unknown Set", ClassUsageOptional, "UnknownType", 0, 0, 0x0000, "e0 72 d2 17 ef 1e fb 6e 9b 9e e1 a8 83 b6 4b 3c", NULL, NULL)
 	MXFLIB_CLASS_END
 }
 
