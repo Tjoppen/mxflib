@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.21 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.22 2006/08/24 14:31:14 matt-beard Exp $
  *
  */
 /*
@@ -382,6 +382,9 @@ MDObject::MDObject(Tag BaseTag, PrimerPtr BasePrimer)
 				// Tag not found, build a blank UL
 				// FIXME: Needs to have a more complete name
 				ObjectName = "Unknown " + Tag2String(BaseTag);
+
+				// We will need a UL, so try just using the generic "Unknown" UL
+				TheUL = Type->GetTypeUL();
 			}
 		}
 	}
