@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.14 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.15 2006/08/24 14:25:14 matt-beard Exp $
  *
  */
 /*
@@ -582,19 +582,18 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 		FileRIP.AddPartition(ThisPartition, Location, BodySID);
 
-		Length Skip = 0;
+		Length Skip;
 
 		// Work out how far to skip ahead
-		Ptr = ThisPartition[HeaderByteCount_UL];
-		if(Ptr) Skip = Ptr->Value->GetInt64();
-		Ptr = ThisPartition[IndexByteCount_UL];
-		if(Ptr) Skip += Ptr->Value->GetInt64();
+		Length HeaderByteCount = ThisPartition->GetInt64(HeaderByteCount_UL);
+		Skip = HeaderByteCount + ThisPartition->GetInt64(IndexByteCount_UL);
 
 		if(Skip)
 		{
 			// Location before we skip
 			Position PreSkip = Tell();
 
+#if MXF_VERSION_10_CHECK
 			/* Check for version 10 HeaderByteCount and possible bug version */
 			// Version 10 of MXF counts from the end of the partition pack, however
 			// some version 10 code uses the version 11 counting so we check to 
@@ -655,6 +654,7 @@ bool mxflib::MXFFile::BuildRIP(void)
 			}
 
 			if(SkipFiller)
+#endif // MXF_VERSION_10_CHECK
 			{
 				MDObjectPtr First = ReadObject();
 				if(!First)
@@ -666,11 +666,20 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 				if(First->IsA(KLVFill_UL))
 					PreSkip = Tell();
-				else if(First->IsA(Primer_UL))
+				else if(HeaderByteCount)
 				{
-					error("First KLV following a partition pack (and any trailing filler) must be a Primer, however %s found at 0x%s in %s\n", 
-						  ThisPartition->FullName().c_str(), Int64toHexString(ThisPartition->GetLocation(),8).c_str(), 
-						  ThisPartition->GetSource().c_str());
+					if(!First->IsA(Primer_UL))
+					{
+						error("When HeaderByteCount is not zero, the first KLV following a partition pack (and any trailing filler) must be a Primer, however %s found at 0x%s in %s\n", 
+							First->FullName().c_str(), Int64toHexString(First->GetLocation(),8).c_str(), 
+							First->GetSource().c_str());
+					}
+				}
+				else if(!First->IsA(IndexTableSegment_UL))
+				{
+					error("When HeaderByteCount is zero, but IndexByteCount is not zero, the first KLV following a partition pack (and any trailing filler) must be an IndexTableSegment, however %s found at 0x%s in %s\n", 
+						  First->FullName().c_str(), Int64toHexString(First->GetLocation(),8).c_str(), 
+						  First->GetSource().c_str());
 				}
 			}
 
