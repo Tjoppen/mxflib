@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.14 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.15 2006/08/25 15:56:21 matt-beard Exp $
  *
  */
 /*
@@ -727,7 +727,11 @@ bool mxflib::StringToUL(UInt8 *Data, std::string Val)
 	int Value = -1;
 	UInt8 *pD = Data;
 
+	// Is this a UUID than needs to be end-swapped
 	bool EndSwap = false;
+
+	// Is this an OID format, which will need converting
+	bool OIDFormat = false;
 
 	// Check for URN format
 	if((tolower(*p) == 'u') && (tolower(p[1]) == 'r') && (tolower(p[2]) == 'n') && (tolower(p[3]) == ':'))
@@ -735,6 +739,10 @@ bool mxflib::StringToUL(UInt8 *Data, std::string Val)
 		if(strcasecmp(Val.substr(0,9).c_str(), "urn:uuid:") == 0)
 		{
 			EndSwap = true;
+		}
+		else if(strcasecmp(Val.substr(0,8).c_str(), "urn:oid:") == 0)
+		{
+			OIDFormat = true;
 		}
 
 		p += Val.rfind(':') + 1;
@@ -782,7 +790,7 @@ bool mxflib::StringToUL(UInt8 *Data, std::string Val)
 			}
 		}
 
-		if(Value == -1) Value = 0; else Value <<=4;
+		if(Value == -1) Value = 0; else if(OIDFormat) Value *= 10; else Value <<=4;
 		Value += Digit;
 		p++;
 
@@ -797,6 +805,22 @@ bool mxflib::StringToUL(UInt8 *Data, std::string Val)
 			
 			Value = -1;
 			DigitCount = 0;
+		}
+	}
+
+	// DRAGONS: oids can be encoded ULs
+	if(OIDFormat)
+	{
+		if((Data[0] == 1) && (Data[1] == 3) && (Data[2] == 52))
+		{
+			// Shift the last 12 bytes of the UL forwards 1 byte (note that the oid is 1 byte shorter than a UL)
+			memmove(&Data[4], &Data[3], 12);
+
+			// Set the first 4 bytes of a standard UL
+			Data[0] = 0x06;
+			Data[1] = 0x0e;
+			Data[2] = 0x2b;
+			Data[3] = 0x34;
 		}
 	}
 
