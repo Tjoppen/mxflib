@@ -1,6 +1,6 @@
 /*! \file	deftypes.h
  *	\brief	Definition of classes that load type and class dictionaries
- *	\version $Id: deftypes.h,v 1.9 2006/06/25 14:11:47 matt-beard Exp $
+ *	\version $Id: deftypes.h,v 1.10 2006/08/25 15:49:00 matt-beard Exp $
  *
  */
 /*
@@ -53,7 +53,8 @@ namespace mxflib
 		TypeInterpretation,					//!< Interpretation - physically identical to another type, but with different symantics
 		TypeMultiple,						//!< Multiple an array or batch of zero or more of another single type
 		TypeCompound,						//!< Compound structure of two or more of another type, which may be different types, with a fixed layout
-		TypeSub,							//!< An individual sub-item in a compound
+		TypeSub,							//!< An individual sub-item in a compound, or value in an enum
+		TypeEnum,							//!< Enumeration type, with one or more named values
 		TypeSymbolSpace						//!< Define the default symbol space for all types in this list
 	};
 
@@ -65,6 +66,7 @@ namespace mxflib
 		const char *Detail;					//!< The human readable description of this type
 		const char *Base;					//!< The base type for an interpretation or multiple, or the type for a compound type sub-item
 		const char *UL;						//!< The UL for this type (if known)
+		const char *Value;					//!< Value if this is an enumerated value
 		int Size;							//!< The size in bytes of a basic type, or the number of entries in a multiple
 		bool Endian;						//!< Used with basic types: "true" if this type gets endian swapped on reading/writing on a little-endian platform
 		bool IsBatch;						//!< Used with multiple types: "true" is this type has an 8-byte Count-and-Size header
@@ -91,6 +93,7 @@ namespace mxflib
 		std::string Type;					//!< The name of this type
 		std::string Detail;					//!< The human readable description of this type
 		std::string Base;					//!< The base type for an interpretation or multiple, or the type for a compound type sub-item
+		std::string Value;					//!< Value if this is an enumerated value
 		ULPtr UL;							//!< The UL for this type (NULL or "" if not known)
 		int Size;							//!< The size in bytes of a basic type, or the number of entries in a multiple
 		bool Endian;						//!< Used with basic types: "true" if this type gets endian swapped on reading/writing on a little-endian platform
@@ -138,7 +141,7 @@ namespace mxflib
 #define MXFLIB_TYPE_START(Name) const ConstTypeRecord Name[] = {
 
 //! MXFLIB_TYPE_START_SYM - Use to start a type definition block and define a default symbol space
-#define MXFLIB_TYPE_START_SYM(Name, Sym) const ConstTypeRecord Name[] = { { TypeSymbolSpace, "", "", "", "", 0, false, false, Sym },
+#define MXFLIB_TYPE_START_SYM(Name, Sym) const ConstTypeRecord Name[] = { { TypeSymbolSpace, "", "", "", "", "", 0, false, false, Sym },
 
 //! MXFLIB_TYPE_BASIC - Use to define a "Basic" type
 /*! \param Name The name of the type being defined
@@ -147,7 +150,7 @@ namespace mxflib
  *  \param UL The UL, or endian-swapped UUID, for this type (or "" to force one to be generated)
  *  \param Endian "true" if this type gets endian swapped on reading/writing on a little-endian platform
  */
-#define MXFLIB_TYPE_BASIC(Name, Detail, UL, Size, Endian) { TypeBasic, Name, Detail, "", UL, Size, Endian, false, NULL },
+#define MXFLIB_TYPE_BASIC(Name, Detail, UL, Size, Endian) { TypeBasic, Name, Detail, "", UL, "", Size, Endian, false, NULL },
 
 //! MXFLIB_TYPE_BASIC_SYM - Use to define a "Basic" type and override the default symbol space
 /*! \param Name The name of the type being defined
@@ -157,7 +160,7 @@ namespace mxflib
  *  \param Endian "true" if this type gets endian swapped on reading/writing on a little-endian platform
  *  \param Sym The name of the symbol space for this type
  */
-#define MXFLIB_TYPE_BASIC_SYM(Name, Detail, UL, Size, Endian, Sym) { TypeBasic, Name, Detail, "", UL, Size, Endian, false, Sym },
+#define MXFLIB_TYPE_BASIC_SYM(Name, Detail, UL, Size, Endian, Sym) { TypeBasic, Name, Detail, "", UL, "", Size, Endian, false, Sym },
 
 //! MXFLIB_TYPE_INTERPRETATION - Use to define an "Interpretation" type
 /*! \param Name The name of the type being defined
@@ -166,7 +169,7 @@ namespace mxflib
  *  \param UL The UL, or endian-swapped UUID, for this type (or "" to force one to be generated)
  *  \param Size If non-zero this fixes the number of entries in the variable-length base array
  */
-#define MXFLIB_TYPE_INTERPRETATION(Name, Detail, Base, UL, Size) { TypeInterpretation, Name, Detail, Base, UL, Size, false, false, NULL },
+#define MXFLIB_TYPE_INTERPRETATION(Name, Detail, Base, UL, Size) { TypeInterpretation, Name, Detail, Base, UL, "", Size, false, false, NULL },
 
 //! MXFLIB_TYPE_INTERPRETATION_SYM - Use to define an "Interpretation" type and override the default symbol space
 /*! \param Name The name of the type being defined
@@ -176,7 +179,7 @@ namespace mxflib
  *  \param Size If non-zero this fixes the number of entries in the variable-length base array
  *  \param Sym The name of the symbol space for this type
  */
-#define MXFLIB_TYPE_INTERPRETATION_SYM(Name, Detail, Base, UL, Size, Sym) { TypeInterpretation, Name, Detail, Base, UL, Size, false, false, Sym },
+#define MXFLIB_TYPE_INTERPRETATION_SYM(Name, Detail, Base, UL, Size, Sym) { TypeInterpretation, Name, Detail, Base, UL, "", Size, false, false, Sym },
 
 //! MXFLIB_TYPE_MULTIPLE - Use to define a "Multiple" type
 /*! \param Name The name of the type being defined
@@ -186,7 +189,7 @@ namespace mxflib
  *  \param IsBatch "true" is this type has an 8-byte Count-and-Size header
  *  \param Size If non-zero this fixes the number of entries, if zero the size is variable
  */
-#define MXFLIB_TYPE_MULTIPLE(Name, Detail, Base, UL, IsBatch, Size) { TypeMultiple, Name, Detail, Base, UL, Size, false, IsBatch, NULL },
+#define MXFLIB_TYPE_MULTIPLE(Name, Detail, Base, UL, IsBatch, Size) { TypeMultiple, Name, Detail, Base, UL, "", Size, false, IsBatch, NULL },
 
 //! MXFLIB_TYPE_MULTIPLE_SYM - Use to define a "Multiple" type and override the default symbol space
 /*! \param Name The name of the type being defined
@@ -197,20 +200,20 @@ namespace mxflib
  *  \param Size If non-zero this fixes the number of entries, if zero the size is variable
  *  \param Sym The name of the symbol space for this type
  */
-#define MXFLIB_TYPE_MULTIPLE_SYM(Name, Detail, Base, UL, IsBatch, Size, Sym) { TypeMultiple, Name, Detail, Base, UL, Size, false, IsBatch, Sym },
+#define MXFLIB_TYPE_MULTIPLE_SYM(Name, Detail, Base, UL, IsBatch, Size, Sym) { TypeMultiple, Name, Detail, Base, UL, "", Size, false, IsBatch, Sym },
 
 //! MXFLIB_TYPE_COMPOUND - Use to start the definition of a "Compound" type
 /*! \param Name The name of the type being defined
  *  \param Detail A human readable description of the type
  */
-#define MXFLIB_TYPE_COMPOUND(Name, Detail, UL) { TypeCompound, Name, Detail, "", UL, 0, false, false, NULL },
+#define MXFLIB_TYPE_COMPOUND(Name, Detail, UL) { TypeCompound, Name, Detail, "", UL, "", 0, false, false, NULL },
 
 //! MXFLIB_TYPE_COMPOUND_SYM - Use to start the definition of a "Compound" type and override the default symbol space
 /*! \param Name The name of the type being defined
  *  \param Detail A human readable description of the type
  *  \param Sym The name of the symbol space for this type
  */
-#define MXFLIB_TYPE_COMPOUND_SYM(Name, Detail, UL, Sym) { TypeCompound, Name, Detail, "", UL, 0, false, false, Sym },
+#define MXFLIB_TYPE_COMPOUND_SYM(Name, Detail, UL, Sym) { TypeCompound, Name, Detail, "", UL, "", 0, false, false, Sym },
 
 //! MXFLIB_TYPE_COMPOUND_ITEM - Use to define an item within the current "Compound" type
 /*! \param Name The name of the item being defined
@@ -219,13 +222,39 @@ namespace mxflib
  *  \param UL The UL, or endian-swapped UUID, for this item (or "" to force one to be generated)
  *  \param Size If non-zero this fixes the number of entries in a variable-length array
  */
-#define MXFLIB_TYPE_COMPOUND_ITEM(Name, Detail, Type, UL, Size) { TypeSub, Name, Detail, Type, UL, Size, false, false, NULL },
+#define MXFLIB_TYPE_COMPOUND_ITEM(Name, Detail, Type, UL, Size) { TypeSub, Name, Detail, Type, UL, "", Size, false, false, NULL },
 
 //! MXFLIB_TYPE_COMPOUND_END - Use to end definition of a "Compound" type
 #define MXFLIB_TYPE_COMPOUND_END
 
+//! MXFLIB_TYPE_ENUM - Use to start the definition of an "Enumeration" type
+/*! \param Name The name of the type being defined
+ *  \param Detail A human readable description of the type
+ *  \param Type The type of the values in this enumeration
+ */
+#define MXFLIB_TYPE_ENUM(Name, Detail, Type, UL) { TypeEnum, Name, Detail, Type, UL, "", 0, false, false, NULL },
+
+//! MXFLIB_TYPE_ENUM_SYM - Use to start the definition of a "Enumeration" type and override the default symbol space
+/*! \param Name The name of the type being defined
+ *  \param Detail A human readable description of the type
+ *  \param Type The type of the values in this enumeration
+ *  \param Sym The name of the symbol space for this type
+ */
+#define MXFLIB_TYPE_ENUM_SYM(Name, Detail, Type, UL, Sym) { TypeEnum, Name, Detail, Type, UL, "", 0, false, false, Sym },
+
+//! MXFLIB_TYPE_ENUM_VALUE - Use to define a value for the current "Enumeration" type
+/*! \param Name The name of the value being defined
+ *  \param Detail A human readable description of the value
+ *  \param UL The UL, or endian-swapped UUID, for this item (or "" to force one to be generated)
+ *  \param Value The value being defined
+ */
+#define MXFLIB_TYPE_ENUM_ITEM(Name, Detail, Type, UL) { TypeSub, Name, Detail, "", UL, Value, 0, false, false, NULL },
+
+//! MXFLIB_TYPE_ENUM_END - Use to end definition of a "Enumeration" type
+#define MXFLIB_TYPE_ENUM_END
+
 //! MXFLIB_TYPE_END - Use to end a type definition block
-#define MXFLIB_TYPE_END { TypeNULL, "", "", "", "", 0, false, false, NULL } };
+#define MXFLIB_TYPE_END { TypeNULL, "", "", "", "", "", 0, false, false, NULL } };
 
 /* Example usage:
 	MXFLIB_TYPE_START(TypeArray)

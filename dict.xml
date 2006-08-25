@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2006/06/25 14:59:26 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2006/08/25 15:48:29 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -71,6 +71,16 @@
             <Int32Batch detail="Batch of Int32 values" base="Int32" type="Batch"/>
             <UInt32Batch detail="Batch of UInt32 values" base="UInt32" type="Batch" ul="urn:x-ul:060E2B34.0104.0101.04030200.00000000"/>
         </Multiple>
+        <Enumeration>
+			<ProductReleaseKind detail="Product Release Kind" type="UInt16">
+				<VersionUnknown detail="Unknown" value="0"/>
+				<VersionReleased detail="Released" value="1"/>
+				<VersionDebug detail="Debug" value="2"/>
+				<VersionPatched detail="Patched" value="3"/>
+				<VersionBeta detail="Beta" value="4"/>
+				<VersionPrivateBuild detail="Private Build" value="5"/>
+			</ProductReleaseKind>
+        </Enumeration>
         <Basic>
             <RAW detail="Raw data bytes, unknown representation" size="0" endian="no"/>
         </Basic>
@@ -117,11 +127,12 @@
                 <Minor detail="Minor" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010202.00000000"/>
                 <Patch detail="Patch" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010203.00000000"/>
                 <Build detail="Build" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010204.00000000"/>
-                <Release detail="Release" type="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010205.00000000"/>
+                <Release detail="Release" type="ProductReleaseKind" ul="urn:x-ul:060E2B34.0104.0101.03010205.00000000"/>
             </ProductVersion>
             <Indirect detail="Indirect Data" ul="urn:x-ul:060E2B34.0104.0101.04100300.00000000">
-                <Type detail="Type of Data" type="Label"/>
-                <Data detail="Data" type="UInt8Array"/>
+				<Order detail="Object Byte Order" type="UInt8"/>
+                <Type detail="Type of Data" type="DataValue"/>
+                <Data detail="Data" type="DataValue"/>
             </Indirect>
             <RGBALayoutItem detail="Item in an RGBALayout array" ul="urn:x-ul:060E2B34.0104.0101.03010400.00000000">
                 <Code detail="Enumerated value specifying component" type="RGBACode"/>
@@ -263,7 +274,8 @@
 				<Package detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
 			</Packages>
 			<EssenceContainerData detail="Unordered batch of strong references to Essence Container Data sets used in this file" use="optional" type="subVector" ref="strong" target="EssenceContainerData" key="19 02" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 05 02 00 00">
-				<EssenceContainer detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16"/>
+                <!-- DRAGONS: EssenceContainer has no UL defined, so we allocate it a GUID to alow us to do a UL-lookup -->
+                <EssenceContainer detail="Label of Essence Container" type="UUID" minLength="16" maxLength="16" globalKey="8a bb 50 a3 14 94 16 a7 e3 62 59 1d 0e 73 1e 47"/>
 			</EssenceContainerData>
         </ContentStorage>
 		<ContentStorageKludge detail="Kludge for Version 10 Content Storage set" type="localSet">

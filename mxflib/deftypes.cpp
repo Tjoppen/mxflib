@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.18 2006/08/24 14:41:12 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.19 2006/08/25 15:49:00 matt-beard Exp $
  *
  */
 /*
@@ -134,6 +134,8 @@ namespace
 		StateTypesMultiple,					//!< Processing multiple types section
 		StateTypesCompound,					//!< Processing compound types section
 		StateTypesCompoundItem,				//!< Processing sub-items within a compound
+		StateTypesEnum,						//!< Processing enumerated types section
+		StateTypesEnumValue,				//!< Processing valuess within an enumeration
 		StateDone							//!< Finished processing
 	};
 
@@ -142,7 +144,7 @@ namespace
 	{
 		TypesCurrentState State;			//!< Current state of the parser state-machine
 		TypeRecordList Types;				//!< The types being built
-		TypeRecordPtr Compound;				//!< The current compound being built (or NULL)
+		TypeRecordPtr Parent;				//!< The current compound or enum being built (or NULL)
 		SymbolSpacePtr DefaultSymbolSpace;	//!< Default symbol space to use for all types (in current MXFTypes section)
 	};
 
@@ -161,6 +163,9 @@ namespace
 
 		// Not a real type, but the default for compound types
 		AddTraitsMapping("Default-Compound", new MDTraits_BasicCompound);
+
+		// Not a real type, but the default for enumeration types
+		AddTraitsMapping("Default-Enum", new MDTraits_BasicEnum);
 
 		AddTraitsMapping("RAW", new MDTraits_Raw);
 		AddTraitsMapping("UnknownType", new MDTraits_Raw);
@@ -201,6 +206,29 @@ namespace
 
 	//! Set true once the basic required classes have been loaded
 	static bool BasicClassesDefined = false;
+}
+
+
+namespace
+{
+	//! Read hex values separated by any of 'Sep', if it is a urn read any of the supported formats via StringToUL
+	/*! \return number of values read 
+	 */
+	int ReadHexStringOrUL(const char *Source, int Max, UInt8 *Dest, const char *Sep)
+	{
+		// Don't even attempt the UL version unless enough bytes
+		if(Max >= 16)
+		{
+			// Anything starting "urn:" goes via StringToUL
+			if((tolower(*Source) == 'u') && (tolower(Source[1]) == 'r') && (tolower(Source[2]) == 'n') && (tolower(Source[3]) == ':'))
+			{
+				// If StringToUL fails we drop through and read the raw hex bytes
+				if(StringToUL(Dest, std::string(Source))) return 16;
+			}
+		}
+
+		return ReadHexString(Source, Max, Dest, Sep);
+	}
 }
 
 
@@ -551,6 +579,63 @@ int mxflib::LoadTypes(TypeRecordList &TypesData, SymbolSpacePtr DefaultSymbolSpa
 				break;
 			}
 
+			// Enumeration type
+			case TypeEnum:
+			{
+				// Search for the name first
+				MDTypePtr BaseType = MDType::Find((*it)->Base);
+				if(!BaseType)
+				{
+					// If the name is not found, we try looking for a UL
+					ULPtr TypeUL = StringToUL((*it)->Base);
+
+					if(TypeUL) BaseType = MDType::Find(TypeUL);
+
+					if(!BaseType)
+					{
+						debug("Enumeration \"%s\" is based on (as yet) undefined base \"%s\"\n", (*it)->Type.c_str(), (*it)->Base.c_str());
+
+						// Add to the "do later" pile
+						Unresolved.push_back(*it);
+					}
+				}
+
+				if(BaseType)
+				{
+					MDTypePtr Ptr = MDType::AddEnum((*it)->Type, BaseType, (*it)->UL);
+					if(!Ptr)
+					{
+						error("Failed to build enumerated type %s\n", (*it)->Type.c_str());
+						break;
+					}
+
+					MDTraitsPtr Traits;
+					if(!GeneratedUUID) Traits = MDType::LookupTraitsMapping((*it)->UL);
+					if(!Traits) Traits = MDType::LookupTraitsMapping((*it)->Type, "Default-Enum");
+					if(Traits) Ptr->SetTraits(Traits);
+
+					// Add the name and UL to the symbol space
+					(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
+
+
+					/* Process values */
+
+					TypeRecordList::iterator subit = (*it)->Children.begin();
+					while(subit != (*it)->Children.end())
+					{
+						// Add this value
+						Ptr->AddEnumValue((*subit)->Type, (*subit)->Value);
+
+//						// Add the name and UL to the symbol space
+//						(*it)->SymSpace->AddSymbol((*it)->Type + "/" + (*subit)->Type, (*subit)->UL);
+
+						subit++;
+					}
+				}
+
+				break;
+			}
+
 			// Should never be possible to get here
 			default:
 				ASSERT(0);
@@ -645,6 +730,8 @@ namespace
 					State->State = StateTypesMultiple;
 				else if(strcmp(name, "Compound") == 0)
 					State->State = StateTypesCompound;
+				else if(strcmp(name, "Enumeration") == 0)
+					State->State = StateTypesEnum;
 				else
 					XML_error(user_data, "Tag <%s> found when types class expected\n", name);
 
@@ -956,7 +1043,7 @@ namespace
 				State->Types.push_back(ThisType);
 
 				State->State = StateTypesCompoundItem;
-				State->Compound = ThisType;
+				State->Parent = ThisType;
 
 				break;
 			}
@@ -1018,7 +1105,157 @@ namespace
 				ThisType->IsBatch = false;
 
 				// Add as a child of the current compound
-				State->Compound->Children.push_back(ThisType);
+				State->Parent->Children.push_back(ThisType);
+
+				break;
+			}
+
+			case StateTypesEnum:
+			{
+				const char *Detail = "";
+				const char *Base = NULL;
+				const char *TypeUL = NULL;
+				const char *SymSpace = NULL;
+
+				/* Process attributes */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "detail") == 0)
+						{
+							Detail = val;
+						}
+						else if(strcmp(attr, "type") == 0)
+						{
+							Base = val;
+						}
+						else if(strcmp(attr, "ul") == 0)
+						{
+							TypeUL = val;
+						}
+						else if(strcmp(attr, "symSpace") == 0)
+						{
+							SymSpace = val;
+						}
+						else if(strcmp(attr, "ref") == 0)
+						{
+							// Ignore
+						}
+						else
+						{
+							XML_error(user_data, "Unexpected attribute \"%s\" in enumeration type \"%s\"\n", attr, name);
+						}
+					}
+				}
+
+				if(!Base)
+				{
+					error("No value type specified for enumerated type %s\n", name);
+				}
+
+				// Build a new type record
+				TypeRecordPtr ThisType = new TypeRecord;
+
+				ThisType->Class = TypeEnum;
+				ThisType->Type = name;
+				ThisType->Detail = Detail;
+				if(Base) ThisType->Base = Base;
+				if(TypeUL) ThisType->UL = StringToUL(TypeUL);
+				if(SymSpace)
+				{
+					// A symbol space has been specified - look it up
+					ThisType->SymSpace = SymbolSpace::FindSymbolSpace(SymSpace);
+
+					// If it does not already exist, create it
+					if(!ThisType->SymSpace) ThisType->SymSpace = new SymbolSpace(SymSpace);
+				}
+				else
+				{
+					ThisType->SymSpace = State->DefaultSymbolSpace;
+				}
+				ThisType->Size = 0;
+				ThisType->Endian = false;
+				ThisType->IsBatch = false;
+
+				// Add this type record
+				State->Types.push_back(ThisType);
+
+				State->State = StateTypesEnumValue;
+				State->Parent = ThisType;
+
+				break;
+			}
+
+			case StateTypesEnumValue:
+			{
+				const char *ValueName = name;					// Allow the xml-name to be over-ridden
+				const char *Detail = "";
+				const char *Value = "";
+				const char *TypeUL = NULL;
+				// DRAGONS: Not supporting separate symbol space for enum values
+				int Size = 0;
+
+				/* Process attributes */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "name") == 0)
+						{
+							ValueName = val;
+						}
+						else if(strcmp(attr, "detail") == 0)
+						{
+							Detail = val;
+						}
+						else if(strcmp(attr, "value") == 0)
+						{
+							Value = val;
+						}
+						else if(strcmp(attr, "ul") == 0)
+						{
+							TypeUL = val;
+						}
+						else if(strcmp(attr, "ref") == 0)
+						{
+							// Ignore
+						}
+						else
+						{
+							error("Unexpected attribute \"%s\" in enumerated value \"%s\"\n", attr, ValueName);
+						}
+					}
+				}
+
+				if(!Value)
+				{
+					error("No value for enumerated value %s\n", ValueName);
+				}
+				else
+				{
+					// Build a new type record
+					TypeRecordPtr ThisType = new TypeRecord;
+
+					ThisType->Class = TypeSub;
+					ThisType->Type = ValueName;
+					ThisType->Detail = Detail;
+					if(TypeUL) ThisType->UL = StringToUL(TypeUL);
+					ThisType->Value = Value;
+					ThisType->Endian = false;
+					ThisType->IsBatch = false;
+
+					// Add as a child of the current compound
+					State->Parent->Children.push_back(ThisType);
+				}
 
 				break;
 			}
@@ -1080,10 +1317,25 @@ namespace
 			
 			case StateTypesCompoundItem:
 			{
-				if(strcmp(name,State->Compound->Type.c_str()) == 0)
+				if(strcmp(name,State->Parent->Type.c_str()) == 0)
 				{
 					State->State = StateTypesCompound;
-					State->Compound = NULL;
+					State->Parent = NULL;
+				}
+				break;
+			}
+			case StateTypesEnum: 
+			{
+				if(strcmp(name,"Enumeration") == 0) State->State = StateTypes;
+				break;
+			}
+			
+			case StateTypesEnumValue:
+			{
+				if(strcmp(name,State->Parent->Type.c_str()) == 0)
+				{
+					State->State = StateTypesEnum;
+					State->Parent = NULL;
 				}
 				break;
 			}
@@ -1184,7 +1436,7 @@ namespace
 		ThisClass->Tag = ClassData->Tag;
 		
 		UInt8 ULBuffer[16];
-		int Count = mxflib::ReadHexString(ClassData->UL, 16, ULBuffer, " \t.");
+		int Count = ReadHexStringOrUL(ClassData->UL, 16, ULBuffer, " \t.");
 
 		if(Count == 16) 
 		{
@@ -1376,7 +1628,7 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 			MDTypePtr Type = MDType::Find(ThisClass->Base, ThisSymbolSpace);
 			if(!Type)
 			{
-				error(NULL, "Item %s is of type %s which is not known\n", ThisClass->Name.c_str(), ThisClass->Base.c_str());
+				error( "Item %s is of type %s which is not known\n", ThisClass->Name.c_str(), ThisClass->Base.c_str());
 				return Ret;
 			}
 
@@ -1985,7 +2237,7 @@ namespace
 					const char *p = val;
 					UInt8 Buffer[32];
 
-					Size = ReadHexString(&p, 32, Buffer, " \t.");
+					Size = ReadHexStringOrUL(p, 32, Buffer, " \t.");
 
 					Key = new DataChunk(Size, Buffer);
 				}
@@ -1995,7 +2247,7 @@ namespace
 					const char *p = val;
 					UInt8 Buffer[32];
 
-					Size = ReadHexString(&p, 32, Buffer, " \t.");
+					Size = ReadHexStringOrUL(p, 32, Buffer, " \t.");
 
 					GlobalKey = new DataChunk(Size, Buffer);
 
