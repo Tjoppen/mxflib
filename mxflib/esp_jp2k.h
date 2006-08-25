@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.h
  *	\brief	Definition of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.h,v 1.5 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_jp2k.h,v 1.6 2006/08/25 15:52:31 matt-beard Exp $
  *
  */
 /*
@@ -52,6 +52,8 @@ namespace mxflib
 															 *	 \note Other functions may move the file
 															 *         pointer between calls to our functions */
 
+		size_t CachedDataSize;								//!< The size of the next data to be read, or (size_t)-1 if not known
+
 		MDObjectParent CurrentDescriptor;					//!< Pointer to the last essence descriptor we built
 															/*!< This is used as a quick-and-dirty check that we know how to process this source */
 
@@ -59,21 +61,11 @@ namespace mxflib
 		//! Class for EssenceSource objects for parsing/sourcing <Type> essence
 		class ESP_EssenceSource : public EssenceSubParserBase::ESP_EssenceSource
 		{
-		protected:
-			Position EssenceBytePos;						//!< The current byte offset within the input file
-			bool CountSet;									//!< Set true once we know the size of the current item
-			size_t ByteCount;								//!< The size of the current essence item (if known)
-
 		public:
 			//! Construct and initialise for essence parsing/sourcing
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
-				JP2K_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, JP2K_EssenceSubParser);
-				EssenceBytePos = pCaller->CurrentPos;
-				if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
-
-				CountSet = false;		// Flag unknown size
 			};
 
 			//! Get the size of the essence data in bytes
@@ -81,10 +73,8 @@ namespace mxflib
 			 */
 			virtual size_t GetEssenceDataSize(void) 
 			{
-				CountSet = true;
 				JP2K_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, JP2K_EssenceSubParser);
-				ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
-				return ByteCount;
+				return pCaller->ReadInternal(File, Stream, RequestedCount);
 			};
 
 			//! Get the next "installment" of essence data
@@ -95,18 +85,6 @@ namespace mxflib
 			 */
 			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0)
 			{
-				// Allow us to differentiate the first call
-				if(!Started)
-				{
-					Started = true;
-
-					JP2K_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, JP2K_EssenceSubParser);
-
-					// Move to the selected position
-					if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
-					pCaller->CurrentPos = EssenceBytePos;
-				}
-
 				return BaseGetEssenceData(Size, MaxSize);
 			}
 		};
@@ -128,6 +106,8 @@ namespace mxflib
 			// It should always be possible to wrap at this rate, but the end of the data may not be a whole edit unit
 			UseEditRate.Numerator = 1;
 			UseEditRate.Denominator = 1;
+
+			CachedDataSize = static_cast<size_t>(-1);
 		}
 
 		//! Build a new parser of this type and return a pointer to it

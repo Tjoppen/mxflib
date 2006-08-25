@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.7 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.8 2006/08/25 15:52:31 matt-beard Exp $
  *
  */
 /*
@@ -266,14 +266,17 @@ Position MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
  */
 DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/ /*, IndexTablePtr Index *//*=NULL*/) 
 { 
-	// Scan the stream and find out how many bytes to read
-	size_t Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
+	// Either use the cached value, or scan the stream and find out how many bytes to read
+	if(CachedDataSize == static_cast<size_t>(-1)) ReadInternal(InFile, Stream, Count);
 
 	// Make a datachunk with enough space
-	DataChunkPtr Ret = new DataChunk(Bytes);
+	DataChunkPtr Ret = new DataChunk(CachedDataSize);
 
 	// Read the data
-	FileRead(InFile, Ret->Data, Bytes);
+	FileRead(InFile, Ret->Data, CachedDataSize);
+
+	// Clear the cached size
+	CachedDataSize = static_cast<size_t>(-1);
 
 	return Ret;
 };
@@ -527,7 +530,14 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count)
 {
 	// Don't bother if there is no more data
-	if(EndOfStream) return 0;
+	if(EndOfStream)
+	{
+		CachedDataSize = 0;
+		return 0;
+	}
+
+	// Return the cached value if we have not yet used it
+	if(CachedDataSize != static_cast<size_t>(-1)) return CachedDataSize;
 
 	Position CurrentStart = CurrentPos;
 
@@ -614,7 +624,6 @@ size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 						//
 						// Offer this index table data to the index manager
 						//
-
 						Manager->OfferEditUnit(ManagedStreamID, PictureNumber, AnchorOffset, Flags);
 						Manager->OfferTemporalOffset(PictureNumber - (GOPOffset - TemporalReference), GOPOffset - TemporalReference);
 
@@ -678,10 +687,13 @@ size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 	if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
 	{
 		error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
-		return 0;
+		Ret = 0;
 	}
 
-	return static_cast<size_t>(Ret);
+	// Store so we don't have to calculate if called again without reading
+	CachedDataSize =  static_cast<size_t>(Ret);
+	
+	return CachedDataSize;
 }
 
 

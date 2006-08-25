@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.10 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.11 2006/08/25 15:52:31 matt-beard Exp $
  *
  */
 /*
@@ -567,6 +567,9 @@ size_t mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Str
 	// TODO: Add better error reporting - it currently just exits on most errors
 	Length Ret = 0;
 
+	// Return the cached value if we have not yet used it
+	if(CachedDataSize != static_cast<size_t>(-1)) return CachedDataSize;
+
 	// Move to the current position
 	if(CurrentPos == 0) CurrentPos = DataStart;
 	FileSeek(InFile, CurrentPos);
@@ -576,7 +579,11 @@ size_t mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Str
 	{
 		Ret = DataSize - (CurrentPos - DataStart);
 		if(Ret < 0) Ret = 0;
-		return static_cast<size_t>(Ret);
+
+		// Store so we don't have to calculate if called again without reading
+		CachedDataSize =  static_cast<size_t>(Ret);
+		
+		return CachedDataSize;
 	}
 
 	// If the size is unknown we assume the rest of the file is data
@@ -598,10 +605,13 @@ size_t mxflib::JP2K_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Str
 	if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
 	{
 		error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
-		return 0;
+		Ret = 0;
 	}
 
-	return static_cast<size_t>(Ret);
+	// Store so we don't have to calculate if called again without reading
+	CachedDataSize =  static_cast<size_t>(Ret);
+	
+	return CachedDataSize;
 
 /* Codestream scanning code...
 

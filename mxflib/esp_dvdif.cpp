@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.9 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.10 2006/08/25 15:50:57 matt-beard Exp $
  *
  */
 /*
@@ -184,6 +184,9 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	FileSeekEnd(InFile);
 	DIFEnd = FileTell(InFile);
 
+	// Seek to the start of the DIF data
+	FileSeek(InFile, DIFStart);
+
 	// Build a descriptor with a zero ID (we only support single stream files)
 	EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
 	Descriptor->ID = 0;
@@ -352,8 +355,12 @@ Position DV_DIF_EssenceSubParser::GetCurrentPosition(void)
  */
 DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/) 
 { 
-	// Scan the stream and find out how many bytes to read
-	size_t Bytes = ReadInternal(InFile, Stream, Count);
+	// Either use the cached value, or scan the stream and find out how many bytes to read
+	if(CachedDataSize == static_cast<size_t>(-1)) ReadInternal(InFile, Stream, Count);
+
+	// Record, then clear, the data size
+	size_t Bytes = CachedDataSize;
+	CachedDataSize = static_cast<size_t>(-1);
 
 	// Read the data
 	return FileReadChunk(InFile, Bytes);
@@ -511,26 +518,31 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
  */
 size_t DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count)
 {	
+	// Return the cached value if we have not yet used it
+	if(CachedDataSize != static_cast<size_t>(-1)) return CachedDataSize;
+
+	// Seek to the start of the essence on the first read
+	if(PictureNumber == 0) FileSeek(InFile, DIFStart);
+
 	// Return anything remaining if clip wrapping
-	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip)) Count = ((DIFEnd - DIFStart) / (150 * 80)) - PictureNumber;
+	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip))
+	{
+		Count = ((DIFEnd - DIFStart) / (150 * 80)) - PictureNumber;
+	}
 
 	// Simple version - we are working in our native edit rate
 	if((SelectedEditRate.Denominator == NativeEditRate.Denominator) && (SelectedEditRate.Numerator = NativeEditRate.Numerator))
 	{
-		Position SeqSize = (150 * 80 * SeqCount);
-
-		// Seek to the data position
-		Position ReadStart = DIFStart + (SeqSize * PictureNumber);
-		FileSeek(InFile, ReadStart);
-
 		// Work out how many bytes to read
 		Length Ret = (Length)(Count * 150 * 80 * SeqCount);
 		PictureNumber += Count;
 
-		// If this would read beyond the end of the file stop at the end
-		if((Ret + ReadStart) > DIFEnd)
+		// If this would read beyond the end of the file stop at the end (don't test on AVI files)
+		if((Ret + static_cast<Position>(FileTell(InFile))) > DIFEnd)
 		{
-			Ret = DIFEnd - ReadStart;
+			Position SeqSize = (150 * 80 * SeqCount);
+
+			Ret = DIFEnd - static_cast<Position>(FileTell(InFile));
 			
 			// Fix for an incomplete frame at the end of the previous read
 			if(Ret < 0) Ret = 0;
@@ -544,13 +556,17 @@ size_t DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, U
 		if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
 		{
 			error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
-			return 0;
+			Ret = 0;
 		}
 
-		return static_cast<size_t>(Ret);
+		// Store so we don't have to calculate if called again without reading
+		CachedDataSize =  static_cast<size_t>(Ret);
+		
+		return CachedDataSize;
 	}
 
 	error("Non-native edit rate not yet supported\n");
+	CachedDataSize = 0;
 	return 0;
 }
 
@@ -566,3 +582,9 @@ bool DV_DIF_EssenceSubParser::SetOption(std::string Option, Int64 Param /*=0*/ )
 
 
 
+//! Build a new parser of this type and return a pointer to it
+EssenceSubParserPtr DV_DIF_EssenceSubParser::NewParser(void) const 
+{
+	DV_DIF_EssenceSubParserFactory Factory;
+	return Factory.NewParser(); 
+}

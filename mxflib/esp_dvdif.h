@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.7 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.8 2006/08/25 15:50:58 matt-beard Exp $
  *
  */
 /*
@@ -53,6 +53,9 @@ namespace mxflib
 
 		int SeqCount;										//!< Number of DIF sequences in a frame
 
+
+		size_t CachedDataSize;								//!< The size of the next data to be read, or (size_t)-1 if not known
+
 		// File buffering
 		UInt8 *Buffer;										//!< Buffer for efficient file reading
 
@@ -69,16 +72,12 @@ namespace mxflib
 		//! Class for EssenceSource objects for parsing/sourcing DV-DIF essence
 		class ESP_EssenceSource : public EssenceSubParserBase::ESP_EssenceSource
 		{
-		protected:
-			Position EssencePos;
-
 		public:
 			//! Construct and initialise for essence parsing/sourcing
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
 				DV_DIF_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, DV_DIF_EssenceSubParser);
-				EssencePos = pCaller->PictureNumber;
 			};
 
 			//! Get the size of the essence data in bytes
@@ -98,15 +97,15 @@ namespace mxflib
 			 */
 			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0)
 			{
-				// Allow us to differentiate the first call
+/*				// Allow us to differentiate the first call
 				if(!Started)
 				{
 					// Move to the selected position
 					DV_DIF_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, DV_DIF_EssenceSubParser);
-					pCaller->PictureNumber = EssencePos;
 
 					Started = true;
 				}
+*/
 
 				return BaseGetEssenceData(Size, MaxSize);
 			}
@@ -122,6 +121,8 @@ namespace mxflib
 			DIFEnd = 0;
 			SeqCount = 10;
 			Buffer = NULL;
+
+			CachedDataSize = static_cast<size_t>(-1);
 		}
 
 		~DV_DIF_EssenceSubParser()
@@ -129,6 +130,9 @@ namespace mxflib
 			// Free our buffer if we have allocated one
 			if(Buffer) delete[] Buffer;
 		}
+
+		//! Build a new parser of this type and return a pointer to it
+		virtual EssenceSubParserPtr NewParser(void) const;
 
 		//! Report the extensions of files this sub-parser is likely to handle
 		virtual StringList HandledExtensions(void)

@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.h
  *	\brief	Definition of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.h,v 1.7 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.h,v 1.8 2006/08/25 15:52:32 matt-beard Exp $
  *
  */
 /*
@@ -47,6 +47,9 @@ namespace mxflib
 
 		Position PictureNumber;								//!< Current picture number
 		Position AnchorFrame;								//!< Picture number of last "anchor frame"
+
+		size_t CachedDataSize;								//!< The size of the next data to be read, or (size_t)-1 if not known
+
 		Position CurrentPos;								//!< Current position in the input file
 															/*!< \note Other functions may move the file
 															 *         pointer between calls to our functions */
@@ -75,20 +78,11 @@ namespace mxflib
 		//! Class for EssenceSource objects for parsing/sourcing MPEG-VES essence
 		class ESP_EssenceSource : public EssenceSubParserBase::ESP_EssenceSource
 		{
-		protected:
-			Position EssencePos;
-			Position EssenceBytePos;
-			size_t ByteCount;
-			Position Offset;
-
 		public:
 			//! Construct and initialise for essence parsing/sourcing
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count) 
 			{
-				MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
-				EssencePos = pCaller->PictureNumber;
-				EssenceBytePos = pCaller->CurrentPos;
 			};
 
 			//! Get the size of the essence data in bytes
@@ -96,15 +90,11 @@ namespace mxflib
 			 */
 			virtual size_t GetEssenceDataSize(void) 
 			{
-				Offset = 0;
 				MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
 				
-				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip)
-					ByteCount = pCaller->ReadInternal(File, Stream, 0);
-				else
-					ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
+				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip) return pCaller->ReadInternal(File, Stream, 0);
 				
-				return ByteCount;
+				return pCaller->ReadInternal(File, Stream, RequestedCount);
 			};
 
 			//! Get the next "installment" of essence data
@@ -115,20 +105,13 @@ namespace mxflib
 			 */
 			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0)
 			{
-				// Allow us to differentiate the first call
+/*				// Allow us to differentiate the first call
 				if(!Started)
 				{
 					MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
-
-					// Move to the selected position
-					pCaller->PictureNumber = EssencePos;
-					pCaller->CurrentPos = EssenceBytePos;
-
-					Offset = 0;
-
 					Started = true;
 				}
-
+*/
 				return BaseGetEssenceData(Size, MaxSize);
 			}
 
@@ -147,6 +130,8 @@ namespace mxflib
 		// TODO: Check why properties are not initialised here!
 		MPEG2_VES_EssenceSubParser()
 		{
+			CachedDataSize = static_cast<size_t>(-1);
+
 			EditPoint = false;
 			EndOfStream = false;
 		}
@@ -174,6 +159,7 @@ namespace mxflib
 
 		//! Get the current position in SetEditRate() sized edit units
 		virtual Position GetCurrentPosition(void);
+
 
 		// Index table functions
 		
