@@ -221,7 +221,7 @@
 				MXFLIB_CLASS_ITEM("Package", "Label of Essence Container", ClassUsageOptional, "UUID", 16, 16, 0x0000, "", NULL, NULL)
 			MXFLIB_CLASS_VECTOR_END
 			MXFLIB_CLASS_VECTOR_REF("EssenceContainerData", "Unordered batch of strong references to Essence Container Data sets used in this file", ClassUsageOptional, 0x1902, "06 0e 2b 34 01 01 01 02  06 01 01 04 05 02 00 00", ClassRefStrong, "EssenceContainerData")
-				MXFLIB_CLASS_ITEM("EssenceContainer", "Label of Essence Container", ClassUsageOptional, "UUID", 16, 16, 0x0000, "", NULL, NULL)
+				MXFLIB_CLASS_ITEM("EssenceContainer", "Label of Essence Container", ClassUsageOptional, "UUID", 16, 16, 0x0000, "8a bb 50 a3 14 94 16 a7 e3 62 59 1d 0e 73 1e 47", NULL, NULL)
 			MXFLIB_CLASS_VECTOR_END
 		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_SET("ContentStorageKludge", "Kludge for Version 10 Content Storage set", "", "")
