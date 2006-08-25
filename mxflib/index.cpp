@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.13 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.14 2006/08/25 15:56:40 matt-beard Exp $
  *
  */
 /*
@@ -31,6 +31,11 @@
 
 using namespace mxflib;
 
+
+//! The lowest valid index position, used to flag omitted "start" parameters
+/*! DRAGONS: Why isn't this initialized in the header file? Because MSVC 6 won't allow that!!
+ */
+const Position IndexTable::IndexLowest = (0 - UINT64_C(0x7fffffffffffffff));
 
 
 //! Free memory by purging the specified range from the index
@@ -442,7 +447,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		IndexEntrySize = (11 + 4*NSL + 8*NPE);
 
 		// Copy the delta entries to the "base" is this is our first segment
-		if(BaseDeltaCount == 0)
+		if((BaseDeltaCount == 0) && (Ret->DeltaCount != 0))
 		{
 			BaseDeltaCount = Ret->DeltaCount;
 			BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
@@ -1108,7 +1113,7 @@ IndexManager::IndexManager(int PosTableIndex, UInt32 ElementSize)
 	EditRate.Denominator = 1;
 
 	// No entries added yet
-	LastNewEditUnit = -1;
+	LastNewEditUnit = IndexTable::IndexLowest;
 
 	// Initialise the provisional entry
 	ProvisionalEntry = NULL;
@@ -1123,6 +1128,9 @@ IndexManager::IndexManager(int PosTableIndex, UInt32 ElementSize)
 
 	// Clear the value-relative indexing flag
 	ValueRelativeIndexing = false;
+
+	// Start with no sub-range offset
+	SubRangeOffset = 0;
 }
 
 
@@ -1178,11 +1186,16 @@ int IndexManager::AddSubStream(int PosTableIndex, UInt32 ElementSize)
 	\param EditUnit		The position of the edit unit being set
 	\param KeyOffset	The key frame offset for this edit unit (or 0 if not being set by this call)
 	\param Flags		The flags for this edit unit (or -1 if not being set by this call)
+
+	DRAGONS: The EditUnit supplied here is the absolute value from stream start, so will not start at 0 if sub-ranged
 */
 void IndexManager::AddEditUnit(int SubStream, Position EditUnit, int KeyOffset /*=0*/, int Flags /*=-1*/)
 {
 	// No need for a CBR index table
 	if(DataIsCBR) return;
+
+	// Correct for sub-range offset
+	EditUnit -= SubRangeOffset;
 
 	// The entry we are using
 	IndexData *ThisEntry = NULL;
@@ -1262,6 +1275,8 @@ void IndexManager::AddEditUnit(int SubStream, Position EditUnit, int KeyOffset /
 	\param Offset		The stream offset of this edit unit
 	\param KeyOffset	The key frame offset for this edit unit (or 0 if not being set by this call)
 	\param Flags		The flags for this edit unit (or -1 if not being set by this call)
+    
+	DRAGONS: The EditUnit supplied here is relative to the sub-range, so it will start at 0 if sub-ranged (or be -ve for pre-charge)
 */
 void IndexManager::SetOffset(int SubStream, Position EditUnit, UInt64 Offset, int KeyOffset /*=0*/, int Flags /*=-1*/)
 {
@@ -1344,6 +1359,7 @@ void IndexManager::SetOffset(int SubStream, Position EditUnit, UInt64 Offset, in
 
 
 //! Accept or decline an offered edit unit (of a stream) without a known offset
+/*! DRAGONS: The EditUnit supplied here is the absolute value from stream start, so will not start at 0 if sub-ranged */
 bool IndexManager::OfferEditUnit(int SubStream, Position EditUnit, int KeyOffset /*=0*/, int Flags /*=-1*/)
 {
 	// DRAGONS: Currently we accept all offered entries
@@ -1357,6 +1373,7 @@ bool IndexManager::OfferEditUnit(int SubStream, Position EditUnit, int KeyOffset
 
 
 //! Accept or decline an offered offset for a particular edit unit of a stream
+/*!	DRAGONS: The EditUnit supplied here is relative to the sub-range, so it will start at 0 if sub-ranged (or be -ve for pre-charge) */
 bool IndexManager::OfferOffset(int SubStream, Position EditUnit, UInt64 Offset, int KeyOffset /*=0*/, int Flags /*=-1*/)
 {
 	// DRAGONS: Currently we accept all offered entries
@@ -1368,10 +1385,14 @@ bool IndexManager::OfferOffset(int SubStream, Position EditUnit, UInt64 Offset, 
 
 
 //! Set the temporal offset for a particular edit unit
+/*! DRAGONS: The EditUnit supplied here is the absolute value from stream start, so will not start at 0 if sub-ranged */
 void IndexManager::SetTemporalOffset(Position EditUnit, int Offset)
 {
 	// No need for a CBR index table
 	if(DataIsCBR) return;
+
+	// Correct for sub-range offset
+	EditUnit -= SubRangeOffset;
 
 	// Check the provisional entry first (quite likely and an easy test)
 	if((ProvisionalEntry) && (EditUnit == ProvisionalEditUnit))
@@ -1426,6 +1447,7 @@ void IndexManager::SetTemporalOffset(Position EditUnit, int Offset)
 
 
 //! Accept or decline an offered temporal offset for a particular edit unit
+/*! DRAGONS: The EditUnit supplied here is the absolute value from stream start, so will not start at 0 if sub-ranged */
 bool IndexManager::OfferTemporalOffset(Position EditUnit, int Offset)
 {
 	// DRAGONS: Currently we accept all offered entries
@@ -1437,10 +1459,14 @@ bool IndexManager::OfferTemporalOffset(Position EditUnit, int Offset)
 
 
 //! Set the key-frame offset for a particular edit unit
+/*! DRAGONS: The EditUnit supplied here is the absolute value from stream start, so will not start at 0 if sub-ranged */
 void IndexManager::SetKeyOffset(Position EditUnit, int Offset)
 {
 	// No need for a CBR index table
 	if(DataIsCBR) return;
+
+	// Correct for sub-range offset
+	EditUnit -= SubRangeOffset;
 
 	// Check the provisional entry first (quite likely and an easy test)
 	if((ProvisionalEntry) && (EditUnit == ProvisionalEditUnit))
@@ -1466,6 +1492,7 @@ void IndexManager::SetKeyOffset(Position EditUnit, int Offset)
 
 
 //! Accept or decline an offered key-frame offset for a particular edit unit
+/*! DRAGONS: The EditUnit supplied here is the absolute value from stream start, so will not start at 0 if sub-ranged */
 bool IndexManager::OfferKeyOffset(Position EditUnit, int Offset)
 {
 	// DRAGONS: Currently we accept all offered entries
@@ -1535,7 +1562,7 @@ IndexTablePtr IndexManager::MakeIndex(void)
 
 //! Add all complete entries in a range to the supplied index table
 /*! \return Number of index entries added */
-int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Position FirstEditUnit /*=0*/, Position LastEditUnit /*=UINT64_C(0x7fffffffffffffff)*/)
+int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Position FirstEditUnit /*=IndexLowest*/, Position LastEditUnit /*=UINT64_C(0x7fffffffffffffff)*/)
 {
 	// Count of number of index table entries added
 	int Ret = 0;
@@ -1592,7 +1619,11 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 		Position StreamPos = ThisEntry->StreamOffset[0];
 
 		// Don't build an entry if it is not (yet) complete
-		if((ThisEntry->Status & StatusTest) != StatusTest) break;
+		if((ThisEntry->Status & StatusTest) != StatusTest)
+		{
+			if(++it == ManagedData.end()) break;
+			continue;
+		}
 
 		// Build the slice table
 		int i;
@@ -1619,7 +1650,7 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 		}
 
 		// Determine the edit unit to add
-		Position ThisEditUnit = FirstEditUnit++;
+		Position ThisEditUnit = (*it).first;
 		if(UndoReorder) ThisEditUnit += ThisEntry->TemporalDiff;
 
 		// Add this new entry (carry FirstEditUnit up with us as we go)
@@ -1629,8 +1660,7 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 		Ret++;
 
 		// Move to the next entry
-		it++;
-		if(it == ManagedData.end()) break;
+		if(++it == ManagedData.end()) break;
 	}
 
 	if(NSL) delete[] SliceOffsets;

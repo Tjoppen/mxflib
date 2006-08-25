@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.17 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.18 2006/08/25 15:55:40 matt-beard Exp $
  *
  */
 /*
@@ -288,6 +288,26 @@ namespace mxflib
 		/*! This method indicates the essence type to order this data before or after if reletive write-ordering is used 
 		 */
 		virtual int RelativeWriteOrderType(void) { return 0; }
+
+		//! Get the origin value to use for this essence specifically to take account of pre-charge
+		/*! \return Zero if not applicable for this source
+		 */
+		virtual Length GetPrechargeSize(void) { return 0; }
+
+		//! Get the range start position
+		/*! \return Zero if not applicable for this source
+		 */
+		virtual Position GetRangeStart(void) { return 0; }
+
+		//! Get the range end position
+		/*! \return -1 if not applicable for this source
+		 */
+		virtual Position GetRangeEnd(void) { return 0; }
+
+		//! Get the range duration
+		/*! \return -1 if not applicable for this source
+		 */
+		virtual Length GetRangeDuration(void) { return 0; }
 	};
 
 	// Smart pointer to an EssenceSource object
@@ -580,6 +600,9 @@ namespace mxflib
 
 		//! Set a write-order relative to all items of a specified type
 		void SetRelativeWriteOrder(GCStreamID ID, int Type, Int32 Position);
+
+		//! Get the WriteOrder for the specified stream
+		Int32 GetWriteOrder(GCStreamID ID);
 
 		//! Read the count of streams
 		int GetStreamCount(void) { return StreamCount; };
@@ -986,22 +1009,22 @@ namespace mxflib
 		virtual Position ReadLog(int LogID)
 		{
 			if(Manager) return Manager->ReadLog(LogID);
-			return -1;
+			return IndexTable::IndexLowest;
 		}
 
 		//! Instruct index manager to accept provisional entry
-		/*! \return The edit unit of the entry accepted - or -1 if none available */
+		/*! \return The edit unit of the entry accepted - or IndexLowest if none available */
 		virtual Position AcceptProvisional(void)
 		{
 			if(Manager) return Manager->AcceptProvisional();
-			return -1;
+			return IndexTable::IndexLowest;
 		}
 
-		//! Read the edit unit of the last entry added via the index manager (or -1 if none added)
+		//! Read the edit unit of the last entry added via the index manager (or IndexLowest if none added)
 		Position GetLastNewEditUnit(void) 
 		{ 
 			if(Manager) return Manager->GetLastNewEditUnit();
-			return -1;
+			return IndexTable::IndexLowest;
 		}
 
 		//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
@@ -1046,9 +1069,10 @@ namespace mxflib
 
 
 		//! Build a new sub-parser of the appropriate type
-		/*! \note Only redifine this function in a sub-parser if it is going to be its own factory (no EssenceSubParserFactory used)
+		/*! \note You must redifine this function in a sub-parser even if it is not going to be its own factory (EssenceSubParserFactory used).
+		 *        In this case it is best to call the factory's NewParser() method.
 		 */
-		virtual EssenceSubParserPtr NewParser(void) const { return NULL; };
+		virtual EssenceSubParserPtr NewParser(void) const = 0;
 	};
 
 	//! Rename of EssenceSubParser for legacy compatibility
@@ -1272,7 +1296,8 @@ namespace mxflib
 	protected:
 		NewFileHandlerPtr Handler;				//!< Handler to be informed of new filenames
 		std::string BaseFileName;				//!< Base filename as a printf string
-		bool FileList;							//!< True if this is a multi-file set rather than a single file
+		std::list<std::string> FollowingNames;	//!< Names to be processed next
+		bool FileList;							//!< True if this is a multi-file set rather than a single file (or if a range is in use)
 		int ListOrigin;							//!< Start number for filename building
 		int ListIncrement;						//!< Number to add to ListOrigin for each new file
 		int ListNumber;							//!< The number of files in the list or -1 for "end when no more files"
@@ -1282,9 +1307,13 @@ namespace mxflib
 		bool AtEOF;								//!< True once the last file has hit it's end of file
 		std::string CurrentFileName;			//!< The name of the current file (if open)
 
+		Position RangeStart;					//!< The requested first edit unit, or -1 if none specified
+		Position RangeEnd;						//!< The requested last edit unit, or -1 if using RequestedDuration
+		Length RangeDuration;					//!< The requested duration, or -1 if using RequestedEnd
+
 	public:
 		//! Construct a ListOfFiles and optionally set a single source filename pattern
-		ListOfFiles(std::string FileName = "") 
+		ListOfFiles(std::string FileName = "") : RangeStart(-1), RangeEnd(-1), RangeDuration(-1)
 		{
 			AtEOF = false;
 
@@ -1304,7 +1333,24 @@ namespace mxflib
 		virtual ~ListOfFiles() {}
 
 		//! Set a single source filename pattern
-		void SetFileName(std::string &FileName) { ParseFileName(FileName); }
+		void SetFileName(std::string &FileName) 
+		{ 
+			FollowingNames.clear();
+			ParseFileName(FileName); 
+		}
+
+		//! Add a source filename pattern
+		void AddFileName(std::string &FileName) 
+		{ 
+			if(BaseFileName.empty())
+			{
+				ParseFileName(FileName); 
+			}
+			else
+			{
+				FollowingNames.push_back(FileName);
+			}
+		}
 
 		//! Set a handler to receive notification of all file open actions
 		void SetNewFileHandler(NewFileHandlerPtr &NewHandler) { Handler = NewHandler; }
@@ -1312,21 +1358,30 @@ namespace mxflib
 		//! Set a handler to receive notification of all file open actions
 		void SetNewFileHandler(NewFileHandler *NewHandler) { Handler = NewHandler; }
 
+		//! Get the start of any range specified, or -1 if none
+		Position GetRangeStart(void) const { return RangeStart; }
+
+		//! Get the end of any range specified, or -1 if none
+		Position GetRangeEnd(void) const { return RangeEnd; }
+
+		//! Get the duration of any range specified, or -1 if none
+		Position GetRangeDuration(void) const { return RangeDuration; }
+
 		//! Get the current filename
 		std::string FileName(void) { return CurrentFileName; }
 
 		//! Open the current file (any new-file handler will already have been called)
-		/*! This function must be supplied be the derived class 
+		/*! This function must be supplied by the derived class 
 		 *  \return true if file open succeeded
 		 */
 		virtual bool OpenFile(void) = 0;
 
 		//! Close the current file
-		/*! This function must be supplied be the derived class */
+		/*! This function must be supplied by the derived class */
 		virtual void CloseFile(void) = 0;
 
 		//! Is the current file open?
-		/*! This function must be supplied be the derived class */
+		/*! This function must be supplied by the derived class */
 		virtual bool IsFileOpen(void) = 0;
 
 		//! Is the current filename pattern a list rather than a single file?
@@ -1459,7 +1514,6 @@ namespace mxflib
 			EssenceSourcePtr CurrentSource;				//!< An EssenceSource for the current source file
 			FileParserPtr Outer;						//!< The outer file parser which is owned by us to prevent it being released until be are done
 			Length PreviousLength;						//!< The total size of all previously read essence sources for this set
-			Length PreviousMassagedSize;				//!< The ?massaged? total size of all previously read essence sources for this set
 			
 			//! Option pair for OptionList
 			typedef std::pair<std::string, Int64> OptionPair;
@@ -1467,12 +1521,12 @@ namespace mxflib
 			//! List of all options set for this source
 			std::list<OptionPair> OptionList;
 
-			// Prevent default construction
+			//! Prevent default construction
 			SequentialEssenceSource();
 
 		public:
-			// Construct a SequentialEssenceSource
-			SequentialEssenceSource(FileParser *Outer) : Outer(Outer), PreviousLength(0), PreviousMassagedSize(0) {}
+			//! Construct a SequentialEssenceSource
+			SequentialEssenceSource(FileParser *Outer) : Outer(Outer), PreviousLength(0) {}
 
 			//! Set the new source to use
 			void SetSource(EssenceSourcePtr NewSource) 
@@ -1589,6 +1643,26 @@ namespace mxflib
 			//! Get the index manager sub-stream ID
 			virtual int GetIndexStreamID(void) { return IndexStreamID; }
 
+			//! Get the origin value to use for this essence specifically to take account of pre-charge
+			/*! \return Zero if not applicable for this source
+			*/
+			virtual Length GetPrechargeSize(void) 
+			{ 
+				if(!ValidSource()) return 0;
+
+				return CurrentSource->GetPrechargeSize();
+			}
+
+			//! Get the range start position
+			virtual Position GetRangeStart(void) { return Outer->GetRangeStart(); }
+
+			//! Get the range end position
+			virtual Position GetRangeEnd(void) { return Outer->GetRangeEnd(); }
+
+			//! Get the range duration
+			virtual Length GetRangeDuration(void) { return Outer->GetRangeDuration(); }
+
+
 		protected:
 			//! Ensure that CurrentSource is valid and ready for reading - if not select the next source file
 			/*! \return true if all OK, false if no EssenceSource available
@@ -1607,11 +1681,9 @@ namespace mxflib
 			friend class FileParser;
 		};
 		
-		// Allow out protected member to access our internals
+		// Allow our protected member to access our internals
 		friend class SequentialEssenceSource;
 	};
-
-
 }
 
 
@@ -1998,6 +2070,11 @@ namespace mxflib
 		bool ValueRelativeIndexing;									//!< Flag to allow value-relative indexing
 																	/*!< \note This is NOT implemented in the IndexManager, but must be handled by the caller */
 
+		Length PrechargeSize;										//!< The number of edit units of pre-charge remaining to be written
+																	/*!< DRAGONS: This is set when the state moves from "start" because it is
+																	 *            important to wait for all sub-streams to be set up first
+																	 */
+
 		//! KLV Alignment Grid to use for this stream (of zero if default for this body is to be used)
 		UInt32 KAG;
 
@@ -2035,6 +2112,7 @@ namespace mxflib
 			EndOfStream = false;
 			FreeSpaceIndex = false;
 			ValueRelativeIndexing = false;
+			PrechargeSize = 0;
 
 			KAG = 0;
 			ForceBER4 = false;
@@ -2193,50 +2271,14 @@ namespace mxflib
 		 *  be written to a file as they are not 377M complient */
 		bool GetValueRelativeIndexing(void) { return ValueRelativeIndexing; }
 
-	protected:
+		//! Read the number of edit units of pre-charge remaining
+		Length GetPrechargeSize(void) const { return PrechargeSize; }
+
+		//! Reduce the precharge count by one
+		void DecrementPrecharge(void) { if(PrechargeSize) PrechargeSize--; }
+
 		//! Initialize an index manager if required
-// FIXME: Move to .cpp file!
-		void InitIndexManager(void)
-		{
-			// Don't init if no indexing required
-			if(StreamIndex == StreamIndexNone) return;
-
-			// Don't init if no IndexSID set
-			if(IndexSID == 0) return;
-
-			// Don't init if no writer
-			if(!StreamWriter) return;
-
-			// Don't init if already done
-			if(IndexMan) return; 
-
-			// Add each stream
-			BodyStream::iterator it = begin();
-			while(it != end())
-			{
-				// Add to the index manager (create the index manager on first pass)
-				// TODO: Sort the PosTable!!
-				int StreamID = 0;
-				if(!IndexMan)
-				{
-					IndexMan = new IndexManager(0, (*it)->GetBytesPerEditUnit(KAG));
-					IndexMan->SetBodySID(BodySID);
-					IndexMan->SetIndexSID(IndexSID);
-					IndexMan->SetEditRate((*it)->GetEditRate());
-					IndexMan->SetValueRelativeIndexing(ValueRelativeIndexing);
-				}
-				else
-					StreamID = IndexMan->AddSubStream(0, (*it)->GetBytesPerEditUnit(KAG));
-
-				// Let the stream know about this index manager
-				(*it)->SetIndexManager(IndexMan, StreamID);
-
-				// TODO: Currently no support for filler indexing here - needs adding
-				StreamWriter->AddStreamIndex((*it)->GetStreamID(), IndexMan, StreamID, false, (StreamWrap == StreamWrapClip));
-
-				it++;
-			}
-		}
+		void InitIndexManager(void);
 	};
 
 	//! Smart pointer to a BodyStream
@@ -2526,6 +2568,9 @@ namespace mxflib
 		 *  - The KAGSize value is obeyed
 		 */
 		void SetPartitionFiller(UInt32 PartitionFiller) { MinPartitionFiller = PartitionFiller; }
+
+		//! Initialize all required index managers
+		void InitIndexManagers(void);
 
 	protected:
 		//! Move to the next active stream (will also advance State as required)

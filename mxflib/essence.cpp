@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.19 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.20 2006/08/25 15:55:40 matt-beard Exp $
  *
  */
 /*
@@ -2222,7 +2222,7 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 			// Index the first edit unit of the essence for clip-wrap
 			// FIXME: we need to do proper clip-wrap indexing!!
 			Position EditUnit = IndexMan->AcceptProvisional();
-			if(EditUnit == -1) EditUnit = IndexMan->GetLastNewEditUnit();
+			if(EditUnit == IndexTable::IndexLowest) EditUnit = IndexMan->GetLastNewEditUnit();
 			Stream->SparseList.push_back(EditUnit);
 
 			// If we are requested to add a "free space" index entry do so here
@@ -2271,29 +2271,26 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 			// Add a chunk of essence data - unless there is already some pending
 			if(!Stream->HasPendingData())
 			{
+				Length PrechargeSize = Stream->GetPrechargeSize();
+
 				// Add this chunk of each essence sub-stream to the writer
 				BodyStream::iterator it = Stream->begin();
 				while(it != Stream->end())
 				{
-					// Read the next data for this sub-stream
-					DataChunkPtr Dat = (*it)->GetEssenceData();
-
-					// Skip any stream that is no longer returning data
-					if((!Dat) || (Dat->Size == 0))
-					{
-						it++;
-						continue;
-					}
+					// This data chunk
+					DataChunkPtr Dat;
 
 					// Do any required indexing (stream offset is updated when the content package is written)
 					if(VBRIndex)
 					{
 						if(SparseIndex)
 						{
-							// Force the first edit unit to be accepted, even if provisional,
-							// and add it's edit unit to the sparse list
-							Position EditUnit = IndexMan->AcceptProvisional();
-							if(EditUnit == -1) EditUnit = IndexMan->GetLastNewEditUnit();
+							Position EditUnit;
+
+							// If we are in the precharge, work out the -ve position (GetCurrentPosition may return 0 through the precharge)
+							if(PrechargeSize) EditUnit = 0 - PrechargeSize;
+							else EditUnit = (*it)->GetCurrentPosition();
+
 							Stream->SparseList.push_back(EditUnit);
 			
 							// Sparce entry recorded for this partition
@@ -2301,19 +2298,35 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 						}
 					}
 
+					// Skip anything that currently doesn't have any precharge data to write
+					if(PrechargeSize && (*it)->GetPrechargeSize() < PrechargeSize)
+					{
+						// Write an empty item for all skipped items
+						Dat = NULL;
+					}
+					else
+					{
+						// Read the next data for this sub-stream
+						Dat = (*it)->GetEssenceData();
+					}
+
 					// Get the stream ID for this sub-stream
 					GCStreamID EssenceID = (*it)->GetStreamID();
 
+					// Decide if we are actually writing anything this CP...
+					if(Dat) DataWrittenThisCP = true;
+					// ... if not, write an empty item 
+					else Dat = new DataChunk;
+
 					// Add this chunk of essence to the writer
 					Writer->AddEssenceData(EssenceID, Dat);
-					DataWrittenThisCP = true;
 
 					// Move to the next stream
 					it++;
 				}
 
 				// Nothing remaining - all done
-				if(!DataWrittenThisCP)
+				if((!DataWrittenThisCP) && (PrechargeSize == 0))
 				{
 					Stream->SetEndOfStream(true);
 					Stream->GetNextState();
@@ -2322,9 +2335,9 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 					if(Stream->GetFreeSpaceIndex())
 					{
 						Position EditUnit = IndexMan->AcceptProvisional();
-						if(EditUnit == -1) EditUnit = IndexMan->GetLastNewEditUnit();
+						if(EditUnit == IndexTable::IndexLowest) EditUnit = IndexMan->GetLastNewEditUnit();
 
-						if(EditUnit >= 0)
+						if(EditUnit != IndexTable::IndexLowest)
 						{
 							// Remove the KLSize if doing ValueRelativeIndexing
 							Position KLSize = 0;
@@ -2342,6 +2355,9 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 
 					return Ret;
 				}
+
+				// If we have been writing precharge, reduce the count
+				if(PrechargeSize) Stream->DecrementPrecharge();
 
 				// Now we have written something we must record the BodySID
 				PartitionBodySID = CurrentBodySID;
@@ -2439,7 +2455,7 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 							// ...force the first edit unit of the new partition to be accepted, even if provisional,
 							// and add it's edit unit to the sparse list
 							Position EditUnit = IndexMan->AcceptProvisional();
-							if(EditUnit == -1) EditUnit = IndexMan->GetLastNewEditUnit();
+							if(EditUnit == IndexTable::IndexLowest) EditUnit = IndexMan->GetLastNewEditUnit();
 							Stream->SparseList.push_back(EditUnit);
 						}
 
@@ -2491,6 +2507,19 @@ BodyStream::StateType mxflib::BodyStream::GetNextState(void)
 		ASSERT(0);
 
 	case BodyStreamStart:
+		// It should now be safe to read the pre-charge size, so set it to the highest of any sub-streams
+		// DRAGONS: No point in doing any of this if we are a single stream
+		if(size() > 1) 
+		{
+			BodyStream::iterator it = begin();
+			while(it != end())
+			{
+				Length PSize = Source->GetPrechargeSize();
+				if(PSize > PrechargeSize) PrechargeSize = PSize;
+				it++;
+			}
+		}
+
 		// Nothing yet done - do we need to write a header index table?
 		if(StreamIndex & (StreamIndexCBRHeader | StreamIndexCBRHeaderIsolated))
 		{
@@ -2651,6 +2680,9 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 		error("No base partition pack defined before call to BodyWriter::WriteHeader()\n");
 		return;
 	}
+	
+	// Initialize any index managers required for this writer before we write the header
+	InitIndexManagers();
 	
 	// Turn the partition into the correct type of header
 	if(IsClosed)
@@ -3288,7 +3320,6 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 			else if(IndexFlags & BodyStream::StreamIndexFullFooter)
 			{
 				// Add all available edit units
-				IndexMan->GetLastNewEditUnit();
 				IndexMan->AddEntriesToIndex(Index);
 
 				// We have now done the full index
@@ -3307,7 +3338,8 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 				std::list<Position>::iterator it = (*CurrentStream)->Stream->SparseList.begin();
 				while(it != (*CurrentStream)->Stream->SparseList.end())
 				{
-					IndexMan->AddEntriesToIndex(true, Index, (*it), (*it));
+//					IndexMan->AddEntriesToIndex(true, Index, (*it), (*it));
+					IndexMan->AddEntriesToIndex(Index, (*it), (*it));
 					it++;
 				}
 
@@ -3603,6 +3635,9 @@ void ListOfFiles::ParseFileName(std::string FileName)
 	ListIncrement = 1;
 	ListNumber = -1;
 	ListEnd = -1;
+	RangeStart = -1;
+	RangeEnd = -1;
+	RangeDuration = -1;
 	FileList = false;
 
 	// Length of input string including terminating zero
@@ -3623,6 +3658,9 @@ void ListOfFiles::ParseFileName(std::string FileName)
 	bool InCount = false;
 	bool InStep = false;
 	bool InEnd = false;
+	bool InRangeStart = false;
+	bool InRangeEnd = false;
+	bool InRangeDuration = false;
 
 	while(*pIn)
 	{
@@ -3808,13 +3846,25 @@ bool ListOfFiles::GetNextFile(void)
 	if(IsFileOpen())
 	{
 		CloseFile();
+	}
 
-		// Don't move to the next file if there are no more files
-		if((!FileList) || (FilesRemaining == 0))
+	if(FilesRemaining == 0)
+	{
+		// No more files - all done
+		if(FollowingNames.empty())
 		{
 			AtEOF = true;
 			return false;
 		}
+
+		// Get the next filename pattern from the list
+		std::string NextName = FollowingNames.front();
+
+		// Remove it from the list
+		FollowingNames.pop_front();
+
+		// Parse the pattern
+		ParseFileName(NextName);
 	}
 
 	// Allocate a buffer to build the file name
@@ -4029,3 +4079,117 @@ EssenceSourcePtr FileParser::GetSubSource(UInt32 Stream)
 	// Return the result of the sub-get
 	return Info.Source;
 }
+//! Initialize an index manager if required
+void BodyStream::InitIndexManager(void)
+{
+	// Don't init if no indexing required
+	if(StreamIndex == StreamIndexNone) return;
+
+	// Don't init if no IndexSID set
+	if(IndexSID == 0) return;
+
+	// Don't init if no writer
+	if(!StreamWriter) return;
+
+	// Don't init if already done
+	if(IndexMan) return; 
+
+	// Nothing to initialise if we have no streams
+	if(empty()) return;
+
+
+	/* Build a write-order list of streams to ensure the index is built in the write order */
+	
+	std::map<UInt32, EssenceSourcePtr> IndexOrderMap;
+	BodyStream::iterator it = begin();
+	while(it != end())
+	{
+		std::pair<UInt32, EssenceSourcePtr> IndexOrder;
+		IndexOrder.first = static_cast<UInt32>(StreamWriter->GetWriteOrder((*it)->GetStreamID()));
+		IndexOrder.second = (*it);
+		IndexOrderMap.insert(IndexOrder);
+
+		it++;
+	}
+
+
+	/* Add each stream */
+
+	std::map<UInt32, EssenceSourcePtr>::iterator MapIt = IndexOrderMap.begin();
+	while(MapIt != IndexOrderMap.end())
+	{
+		// Add to the index manager (create the index manager on first pass)
+		// TODO: Sort the PosTable!!
+		int StreamID = 0;
+		if(!IndexMan)
+		{
+			IndexMan = new IndexManager(0, (*MapIt).second->GetBytesPerEditUnit(KAG));
+			IndexMan->SetBodySID(BodySID);
+			IndexMan->SetIndexSID(IndexSID);
+			IndexMan->SetEditRate((*MapIt).second->GetEditRate());
+			IndexMan->SetValueRelativeIndexing(ValueRelativeIndexing);
+		}
+		else
+			StreamID = IndexMan->AddSubStream(0, (*MapIt).second->GetBytesPerEditUnit(KAG));
+
+		// Let the stream know about this index manager
+		(*MapIt).second->SetIndexManager(IndexMan, StreamID);
+
+		// TODO: Currently no support for filler indexing here - needs adding
+		StreamWriter->AddStreamIndex((*MapIt).second->GetStreamID(), IndexMan, StreamID, false, (StreamWrap == StreamWrapClip));
+
+		MapIt++;
+	}
+
+	// Set the sub-range offset, if required
+	IndexMan->SetSubRangeOffset(front()->GetRangeStart());
+
+	// Locate the highest pre-charge size, so we can set the -ve index edit unit correctly
+	Length HighestPrechargeSize = 0;
+	MapIt = IndexOrderMap.begin();
+	while(MapIt != IndexOrderMap.end())
+	{
+		// Check if this is the largest precharge
+		Length ThisSize = (*MapIt).second->GetPrechargeSize();
+		if(ThisSize > HighestPrechargeSize) HighestPrechargeSize = ThisSize;
+
+		MapIt++;
+	}
+
+	// Set the index edit unit -ve for the pre-charge, if required
+	if(HighestPrechargeSize) 
+	{
+		// This is also the next edit unit that will be written to a sprinkled index
+		NextSprinkled = 0 - HighestPrechargeSize;
+		StreamWriter->SetIndexEditUnit(NextSprinkled);
+	}
+}
+
+
+//! Initialize all required index managers
+void BodyWriter::InitIndexManagers(void)
+{
+	StreamInfoList::iterator it = StreamList.begin();
+	while(it != StreamList.end())
+	{
+		(*it)->Stream->InitIndexManager();
+		it++;
+	}
+}
+
+
+//! Get the WriteOrder for the specified stream
+/*! \return -1 if not found */
+Int32 GCWriter::GetWriteOrder(GCStreamID ID)
+{
+	std::map<UInt32, GCStreamID>::iterator it = WriteOrderMap.begin();
+	while(it != WriteOrderMap.end())
+	{
+		if((*it).second == ID) return static_cast<Int32>((*it).first);
+		it++;
+	}
+
+	// Not found
+	return -1;
+}
+
