@@ -1,7 +1,7 @@
 /*! \file	vbi.h
  *	\brief	Definition of classes that handle Vertical Inerval Blanking data
  *
- *	\version $Id: vbi.h,v 1.2 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: vbi.h,v 1.3 2006/08/25 16:20:20 matt-beard Exp $
  *
  */
 /*
@@ -147,9 +147,11 @@ namespace mxflib
 
 		size_t BufferOffset;				//!< An offset into the current data buffer if we are returning a partial chunk in GetEssenceData()
 
+		Position CurrentPosition;			//!< Our current position
+
 	public:
 		// Base constructor
-		VBISource(EssenceSource *Master) : MasterSource(Master), BufferOffset(0) {};
+		VBISource(EssenceSource *Master) : MasterSource(Master), BufferOffset(0), CurrentPosition(0) {};
 
 		//! Virtual destructor to allow polymorphism
 		virtual ~VBISource() {};
@@ -222,8 +224,7 @@ namespace mxflib
 		 */
 		virtual Position GetCurrentPosition(void)
 		{
-			if(!MasterSource) return 0;
-			return MasterSource->GetCurrentPosition();
+			return CurrentPosition;
 		}
 
 		//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto

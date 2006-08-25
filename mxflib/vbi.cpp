@@ -1,7 +1,7 @@
 /*! \file	vbi.cpp
  *	\brief	Implementation of classes that handle Vertical Inerval Blanking data
  *
- *	\version $Id: vbi.cpp,v 1.2 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: vbi.cpp,v 1.3 2006/08/25 16:20:18 matt-beard Exp $
  *
  */
 /*
@@ -166,6 +166,9 @@ size_t VBISource::GetEssenceDataSize(void)
  */
 DataChunkPtr VBISource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/)
 {
+	// Once this read is done we will be in sync with the master stream position
+	CurrentPosition = MasterSource->GetCurrentPosition();
+
 	// If we don't yet have any data prepared, prepare some (even if this will be an "empty" chunk)
 	if(BufferedData.empty())
 	{
