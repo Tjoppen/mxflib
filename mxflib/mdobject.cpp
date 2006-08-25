@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.22 2006/08/24 14:31:14 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.23 2006/08/25 15:58:19 matt-beard Exp $
  *
  */
 /*
@@ -2197,7 +2197,8 @@ bool MDObject::IsA(const UL &BaseType)
 
 	while(TestType)
 	{
-		if(*(TestType->GetTypeUL()) == BaseType) return true;
+		const ULPtr &TestUL = TestType->GetTypeUL();
+		if((*TestUL).Matches(BaseType)) return true;
 		TestType = TestType->Base;
 	}
 
@@ -2242,7 +2243,8 @@ bool MDOType::IsA(const UL &BaseType)
 
 	while(TestType)
 	{
-		if(*(TestType->GetTypeUL()) == BaseType) return true;
+		const ULPtr &TestUL = TestType->GetTypeUL();
+		if((*TestUL).Matches(BaseType)) return true;
 		TestType = TestType->Base;
 	}
 
