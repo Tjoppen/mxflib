@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.12 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.13 2006/08/25 15:58:45 matt-beard Exp $
  *
  */
 /*
@@ -1578,20 +1578,28 @@ void MDTraits_UUID::SetString(MDValuePtr Object, std::string Val)
 	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
 	const char *p = ValueBuff;
 
-	size_t Count = Object->GetData().Size;
+	size_t DataSize = Object->GetData().Size;
+	size_t Count = DataSize;
 	int Value = -1;
 	UInt8 *Data = new UInt8[Count];
 	UInt8 *pD = Data;
 
+	// Is this a UL than needs to be end-swapped
 	bool EndSwap = false;
+
+	// Is this an OID format, which will need converting, then end swapping
+	bool OIDFormat = false;
 
 	// Check for URN format
 	if((tolower(*p) == 'u') && (tolower(p[1]) == 'r') && (tolower(p[2]) == 'n') && (tolower(p[3]) == ':'))
 	{
-
-		if( (strcasecmp(Val.substr(0,7).c_str(), "urn:ul:") == 0) || (strcasecmp(Val.substr(0,9).c_str(), "urn:x-ul:") == 0) )
+		if( (strcasecmp(Val.substr(0,7).c_str(), "urn:ul:") == 0) || (strcasecmp(Val.substr(0,9).c_str(), "urn:smpte-ul:") == 0) || (strcasecmp(Val.substr(0,9).c_str(), "urn:x-ul:") == 0) )
 		{
 			EndSwap = true;
+		}
+		else if(strcasecmp(Val.substr(0,8).c_str(), "urn:oid:") == 0)
+		{
+			OIDFormat = true;
 		}
 
 		p += Val.rfind(':') + 1;
@@ -1612,7 +1620,7 @@ void MDTraits_UUID::SetString(MDValuePtr Object, std::string Val)
 		else
 		{
 			// If we meet "[" before any digits, this as a UL - which will need to be end-swapped
-			if((*p == '[') && (Count == Object->GetData().Size))
+			if((*p == '[') && (Count == DataSize))
 			{
 				EndSwap = true;
 			}
@@ -1639,7 +1647,7 @@ void MDTraits_UUID::SetString(MDValuePtr Object, std::string Val)
 			}
 		}
 
-		if(Value == -1) Value = 0; else Value <<=4;
+		if(Value == -1) Value = 0; else if(OIDFormat) Value *= 10; else Value <<=4;
 		Value += Digit;
 		p++;
 
@@ -1657,8 +1665,32 @@ void MDTraits_UUID::SetString(MDValuePtr Object, std::string Val)
 		}
 	}
 
+	// DRAGONS: oids are encoded ULs, so we need to end swap during the decode!
+	if(OIDFormat && (DataSize == 16))
+	{
+		if((Data[0] == 1) && (Data[1] == 3) && (Data[2] == 52))
+		{
+			UInt8 Temp[8];
+
+			// Copy out the last 8 bytes of the UL (note that the oid is 1 byte shorter than a UL)
+			memcpy(Temp, &Data[7], 8);
+
+			// Copy what would be the 4th through 7th bytes of the UL to where they live in an end-swapped UL
+			memcpy(&Data[12], &Data[3], 4);
+
+			// Set the "first 4 bytes" of an end-swapped UL
+			Data[8] = 0x06;
+			Data[9] = 0x0e;
+			Data[10] = 0x2b;
+			Data[11] = 0x34;
+
+			// Copy the last 8 bytes of the UL to the first 8 bytes of the UUID (end swapping!)
+			memcpy(Data, Temp, 8);
+		}
+	}
+
 	// If the value was a UL, end-swap it
-	if(EndSwap && (Object->GetData().Size == 16))
+	if(EndSwap && (DataSize == 16))
 	{
 		UInt8 Temp[8];
 		memcpy(Temp, &Data[8], 8);
@@ -1666,7 +1698,7 @@ void MDTraits_UUID::SetString(MDValuePtr Object, std::string Val)
 		memcpy(Data, Temp, 8);
 	}
 
-	Object->SetData(Object->GetData().Size, Data);
+	Object->SetData(DataSize, Data);
 
 	// Clean up
 	delete[] Data;
@@ -1717,12 +1749,17 @@ void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
 	strncpy(ValueBuff, Val.c_str(), VALBUFF_SIZE -1);
 	const char *p = ValueBuff;
 
-	size_t Count = Object->GetData().Size;
+	size_t DataSize = Object->GetData().Size;
+	size_t Count = DataSize;
 	int Value = -1;
 	UInt8 *Data = new UInt8[Count];
 	UInt8 *pD = Data;
 
+	// Is this a UUID than needs to be end-swapped
 	bool EndSwap = false;
+
+	// Is this an OID format, which will need converting
+	bool OIDFormat = false;
 
 	// Check for URN format
 	if((tolower(*p) == 'u') && (tolower(p[1]) == 'r') && (tolower(p[2]) == 'n') && (tolower(p[3]) == ':'))
@@ -1730,6 +1767,10 @@ void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
 		if(strcasecmp(Val.substr(0,9).c_str(), "urn:uuid:") == 0)
 		{
 			EndSwap = true;
+		}
+		else if(strcasecmp(Val.substr(0,8).c_str(), "urn:oid:") == 0)
+		{
+			OIDFormat = true;
 		}
 
 		p += Val.rfind(':') + 1;
@@ -1750,7 +1791,7 @@ void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
 		else
 		{
 			// If we meet "{" before any digits, this as a UUID - which will need to be end-swapped
-			if((*p == '{') && (Count == Object->GetData().Size))
+			if((*p == '{') && (Count == DataSize))
 			{
 				EndSwap = true;
 			}
@@ -1777,7 +1818,7 @@ void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
 			}
 		}
 
-		if(Value == -1) Value = 0; else Value <<=4;
+		if(Value == -1) Value = 0; else if(OIDFormat) Value *= 10; else Value <<=4;
 		Value += Digit;
 		p++;
 
@@ -1795,8 +1836,24 @@ void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
 		}
 	}
 
+	// DRAGONS: oids can be encoded ULs
+	if(OIDFormat && (DataSize == 16))
+	{
+		if((Data[0] == 1) && (Data[1] == 3) && (Data[2] == 52))
+		{
+			// Shift the last 12 bytes of the UL forwards 1 byte (note that the oid is 1 byte shorter than a UL)
+			memmove(&Data[4], &Data[3], 12);
+
+			// Set the first 4 bytes of a standard UL
+			Data[0] = 0x06;
+			Data[1] = 0x0e;
+			Data[2] = 0x2b;
+			Data[3] = 0x34;
+		}
+	}
+
 	// If the value was a UUID, end-swap it
-	if(EndSwap && (Object->GetData().Size == 16))
+	if(EndSwap && (DataSize == 16))
 	{
 		UInt8 Temp[8];
 		memcpy(Temp, &Data[8], 8);
@@ -1804,7 +1861,7 @@ void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
 		memcpy(Data, Temp, 8);
 	}
 
-	Object->SetData(Object->GetData().Size, Data);
+	Object->SetData(DataSize, Data);
 
 	// Clean up
 	delete[] Data;
@@ -2269,6 +2326,65 @@ void MDTraits_TimeStamp::SetString(MDValuePtr Object, std::string Val)
 	if(Minutes) Minutes->SetUInt(Min);
 	if(Seconds) Seconds->SetUInt(S);
 	if(msBy4) msBy4->SetUInt(ms / 4);
+}
+
+
+/***********************************
+**   Basic Enum Implementations   **
+***********************************/
+
+std::string MDTraits_BasicEnum::GetString(MDValuePtr Object)
+{
+	MDType::NamedValueList::iterator it = Object->GetType()->GetEnumValues().begin();
+	while(it != Object->GetType()->GetEnumValues().end())
+	{
+		if(*((*it).second) == *Object)
+		{
+			return (*it).first;
+		}
+
+		it++;
+	}
+
+	return "[Unknown Value " + Object->PutData()->GetString() + "]";
+}
+
+
+void MDTraits_BasicEnum::SetString(MDValuePtr Object, std::string Val)
+{
+	MDType::NamedValueList::const_iterator it = Object->GetType()->GetEnumValues().begin();
+	while(it != Object->GetType()->GetEnumValues().end())
+	{
+		if((*it).first == Val)
+		{
+			*Object = *((*it).second);
+			return;
+		}
+
+		it++;
+	}
+
+	// Let's see if we are setting the actual value
+	MDValuePtr NewValue = new MDValue(Object->EffectiveType());
+	if(NewValue)
+	{
+		// Set a value of the same type to validate this value
+		NewValue->SetString(Val);
+
+		it = Object->GetType()->GetEnumValues().begin();
+		while(it != Object->GetType()->GetEnumValues().end())
+		{
+			if(*((*it).second) == *NewValue)
+			{
+				*Object = *((*it).second);
+				return;
+			}
+
+			it++;
+		}
+	}
+
+	error("Attempted to set unknown value %s for enumerated value of type %s\n", Val.c_str(), Object->GetType()->Name().c_str());
 }
 
 

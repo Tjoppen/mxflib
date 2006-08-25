@@ -1,7 +1,7 @@
 /*! \file	mdtraits.h
  *	\brief	Definition of traits for MDType definitions
  *
- *	\version $Id: mdtraits.h,v 1.6 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: mdtraits.h,v 1.7 2006/08/25 15:58:45 matt-beard Exp $
  *
  */
 /*
@@ -454,6 +454,18 @@ namespace mxflib
 		virtual std::string GetString(MDValuePtr Object);
 
 		virtual size_t ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count=0);
+	};
+
+	class MDTraits_BasicEnum : public MDTraits
+	{
+	public:
+		//! A unique name for this trait
+		virtual std::string Name() const { return "mxflib::MDTraits_BasicEnum"; };
+
+	protected:
+		// DRAGONS: What about all the other set and get functions?
+		virtual void SetString(MDValuePtr Object, std::string Val);
+		virtual std::string GetString(MDValuePtr Object);
 	};
 
 	class MDTraits_Rational : public MDTraits_BasicCompound
