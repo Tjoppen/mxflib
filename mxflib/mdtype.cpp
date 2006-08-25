@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.10 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.11 2006/08/25 16:04:28 matt-beard Exp $
  *
  */
 /*
@@ -200,6 +200,136 @@ MDTypePtr MDType::AddCompound(std::string TypeName, ULPtr &UL)
 }
 
 
+//! Add a definition for an enumeration type
+/*! DRAGONS: Currently doesn't check for duplicates
+ */
+MDTypePtr MDType::AddEnum(std::string TypeName, MDTypePtr BaseType, ULPtr &UL)
+{
+	// Create a new MDType to manage
+	MDTypePtr NewType = new MDType(TypeName, ENUM, UL, DefaultTraits);
+
+	// Set the base type
+	NewType->Base = BaseType;
+
+	// Inherit size
+	NewType->Size = BaseType->Size;
+
+	// Add to the list of types
+	Types.push_back(NewType);
+
+	// Set the lookup
+	AddType(NewType, UL);
+
+	// Return a pointer to the new type
+	return NewType;
+}
+
+
+//! Add a value to a definition for an enumeration type
+/*! DRAGONS: This actual value object will be added to the enumeration class - don't change the value after adding it!
+ *  \return true if all OK
+ */
+bool MDType::AddEnumValue(std::string Name, MDValuePtr &Value)
+{
+	// Can only add enumerated values to an enumeration
+	if(Class != ENUM) 
+	{
+		error("Attempted to add enumerated value %s to type %s, which is not an enumeration\n", Name.c_str(), TypeName.c_str());
+		return false;
+	}
+
+	// Check for duplicate value
+	NamedValueList::iterator it = EnumValues.begin();
+	while(it != EnumValues.end())
+	{
+		if((*it).first == Name)
+		{
+			error("Attempted to add enumerated value named %s to type %s, which already has a value of this name\n", Name.c_str(), TypeName.c_str());
+			return false;
+		}
+
+		if(*((*it).second) == *Value)
+		{
+			error("Attempted to add enumerated value of %s to type %s, which already has this value\n", Value->GetString().c_str(), TypeName.c_str());
+			return false;
+		}
+
+		it++;
+	}
+
+	// Add the value to the list
+	EnumValues.push_back(NamedValue(Name, Value));
+
+	// Return success
+	return true;
+}
+
+
+//! Add a value to a definition for an enumeration type
+/*! DRAGONS: This actual value object will be added to the enumeration class - don't change the value after adding it!
+ *  \return true if all OK
+ */
+bool MDType::AddEnumValue(std::string Name, std::string Value)
+{
+	MDValuePtr NewValue = new MDValue(Base);
+
+	if(!NewValue) return false;
+
+	NewValue->SetString(Value);
+
+	return AddEnumValue(Name, NewValue);
+}
+
+
+//! Add a value to a definition for an enumeration type
+/*! DRAGONS: This actual value object will be added to the enumeration class - don't change the value after adding it!
+ *  \return true if all OK
+ */
+bool MDType::AddEnumValue(std::string Name, ULPtr &Value)
+{
+	// Can only add enumerated values to an enumeration
+	if(Class != ENUM) 
+	{
+		error("Attempted to add enumerated value %s to type %s, which is not an enumeration\n", Name.c_str(), TypeName.c_str());
+		return false;
+	}
+
+	// String version of the value for comparison
+	std::string ValueString = Value->GetString();
+
+	// Check for duplicate value
+	NamedValueList::iterator it = EnumValues.begin();
+	while(it != EnumValues.end())
+	{
+		if((*it).first == Name)
+		{
+			error("Attempted to add enumerated value named %s to type %s, which already has a value of this name\n", Name.c_str(), TypeName.c_str());
+			return false;
+		}
+
+		if((*it).second->GetString() == ValueString)
+		{
+			error("Attempted to add enumerated value of %s to type %s, which already has this value\n", ValueString.c_str(), TypeName.c_str());
+			return false;
+		}
+
+		it++;
+	}
+
+	MDValuePtr NewValue = new MDValue(Base);
+
+	if(!NewValue) return false;
+
+	NewValue->SetString(ValueString);
+
+	// Add the value to the list
+	EnumValues.push_back(NamedValue(Name, NewValue));
+
+	// Return success
+	return true;
+}
+
+
 //! Find the MDType object that defines a named type
 /*! \return Pointer to the object
  *  \return NULL if there is no type of that name
@@ -279,7 +409,7 @@ MDTypePtr MDType::Find(const UL& BaseUL)
 MDTypePtr MDType::EffectiveType(void)
 {
 	// If we are an interpretation then see what of
-	if(Class == INTERPRETATION)
+	if(Class == INTERPRETATION || Class == ENUM)
 	{
 		ASSERT(Base);
 		return Base->EffectiveType();
@@ -293,7 +423,7 @@ MDTypePtr MDType::EffectiveType(void)
 MDTypeClass MDType::EffectiveClass(void) const
 {
 	// If we are an interpretation then see what of
-	if(Class == INTERPRETATION)
+	if(Class == INTERPRETATION || Class == ENUM)
 	{
 		ASSERT(Base);
 		return Base->EffectiveClass();
@@ -307,7 +437,7 @@ MDTypeClass MDType::EffectiveClass(void) const
 MDTypePtr MDType::EffectiveBase(void) const
 {
 	// If we are an interpretation then see what of
-	if(Class == INTERPRETATION)
+	if(Class == INTERPRETATION || Class == ENUM)
 	{
 		ASSERT(Base);
 		return Base->EffectiveBase();

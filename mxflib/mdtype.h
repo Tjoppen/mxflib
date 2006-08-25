@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.11 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.12 2006/08/25 16:04:28 matt-beard Exp $
  *
  */
 /*
@@ -62,7 +62,8 @@ namespace mxflib
 		BASIC,							//!< A basic, indivisible, type
 		INTERPRETATION,					//!< An interpretation of another class
 		TYPEARRAY,						//!< An array of another class
-		COMPOUND						//!< A compound type
+		COMPOUND,						//!< A compound type
+		ENUM							//!< An enumerated value
 	};
 	enum MDArrayClass					//!< Sub-classes of arrays
 	{
@@ -193,6 +194,16 @@ namespace mxflib
 		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 
 	public:
+		//! Name and value pair for enums
+		typedef std::pair<std::string, MDValuePtr> NamedValue;
+
+		//! List of name and value pairs for enums
+		typedef std::list<NamedValue> NamedValueList;
+
+	protected:
+		NamedValueList EnumValues;		//!< List of enumerated values, if this is an enum, each with its value name
+
+	public:
 		MDTypeParent Base;					//!< Base class if this is a derived class, else NULL
 //		MDTypeList Children;			//!< Types contained in this if it is a compound
 ////		StringList ChildrenNames;		//!< Corresponding child names if it is a compound
@@ -204,7 +215,7 @@ namespace mxflib
 
 	protected:
 		//!	Construct a basic MDType
-		/*! This constructor is private so the ONLY way to create
+		/*! This constructor is protected so the ONLY way to create
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
 		MDType(std::string TypeName, MDTypeClass TypeClass, ULPtr &UL, MDTraitsPtr TypeTraits)
@@ -261,6 +272,9 @@ namespace mxflib
 		//! Read-only access to the type UL
 		const ULPtr &GetTypeUL(void) const { return TypeUL; }
 
+		//! (not Read-only) access to the enumerated value list
+		NamedValueList &GetEnumValues(void) { return EnumValues; }
+
 
 	//** Static Dictionary Handling data and functions **
 	//***************************************************
@@ -288,6 +302,18 @@ namespace mxflib
 
 		//! Add a new compound type
 		static MDTypePtr AddCompound(std::string TypeName, ULPtr &UL);
+
+		//! Add a new enumerated value type
+		static MDTypePtr AddEnum(std::string TypeName, MDTypePtr BaseType, ULPtr &UL);
+
+		//! Add a new value to an enumerated value type
+		bool AddEnumValue(std::string Name, MDValuePtr &Value);
+
+		//! Add a new value to an enumerated value type
+		bool AddEnumValue(std::string Name, std::string Value);
+
+		//! Add a new UL value to an enumerated value type
+		bool AddEnumValue(std::string Name, ULPtr &Value);
 
 		//! Find a type in the default symbol space, optionally searching all others
 		static MDTypePtr Find(std::string TypeName, bool SearchAll = false) { return Find(TypeName, MXFLibSymbols, SearchAll); }
@@ -493,6 +519,34 @@ namespace mxflib
 		//! Access function for child values of compound items
 		MDValuePtr operator[](const UL &Child);
 		MDValuePtr Child(const UL &Child) { return operator[](Child); };
+
+		//! Value comparison
+		bool operator==(MDValuePtr &RHS) { return operator==(*RHS); }
+
+		//! Value comparison
+		bool operator==(MDValue &RHS)
+		{
+			if(Type->EffectiveType() != RHS.Type->EffectiveType()) return false;
+			if(Data.Size != RHS.Data.Size) return false;
+			return (memcmp(Data.Data, RHS.Data.Data, Data.Size) == 0);
+		}
+
+		//! Value copy
+		MDValue &operator=(MDValue &RHS)
+		{
+			// Do a bit-copy it the types are the same
+			if(Type->EffectiveType() == RHS.Type->EffectiveType())
+			{
+				Data.Set(RHS.Data);
+			}
+			// ... otherwise copy by string value!
+			else
+			{
+				SetString(RHS.GetString());
+			}
+
+			return *this;
+		}
 
 //		std::string ChildName(int Child);
 
