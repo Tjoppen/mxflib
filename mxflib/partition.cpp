@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.11 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.12 2006/08/25 16:12:55 matt-beard Exp $
  *
  */
 /*
@@ -594,7 +594,7 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 			{
 				if(memcmp(p, KLVFill_UL.GetValue(), 16) == 0)
 				{
-					Ret->Resize((p - Ret->Data));
+					Ret->Resize(p - Ret->Data);
 					break;
 				}
 			}
@@ -827,5 +827,54 @@ bool Partition::IsClosed(void)
 		|| Object->IsA(ClosedBodyPartition_UL) || Object->IsA(ClosedCompleteBodyPartition_UL) ) return true;
 
 	return false;
+}
+
+
+
+//! Locate the set that refers to the given set (with a strong reference)
+MDObjectParent Partition::FindLinkParent(MDObjectPtr &Child)
+{
+	MDObjectList::iterator it = AllMetadata.begin();
+	while(it != AllMetadata.end())
+	{
+		if(!(*it)->empty())
+		{
+			MDObject::iterator SubIt = (*it)->begin();
+			while(SubIt != (*it)->end())
+			{
+				// Only return the strong ref (not one of any number of weak refs)
+				if((*SubIt).second->GetRefType() == ClassRefStrong)
+				{
+					if((*SubIt).second->GetLink() == Child)
+					{
+						return MDObjectParent(*it);
+					}
+				}
+
+				// Check batch or arrach children
+				if(!(*SubIt).second->empty())
+				{
+					MDObject::iterator VectorIt = (*SubIt).second->begin();
+					while(VectorIt != (*SubIt).second->end())
+					{
+						// Only return the strong ref (not one of any number of weak refs)
+						if((*VectorIt).second->GetRefType() == ClassRefStrong)
+						{
+							if((*VectorIt).second->GetLink() == Child)
+							{
+								return MDObjectParent(*it);
+							}
+						}
+						VectorIt++;
+					}
+				}
+				SubIt++;
+			}
+		}
+
+		it++;
+	}
+
+	return NULL;
 }
 

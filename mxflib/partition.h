@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.6 2006/02/11 15:59:17 matt-beard Exp $
+ *	\version $Id: partition.h,v 1.7 2006/08/25 16:12:55 matt-beard Exp $
  *
  */
 /*
@@ -179,6 +179,15 @@ namespace mxflib
 		//! Locate start of Essence Container
 		bool SeekEssence(void);
 
+		//! Locate the set that refers to the given set (with a strong reference)
+		MDObjectParent FindLinkParent(MDObjectPtr &Child);
+
+		//! Locate the set that refers to the given set (with a strong reference)
+		MDObjectParent FindLinkParent(MDObjectParent &Child) 
+		{ 
+			MDObjectPtr Obj = &(*Child);
+			return FindLinkParent(Obj);
+		}
 
 	// Sequential access to the Elements of the Body
 
