@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.9 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.10 2006/08/25 15:54:33 matt-beard Exp $
  *
  */
 /*
@@ -43,12 +43,15 @@ namespace mxflib
 
 		Position DataStart;									//!< Start of "data" chunk (value part)
 		Length DataSize;									//!< Size of "data" chunk (value part)
-		Position CurrentPos;								//!< Current position in the input file
+		Position CurrentPosition;							//!< Current position in the input file in edit units
+		Position BytePosition;								//!< Current position in the input file in bytes
 															/*!< A value of 0 means the start of the data chunk,
 															 *	 any other value is that position within the whole file.
-															 *	 This means that a full rewind can be achieved by setting CurrentPos = 0
+															 *	 This means that a full rewind can be achieved by setting BytePosition = 0
 															 *	 \note Other functions may move the file
 															 *         pointer between calls to our functions */
+
+		size_t CachedDataSize;								//!< The size of the next data to be read, or (size_t)-1 if not known
 
 		int SampleSize;										//!< Size of each sample in bytes (includes all channels)
 		UInt32 ConstSamples;								//!< Number of samples per edit unit (if constant, else zero)
@@ -65,9 +68,6 @@ namespace mxflib
 		{
 		protected:
 			Position EssenceBytePos;
-			bool CountSet;
-			size_t ByteCount;
-			Position Offset;
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
@@ -75,10 +75,8 @@ namespace mxflib
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
 				WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
-				EssenceBytePos = pCaller->CurrentPos;
+				EssenceBytePos = pCaller->BytePosition;
 				if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
-
-				CountSet = false;		// Flag unknown size
 			};
 
 			//! Get the size of the essence data in bytes
@@ -86,11 +84,8 @@ namespace mxflib
 			 */
 			virtual size_t GetEssenceDataSize(void) 
 			{
-				CountSet = true;
-				Offset = 0;
 				WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
-				ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
-				return ByteCount;
+				return pCaller->ReadInternal(File, Stream, RequestedCount);
 			};
 
 			//! Get the next "installment" of essence data
@@ -110,7 +105,7 @@ namespace mxflib
 
 					// Move to the selected position
 					if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
-					pCaller->CurrentPos = EssenceBytePos;
+					pCaller->BytePosition = EssenceBytePos;
 				}
 
 				return BaseGetEssenceData(Size, MaxSize);
@@ -130,12 +125,14 @@ namespace mxflib
 			SequencePos = 0;
 			DataStart = 0;
 			DataSize = 0;
-			CurrentPos = 0;
+			BytePosition = 0;
 
 			// Use a sensible default if no edit rate is set - not ideal, but better than one sample!
 			// It will always be possible to wrap at this rate, but the end of the data may not be a whole edit unit
 			UseEditRate.Numerator = 1;
 			UseEditRate.Denominator = 1;
+
+			CachedDataSize = static_cast<size_t>(-1);
 		}
 
 		//! Build a new parser of this type and return a pointer to it
@@ -163,7 +160,7 @@ namespace mxflib
 		{
 			SelectedWrapping = UseWrapping;
 
-			CurrentPos = 0;
+			BytePosition = 0;
 		}
 
 
@@ -232,7 +229,7 @@ namespace mxflib
 
 
 		//! Get the current position in SetEditRate() sized edit units
-		virtual Position GetCurrentPosition(void);
+		virtual Position GetCurrentPosition(void) { return CurrentPosition; }
 
 		//! Read a number of wrapping items from the specified stream and return them in a data chunk
 		virtual DataChunkPtr Read(FileHandle InFile, UInt32 Stream, UInt64 Count = 1/*, IndexTablePtr Index = NULL*/);
@@ -257,6 +254,9 @@ namespace mxflib
 	protected:
 		//! Work out wrapping sequence
 		bool CalcWrappingSequence(Rational EditRate);
+
+		//! Calculate the current position in SetEditRate() sized edit units from "BytePosition" in bytes
+		Position CalcCurrentPosition(void);
 
 		//! Read the sequence header at the specified position in an MPEG2 file to build an essence descriptor
 		MDObjectPtr BuildWaveAudioDescriptor(FileHandle InFile, UInt64 Start = 0);

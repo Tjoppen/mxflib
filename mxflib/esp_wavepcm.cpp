@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.8 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.9 2006/08/25 15:54:33 matt-beard Exp $
  *
  */
 /*
@@ -161,21 +161,38 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/ /*, IndexTablePtr Index */ /*=NULL*/)
 {
 	// Move to the current position
-	if(CurrentPos == 0) CurrentPos = DataStart;
+	if(BytePosition == 0) BytePosition = DataStart;
 
-	FileSeek(InFile, CurrentPos);
+	FileSeek(InFile, BytePosition);
 	
-	// Find out how many bytes to read
-	size_t Bytes = ReadInternal(InFile, Stream, Count);
+	// Either use the cached value, or scan the stream and find out how many bytes to read
+	if(CachedDataSize == static_cast<size_t>(-1)) ReadInternal(InFile, Stream, Count);
+
+	// Record, then clear, the data size
+	size_t Bytes = CachedDataSize;
+	CachedDataSize = static_cast<size_t>(-1);
 
 	// Make a datachunk with enough space
 	DataChunkPtr Ret = new DataChunk(Bytes);
 
 	// Read the data
-	FileRead(InFile, Ret->Data, Bytes);
+	size_t BytesRead = static_cast<size_t>(FileRead(InFile, Ret->Data, Bytes));
 
 	// Update the file pointer
-	CurrentPos = FileTell(InFile);
+	BytePosition = FileTell(InFile);
+
+	// Move the edit unit pointer forward by the number of edit units read
+	CurrentPosition += Count;
+
+	// Cope with an early end-of-file
+	if(BytesRead < Bytes)
+	{
+		DataSize = BytePosition - DataStart;
+		Ret->Resize(BytesRead);
+
+		// We need to work out where we actually ended
+		CurrentPosition = CalcCurrentPosition();
+	}
 
 	return Ret; 
 }
@@ -195,8 +212,8 @@ Length mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream
 	UInt8 *Buffer = new UInt8[BUFFERSIZE];
 
 	// Move to the current position
-	if(CurrentPos == 0) CurrentPos = DataStart;
-	FileSeek(InFile, CurrentPos);
+	if(BytePosition == 0) BytePosition = DataStart;
+	FileSeek(InFile, BytePosition);
 	
 	// Find out how many bytes to transfer
 	size_t Bytes = ReadInternal(InFile, Stream, Count);
@@ -216,7 +233,7 @@ Length mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream
 	}
 
 	// Update the file pointer
-	CurrentPos = FileTell(InFile);
+	BytePosition = FileTell(InFile);
 
 	// Free the buffer
 	delete[] Buffer;
@@ -322,17 +339,17 @@ bool mxflib::WAVE_PCM_EssenceSubParser::CalcWrappingSequence(Rational EditRate)
 
 
 
-//! Get the current position in SetEditRate() sized edit units
+//! Calculate the current position in SetEditRate() sized edit units from "BytePosition" in bytes
 /*! \return 0 if position not known
  */
-Position WAVE_PCM_EssenceSubParser::GetCurrentPosition(void)
+Position WAVE_PCM_EssenceSubParser::CalcCurrentPosition(void)
 {
 	if(SampleSize == 0) return 0;
 
 	// Simple case where each edit unit has the same number of samples
 	if(ConstSamples != 0)
 	{
-		return (CurrentPos-DataStart) / (SampleSize * ConstSamples);
+		return (BytePosition-DataStart) / (SampleSize * ConstSamples);
 	}
 
 	// Work out how many samples are in a complete sequence
@@ -344,10 +361,10 @@ Position WAVE_PCM_EssenceSubParser::GetCurrentPosition(void)
 	}
 
 	// Now work out how many complete sequences we are from the start of the essence
-	Position CompleteSeq = (CurrentPos-DataStart) / SampleSize * SeqSize;
+	Position CompleteSeq = (BytePosition-DataStart) / SampleSize * SeqSize;
 
 	// And The fractional part...
-	Position FracSeq = (CurrentPos-DataStart) - (CompleteSeq * SeqSize);
+	Position FracSeq = (BytePosition-DataStart) - (CompleteSeq * SeqSize);
 
 	Position Ret = CompleteSeq * SeqSize;
 
@@ -471,13 +488,20 @@ size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	Length Ret;
 	UInt32 SamplesPerEditUnit;
 	
+	// Return the cached value if we have not yet used it
+	if(CachedDataSize != static_cast<size_t>(-1)) return CachedDataSize;
+
 	// If we haven't determined the sample sequence we do it now
 	if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
 
 	// Work out the maximum possible bytes to return
-	if(CurrentPos == 0) CurrentPos = DataStart;		// Correct the start if we need to
-	Length Max = (CurrentPos - DataStart);			// Where we are in the data
-	if(Max >= DataSize) return 0;
+	if(BytePosition == 0) BytePosition = DataStart;		// Correct the start if we need to
+	Length Max = (BytePosition - DataStart);			// Where we are in the data
+	if(Max >= DataSize) 
+	{
+		CachedDataSize = 0;
+		return 0;
+	}
 	Max = DataSize - Max;							// How many bytes are left
 
 	if(ConstSamples) 
@@ -517,8 +541,11 @@ size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
 	{
 		error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
-		return 0;
+		Ret = 0;
 	}
 
-	return static_cast<size_t>(Ret);
+	// Store so we don't have to calculate if called again without reading
+	CachedDataSize =  static_cast<size_t>(Ret);
+	
+	return CachedDataSize;
 }
