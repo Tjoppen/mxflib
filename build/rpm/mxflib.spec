@@ -6,13 +6,13 @@
 
 Name:			mxflib-beta
 Summary:		C++ MXF file I/O library
-Version:		0.5.3
+Version:		1.0.0
 Release:		1
 Group:			Development/Libraries/C and C++
 BuildPreReq:	e2fsprogs-devel
 License:		zlib/libpng License
 URL:			http://sourceforge.net/projects/mxflib
-Source0:		mxflib-beta-0.5.3.tar.gz
+Source0:		mxflib-beta-1.0.0.tar.gz
 BuildRoot:		/var/tmp/%{name}-buildroot
 
 %description
@@ -50,6 +50,9 @@ rm -fr $RPM_BUILD_ROOT
 %{_prefix}/include
 
 %changelog -n mxflib
+* Sat Aug 26 2006 - matt-beard@users.sorceforge.net
+- Update to version 1.0.0
+
 * Fri Apr 30 2004 - stuart_hc@users.sourceforge.net
 - mxflib no longer requires klvlib
 - include HTML documentation in binary rpms
