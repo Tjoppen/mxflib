@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.14 2006/08/26 12:45:38 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.15 2006/08/26 13:00:03 matt-beard Exp $
  *
  */
 /*
@@ -2073,7 +2073,7 @@ void MDTraits_RawArrayArray::SetString(MDValuePtr Object, std::string Val)
 
 	for(;;)
 	{
-		OpenBracket = Val.find("{", CloseBracket == std::string::npos ? 0 , CloseBracket+1);
+		OpenBracket = Val.find("{", CloseBracket == std::string::npos ? 0 : CloseBracket+1);
 		if(OpenBracket == std::string::npos) return;
 
 		CloseBracket = Val.find("}",OpenBracket+1);
