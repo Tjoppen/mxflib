@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.17 2006/08/26 14:39:55 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.18 2006/08/26 14:42:42 matt-beard Exp $
  *
  */
 /*
@@ -204,7 +204,7 @@ std::string mxflib::MDTraits_BasicInt::GetString(MDValuePtr Object)
 	return std::string(Buffer);
 }
 
-UInt32 MDTraits_BasicInt::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
+size_t MDTraits_BasicInt::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	// Limit the size attempted to be read to the size of the type
 	UInt32 TypeSize = Object->GetType()->Size;
@@ -236,7 +236,7 @@ UInt32 MDTraits_BasicInt::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size
 }
 
 //! Special unsigned integer version of ReadValue - called by all basic unsigned integers
-UInt32 mxflib::ReadValueUInt(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
+size_t mxflib::ReadValueUInt(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	// Limit the size attempted to be read to the size of the type
 	UInt32 TypeSize = Object->GetType()->Size;
@@ -346,7 +346,7 @@ std::string MDTraits_UInt8::GetString(MDValuePtr Object)
 }
 
 //! Read value from memory buffer
-UInt32 MDTraits_UInt8::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
+size_t MDTraits_UInt8::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	return ReadValueUInt(Object, Buffer, Size, Count);
 }
@@ -430,7 +430,7 @@ std::string MDTraits_UInt16::GetString(MDValuePtr Object)
 }
 
 //! Read value from memory buffer
-UInt32 MDTraits_UInt16::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
+size_t MDTraits_UInt16::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	return ReadValueUInt(Object, Buffer, Size, Count);
 }
@@ -505,7 +505,7 @@ std::string MDTraits_UInt32::GetString(MDValuePtr Object)
 }
 
 //! Read value from memory buffer
-UInt32 MDTraits_UInt32::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
+size_t MDTraits_UInt32::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	return ReadValueUInt(Object, Buffer, Size, Count);
 }
@@ -610,7 +610,7 @@ std::string mxflib::MDTraits_UInt64::GetString(MDValuePtr Object)
 }
 
 //! Read value from memory buffer
-UInt32 MDTraits_UInt64::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
+size_t MDTraits_UInt64::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	return ReadValueUInt(Object, Buffer, Size, Count);
 }
