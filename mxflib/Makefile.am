@@ -43,7 +43,5 @@ pkginclude_HEADERS = \
 			vbi.h
 
 rsrc_DATA = \
-			$(top_builddir)/types.xml \
-			$(top_builddir)/xmldict.xml \
 			$(top_builddir)/dict.xml \
 			$(top_builddir)/DMS_Crypto.xml

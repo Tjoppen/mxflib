@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.18 2006/08/25 15:55:40 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.19 2006/08/26 12:45:38 matt-beard Exp $
  *
  */
 /*
@@ -1416,7 +1416,7 @@ namespace mxflib
 		//! Information about a substream
 		struct SubStreamInfo
 		{
-			Int32 StreamID;						//!< The ID of this sub-stream
+			UInt32 StreamID;					//!< The ID of this sub-stream
 			EssenceSourcePtr Source;			//!< The source for the sub-stream data
 		};
 

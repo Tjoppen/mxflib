@@ -342,11 +342,4 @@ SOURCE=..\..\release.txt
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\types.xml
-# End Source File
-# Begin Source File
 
-SOURCE=..\..\xmldict.xml
-# End Source File
-# End Target
-# End Project

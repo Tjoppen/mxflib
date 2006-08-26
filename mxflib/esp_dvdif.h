@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.8 2006/08/25 15:50:58 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.9 2006/08/26 12:45:38 matt-beard Exp $
  *
  */
 /*
@@ -77,7 +77,6 @@ namespace mxflib
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
-				DV_DIF_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, DV_DIF_EssenceSubParser);
 			};
 
 			//! Get the size of the essence data in bytes

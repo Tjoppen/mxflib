@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.13 2006/08/25 15:58:45 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.14 2006/08/26 12:45:38 matt-beard Exp $
  *
  */
 /*
@@ -982,19 +982,20 @@ void MDTraits_BasicArray::SetString(MDValuePtr Object, std::string Val)
 {
 	MDValue::iterator it;
 
-	size_t LastComma = -1;
+	size_t LastComma = std::string::npos;
 	
 	it = Object->begin();
 
 	for(;;)
 	{
-		size_t Comma = Val.find(",", LastComma + 1);
+		// If we have not yet seen a comma, search from the start
+		size_t Comma = Val.find(",", (LastComma == std::string::npos ? 0 : LastComma + 1));
 
 		// If we are already at the end of the list, add another
 		if(it == Object->end()) 
 		{
 			// DRAGONS: This will fail for arrays of more that 4 billion entries
-			Object->Resize(static_cast<UInt32>(Object->size() + 1));
+			Object->Resize(Object->size() + 1);
 			it = Object->end();
 			it--;
 		}
@@ -2066,17 +2067,17 @@ void MDTraits_RawArrayArray::SetString(MDValuePtr Object, std::string Val)
 	MDValue::iterator it;
 
 	size_t OpenBracket;
-	size_t CloseBracket = -1;
+	size_t CloseBracket = std::string::npos;
 	
 	it = Object->begin();
 
 	for(;;)
 	{
-		OpenBracket = Val.find("{",CloseBracket+1);
-		if(OpenBracket == (int)std::string::npos) return;
+		OpenBracket = Val.find("{", CloseBracket == std::string::npos ? 0 , CloseBracket+1);
+		if(OpenBracket == std::string::npos) return;
 
 		CloseBracket = Val.find("}",OpenBracket+1);
-		if(CloseBracket == (int)std::string::npos) return;
+		if(CloseBracket == std::string::npos) return;
 
 		// If we are already at the end of the list, add another
 		if(it == Object->end()) 

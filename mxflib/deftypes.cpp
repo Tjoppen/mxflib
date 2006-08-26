@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.19 2006/08/25 15:49:00 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.20 2006/08/26 12:45:38 matt-beard Exp $
  *
  */
 /*
@@ -1198,7 +1198,6 @@ namespace
 				const char *Value = "";
 				const char *TypeUL = NULL;
 				// DRAGONS: Not supporting separate symbol space for enum values
-				int Size = 0;
 
 				/* Process attributes */
 				if(attrs != NULL)

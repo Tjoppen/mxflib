@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.20 2006/08/25 15:55:40 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.21 2006/08/26 12:45:38 matt-beard Exp $
  *
  */
 /*
@@ -3658,9 +3658,6 @@ void ListOfFiles::ParseFileName(std::string FileName)
 	bool InCount = false;
 	bool InStep = false;
 	bool InEnd = false;
-	bool InRangeStart = false;
-	bool InRangeEnd = false;
-	bool InRangeDuration = false;
 
 	while(*pIn)
 	{
@@ -4079,6 +4076,8 @@ EssenceSourcePtr FileParser::GetSubSource(UInt32 Stream)
 	// Return the result of the sub-get
 	return Info.Source;
 }
+
+
 //! Initialize an index manager if required
 void BodyStream::InitIndexManager(void)
 {
