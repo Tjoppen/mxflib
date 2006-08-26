@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.10 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.11 2006/08/26 14:11:56 matt-beard Exp $
  *
  */
 /*
@@ -36,7 +36,7 @@ using namespace mxflib;
 //! Set a decryption Initialization Vector
 /*! \return False if Initialization Vector is rejected
  */
-bool KLVEObject::SetDecryptIV(UInt32 IVSize, const UInt8 *IV, bool Force /*=false*/)
+bool KLVEObject::SetDecryptIV(size_t IVSize, const UInt8 *IV, bool Force /*=false*/)
 {
 	// Fail if we don't have a decryption wrapper
 	if(!Decrypt) return false;
