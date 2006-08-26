@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.12 2006/08/26 14:48:25 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.13 2006/08/26 14:49:15 matt-beard Exp $
  *
  */
 /*
@@ -1051,7 +1051,7 @@ MDValuePtr MDValue::operator[](const UL &Child)
 /*!
  *  \return Number of bytes read
  */
-size_t MDValue::ReadValue(const UInt8 *Buffer, UInt32 Size, int Count /*=0*/)
+size_t MDValue::ReadValue(const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
 	return Type->Traits->ReadValue(this, Buffer, Size, Count);
 }
