@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.15 2006/08/26 13:00:03 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.16 2006/08/26 14:20:16 matt-beard Exp $
  *
  */
 /*
@@ -1429,7 +1429,11 @@ std::string MDTraits_RawArray::GetString(MDValuePtr Object)
 	if( Object->size() > GetStringLimit() )
 	{
 		char Buffer[32];
-		sprintf( Buffer, "RAW[0x%08x]", Object->size() );
+		if(sizeof(size_t) == 4)
+			sprintf( Buffer, "RAW[0x%08x]", (int)Object->size() );
+		else
+			sprintf( Buffer, "RAW[0x%s]", Int64toHexString(Object->size(),8).c_str() );
+
 		Ret = Buffer;
 		return Ret;
 	}
