@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.32 2006/08/16 08:57:56 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.33 2006/08/27 19:07:11 terabrit Exp $
  *
  */
 /*
@@ -37,18 +37,11 @@ using namespace mxflib;
 
 using namespace std;
 
-// DMStiny
-#ifdef DMStiny
-// DMStinyIDs.h contains Company,Product,GUID, and other stuff
-#include "DMStinyIDs.h"
-#include "DMStiny.h"
-#else
 // Product GUID and version text for this release
 UInt8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0x8d, 0xd3, 0x41, 0x86, 0xdc, 0xf0, 0x89, 0xad, 0xef, 0xd0, 0x53 };
 string CompanyName = "freeMXF.org";
 string ProductName = "mxfwrap file wrapper";
 string ProductVersion = "Based on " + LibraryVersion();
-#endif
 
 //! Debug flag for KLVLib
 int Verbose = 0;
@@ -1146,12 +1139,6 @@ int Process(	int OutFileNum,
 	ULPtr GCUL = new UL( mxflib::GCMulti_Data );
 	MData->AddEssenceType( GCUL );
 
-	// DMStiny
-	#ifdef DMStiny
-		// DMStiny.cpp contains const char DMStinyFrameworkName = "name";
-		MData->AddDMScheme( MDOType::Find(DMStinyFrameworkName)->GetUL() );
-	#endif
-
 	// Set the OP label
 	// If we are writing OP-Atom we write the header as OP1a initially as another process
 	// may try to read the file before it is complete and then it will NOT be a valid OP-Atom file
@@ -1176,21 +1163,9 @@ int Process(	int OutFileNum,
 	// FIXME: We should really try and determine the UMID type rather than cop-out!
 	UMIDPtr pUMID = MakeUMID( 0x0d ); // mixed type
 
-	// DMStiny
-	#ifdef DMStiny
-		// DMStiny::AdjustMaterialUMID() conforms to any special material numbering scheme
-		if( DMStinyMaterial )	AdjustMaterialUMID( pUMID, DMStinyMaterial );
-	#endif
-
 	PackagePtr MaterialPackage = MData->AddMaterialPackage("A Material Package", pUMID);
 
 	MData->SetPrimaryPackage(MaterialPackage);		// This will be overwritten for OP-Atom
-
-	// DMStiny
-	#ifdef DMStiny
-		// AddDMStiny() creates a DM track and populates it with DMSegments
-		AddDMStiny( MaterialPackage, "" );
-	#endif
 
 	// Add any DM Material Instances
 	DMFileList::iterator dm_it = DMMaterialInstances.begin();
