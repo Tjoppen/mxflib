@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.10 2006/06/25 14:37:45 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.11 2006/08/28 00:24:21 terabrit Exp $
  *
  */
 /*
@@ -664,7 +664,22 @@ namespace mxflib
 		//! Add a DMScheme to the listed schemes
 		void AddDMScheme(ULPtr Scheme)
 		{
-			Object->Child(DMSchemes_UL)->AddChild()->ReadValue(Scheme->GetValue(), 16);
+			DataChunk SchemeValue;
+			SchemeValue.Set(16, Scheme->GetValue());
+
+			// Get a list of known containers
+			MDObjectPtr SchemeList = Object->Child(EssenceContainers_UL);
+
+			// Scan the list to see if we already have this type
+			MDObjectULList::iterator it = SchemeList->begin();
+			while(it != SchemeList->end())
+			{
+				if(SchemeValue == *((*it).second->PutData())) return;
+				it++;
+			}
+
+			// New scheme, so add it
+			Object->Child(EssenceContainers_UL)->AddChild()->SetValue(SchemeValue);
 		}
 
 		//! Add an essence type UL to the listed essence types
