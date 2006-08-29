@@ -340,6 +340,5 @@ SOURCE=..\..\license.txt
 
 SOURCE=..\..\release.txt
 # End Source File
-# Begin Source File
-
-
+# End Target
+# End Project
