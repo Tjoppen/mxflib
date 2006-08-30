@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.18 2006/08/26 14:42:42 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.19 2006/08/30 15:32:45 matt-beard Exp $
  *
  */
 /*
@@ -114,16 +114,16 @@ MDTraitsPtr MDTraits::Find(std::string Name)
 // Default trait implementations
 ////////////////////////////////
 
-void mxflib::MDTraits::SetInt(MDValuePtr Object, Int32 Val) { error("NO BODY!\n"); }
-void mxflib::MDTraits::SetInt64(MDValuePtr Object, Int64 Val) { error("NO BODY!\n"); }
-void mxflib::MDTraits::SetUInt(MDValuePtr Object, UInt32 Val) { error("NO BODY!\n"); }
-void mxflib::MDTraits::SetUInt64(MDValuePtr Object, UInt64 Val) { error("NO BODY!\n"); }
-void mxflib::MDTraits::SetString(MDValuePtr Object, std::string Val) { error("NO BODY!\n"); }
-Int32 mxflib::MDTraits::GetInt(MDValuePtr Object) { error("NO BODY!\n"); return 0;}
-Int64 mxflib::MDTraits::GetInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
-UInt32 mxflib::MDTraits::GetUInt(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
-UInt64 mxflib::MDTraits::GetUInt64(MDValuePtr Object) { error("NO BODY!\n"); return 0; }
-std::string mxflib::MDTraits::GetString(MDValuePtr Object) { return std::string("Base"); }
+void mxflib::MDTraits::SetInt(MDValuePtr Object, Int32 Val) { error("Called SetInt() on %s which has traits of %s and does not support SetInt()\n", Object->Name().c_str(), Name().c_str()); }
+void mxflib::MDTraits::SetInt64(MDValuePtr Object, Int64 Val) { error("Called SetInt64() on %s which has traits of %s and does not support SetInt64()\n", Object->Name().c_str(), Name().c_str()); }
+void mxflib::MDTraits::SetUInt(MDValuePtr Object, UInt32 Val) { error("Called SetUInt() on %s which has traits of %s and does not support SetUInt()\n", Object->Name().c_str(), Name().c_str()); }
+void mxflib::MDTraits::SetUInt64(MDValuePtr Object, UInt64 Val) { error("Called SetUInt64() on %s which has traits of %s and does not support SetUInt64()\n", Object->Name().c_str(), Name().c_str()); }
+void mxflib::MDTraits::SetString(MDValuePtr Object, std::string Val) { error("Called SetString() on %s which has traits of %s and does not support SetString()\n", Object->Name().c_str(), Name().c_str()); }
+Int32 mxflib::MDTraits::GetInt(MDValuePtr Object) { error("Called GetInt() on %s which has traits of %s and does not support GetInt()\n", Object->Name().c_str(), Name().c_str()); return 0;}
+Int64 mxflib::MDTraits::GetInt64(MDValuePtr Object) { error("Called GetInt64() on %s which has traits of %s and does not support GetInt64()\n", Object->Name().c_str(), Name().c_str()); return 0;}
+UInt32 mxflib::MDTraits::GetUInt(MDValuePtr Object) { error("Called GetUInt() on %s which has traits of %s and does not support GetUInt()\n", Object->Name().c_str(), Name().c_str()); return 0;}
+UInt64 mxflib::MDTraits::GetUInt64(MDValuePtr Object) { error("Called GetUInt64() on %s which has traits of %s and does not support GetUInt64()\n", Object->Name().c_str(), Name().c_str()); return 0;}
+std::string mxflib::MDTraits::GetString(MDValuePtr Object) { error("Called GetString() on %s which has traits of %s and does not support GetString()\n", Object->Name().c_str(), Name().c_str()); return std::string("Base"); }
 
 size_t MDTraits::ReadValue(MDValuePtr Object, const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 {
