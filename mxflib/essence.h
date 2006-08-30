@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.19 2006/08/26 12:45:38 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.20 2006/08/30 15:36:53 matt-beard Exp $
  *
  */
 /*
@@ -550,7 +550,7 @@ namespace mxflib
 		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk) { AddEssenceData(ID, Chunk->Size, Chunk->Data); }
 
 		//! Add essence data to the current CP
-		void AddEssenceData(GCStreamID ID, EssenceSource* Source, bool FastClipWrap = false);
+		void AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastClipWrap = false);
 
 /*		//! Add encrypted essence data to the current CP
 		void AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data, UUIDPtr ContextID, Length PlaintextOffset = 0);
@@ -577,7 +577,7 @@ namespace mxflib
 		{
 			UInt64 Size;				//!< Number of bytes of data to write
 			UInt8 *Buffer;				//!< Pointer to bytes to write
-			EssenceSource *Source;		//!< Pointer to an EssenceSource object or NULL
+			EssenceSourcePtr Source;	//!< Smart pointer to an EssenceSource object or NULL
 			KLVObjectPtr KLVSource;		//!< Pointer to a KLVObject as source - or NULL
 			int LenSize;				//!< The KLV length size to use for this item (0 for auto)
 			IndexManagerPtr IndexMan;	//!< Index manager that wants to know about this data
@@ -933,7 +933,8 @@ namespace mxflib
 		/*! \return true if this rate is acceptable */
 		virtual bool SetEditRate(Rational EditRate)
 		{
-			return false;
+			// Default action is to not allow the edit rate to be changed
+			return (EditRate == GetEditRate());
 		}
 
 		//! Get the current edit rate
