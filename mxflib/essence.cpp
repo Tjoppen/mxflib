@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.21 2006/08/26 12:45:38 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.22 2006/08/30 15:37:20 matt-beard Exp $
  *
  */
 /*
@@ -408,7 +408,6 @@ void GCWriter::AddSystemData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 	WriteBlock WB;
 	WB.Size = Size + ValStart;
 	WB.Buffer = Buffer;
-	WB.Source = NULL;
 	WB.KLVSource = NULL;
 	WB.FastClipWrap = false;
 	WB.LenSize = Stream->LenSize;
@@ -496,7 +495,6 @@ void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 	WriteBlock WB;
 	WB.Size = Size + ValStart;
 	WB.Buffer = Buffer;
-	WB.Source = NULL;
 	WB.KLVSource = NULL;
 	WB.FastClipWrap = false;
 	WB.LenSize = Stream->LenSize;
@@ -517,7 +515,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 
 
 //! Add an essence item to the current CP with the essence to be read from an EssenceSource object
-void GCWriter::AddEssenceData(GCStreamID ID, EssenceSource* Source, bool FastClipWrap /*=false*/)
+void GCWriter::AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastClipWrap /*=false*/)
 {
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -657,7 +655,6 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipW
 	WriteBlock WB;
 	WB.Size = 16;
 	WB.Buffer = Buffer;
-	WB.Source = NULL;
 	WB.KLVSource = Source;
 	WB.FastClipWrap = FastClipWrap;
 	WB.LenSize = Stream->LenSize;
