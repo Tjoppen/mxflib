@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.7 2006/08/24 14:32:32 matt-beard Exp $
+ *	\version $Id: types.h,v 1.8 2006/08/30 15:30:26 matt-beard Exp $
  *
  */
 /*
@@ -486,6 +486,12 @@ namespace mxflib
 			Int32 GCD = GreatestCommonDivisor();
 			Numerator /= GCD;
 			Denominator /= GCD;
+		}
+		
+		//! Check for exact equality (not just the same ratio)
+		inline bool operator==(const Rational &RHS)
+		{
+			return (Numerator == RHS.Numerator) && (Denominator == RHS.Denominator);
 		}
 	};
 
