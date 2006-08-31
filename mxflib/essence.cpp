@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.22 2006/08/30 15:37:20 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.23 2006/08/31 10:59:15 matt-beard Exp $
  *
  */
 /*
@@ -1730,7 +1730,7 @@ bool BodyReader::ReSync()
 
 			size_t i;									// Loop variable
 			size_t End = Buffer->Size - 15;				// End of loop - 15 bytes early to allow 16-byte compares
-			UInt8 *p = Buffer->Data;						// Use moving pointer for faster compares
+			UInt8 *p = Buffer->Data;					// Use moving pointer for faster compares
 			for(i=0; i<End; i++)
 			{
 				// Only perform full partition key check if it looks promising
@@ -2677,7 +2677,7 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 		error("No base partition pack defined before call to BodyWriter::WriteHeader()\n");
 		return;
 	}
-	
+
 	// Initialize any index managers required for this writer before we write the header
 	InitIndexManagers();
 	
@@ -3733,7 +3733,7 @@ void ListOfFiles::ParseFileName(std::string FileName)
 	// Set the base filename and initialize list
 	*pOut = '\0';
 	FileNumber = ListOrigin;
-	
+
 	// Calculate how many files we should read
 	// Note that we stop at the earliest of either the count or the end file number
 	FilesRemaining = ListNumber;

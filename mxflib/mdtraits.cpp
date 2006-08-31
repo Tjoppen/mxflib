@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.19 2006/08/30 15:32:45 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.20 2006/08/31 10:59:15 matt-beard Exp $
  *
  */
 /*
@@ -1215,7 +1215,7 @@ void MDTraits_BasicStringArray::SetString(MDValuePtr Object, std::string Val)
 	// TODO: Sanity check the range here
 	UInt32 Size = static_cast<UInt32>(Val.length());
 	size_t Index = 0;
-	
+
 	if(GetStringTermination())
 		Object->Resize(Size + 1);
 	else
@@ -1359,7 +1359,7 @@ std::string MDTraits_Raw::GetString(MDValuePtr Object)
 
 		if(Ret.length() != 0) Ret += " ";
 		Ret += Buffer;
-		
+
 		Count--;
 		Data++;
 	}

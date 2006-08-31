@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.20 2006/08/30 15:36:53 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.21 2006/08/31 10:59:15 matt-beard Exp $
  *
  */
 /*
@@ -1319,7 +1319,7 @@ namespace mxflib
 			AtEOF = false;
 
 			// Set the filename pattern if required
-			if(FileName.size()) 
+			if(FileName.size())
 			{
 				ParseFileName(FileName); 
 			}
@@ -2384,8 +2384,8 @@ namespace mxflib
 		UInt32 MinPartitionSize;								//!< The minimum size of the non-essence part of the next partition
 		UInt32 MinPartitionFiller;								//!< The minimum size of filler before the essence part of the next partition
 
-		bool IndexSharesWithMetadata;								//!< If true index tables may exist in the same partition as metadata
-		bool EssenceSharesWithMetadata;								//!< If true essence may exist in the same partition as metadata
+		bool IndexSharesWithMetadata;							//!< If true index tables may exist in the same partition as metadata
+		bool EssenceSharesWithMetadata;							//!< If true essence may exist in the same partition as metadata
 
 		//! The current BodySID, or 0 if not known (will move back to the start of the list)
 		UInt32 CurrentBodySID;
