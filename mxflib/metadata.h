@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.11 2006/08/28 00:24:21 terabrit Exp $
+ *	\version $Id: metadata.h,v 1.12 2006/09/01 16:19:01 matt-beard Exp $
  *
  */
 /*
@@ -668,7 +668,7 @@ namespace mxflib
 			SchemeValue.Set(16, Scheme->GetValue());
 
 			// Get a list of known containers
-			MDObjectPtr SchemeList = Object->Child(EssenceContainers_UL);
+			MDObjectPtr SchemeList = Object->Child(DMSchemes_UL);
 
 			// Scan the list to see if we already have this type
 			MDObjectULList::iterator it = SchemeList->begin();
@@ -679,7 +679,7 @@ namespace mxflib
 			}
 
 			// New scheme, so add it
-			Object->Child(EssenceContainers_UL)->AddChild()->SetValue(SchemeValue);
+			Object->Child(DMSchemes_UL)->AddChild()->SetValue(SchemeValue);
 		}
 
 		//! Add an essence type UL to the listed essence types
