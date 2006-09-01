@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.11 2006/08/25 16:05:24 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.12 2006/09/01 15:54:38 matt-beard Exp $
  *
  */
 /*
@@ -201,7 +201,7 @@ void Component::SetDuration(Int64 Duration /*=-1*/)
 	// Update the duration in the sequence
 	if(Duration < 0) 
 	{
-		MDObjectPtr Sequence = Parent[SequenceSet_UL]->GetLink();
+		MDObjectPtr Sequence = Parent[Sequence_UL]->GetLink();
 		if(Sequence) Sequence->SetDValue(Duration_UL);
 	}
 	else
