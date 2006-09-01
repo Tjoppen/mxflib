@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.10 2006/08/25 15:54:33 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.11 2006/09/01 15:55:10 matt-beard Exp $
  *
  */
 /*
@@ -125,6 +125,7 @@ namespace mxflib
 			SequencePos = 0;
 			DataStart = 0;
 			DataSize = 0;
+			CurrentPosition = 0;
 			BytePosition = 0;
 
 			// Use a sensible default if no edit rate is set - not ideal, but better than one sample!
