@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.20 2006/08/31 10:59:15 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.21 2006/09/01 15:48:55 matt-beard Exp $
  *
  */
 /*
@@ -995,7 +995,7 @@ void MDTraits_BasicArray::SetString(MDValuePtr Object, std::string Val)
 		if(it == Object->end()) 
 		{
 			// DRAGONS: This will fail for arrays of more that 4 billion entries
-			Object->Resize(Object->size() + 1);
+			Object->Resize(static_cast<UInt32>(Object->size() + 1));
 			it = Object->end();
 			it--;
 		}
