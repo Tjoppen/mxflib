@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.11 2006/08/26 14:11:56 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.12 2006/09/02 13:50:22 matt-beard Exp $
  *
  */
 /*
@@ -392,6 +392,10 @@ GCElementKind KLVEObject::GetGCElementKind(void)
 			// Failed to load the KLVE header
 			GCElementKind GC;
 			GC.IsValid = false;
+			GC.Item = 0;
+			GC.Count = 0;
+			GC.ElementType = 0;
+			GC.Number = 0;
 			return GC;
 		}
 
