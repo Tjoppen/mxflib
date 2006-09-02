@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.23 2006/08/31 10:59:15 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.24 2006/09/02 13:52:12 matt-beard Exp $
  *
  */
 /*
@@ -874,7 +874,7 @@ void GCWriter::Flush(void)
 		// Handle any non-buffered essence data
 		else if((*it).second.Source)
 		{
-			Position LenPosition;
+			Position LenPosition = 0;
 			UInt64 Size;
 
 			// If we are fast clip wrapping flag the rest of the file as the value
@@ -1598,7 +1598,7 @@ bool BodyReader::MakeGCReader(UInt32 BodySID, GCReadHandlerPtr DefaultHandler /*
  */
 bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 {
-	bool Ret;
+	bool Ret = false;
 	GCReaderPtr Reader;
 
 	// First check if we need to re-initialise
