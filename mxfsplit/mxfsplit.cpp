@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.19 2006/08/26 14:57:58 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.20 2006/09/02 14:04:17 matt-beard Exp $
  *
  */
 /*
@@ -702,7 +702,7 @@ static void DumpBody( PartitionPtr ThisPartition )
 								else
 								{
 									bool HasTrackID = false;
-									UInt32 TrackID;
+									UInt32 TrackID = 0;
 
 									MDObjectPtr TrackIDObject = Track[TrackID_UL];
 									if(TrackIDObject)
