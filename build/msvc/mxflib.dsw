@@ -3,7 +3,7 @@ Microsoft Developer Studio Workspace File, Format Version 6.00
 
 ###############################################################################
 
-Project: "all"=".\all.dsp" - Package Owner=<4>
+Project: "all"=.\all.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -29,6 +29,9 @@ Package=<4>
     Begin Project Dependency
     Project_Dep_Name mxf2dot
     End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name simplewrap
+    End Project Dependency
 }}}
 
 ###############################################################################
@@ -51,7 +54,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "dictconvert"=".\dictconvert.dsp" - Package Owner=<4>
+Project: "dictconvert"=.\dictconvert.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -66,7 +69,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxf2dot"=".\mxf2dot.dsp" - Package Owner=<4>
+Project: "mxf2dot"=.\mxf2dot.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -81,7 +84,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxfcrypt"=".\mxfcrypt.dsp" - Package Owner=<4>
+Project: "mxfcrypt"=.\mxfcrypt.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -96,7 +99,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxfdump"=".\mxfdump.dsp" - Package Owner=<4>
+Project: "mxfdump"=.\mxfdump.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -111,7 +114,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxflib"=".\mxflib.dsp" - Package Owner=<4>
+Project: "mxflib"=.\mxflib.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -123,7 +126,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxfsplit"=".\mxfsplit.dsp" - Package Owner=<4>
+Project: "mxfsplit"=.\mxfsplit.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -138,7 +141,22 @@ Package=<4>
 
 ###############################################################################
 
-Project: "mxfwrap"=".\mxfwrap.dsp" - Package Owner=<4>
+Project: "mxfwrap"=.\mxfwrap.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name mxflib
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "simplewrap"=.\simplewrap.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
