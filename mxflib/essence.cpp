@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.24 2006/09/02 13:52:12 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.25 2006/09/02 14:35:00 matt-beard Exp $
  *
  */
 /*
@@ -2247,7 +2247,7 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 		bool FirstIteration = true;
 
 		// Start of the current partition
-		Position PartitionStart;
+		Position PartitionStart = 0;
 
 		// TODO: Re-write to not read a whole frame into memory if that is too big!!
 
