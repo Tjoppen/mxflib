@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.12 2006/08/25 16:12:55 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.13 2006/09/02 12:37:51 matt-beard Exp $
  *
  */
 /*
@@ -513,6 +513,7 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, UInt64 Size)
 		{
 			error("Error reading IndexTableSegment at 0x%s in %s\n", 
 				   Int64toHexString(Location,8).c_str(), File->Name.c_str());
+			break;
 		}
 
 		if(Bytes > Size) break;
