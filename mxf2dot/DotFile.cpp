@@ -370,7 +370,7 @@ void DotObjectAttribute::setObjectName(string name)
     _name = name;
     if (_len < name.length())
     {
-        _len = name.length();
+        _len = (unsigned int)name.length();
     }
 }
 
@@ -459,7 +459,7 @@ void DotObjectAttribute::addPropertyValueOrDef(string name, string typeOrValue,
     int pos = 0;
     while (!done)
     {
-        int newPos = property.find( "\\n", pos);
+        int newPos = (int)property.find( "\\n", pos);
         if (newPos == -1)
         {
             done = true;
