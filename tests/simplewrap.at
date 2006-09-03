@@ -1,0 +1,34 @@
+AT_BANNER([[Checking simplewrap]])
+
+AT_SETUP([simplewrap])
+
+AT_CHECK([simplewrap ../../small.wav ../../simplewrap_wav.mxf], 0,
+[[MXFlib Simple Wrapper
+]])
+
+AT_CHECK([mxfdump -c ../../simplewrap_wav.mxf], 0,
+[[Dump an MXF file using MXFLib
+- using dictionary "dict.xml"
+
+Partition for BodySID 0x0001
+ Top level count = 1
+ Set/Pack count = 19
+ Sub item count = 111
+No index table in this partition
+
+Partition for BodySID 0x0000
+ Top level count = 1
+ Set/Pack count = 20
+ Sub item count = 129
+No index table in this partition
+
+Read RIP
+  BodySID 0x0001 and is not loaded
+  BodySID 0x0000 and is not loaded
+
+Scanned RIP
+  BodySID 0x0001 type OpenHeader
+  BodySID 0x0000 type CompleteFooter
+]])
+
+AT_CLEANUP

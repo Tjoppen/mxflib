@@ -1,4 +1,4 @@
-TESTSUITE_AT = testsuite.at types.at mxfdump.at mxfwrap.at
+TESTSUITE_AT = testsuite.at types.at mxfdump.at mxfwrap.at simplewrap.at
 TESTSUITE = $(srcdir)/testsuite
 
 EXTRA_DIST = $(TESTSUITE_AT) testsuite package.m4 \
