@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.14 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: system.h,v 1.15 2006/09/03 12:51:58 matt-beard Exp $
  *
  */
 /*
@@ -279,6 +279,75 @@ namespace mxflib
 		return false;
 	}
 }
+
+
+/** Windows Specific OS Name code **/
+
+namespace mxflib
+{
+	//! Get the OS Name
+	inline std::string OSName(void)
+	{
+		std::string Ret = "Windows";
+
+		OSVERSIONINFOEX OSInfo;
+
+		// Flag that we want the full info (if possible)
+		OSInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+
+		BOOL Result = GetVersionEx((OSVERSIONINFO*)&OSInfo);
+		if(!Result)
+		{
+			// Try the old version (we may be on an old version of Windows)
+			OSInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+			Result = GetVersionEx((OSVERSIONINFO*)&OSInfo);
+		}
+
+		if(Result)
+		{
+			if(OSInfo.dwMajorVersion == 4)
+			{
+				if(OSInfo.dwPlatformId & VER_PLATFORM_WIN32_NT) Ret = "Windows NT";
+				else Ret = "Windows 95";
+			}
+			else if(OSInfo.dwMajorVersion == 5)
+			{
+				if(OSInfo.dwMinorVersion == 0) Ret = "Windows 2000";
+				else if(OSInfo.dwMinorVersion == 1) Ret = "Windows XP";
+				else if(OSInfo.dwMinorVersion == 2) 
+				{
+					if(OSInfo.wProductType & VER_NT_SERVER) Ret = "Windows Server 2003";
+					else Ret = "Windows XP x64";
+				}
+				else if(OSInfo.dwMinorVersion == 10) Ret = "Windows 98";
+				else if(OSInfo.dwMinorVersion == 90) Ret = "Windows Me";
+			}
+			else if(OSInfo.dwMajorVersion == 6)
+			{
+				if(OSInfo.dwMinorVersion == 0) 
+				{
+					if(OSInfo.wProductType & VER_NT_SERVER) Ret = "Windows Server \"Longhorn\"";
+					else Ret = "Windows Vista";
+				}
+			}
+
+			// Add any service pack details
+			if(OSInfo.szCSDVersion)
+			{
+				if(OSInfo.dwPlatformId & VER_PLATFORM_WIN32_WINDOWS)
+				{
+					if(OSInfo.szCSDVersion[1] == 'A') Ret += " Second Edition";
+					else if(OSInfo.szCSDVersion[1] == 'B') Ret += " Second Edition";
+					else if(OSInfo.szCSDVersion[1] == 'C') Ret += " OSR2";
+				}
+				else Ret += " " + std::string(OSInfo.szCSDVersion);
+			}
+		}
+
+		return Ret;
+	}
+}
+
 #endif // _WIN32
 
 
@@ -486,6 +555,30 @@ namespace mxflib
 
 #include <assert.h>
 #define ASSERT assert		// use -DNDEBUG
+
+/** Operating system name for non-windows platrorms **/
+
+namespace mxflib
+{
+	inline std::string OSName(void)
+	{
+		char *OSType = getenv("OSTYPE");
+		char *MachType = getenv("MACHTYPE");
+
+		std::string Ret;
+		if(OSType)
+		{
+			Ret = OSType;
+			if(MachType) Ret += " on " + std::string(MachType);
+		}
+		else
+		{
+			if(MachType) Ret = MachType; else Ret = "Unknown";
+		}
+	
+		return Ret;
+	}
+}
 
 #endif // not _WIN32
 
