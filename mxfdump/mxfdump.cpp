@@ -258,6 +258,8 @@ int main_process(int argc, char *argv[])
 							else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
 
 							printf("  Indexing BodySID 0x%04x from IndexSID 0x%04x\n", BodySID, IndexSID);
+
+							it++;
 						}
 					}
 				}
