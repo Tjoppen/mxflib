@@ -23,8 +23,33 @@ Processing output file "../../mxfwrap_wav.mxf"
 Done
 ]])
 
-AT_CHECK([wc -c ../../mxfwrap_wav.mxf | sed 's/^ *//g'], 0,
-[[20675 ../../mxfwrap_wav.mxf
+AT_CHECK([mxfdump -c ../../mxfwrap_wav.mxf], 0,
+[[Dump an MXF file using MXFLib
+- using dictionary "dict.xml"
+
+Partition for BodySID 0x0000
+ Top level count = 1
+ Set/Pack count = 20
+ Sub item count = 136
+CBR Index Table Segment (covering whole Essence Container) :
+  Indexing BodySID 0x0001 from IndexSID 0x0081
+
+Partition for BodySID 0x0001
+
+Partition for BodySID 0x0000
+No header metadata in this partition
+CBR Index Table Segment (covering whole Essence Container) :
+  Indexing BodySID 0x0001 from IndexSID 0x0081
+
+Read RIP
+  BodySID 0x0000 and is not loaded
+  BodySID 0x0001 and is not loaded
+  BodySID 0x0000 and is not loaded
+
+Scanned RIP
+  BodySID 0x0000 type ClosedCompleteHeader
+  BodySID 0x0001 type ClosedCompleteBodyPartition
+  BodySID 0x0000 type CompleteFooter
 ]])
 
 AT_CLEANUP
