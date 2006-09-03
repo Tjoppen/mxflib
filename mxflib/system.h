@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.15 2006/09/03 12:51:58 matt-beard Exp $
+ *	\version $Id: system.h,v 1.16 2006/09/03 13:07:32 matt-beard Exp $
  *
  */
 /*
@@ -343,6 +343,9 @@ namespace mxflib
 				else Ret += " " + std::string(OSInfo.szCSDVersion);
 			}
 		}
+
+		char *OSType = getenv("OSType");
+		if(OSType) Ret += "/" + std::string(OSType);
 
 		return Ret;
 	}
