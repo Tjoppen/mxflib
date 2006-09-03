@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.33 2006/08/27 19:07:11 terabrit Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.34 2006/09/03 13:23:01 matt-beard Exp $
  *
  */
 /*
@@ -42,6 +42,7 @@ UInt8 ProductGUID_Data[16] = { 0x84, 0x66, 0x14, 0xf3, 0x27, 0x8d, 0xd3, 0x41, 0
 string CompanyName = "freeMXF.org";
 string ProductName = "mxfwrap file wrapper";
 string ProductVersion = "Based on " + LibraryVersion();
+string PlatformName = "MXFLib (" + OSName() + ")";
 
 //! Debug flag for KLVLib
 int Verbose = 0;
@@ -1573,6 +1574,7 @@ int Process(	int OutFileNum,
 	Ident->SetString(ProductName_UL, ProductName);
 	Ident->SetString(VersionString_UL, ProductVersion);
 	Ident->SetString(ToolkitVersion_UL, LibraryProductVersion());
+	Ident->SetString(Platform_UL, PlatformName);
 	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
 
 	// DRAGONS: -- Need to set a proper GUID per released version

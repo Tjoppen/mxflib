@@ -1,7 +1,7 @@
 /*! \file	simplewrap.cpp
  *	\brief	Simple MXF essence wrapping utility
  *
- *	\version $Id: simplewrap.cpp,v 1.1 2006/09/02 16:21:00 matt-beard Exp $
+ *	\version $Id: simplewrap.cpp,v 1.2 2006/09/03 13:22:38 matt-beard Exp $
  *
  */
 /*
@@ -40,6 +40,7 @@ UInt8 ProductGUID_Data[16] = { 0x84, 0x55, 0x23, 0xe2, 0x16, 0x8c, 0xc2, 0x30, 0
 string CompanyName = "freeMXF.org";
 string ProductName = "simplewrap file wrapper";
 string ProductVersion = "Based on " + LibraryVersion();
+string PlatformName = "MXFLib (" + OSName() + ")";
 
 //! Debug flag for MXFLib
 static bool DebugMode = false;
@@ -282,6 +283,7 @@ int main(int argc, char *argv[])
 	Ident->SetString(ProductName_UL, ProductName);
 	Ident->SetString(VersionString_UL, ProductVersion);
 	Ident->SetString(ToolkitVersion_UL, LibraryProductVersion());
+	Ident->SetString(Platform_UL, PlatformName);
 	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
 
 	MData->UpdateGenerations(Ident);
