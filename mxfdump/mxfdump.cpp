@@ -62,6 +62,8 @@ static bool FullBody = false;
 //! Flag for dumping object locations as well as object data
 static bool DumpLocation = false;
 
+//! Flag for very simple check summary dump only
+static bool CheckDump = false;
 
 static void DumpObject(MDObjectPtr Object, std::string Prefix);
 
@@ -99,6 +101,8 @@ int main_process(int argc, char *argv[])
 				DebugMode = true;
 			else if((argv[i][1] == 'i') || (argv[i][1] == 'I'))
 				FullIndex = true;
+			else if((argv[i][1] == 'c') || (argv[i][1] == 'C'))
+				CheckDump = true;
 			else if((argv[i][1] == 'b') || (argv[i][1] == 'B'))
 				FullBody = true;
 			else if((argv[i][1] == 'l') || (argv[i][1] == 'L'))
@@ -138,6 +142,7 @@ int main_process(int argc, char *argv[])
 	{
 		printf("\nUsage:   test [-b] [-i] [-v] <filename>\n\n");
 		printf("Options: -b         Dump body partitions (rather than just header and footer)\n");
+		printf("         -c         Check dump (produce simple counts for automated testing)\n");
 		printf("         -dd <dict> Load supplementary dictionary (also -d for legacy)\n");
 		printf("         -i         Dump full index tables (can be lengthy)\n");
 		printf("         -l         Show the location (byte offset) of metadata items dumped\n");
@@ -186,7 +191,10 @@ int main_process(int argc, char *argv[])
 	while(it != TestFile->FileRIP.end())
 	{
 		PartitionNumber++;
-		printf("\nPartition at 0x%s is for BodySID 0x%04x\n", Int64toHexString((*it).second->ByteOffset,8).c_str(), (*it).second->BodySID);
+		if(CheckDump)
+			printf("\nPartition for BodySID 0x%04x\n", (*it).second->BodySID);
+		else
+			printf("\nPartition at 0x%s is for BodySID 0x%04x\n", Int64toHexString((*it).second->ByteOffset,8).c_str(), (*it).second->BodySID);
 
 		// Only dump header and footer unless asked for all partitions
 		if(FullBody || (PartitionNumber == 1) || (PartitionNumber == TestFile->FileRIP.size()))
@@ -195,28 +203,26 @@ int main_process(int argc, char *argv[])
 			PartitionPtr ThisPartition = TestFile->ReadPartition();
 			if(ThisPartition)
 			{
-				// Don't dump the last partition unless it is a footer or we are dumping all
-				// DRAGONS: What is the PartitionNumber != RIP-Size thing about?
-				if(FullBody || (PartitionNumber == 1) || (PartitionNumber != TestFile->FileRIP.size()) 
-				            || (ThisPartition->IsA(CompleteFooter_UL)) || (ThisPartition->IsA(Footer_UL)) )
+				if(CheckDump)
 				{
-					DumpObject(ThisPartition->Object,"");
-
 					if(ThisPartition->ReadMetadata() == 0)
 					{
 						printf("No header metadata in this partition\n");
 					}
 					else
 					{
-						printf("\nHeader Metadata:\n");
+						printf(" Top level count = %d\n", (int)ThisPartition->TopLevelMetadata.size());
+						printf(" Set/Pack count = %d\n", (int)ThisPartition->AllMetadata.size());
 						
-						MDObjectList::iterator it2 = ThisPartition->TopLevelMetadata.begin();
-						while(it2 != ThisPartition->TopLevelMetadata.end())
+						size_t Count = 0;
+						MDObjectList::iterator it = ThisPartition->AllMetadata.begin();
+						while(it != ThisPartition->AllMetadata.end())
 						{
-							DumpObject(*it2,"  ");
-							it2++;
+							Count += (*it)->size();
+							it++;
 						}
-						printf("\n");
+
+						printf(" Sub item count = %d\n", (int)Count);
 					}
 
 					// Read any index table segments!
@@ -233,9 +239,7 @@ int main_process(int argc, char *argv[])
 
 						while(it != Segments->end())
 						{
-							Table->AddSegment(*it);
-						
-							// Demonstrate this new segment
+							// Summarize this new segment
 							
 							UInt32 Streams = 1;
 							MDObjectPtr DeltaEntryArray = (*it)[DeltaEntryArray_UL];
@@ -254,42 +258,107 @@ int main_process(int argc, char *argv[])
 							else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
 
 							printf("  Indexing BodySID 0x%04x from IndexSID 0x%04x\n", BodySID, IndexSID);
+						}
+					}
+				}
+				else
+				{
+					// Don't dump the last partition unless it is a footer or we are dumping all
+					// DRAGONS: What is the PartitionNumber != RIP-Size thing about?
+					if(FullBody || (PartitionNumber == 1) || (PartitionNumber != TestFile->FileRIP.size()) 
+								|| (ThisPartition->IsA(CompleteFooter_UL)) || (ThisPartition->IsA(Footer_UL)) )
+					{
+						DumpObject(ThisPartition->Object,"");
 
-							if(Duration < 1) Duration = 6;		// Could be CBR
-							if(!FullIndex && Duration > 35) Duration = 35;	// Don't go mad!
-
-							int i;
-							printf( "\n Bytestream Order:\n" );
-							for(i=0; i<Duration; i++)
+						if(ThisPartition->ReadMetadata() == 0)
+						{
+							printf("No header metadata in this partition\n");
+						}
+						else
+						{
+							printf("\nHeader Metadata:\n");
+							
+							MDObjectList::iterator it2 = ThisPartition->TopLevelMetadata.begin();
+							while(it2 != ThisPartition->TopLevelMetadata.end())
 							{
-								UInt32 j;
-								for(j=0; j<Streams; j++)
-								{
-									IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
-									printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
-									printf(", Flags=%02x", Pos->Flags);
-									if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
-								}
+								DumpObject(*it2,"  ");
+								it2++;
 							}
+							printf("\n");
+						}
 
-							printf( "\n Presentation Order:\n" );
-							for(i=0; i<Duration; i++)
+						// Read any index table segments!
+						MDObjectListPtr Segments = ThisPartition->ReadIndex();
+						if(Segments->empty())
+						{
+							printf("No index table in this partition\n");
+						}
+						else
+						{
+							IndexTablePtr Table = new IndexTable;
+
+							MDObjectList::iterator it = Segments->begin();
+
+							while(it != Segments->end())
 							{
-								UInt32 j;
-								for(j=0; j<Streams; j++)
+								Table->AddSegment(*it);
+							
+								// Demonstrate this new segment
+								
+								UInt32 Streams = 1;
+								MDObjectPtr DeltaEntryArray = (*it)[DeltaEntryArray_UL];
+								if(DeltaEntryArray && DeltaEntryArray->GetType()->size())
 								{
-									IndexPosPtr Pos = Table->Lookup(Start + i,j);
-									printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
-									printf(", Flags=%02x", Pos->Flags);
-///									printf(", Keyframe is at 0x%s", Int64toHexString(Pos->KeyLocation,8).c_str() );
-
-									if(Pos->Exact) printf("  *Exact*\n");
-									else if(Pos->OtherPos) printf(" (Location of un-reordered position %s)\n", Int64toString(Pos->ThisPos).c_str());
-									else printf("\n");
+									Streams = static_cast<UInt32>(DeltaEntryArray->size() / DeltaEntryArray->GetType()->size());
+									if(Streams == 0) Streams = 1;	// Fix for bad DeltaEntryArray
 								}
-							}
 
-							it++;
+								Position Start = (*it)->GetInt64(IndexStartPosition_UL);
+								Length Duration = (*it)->GetInt64(IndexDuration_UL);
+								UInt32 IndexSID = (*it)->GetUInt(IndexSID_UL);
+								UInt32 BodySID = (*it)->GetUInt(BodySID_UL);
+								
+								if(Duration == 0) printf("CBR Index Table Segment (covering whole Essence Container) :\n");
+								else printf("\nIndex Table Segment (first edit unit = %s, duration = %s) :\n", Int64toString(Start).c_str(), Int64toString(Duration).c_str());
+
+								printf("  Indexing BodySID 0x%04x from IndexSID 0x%04x\n", BodySID, IndexSID);
+
+								if(Duration < 1) Duration = 6;		// Could be CBR
+								if(!FullIndex && Duration > 35) Duration = 35;	// Don't go mad!
+
+								int i;
+								printf( "\n Bytestream Order:\n" );
+								for(i=0; i<Duration; i++)
+								{
+									UInt32 j;
+									for(j=0; j<Streams; j++)
+									{
+										IndexPosPtr Pos = Table->Lookup(Start + i,j,false);
+										printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
+										printf(", Flags=%02x", Pos->Flags);
+										if(Pos->Exact) printf("  *Exact*\n"); else printf("\n");
+									}
+								}
+
+								printf( "\n Presentation Order:\n" );
+								for(i=0; i<Duration; i++)
+								{
+									UInt32 j;
+									for(j=0; j<Streams; j++)
+									{
+										IndexPosPtr Pos = Table->Lookup(Start + i,j);
+										printf("  EditUnit %3s for stream %d is at 0x%s", Int64toString(Start + i).c_str(), j, Int64toHexString(Pos->Location,8).c_str());
+										printf(", Flags=%02x", Pos->Flags);
+	///									printf(", Keyframe is at 0x%s", Int64toHexString(Pos->KeyLocation,8).c_str() );
+
+										if(Pos->Exact) printf("  *Exact*\n");
+										else if(Pos->OtherPos) printf(" (Location of un-reordered position %s)\n", Int64toString(Pos->ThisPos).c_str());
+										else printf("\n");
+									}
+								}
+
+								it++;
+							}
 						}
 					}
 				}
@@ -305,7 +374,10 @@ int main_process(int argc, char *argv[])
 		PartitionInfoMap::iterator it = TestFile->FileRIP.begin();
 		while(it != TestFile->FileRIP.end())
 		{
-			printf("  BodySID 0x%04x is at 0x%s", (*it).second->BodySID, Int64toHexString((*it).second->ByteOffset,8).c_str());
+			if(CheckDump)
+				printf("  BodySID 0x%04x", (*it).second->BodySID);
+			else
+				printf("  BodySID 0x%04x is at 0x%s", (*it).second->BodySID, Int64toHexString((*it).second->ByteOffset,8).c_str());
 
 			if((*it).second->ThePartition)
 				printf(" type %s\n", (*it).second->ThePartition->Name().c_str());
@@ -322,7 +394,10 @@ int main_process(int argc, char *argv[])
 		PartitionInfoMap::iterator it = TestFile->FileRIP.begin();
 		while(it != TestFile->FileRIP.end())
 		{
-			printf("  BodySID 0x%04x is at 0x%s", (*it).second->BodySID, Int64toHexString((*it).second->ByteOffset,8).c_str());
+			if(CheckDump)
+				printf("  BodySID 0x%04x", (*it).second->BodySID);
+			else
+				printf("  BodySID 0x%04x is at 0x%s", (*it).second->BodySID, Int64toHexString((*it).second->ByteOffset,8).c_str());
 
 			if((*it).second->ThePartition)
 				printf(" type %s\n", (*it).second->ThePartition->Name().c_str());
