@@ -4,7 +4,9 @@ EXTRA_DIST = dox.bat \
 			build/msvc/mxflib.dsp \
 			build/msvc/all.dsp \
 			build/msvc/all+crypto.dsp \
-			build/msvc/mxfcrypt.dsp \			build/msvc/mxfdump.dsp \			build/msvc/mxfwrap.dsp \
+			build/msvc/mxfcrypt.dsp \
+			build/msvc/mxfdump.dsp \
+			build/msvc/mxfwrap.dsp \
 			build/msvc/simplewrap.dsp \
 			build/msvc/mxfsplit.dsp
 
