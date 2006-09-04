@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.15 2006/08/25 15:56:21 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.16 2006/09/04 14:00:40 matt-beard Exp $
  *
  */
 /*
@@ -371,7 +371,7 @@ std::string mxflib::SearchPath(const char *Path, const char *Filename)
 	else if(IsAbsolutePath(Filename)) NonPath = true;
 
 	// Check the file without path if we should
-	if(NonPath)
+	if((!(*Path)) || NonPath)
 	{
 		if(FileExists(Filename)) return std::string(Filename);
 		return "";
