@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.34 2006/09/03 13:23:01 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.35 2006/09/04 13:56:32 matt-beard Exp $
  *
  */
 /*
@@ -420,9 +420,6 @@ int main_process(int argc, char *argv[])
 			error("Could not identify a wrapping mode for the essence in file \"%s\"\n", InFilename[i]);
 			return 4;
 		}
-
-		// Ensure the essence descriptor reflects the new wrapping
-		WCP->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16,WCP->WrapOpt->WrappingUL->GetValue()));
 
 		// Add this wrapping option
 		WrappingList.push_back(WCP);
