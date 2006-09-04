@@ -1,26 +1,132 @@
-Changes for 0.5.2.1.2(Development)
-==================================
+Release Notes for mxflib version 1.0.0-Beta-RC2
+===============================================
 
-Optional compile-time dictionary (run-time dictionary still preferred)
-Autogen from xmldict.xml and types.xml with new dictconvert project
-See mxfdump.cpp for how to use (#define COMPILED_DICT)
+This is the second release candidate for version 1.0.0
 
-OPtional use of Expat to get wide character support (#define HAVE_EXPAT)
-Needs ../expat/lib/* static libraries from expat 1.95.8
+Please note that although the license text cannot legally mandate this, it is expected that applications using MXFLib, or reusing a significantly amount of the code, include an acknowledgment with all copyright messages.
 
-UInt (still legacy support for Uint)
+Suggested acknowledgment texts, either:
+
+  Including MXFLib by freemxf.org (c) 2002-2006
+
+or:
+
+  Based on MXFLib by freemxf.org (c) 2002-2006
 
 
+Things to check in code currently using mxflib 0.6.0:
+* Ensure that you use dict.xml rather than types.xml and xmldict.xml
+* Check that size_t is used for sizes of any memory chunks that may be larger that 4Gb. Take special care if you currently cast to or from a 32-bit type.
+* Change any calls to AddTraitsMapping to include a sample instance rather than using the template format
+* If you have defined any MDTraits, change methods to use size_t where required
+* Where possible use the type ULs rather than type names in library calls (this ensures long-term code stability as the ULs are normative, not the names)
+* Use MakeRef in preference to MakeLink
+* If you have added any EssenceSubParser classes you need to do the following:
+** Ensure that GetEssenceData does not increment the current position, it is safest to cache the result until the next Read or GetEssenceData call
+** Change GetEssenceDataSize(), GetEssenceData() to use size_t
+** Change GetEssenceSource() to return an EssenceSourcePtr
+** Change IdentifyEssence() to add EssenceStreamDescriptorPtrs to the returned EssenceStreamDescriptorList rather than EssenceStreamDescriptors
+** Optionally add a parser name with GetParserName() and name each wrapping with WrappingOption::Name
+** Optionally add identify each wrapping with WrappingOption::WrappingID
 
-Release Notes for mxflib version 0.5-Beta
-=========================================
 
-Maintenance release - mainly updates of encrypted KLV processing
+Changes since version 1.0.0-Beta-RC1
+====================================
+
+* Include VC7 project files
+* Added simplewrap project for demonstrating a basic wrap utility (mxfwrap is useful, but complex!)
+* Use smart pointers to EssenceSources in the write queue to prevent them being freed before all data is written
+* Set Essence Container label in Descripto within the library when selecting wrapping options
+* Allow "" to be taken as the current directory in SearchPath
+* Ensure that BER lengths correctly use 8-byte format when clip-wrapping
+* Add Platform details to Ident set
+* Allow mxfcrypt to generate a key-file if none given
+* Add check dump mode to mxfdump to allow automated checks that don't rely on specific property values
+* Added more detailed debug to the MDTraits stub methods
+
+
+Changes since version 0.6.0-Beta
+================================
+
+Changes:
+This release adds the following new features:
+* The mxf2dot utility for producing diagrams of mxf metadata, submitted by Philip de Nier of BBC R&D - thanks
+* Enumerated value types in the types dictionary format
+* The ability to specify ULs and UUIDs in various urn: formats in the dictionary, and in calls to SetString
+* Type ULs in the dictionary format
+* The ability to set relative write ordering of essence streams (e.g. before all the video, or after all the audio)
+* Support for essence parsers that produce sub-streams
+* EssenceSubParserFactory super-class to allow sub parsers to be built without requiring an instance of each parser
+* Support for essence pre-charge, where supported by the source
+* Static methodss on the EssenceParser class to select sub parsers and perform related essence identification functions
+* Options to preserve, or recalculate, index tables in mxfcrypt
+* Partition::FindLinkParent() which locates the source of a strongly referenced set in the current metadata
+* UL::Matches() to test a UL against another UL, ignoring version byte
+* VBI source for writing SMPTE 436M format VBI data
+
+Bug fixes:
+* Fixed a memory leak in (rarely used) EssenceSubParser::Write()
+* Fixed error in parsing some JP2K headers
+* Fixed problem with calculation CurrentPosition in some non-constant frame-sized sequences in wave audio
+* Ensure that times are stored in UTC
+* Update the Essence UL in the Descriptor in mxfcrypt
+
+Other changes:
+* Removed the redundant types.xml and xmldict.xml files
+* Memory chunk sizes use size_t where there is a possibility that they may need to be larger that 4Gb, platfrom permitting
+* The format of the AddTraitsMapping function changed to be safer with a range of compilers
+* Moved EssenceSubParser linking into new file esp.cpp, this improves compilation speed
+* Improved the handling of current position pointer and wrapping unit size in EssenseSubParsers - now only Read, and its caller GetEssenceData, move the pointer, multiple calls to GeetEssenceDataSize return a cached value
+* Ensure that skipped items are witten as zero length in interleaved content packages
+* Improve the usage of version-less UL compares (e.g. MDObject::IsA ignores version byte in SMPTE ULs)
+* Renamed MDObject::MakeLink to MDObject::MakeRef to avoid confusion with similarly names metadata methods (old version still exists, but is deprecated)
+
+Changes since version 0.5.3-Beta
+================================
+* Add EssenceSink class
+* Allow MDTraits to be changed by applications
+* Revamped MXFSplit
+* A number of changes to make the code more stable with damages or non-standard files
+* UL and UUID traits can now read the standard text formats as well as producing them
+
+
+Changes since version 0.5.2-Beta
+================================
+* Added features.h for compile-time or run-time selectable library features
+* Dictconvert generates const ULs for all sets, packs and properties
+* All library code now uses UL consts rather than object names
+* Added constants.h
+* Harmonized UInt capitalization
+* Add SymbolSpace and allow UL based add/find of objects
+* Add esp_template to aid essence parser writing
+* Allow non-standard essence keys if required
+* Add full clip-wrap indexing
+* Add UL2NameFunc
+* Programable ParseDark
+* Add optional string termination
+* Add Track::GetType
+* Allow runtime selection between runtime and compiletime dictionaries in mxfdump
+* Add basic DM insertion code to mxfwrap
+
+
+Changes since version 0.5.1-Beta
+================================
+* Added constants.h
+* Harmonized UInt capitalization
+* Add SymbolSpace
+* Add esp_template to aid essence parser writing
+* Allow non-standard essence keys if required
+* Add full clip-wrap indexing
+* Add UL2NameFunc
+* Programable ParseDark
+* Add optional string termination
+* Add Track::GetType
+* Allow runtime selection between runtime and compiletime dictionaries in mxfdump
+* Add basic DM insertion code to mxfwrap
 
 
 Changes since version 0.5.0-Beta
 ================================
-
 * Split encryption code from mxfcrypt.cpp into separate crypto_asdcp files
 * Added HMAC calculation and checking for encrypted KLVs
 * Updated encrypted KLV key
@@ -39,7 +145,6 @@ Changes since version 0.4.0-Alpha
 
 Changes since version 0.3.2-Alpha
 =================================
-
 * Added kludge code to allow compilation under gcc 3.3.x which has a known bug with complex template classes and forward declares
 * Removed dependency on KLVLib by adding new dictionary loading code
 * GetDict() No longer exists - replaced with various accessors
@@ -60,9 +165,9 @@ Changes since version 0.3.2-Alpha
 * Corrected AnchorOffset in MPEG index tables
 * Corrected Operational Pattern qualifiers in mxfwrap
 
+
 Changes since version 0.3.1-Alpha
 =================================
-
 * Ported to Linux (x86, AMD64, Alpha, StrongARM), FreeBSD (x86), MacOS X 10.2 (PowerPC), Solaris (SPARC) and IRIX (MIPS)
 * Ported to ISO C++ compilers including GCC 3.2 (not yet GCC 3.3.x - see README), MIPSpro C++ 7.3, Sun Forte C++ 5.4, Intel C++ 7.0, Borland C++ 5.0
 * For portability, FileSeek() and FileSeekEnd() no longer return the current file position, only a value indicating success or failure.  Use a subsequent FileTell() to get the file position.
@@ -77,7 +182,6 @@ Changes since version 0.3.1-Alpha
 
 Changes since version 0.3-Alpha
 ===============================
-
 * Fixed "silly" bug in integer traits on big-endian platforms!
 * Fixed bug in parsing MPEG headers where LoadIntra and LoadNonIntra
   were 1 bit out of place.
@@ -89,7 +193,6 @@ Changes since version 0.3-Alpha
 
 Changes since version 0.2.2-Alpha
 =================================
-
 * Fixed "silly" bug in PutIxx() which only wrote 1 byte!
 * Fixed a problem where sparse index table lookups didn't work
 * Added Higher level objects (Package, Track etc.)
@@ -105,7 +208,6 @@ Changes since version 0.2.2-Alpha
 
 Changes since version 0.2.1-Alpha
 =================================
-
 * Fixed problem where mxffile::Seek() returned the wrong value in 
   files with a run-in
 * Revised the front page of the documentation
@@ -113,7 +215,6 @@ Changes since version 0.2.1-Alpha
 
 Changes since version 0.2-Alpha
 ===============================
-
 * New child value access functions added to MDObject, with (optional)
   default values for missing children.
 * MDObject is now derived from MDObjectNamedList which contains all
@@ -128,7 +229,6 @@ Changes since version 0.2-Alpha
 
 Changes since version 0.1-Alpha
 ===============================
-
 * Each MDObject stores information about where it came from which can be
   read using functions Location() and Source()
 * Code now handles differences in HeaderByteCount between version 10 and 
