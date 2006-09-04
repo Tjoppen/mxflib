@@ -1,7 +1,7 @@
 /*! \file	simplewrap.cpp
  *	\brief	Simple MXF essence wrapping utility
  *
- *	\version $Id: simplewrap.cpp,v 1.2 2006/09/03 13:22:38 matt-beard Exp $
+ *	\version $Id: simplewrap.cpp,v 1.3 2006/09/04 13:59:36 matt-beard Exp $
  *
  */
 /*
@@ -147,6 +147,9 @@ int main(int argc, char *argv[])
 	/*********************************************/
 	/**          SET UP ESSENCE WRITING         **/
 	/*********************************************/
+
+	// Enable FastClipWrap mode - don't do this if random access not available of the output medium
+	SetFastClipWrap(true);
 
 	// Open the destination MXF file
 	MXFFilePtr OutFile = new MXFFile;
