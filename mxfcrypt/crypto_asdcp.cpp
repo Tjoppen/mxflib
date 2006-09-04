@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.cpp
  *	\brief	AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.cpp,v 1.7 2006/09/04 13:55:19 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.cpp,v 1.8 2006/09/04 16:18:21 matt-beard Exp $
  *
  */
 /*
@@ -181,7 +181,7 @@ DataChunkPtr AESEncrypt::Encrypt(size_t Size, const UInt8 *Data)
 
 //! Construct a handler for a specified BodySID
 Encrypt_GCReadHandler::Encrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID, UUIDPtr &ContextID, DataChunkPtr KeyID, std::string KeyFileName) 
-  : Writer(Writer), OurSID(BodySID), ContextID(ContextID), PlaintextOffset(0)
+  : OurSID(BodySID), Writer(Writer), ContextID(ContextID), PlaintextOffset(0)
 {
 	char Buffer[45];
 

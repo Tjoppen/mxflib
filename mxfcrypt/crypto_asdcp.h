@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.h
  *	\brief	Definitions for AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.h,v 1.4 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.h,v 1.5 2006/09/04 16:18:21 matt-beard Exp $
  *
  */
 /*
@@ -229,7 +229,7 @@ private:
 
 public:
 	//! Construct a filler handler for a specified BodySID
-	Basic_GCFillerHandler(GCWriterPtr Writer, UInt32 BodySID) : Writer(Writer), OurSID(BodySID) {};
+	Basic_GCFillerHandler(GCWriterPtr Writer, UInt32 BodySID) : OurSID(BodySID), Writer(Writer)  {};
 
 	//! Handle a "chunk" of data that has been read from the file
 	/*! \return true if all OK, false on error 
@@ -348,18 +348,18 @@ public:
 class Decrypt_GCReadHandler : public GCReadHandler_Base
 {
 protected:
-	UInt32 OurSID;								//!< The BodySID of this essence
-	GCWriterPtr Writer;							//!< GCWriter to receive dencrypted data
+	UInt32 OurSID;										//!< The BodySID of this essence
+	GCWriterPtr Writer;									//!< GCWriter to receive dencrypted data
 
 	IndexTablePtr Index;								//!< Index table to update (or NULL if none)
 	Position IndexPos;									//!< Current edit unit for indexing
 
 private:
-	Decrypt_GCReadHandler();						//!< Don't allow standard construction
+	Decrypt_GCReadHandler();							//!< Don't allow standard construction
 
 public:
 	//! Construct a test handler for a specified BodySID
-	Decrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID) : Writer(Writer), OurSID(BodySID), IndexPos(0) {};
+	Decrypt_GCReadHandler(GCWriterPtr Writer, UInt32 BodySID) : OurSID(BodySID), Writer(Writer), IndexPos(0) {};
 
 	//! Handle a "chunk" of data that has been read from the file
 	/*! \return true if all OK, false on error 

@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.14 2006/09/04 14:53:30 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.15 2006/09/04 16:18:21 matt-beard Exp $
  *
  */
 /*
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Read the metadata from the header
-	Length Bytes = MasterPartition->ReadMetadata();
+	MasterPartition->ReadMetadata();
 
 	MetadataPtr HMeta = MasterPartition->ParseMetadata();
 
@@ -361,10 +361,6 @@ int main(int argc, char *argv[])
 			CurrentPartition->SetUInt64(FooterPartition_UL, 0);
 			OutFile->WritePartition(CurrentPartition);
 		}
-
-		// Find out what BodySID
-		// DRAGONS: ?? What are we doing with this?
-		UInt32 BodySID = CurrentPartition->GetUInt(BodySID_UL);
 
 		// Ensure we match the KAG
 		Writer->SetKAG(CurrentPartition->GetUInt(KAGSize_UL));
