@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.12 2006/06/25 14:09:46 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.13 2006/09/04 13:55:48 matt-beard Exp $
  *
  */
 /*
@@ -47,6 +47,7 @@ UInt8 ProductGUID_Data[16] = { 0x84, 0x62, 0x40, 0xf1, 0x47, 0xed, 0xde, 0x40, 0
 string CompanyName = "freeMXF.org";
 string ProductName = "mxfcrypt file de/encrypt utility";
 string ProductVersion = "Based on " + LibraryVersion();
+string PlatformName = "MXFLib (" + OSName() + ")";
 
 //! Plaintext offset to use when encrypting
 int PlaintextOffset = 0;
@@ -163,6 +164,51 @@ int main(int argc, char *argv[])
 	{
 		error("Can't open output file\n");
 		return 1;
+	}
+
+	/* Generate a kiy-file if not given and we are encrypting */
+	if(!DecryptMode)
+	{
+		if(KeyFileName.empty() || (KeyFileName[KeyFileName.length()-1] == DIR_SEPARATOR))
+		{
+			char NameBuffer[45];
+
+			unsigned char Key[16];
+			
+			// TODO: Add decent random number generator here... this one is from the system.h UUID gen
+			// DRAGONS: Strange double-casting is to remove pointer conversion warning in 64-bit systems
+			srand(static_cast<unsigned int>(time(NULL)) ^ static_cast<unsigned int>(reinterpret_cast<UInt64>(&(*(OutFile)))) ^ (clock() << 2) ^ rand());
+
+			int i;
+			for(i=0; i<16; i++) Key[i] = rand() % 256;
+
+			UUIDPtr FileNameData = new mxflib::UUID();
+			const UInt8 *p = FileNameData->GetValue();
+			sprintf(NameBuffer, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+							p[0], p[1], p[2], p[3],     p[4], p[5],      p[6], p[7],     p[8], p[9],
+							p[10], p[11], p[12], p[13], p[14], p[15] );
+
+			if(KeyFileName.empty())
+				KeyFileName = NameBuffer;
+			else
+				KeyFileName += NameBuffer;
+
+			FileHandle KeyFile = FileOpenNew(KeyFileName.c_str());
+			if(!FileValid(KeyFile))
+			{
+				error("Failed to create key-file \"%s\"\n", KeyFileName.c_str());
+				return 1;
+			}
+
+			sprintf(NameBuffer, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+							Key[0], Key[1], Key[2], Key[3], Key[4], Key[5], Key[6], Key[7],
+							Key[8], Key[9],	Key[10], Key[11], Key[12], Key[13], Key[14], Key[15] );
+
+			FileWrite(KeyFile, (UInt8*)NameBuffer, 32);
+			FileClose(KeyFile);
+
+			printf("Generated key-file \"%s\"\n", KeyFileName.c_str());
+		}
 	}
 
 	/* Locate an index table to update (Required seeking!) */
@@ -540,6 +586,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 	Ident->SetString(ProductName_UL, ProductName);
 	Ident->SetString(VersionString_UL, ProductVersion);
 	Ident->SetString(ToolkitVersion_UL, LibraryProductVersion());
+	Ident->SetString(Platform_UL, PlatformName);
 	UUIDPtr ProductUID = new mxflib::UUID(ProductGUID_Data);
 
 	// DRAGONS: -- Need to set a proper GUID per released version
