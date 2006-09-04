@@ -13,13 +13,13 @@ AT_CHECK([mxfdump -c ../../simplewrap_wav.mxf], 0,
 Partition for BodySID 0x0001
  Top level count = 1
  Set/Pack count = 19
- Sub item count = 111
+ Sub item count = 112
 No index table in this partition
 
 Partition for BodySID 0x0000
  Top level count = 1
  Set/Pack count = 20
- Sub item count = 129
+ Sub item count = 130
 No index table in this partition
 
 Read RIP
