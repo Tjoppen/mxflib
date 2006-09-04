@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.10 2006/08/25 15:50:57 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.11 2006/09/04 13:58:09 matt-beard Exp $
  *
  */
 /*
@@ -525,7 +525,7 @@ size_t DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, U
 	if(PictureNumber == 0) FileSeek(InFile, DIFStart);
 
 	// Return anything remaining if clip wrapping
-	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip))
+	if(SelectedWrapping->ThisWrapType == WrappingOption::Clip)
 	{
 		Count = ((DIFEnd - DIFStart) / (150 * 80)) - PictureNumber;
 	}

@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.9 2006/08/25 15:54:33 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.10 2006/09/04 13:58:09 matt-beard Exp $
  *
  */
 /*
@@ -525,8 +525,8 @@ size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	}
 
 	
-	// Return anything we can find if in "unspecified" clip wrapping
-	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip)) Ret = Max;
+	// Return anything we can find if in clip wrapping
+	if(SelectedWrapping->ThisWrapType == WrappingOption::Clip) Ret = Max;
 	else Ret = Count * SamplesPerEditUnit * SampleSize;
 
 	// Return no more than the maximum bytes available

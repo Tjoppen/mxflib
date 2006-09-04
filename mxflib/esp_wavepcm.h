@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.11 2006/09/01 15:55:10 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.12 2006/09/04 13:58:09 matt-beard Exp $
  *
  */
 /*
@@ -109,6 +109,15 @@ namespace mxflib
 				}
 
 				return BaseGetEssenceData(Size, MaxSize);
+			}
+
+			//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
+			virtual int GetBERSize(void) 
+			{ 
+				WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
+
+				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip) return 8;
+				return 4;
 			}
 		};
 

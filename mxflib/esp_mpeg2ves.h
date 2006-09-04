@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.h
  *	\brief	Definition of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.h,v 1.8 2006/08/25 15:52:32 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.h,v 1.9 2006/09/04 13:58:09 matt-beard Exp $
  *
  */
 /*
@@ -113,6 +113,15 @@ namespace mxflib
 				}
 */
 				return BaseGetEssenceData(Size, MaxSize);
+			}
+
+			//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
+			virtual int GetBERSize(void) 
+			{ 
+				MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
+
+				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip) return 8;
+				return 4;
 			}
 
 			//! Is the last data read the start of an edit point?

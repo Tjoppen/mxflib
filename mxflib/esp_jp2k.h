@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.h
  *	\brief	Definition of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.h,v 1.6 2006/08/25 15:52:31 matt-beard Exp $
+ *	\version $Id: esp_jp2k.h,v 1.7 2006/09/04 13:58:09 matt-beard Exp $
  *
  */
 /*
@@ -86,6 +86,15 @@ namespace mxflib
 			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0)
 			{
 				return BaseGetEssenceData(Size, MaxSize);
+			}
+
+			//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
+			virtual int GetBERSize(void) 
+			{ 
+				JP2K_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, JP2K_EssenceSubParser);
+
+				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip) return 8;
+				return 4;
 			}
 		};
 

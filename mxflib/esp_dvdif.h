@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.9 2006/08/26 12:45:38 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.10 2006/09/04 13:58:09 matt-beard Exp $
  *
  */
 /*
@@ -107,6 +107,15 @@ namespace mxflib
 */
 
 				return BaseGetEssenceData(Size, MaxSize);
+			}
+
+			//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
+			virtual int GetBERSize(void) 
+			{ 
+				DV_DIF_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, DV_DIF_EssenceSubParser);
+
+				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip) return 8;
+				return 4;
 			}
 		};
 

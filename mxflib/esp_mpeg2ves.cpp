@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.8 2006/08/25 15:52:31 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.9 2006/09/04 13:58:09 matt-beard Exp $
  *
  */
 /*
@@ -545,7 +545,7 @@ size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 	Count *= EditRatio;
 
 	// Return anything we can find if clip wrapping
-	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip)) Count = UINT64_C(0xffffffffffffffff);
+	if(SelectedWrapping->ThisWrapType == WrappingOption::Clip) Count = UINT64_C(0xffffffffffffffff);
 
 	while(Count)
 	{
