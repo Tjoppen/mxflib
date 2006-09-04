@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.14 2006/08/25 15:56:40 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.15 2006/09/04 18:31:35 matt-beard Exp $
  *
  */
 /*
@@ -633,10 +633,10 @@ IndexSegmentPtr IndexSegment::AddIndexSegmentToIndexTable(IndexTablePtr ParentTa
 //! Write this index table to a memory buffer
 size_t IndexTable::WriteIndex(DataChunk &Buffer)
 {
-	// If we don't have a delta array we must build a simple one
-	if(BaseDeltaCount == 0)
+	// If we don't have a delta array, but we have more than 1 slice
+	if((NSL != 0) && (BaseDeltaCount == 0))
 	{
-		error("IndexTable::WriteIndex() called with no delta array defined - Index table will be invalid\n");
+		error("IndexTable::WriteIndex() called with NSL = %d, but no delta array defined - Index table will be invalid\n", NSL);
 	}
 
 	// Force a bit of space into the buffer then clear the size
