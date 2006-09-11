@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.22 2006/09/01 15:48:10 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.23 2006/09/11 09:09:04 matt-beard Exp $
  *
  */
 /*
@@ -1184,33 +1184,85 @@ namespace mxflib
 		};
 
 		//! Produce a list of available wrapping options
-		static EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+		static WrappingConfigList ListWrappingOptions(bool AllowMultiples, FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
 
 		//! Produce a list of available wrapping options
-		static EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+		static WrappingConfigList ListWrappingOptions(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			return ListWrappingOptions(false, InFile, PDList, ForceEditRate, ForceWrap);
+		}
 
 		//! Produce a list of available wrapping options
-		static EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		static WrappingConfigList ListWrappingOptions(bool AllowMultiples, FileHandle InFile, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Produce a list of available wrapping options
+		static WrappingConfigList ListWrappingOptions(FileHandle InFile, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			return ListWrappingOptions(false, InFile, ForceEditRate, ForceWrap);
+		}
+
+		//! Produce a list of available wrapping options
+		static WrappingConfigList ListWrappingOptions(bool AllowMultiples, FileHandle InFile, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
 			Rational ForceEditRate(0,0);
-			return ListWrappingOptions(InFile, ForceEditRate, ForceWrap);
+			return ListWrappingOptions(AllowMultiples, InFile, ForceEditRate, ForceWrap);
+		}
+
+		//! Produce a list of available wrapping options
+		static WrappingConfigList ListWrappingOptions(FileHandle InFile, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational ForceEditRate(0,0);
+			return ListWrappingOptions(false, InFile, ForceEditRate, ForceWrap);
 		}
 
 		//! Select the best wrapping option
-		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			return SelectWrappingOption(false, InFile, PDList, ForceEditRate, ForceWrap);
+		}
 
 		//! Select the best wrapping option
 		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
 			Rational ForceEditRate(0,0);
-			return SelectWrappingOption(InFile, PDList, ForceEditRate, ForceWrap);
+			return SelectWrappingOption(false, InFile, PDList, ForceEditRate, ForceWrap);
+		}
+
+		//! Select the best wrapping option
+		static WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Select the best wrapping option
+		static WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, FileHandle InFile, ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational ForceEditRate(0,0);
+			return SelectWrappingOption(AllowMultiples, InFile, PDList, ForceEditRate, ForceWrap);
+		}
+
+		//! Select the best wrapping option
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			return SelectWrappingOption(false, InFile, ForceEditRate, ForceWrap);
+		}
+
+		//! Select the best wrapping option
+		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational ForceEditRate(0,0);
+			return SelectWrappingOption(false, InFile, ForceEditRate, ForceWrap);
+		}
+
+		//! Select the best wrapping option
+		static WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, FileHandle InFile, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Select the best wrapping option
+		static WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, FileHandle InFile, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational ForceEditRate(0,0);
+			return SelectWrappingOption(AllowMultiples, InFile, ForceEditRate, ForceWrap);
 		}
 
 		//! Select the specified wrapping options
 		static void SelectWrappingOption(EssenceParser::WrappingConfigPtr Config);
-
-		//! Auto select a wrapping option (with a specified edit rate)
-		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile, Rational ForceEditRate);
 
 		//! Auto select a  wrapping option (using the default edit rate)
 		static WrappingConfigPtr SelectWrappingOption(FileHandle InFile)
@@ -1457,24 +1509,50 @@ namespace mxflib
 		ParserDescriptorListPtr IdentifyEssence(void);
 
 		//! Produce a list of available wrapping options
-		EssenceParser::WrappingConfigList ListWrappingOptions(ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		EssenceParser::WrappingConfigList ListWrappingOptions(bool AllowMultiples, ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
 			Rational Zero(0,0);
-			return ListWrappingOptions(PDList, Zero, ForceWrap);
+			return ListWrappingOptions(AllowMultiples, PDList, Zero, ForceWrap);
 		}
 
 		//! Produce a list of available wrapping options
-		EssenceParser::WrappingConfigList ListWrappingOptions(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+		EssenceParser::WrappingConfigList ListWrappingOptions(ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational Zero(0,0);
+			return ListWrappingOptions(false, PDList, Zero, ForceWrap);
+		}
+
+		//! Produce a list of available wrapping options
+		EssenceParser::WrappingConfigList ListWrappingOptions(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+
+		//! Produce a list of available wrapping options
+		EssenceParser::WrappingConfigList ListWrappingOptions(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			return ListWrappingOptions(false, PDList, ForceEditRate, ForceWrap);
+		}
 
 		//! Select the best wrapping option without a forced edit rate
 		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
 			Rational Zero(0,0);
-			return SelectWrappingOption(PDList, Zero, ForceWrap);
+			return SelectWrappingOption(false, PDList, Zero, ForceWrap);
 		}
 
 		//! Select the best wrapping option with a forced edit rate
-		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			return SelectWrappingOption(false, PDList, ForceEditRate, ForceWrap);
+		}
+
+		//! Select the best wrapping option without a forced edit rate
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			Rational Zero(0,0);
+			return SelectWrappingOption(AllowMultiples, PDList, Zero, ForceWrap);
+		}
+
+		//! Select the best wrapping option with a forced edit rate
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
 
 		//! Select the specified wrapping options
 		void SelectWrappingOption(EssenceParser::WrappingConfigPtr Config);
@@ -2308,6 +2386,9 @@ namespace mxflib
 
 	//! Smart pointer to a BodyStream
 	typedef SmartPtr<BodyStream> BodyStreamPtr;
+
+	//! List of smart pointers to BodyStreams
+	typedef std::list<BodyStreamPtr> BodyStreamList;
 
 	// Forward declare BodyWriterPtr to allow it to be used in BodyWriterHandler
 	class BodyWriter;

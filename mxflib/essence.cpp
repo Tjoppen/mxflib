@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.26 2006/09/04 14:02:09 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.27 2006/09/11 09:09:04 matt-beard Exp $
  *
  */
 /*
@@ -1903,12 +1903,12 @@ ParserDescriptorListPtr EssenceParser::IdentifyEssence(FileHandle InFile)
 
 
 //! Produce a list of available wrapping options
-EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(bool AllowMultiples, FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
 {
 	WrappingConfigList Ret;
 
 	// No options!
-	if(PDList->empty()) return Ret;
+	if((!PDList) || (PDList->empty())) return Ret;
 
 	// Identify the wrapping options for each descriptor
 	ParserDescriptorList::iterator pdit = PDList->begin();
@@ -1917,10 +1917,14 @@ EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle 
 		EssenceStreamDescriptorList::iterator it = (*pdit).second.begin();
 		while(it != (*pdit).second.end())
 		{
-			WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, *(*it));
+			// Filter out the multiples, if not allowed
+			if(AllowMultiples || (!(*it)->Descriptor->IsA(MultipleDescriptor_UL)))
+			{
+				WrappingOptionList WO = (*pdit).first->IdentifyWrappingOptions(InFile, *(*it));
 
-			// Extract the valid options from those identified by the parser, and add them to Ret
-			ExtractValidWrappingOptions(Ret, InFile, (*it), WO, ForceEditRate, ForceWrap);
+				// Extract the valid options from those identified by the parser, and add them to Ret
+				ExtractValidWrappingOptions(Ret, InFile, (*it), WO, ForceEditRate, ForceWrap);
+			}
 
 			it++;
 		}
@@ -1928,6 +1932,18 @@ EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(FileHandle 
 	}
 
 	return Ret;
+}
+
+
+//! Produce a list of available wrapping options
+EssenceParser::WrappingConfigList EssenceParser::ListWrappingOptions(bool AllowMultiples, FileHandle InFile, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+{
+	// Build a list of parsers with their descriptors for this essence
+	ParserDescriptorListPtr PDList = EssenceParser::IdentifyEssence(InFile);
+
+	// Return the list of options for these parsers
+	// DRAGONS: This called function will cope with an empty or NULL PDList
+	return ListWrappingOptions(AllowMultiples, InFile, PDList, ForceEditRate, ForceWrap);
 }
 
 
@@ -2010,7 +2026,26 @@ void EssenceParser::ExtractValidWrappingOptions(WrappingConfigList &Ret, FileHan
 
 
 //! Select the best wrapping option
-EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(bool AllowMultiples, FileHandle InFile, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+{
+	// Build a list of parsers with their descriptors for this essence
+	ParserDescriptorListPtr PDList = EssenceParser::IdentifyEssence(InFile);
+
+	// Wrapping config to return
+	EssenceParser::WrappingConfigPtr Ret;
+
+	// Only select a wrapping option if we can identify the essence
+	if(PDList && (!PDList->empty()))
+	{
+		Ret = SelectWrappingOption(AllowMultiples, InFile, PDList, ForceEditRate, ForceWrap);
+	}
+
+	return Ret;
+}
+
+
+//! Select the best wrapping option
+EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(bool AllowMultiples, FileHandle InFile, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
 {
 	EssenceParser::WrappingConfigPtr Ret;
 
@@ -2037,6 +2072,13 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 						it2++;
 						continue;
 					}
+				}
+
+				// Skip multiples if not allowed
+				if((!AllowMultiples) && (*it)->Descriptor->IsA(MultipleDescriptor_UL))
+				{
+					it2++;
+					continue;
 				}
 
 				Ret = new WrappingConfig;
@@ -2106,8 +2148,29 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(FileHandle 
 					// FIXME: This does not take into account the KAG
 					Ret->WrapOpt->BytesPerEditUnit = Ret->Parser->GetBytesPerEditUnit();
 
-					// Set the EssenceContainer Label in the descriptor
-					Ret->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16,Ret->WrapOpt->WrappingUL->GetValue()));
+					// Set the EssenceContainer Label in the descriptor or descriptors
+					if(Ret->EssenceDescriptor->IsA(MultipleDescriptor_UL))
+					{
+						// Set the EssenceContainer Label for the multiple descriptor
+						Ret->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16, GCMulti_Data));
+
+						MDObjectPtr SubPtr = Ret->EssenceDescriptor[SubDescriptorUIDs_UL];
+						if(SubPtr)
+						{
+							MDObject::iterator it = SubPtr->begin();
+							while(it != SubPtr->end())
+							{
+								MDObjectPtr Link = (*it).second->GetLink();
+								if(Link) Link->SetValue(EssenceContainer_UL, DataChunk(16,Ret->WrapOpt->WrappingUL->GetValue()));
+								it++;
+							}
+						}
+					}
+					else
+					{
+						// Set the EssenceContainer Label in the single descriptor
+						Ret->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16,Ret->WrapOpt->WrappingUL->GetValue()));
+					}
 
 					return Ret;
 				}
@@ -2146,8 +2209,30 @@ void EssenceParser::SelectWrappingOption(EssenceParser::WrappingConfigPtr Config
 	// FIXME: This does not take into account the KAG
 	Config->WrapOpt->BytesPerEditUnit = Config->Parser->GetBytesPerEditUnit();
 
-	// Set the EssenceContainer Label in the descriptor
-	Config->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16,Config->WrapOpt->WrappingUL->GetValue()));
+	// Set the EssenceContainer Label in the descriptor or descriptors
+	if(Config->EssenceDescriptor->IsA(MultipleDescriptor_UL))
+	{
+		// Set the EssenceContainer Label for the multiple descriptor
+		Config->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16, GCMulti_Data));
+
+		MDObjectPtr SubPtr = Config->EssenceDescriptor[SubDescriptorUIDs_UL];
+		if(SubPtr)
+		{
+			MDObject::iterator it = SubPtr->begin();
+			while(it != SubPtr->end())
+			{
+				MDObjectPtr Link = (*it).second->GetLink();
+				if(Link) Link->SetValue(EssenceContainer_UL, DataChunk(16,Config->WrapOpt->WrappingUL->GetValue()));
+				it++;
+			}
+		}
+	}
+	else
+	{
+		// Set the EssenceContainer Label in the single descriptor
+		Config->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16,Config->WrapOpt->WrappingUL->GetValue()));
+	}
+
 }
 
 
@@ -3781,16 +3866,16 @@ ParserDescriptorListPtr FileParser::IdentifyEssence(void)
 
 
 //! Produce a list of available wrapping options
-EssenceParser::WrappingConfigList FileParser::ListWrappingOptions(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+EssenceParser::WrappingConfigList FileParser::ListWrappingOptions(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
 {
-	return EssenceParser::ListWrappingOptions(CurrentFile, PDList, ForceEditRate, ForceWrap);
+	return EssenceParser::ListWrappingOptions(AllowMultiples, CurrentFile, PDList, ForceEditRate, ForceWrap);
 }
 
 
 //! Select the best wrapping option with a forced edit rate
-EssenceParser::WrappingConfigPtr FileParser::SelectWrappingOption(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+EssenceParser::WrappingConfigPtr FileParser::SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
 {
-	EssenceParser::WrappingConfigPtr Ret = EssenceParser::SelectWrappingOption(CurrentFile, PDList, ForceEditRate, ForceWrap);
+	EssenceParser::WrappingConfigPtr Ret = EssenceParser::SelectWrappingOption(AllowMultiples, CurrentFile, PDList, ForceEditRate, ForceWrap);
 
 	// Record the selected stream and sub-parser
 	if(Ret)
