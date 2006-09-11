@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2006/08/25 15:48:29 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2006/09/11 09:07:08 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -421,7 +421,7 @@
 		</RGBAEssenceDescriptor>
 		<GenericSoundEssenceDescriptor base="FileDescriptor" detail="Defines the Sound Essence Descriptor set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 42 00">
 			<AudioSamplingRate detail="Sampling rate of the audio essence" type="Rational" minLength="8" maxLength="8" key="3d 03" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 01 01 00 00" use="best effort" default="48000/1" dvalue="0/0"/>
-			<Locked detail="Boolean indicating that the Number of samples per frame is locked or unlocked (non-0 = locked)" type="Boolean" minLength="1" maxLength="1" key="3D 02" globalKey="06 0e 2b 34 01 01 01 04  04 02 03 01 04 00 00 00" use="required"/>
+			<Locked detail="Boolean indicating that the Number of samples per frame is locked or unlocked (non-0 = locked)" type="Boolean" minLength="1" maxLength="1" key="3D 02" globalKey="06 0e 2b 34 01 01 01 04  04 02 03 01 04 00 00 00" use="decoder required"/>
 			<AudioRefLevel detail="Audio reference level which gives the number of dBm for 0VU" type="Int8" minLength="1" maxLength="1" key="3D 04" globalKey="06 0e 2b 34 01 01 01 01  04 02 01 01 03 00 00 00" use="optional"/>
 			<ElectroSpatialFormulation detail="E.g. mono, dual mono, stereo, A,B etc (enum)" type="UInt8" minLength="1" maxLength="1" key="3D 05" globalKey="06 0e 2b 34 01 01 01 01  04 02 01 01 01 00 00 00" use="optional"/>
 			<ChannelCount detail="Number of Sound Channels" type="UInt32" minLength="4" maxLength="4" key="3D 07" globalKey="06 0e 2b 34 01 01 01 05  04 02 01 01 04 00 00 00" use="best effort" dvalue="0"/>
