@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.35 2006/09/04 13:56:32 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.36 2006/09/11 09:26:54 matt-beard Exp $
  *
  */
 /*
@@ -330,9 +330,9 @@ int main_process(int argc, char *argv[])
 		// Auto wrapping selection
 		if(SelectedWrappingOption < 0)
 		{
-			// Select the best wrapping option
-			if(FrameGroup) WCP = EssenceParser::SelectWrappingOption(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
-			else WCP = EssenceParser::SelectWrappingOption(InFile[i], PDList, ForceEditRate);
+			// Select the best wrapping option (only allow multiple stream compound types if not OPAtom)
+			if(FrameGroup) WCP = EssenceParser::SelectWrappingOption(!OPAtom, InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
+			else WCP = EssenceParser::SelectWrappingOption(!OPAtom, InFile[i], PDList, ForceEditRate);
 		}
 		else
 		// Manual wrapping selection
@@ -340,9 +340,10 @@ int main_process(int argc, char *argv[])
 			// Return code for -w options - used to flag error yet still show options
 			int Ret = 0;
 
+			// Get a list of wrapping types (only allow multiple stream compound types if not OPAtom)
 			EssenceParser::WrappingConfigList WCList;
-			if(FrameGroup) WCList = EssenceParser::ListWrappingOptions(InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
-			else WCList = EssenceParser::ListWrappingOptions(InFile[i], PDList, ForceEditRate);
+			if(FrameGroup) WCList = EssenceParser::ListWrappingOptions(!OPAtom, InFile[i], PDList, ForceEditRate, WrappingOption::Frame);
+			else WCList = EssenceParser::ListWrappingOptions(!OPAtom, InFile[i], PDList, ForceEditRate);
 
 			// Ensure that there are enough wrapping options
 			if(SelectedWrappingOption > (int)WCList.size())
@@ -1105,6 +1106,30 @@ void SetStreamWrapType(BodyStreamPtr &ThisStream, WrappingOption::WrapType Type)
 }
 
 
+namespace
+{
+	//! Structure holding info about each essence track
+	class EssenceTrackInfo : public RefCount<EssenceTrackInfo>
+	{
+	public:
+		GCStreamID EssenceID;						//!< Essence stream ID
+		TrackPtr MPTrack;							//!< Material Package track
+		TrackPtr FPTrack;							//!< File Package track
+		SourceClipPtr MPClip;						//!< Material Package SourceClip
+		SourceClipPtr FPClip;						//!< File Package SourceClip
+
+	public:
+		EssenceTrackInfo() { }
+		~EssenceTrackInfo() { }
+	};
+
+	//! Smart pointer to an EssenceTrackInfo
+	typedef SmartPtr<EssenceTrackInfo> EssenceTrackInfoPtr;
+
+	//! List of Smart pointers to EssenceTrackInfo objects
+	typedef std::list<EssenceTrackInfoPtr> EssenceTrackInfoList;
+}
+
 
 //! Process an output file
 int Process(	int OutFileNum,
@@ -1202,24 +1227,26 @@ int Process(	int OutFileNum,
 
 	// Build the File Packages and all essence tracks
 
-	// FP UMIDs are the same for all OutFiles, so they are supplied as a parameter
-	GCStreamID EssenceID[16];						//! Essence stream ID for each essence stream
-	TimecodeComponentPtr FPTimecodeComponent[16];	//! Timecode component for each file package
-	TrackPtr MPTrack[16];							//! Material Package track for each essence stream
-	TrackPtr FPTrack[16];							//! File Package track for each essence stream
-	SourceClipPtr MPClip[16];						//! Material Package SourceClip for each essence stream 
-	SourceClipPtr FPClip[16];						//! File Package SourceClip for each essence stream 
+	EssenceTrackInfoList TrackInfoList;				//!< List of all essence tracks
 
-	BodyStreamPtr Stream[16];						//! BodyStream for each stream being built (master stream if frame-grouping)
+	BodyStreamList Streams;							//!< BodyStream for each stream being built (master stream if frame-grouping)
 
-	PackagePtr FilePackage;
+	PackagePtr FilePackage;							//!< The current file package
 
 	unsigned int PrevEssenceType = 0;
 
-	int iTrack = 0;				//  Essence container and track index
+	// FIXME: Remove this array - find a better way
+	TimecodeComponentPtr FPTimecodeComponent[16];	//!< Timecode component in the file package
+
+	size_t TracksPerGang = 0;						//!< Count of the number of MP or FP tracks in a complete gang (set once the first gang is written)
+
+	int iTrack = 0;									//!<  Essence file index
 	WrapCfgList_it = WrapCfgList.begin();
 	while(WrapCfgList_it != WrapCfgList.end())
 	{
+		// Add a new essence track info item
+		TrackInfoList.push_back(new EssenceTrackInfo);
+
 		TrackPtr FPTimecodeTrack;
 
 		// Write File Packages except for externally ref'ed essence in OP-Atom
@@ -1233,24 +1260,24 @@ int Process(	int OutFileNum,
 				EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream, 0 );
 
 				// Build a stream object to write
-				Stream[iTrack] = new BodyStream(iTrack + 1, Source);
-				SetStreamWrapType(Stream[iTrack], (*WrapCfgList_it)->WrapOpt->ThisWrapType);
+				Streams.push_back(new BodyStream(iTrack + 1, Source));
+				SetStreamWrapType(Streams.back(), (*WrapCfgList_it)->WrapOpt->ThisWrapType);
 
 				// Force edit-unit align if requested
-				if(EditAlign) Stream[iTrack]->SetEditAlign(true);
+				if(EditAlign) Streams.back()->SetEditAlign(true);
 
-				// The source will be allocated a streamID when it is added to the BodyStream - we need that for track linking later
-				EssenceID[iTrack] = Source->GetStreamID();
+				// The source will have be allocated a StreamID when added to the BodyStream - we need that for track linking later
+				TrackInfoList.back()->EssenceID = Source->GetStreamID();
 
 				// Set indexing options for this stream
 				if(UseIndex || SparseIndex || SprinkledIndex)
 				{
-					if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
+					if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Streams.back(), true); 
 					else
 					{
 						if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
 						{
-							SetStreamIndex(Stream[iTrack], false);
+							SetStreamIndex(Streams.back(), false);
 						}
 						else
 						{
@@ -1260,7 +1287,7 @@ int Process(	int OutFileNum,
 				}
 
 				// Add this stream to the body writer
-				Writer->AddStream(Stream[iTrack]);
+				Writer->AddStream(Streams.back());
 
 				// Add the file package
 				FilePackage = MData->AddFilePackage(iTrack+1, std::string("File Package: ") + (*WrapCfgList_it)->WrapOpt->Description, FPUMID[iTrack]);
@@ -1281,34 +1308,36 @@ int Process(	int OutFileNum,
 			if(iTrack == 0)
 			{
 				// Build a stream object to write
-				Stream[0] = new BodyStream(iTrack + 1, Source);
+				Streams.push_back(new BodyStream(iTrack + 1, Source));
 
 				// DRAGONS: This should always end up as frame wrapping - but in the future "Other" may be used
-				SetStreamWrapType(Stream[0], (*WrapCfgList_it)->WrapOpt->ThisWrapType);
+				SetStreamWrapType(Streams.back(), (*WrapCfgList_it)->WrapOpt->ThisWrapType);
 
 				// Force edit-unit align if requested
-				if(EditAlign) Stream[iTrack]->SetEditAlign(true);
+				if(EditAlign) Streams.back()->SetEditAlign(true);
 			}
 			else
 			{
 				// Add this sub-stream
-				Stream[0]->AddSubStream(Source);
-				Stream[iTrack] = Stream[0];
+				Streams.front()->AddSubStream(Source);
+				
+				// Add a copy of the stream pointer so that the Nth entry always points to the BodyStream handling the Nth stream
+				Streams.push_back(Streams.front());
 			}
 
-			// The source will be allocated a streamID when it is added to the BodyStream - we need that for track linking later
-			EssenceID[iTrack] = Source->GetStreamID();
+			// The source will have be allocated a StreamID when added to the BodyStream - we need that for track linking later
+			TrackInfoList.back()->EssenceID = Source->GetStreamID();
 
 			// Set indexing options for this stream
 			// FIXME: This needs to be done only once based on CBR or VBR nature of combined group!!
 			if(UseIndex || SparseIndex || SprinkledIndex)
 			{
-				if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
+				if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Streams.back(), true); 
 				else
 				{
 					if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
 					{
-						SetStreamIndex(Stream[iTrack], false);
+						SetStreamIndex(Streams.back(), false);
 					}
 					else
 					{
@@ -1318,7 +1347,7 @@ int Process(	int OutFileNum,
 			}
 
 			// Add this stream to the body writer (first pass only)
-			if(iTrack == 0) Writer->AddStream(Stream[0]);
+			if(iTrack == 0) Writer->AddStream(Streams.front());
 
 			PrevEssenceType = (*WrapCfgList_it)->WrapOpt->GCEssenceType;
 
@@ -1336,24 +1365,24 @@ int Process(	int OutFileNum,
 			EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream, 0 );
 
 			// Build a stream object to write
-			Stream[iTrack] = new BodyStream(iTrack + 1, Source);
-			SetStreamWrapType(Stream[iTrack], (*WrapCfgList_it)->WrapOpt->ThisWrapType);
+			Streams.push_back(new BodyStream(iTrack + 1, Source));
+			SetStreamWrapType(Streams.back(), (*WrapCfgList_it)->WrapOpt->ThisWrapType);
 
 			// Force edit-unit align if requested
-			if(EditAlign) Stream[iTrack]->SetEditAlign(true);
+			if(EditAlign) Streams.back()->SetEditAlign(true);
 
-			// The source will be allocated a streamID when it is added to the BodyStream - we need that for track linking later
-			EssenceID[iTrack] = Source->GetStreamID();
+			// The source will have be allocated a StreamID when added to the BodyStream - we need that for track linking later
+			TrackInfoList.back()->EssenceID = Source->GetStreamID();
 
 			// Set indexing options for this stream
 			if(UseIndex || SparseIndex || SprinkledIndex)
 			{
-				if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Stream[iTrack], true); 
+				if((*WrapCfgList_it)->WrapOpt->CBRIndex) SetStreamIndex(Streams.back(), true); 
 				else
 				{
 					if((*WrapCfgList_it)->WrapOpt->ThisWrapType == WrappingOption::Frame)
 					{
-						SetStreamIndex(Stream[iTrack], false);
+						SetStreamIndex(Streams.back(), false);
 					}
 					else
 					{
@@ -1363,7 +1392,7 @@ int Process(	int OutFileNum,
 			}
 
 			// Add this stream to the body writer
-			Writer->AddStream(Stream[iTrack]);
+			Writer->AddStream(Streams.back());
 
 			// DRAGONS: Why if(true) ? To match the code structure in the other two cases above
 			if( true )
@@ -1375,115 +1404,217 @@ int Process(	int OutFileNum,
 			}
 		}
 
-		// Add the appropriate Track to the Material Package
-		if(iTrack < InFileGangSize) // first gang only
+		/* We now add tracks for this essence stream - multiple streams if we have a DV-style compound essence source */
+		
+		//! The current descriptor
+		MDObjectPtr ThisDescriptor = (*WrapCfgList_it)->EssenceDescriptor;
+
+		//! The sub-descriptor batch, if this is a multiple stream, else NULL
+		MDObjectPtr SubDescriptors;
+
+		//! Iterator for scanning the sub-descriptor batch, if this is a multiple stream
+		MDObject::iterator SubDescriptorsIt;
+
+		//! The index number of the sub track within this multiple essence stream, zero for the first
+		size_t SubTrackIndex = 0;
+
+		//! Is this essense stream a multiplexed type
+		if((*WrapCfgList_it)->EssenceDescriptor->IsA(MultipleDescriptor_UL))
 		{
-			switch((*WrapCfgList_it)->WrapOpt->GCEssenceType)
+			SubDescriptors = ThisDescriptor[SubDescriptorUIDs_UL];
+			if(SubDescriptors)
 			{
-			case 0x05: case 0x15:
-				MPTrack[iTrack] = MaterialPackage->AddPictureTrack(EditRate);
-				break;
-			case 0x06: case 0x16:
-				MPTrack[iTrack] = MaterialPackage->AddSoundTrack(EditRate);
-				break;
-			case 0x07: case 0x17: default:
-				MPTrack[iTrack] = MaterialPackage->AddDataTrack(EditRate);
-				break;
+				SubDescriptorsIt = SubDescriptors->begin();
 			}
 		}
 
-		// Add the track to the file package
-		if(WriteFP) 
+		/* Locate the track info for the material package track containing this essence (or the first sub-stream of */
+		/* This will be the current track info if we are in the firsat gang, otherwise we locate the corresponding track in the first gang */
+
+		EssenceTrackInfoList::iterator TrackInfoIt;
+		if(iTrack < InFileGangSize)
 		{
-			switch((*WrapCfgList_it)->WrapOpt->GCEssenceType)
-			{
-			case 0x05: case 0x15:
-				FPTrack[iTrack] = FilePackage->AddPictureTrack(Stream[iTrack]->GetTrackNumber(), EditRate);
-				break;
-			case 0x06: case 0x16:
-				FPTrack[iTrack] = FilePackage->AddSoundTrack(Stream[iTrack]->GetTrackNumber(), EditRate);
-				break;
-			case 0x07: case 0x17: default:
-				FPTrack[iTrack] = FilePackage->AddDataTrack(Stream[iTrack]->GetTrackNumber(), EditRate);
-				break;
-			}
+			TrackInfoIt = TrackInfoList.end();
+			TrackInfoIt--;
+		}
+		else
+		{
+			ASSERT(TracksPerGang);
+
+			// This gives us a value that is the track number in the track info list of the corresponding first gang track (0 being the first)
+			size_t TrackPos = (TrackInfoList.size() - 1) % TracksPerGang;
+
+			TrackInfoIt = TrackInfoList.begin();
+			while(TrackPos--) TrackInfoIt++;
 		}
 
-
-		// Locate the material package track this essence is in
-		int TrackNumber = iTrack;
-		while(TrackNumber >= InFileGangSize) TrackNumber -= InFileGangSize;
-
-		// Add a single Component to this Track of the Material Package
-		MPClip[iTrack] = MPTrack[TrackNumber]->AddSourceClip();
-
-		// Add a single Component to this Track of the File Package
-		if(WriteFP) FPClip[iTrack] = FPTrack[iTrack]->AddSourceClip();
-
-		// Add the file descriptor to the file package
-		// except for externally ref'ed essence in OP-Atom
-		if( OPAtom )
+		for(;;)
 		{
-			// Write a File Descriptor only on the internally ref'ed Track 
-			if( WriteFP ) // (iTrack == OutFileNum)
+			// Locate the descriptor if this is a multiple essence stream
+			if(SubDescriptors)
 			{
-				(*WrapCfgList_it)->EssenceDescriptor->SetUInt(LinkedTrackID_UL, FPTrack[iTrack]->GetUInt(TrackID_UL));
-				FilePackage->AddChild(Descriptor_UL)->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
+				// All done?
+				if(SubDescriptorsIt == SubDescriptors->end()) break;
+
+				ThisDescriptor = (*SubDescriptorsIt).second->GetLink();
+			
+				if(!ThisDescriptor)
+				{
+					error("Broken link in multiple descriptor for %s\n", (*WrapCfgList_it)->WrapOpt->Description.c_str());
+					SubDescriptorsIt++;
+
+					// DRAGONS: We don't increment SubTrackIndex here as we have not added any tracks for this sub-stream
+					continue;
+				}
+
+				// If this is not the fist sub-stream then we will need to duplicate the track info structure for the new sub-track
+				if(SubTrackIndex)
+				{
+					TrackInfoList.push_back(new EssenceTrackInfo(*(TrackInfoList.back())));
+				}
+			}
+
+			// Now that we have possibly added a new entry to the end of the track info list, 
+			// it is safe to step back to the last entry if we stepped off the end last time through the list.
+			// See the note at the end of this loop
+			if(TrackInfoIt == TrackInfoList.end()) TrackInfoIt--;
+
+
+			/* Determine what type of tracks to add */
+			/* Note: We only add material package tracks on the first gang, and we only add file package tracks if we are writing a file package */
+			
+			if(ThisDescriptor->IsA(GenericPictureEssenceDescriptor_UL))
+			{
+				if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddPictureTrack(EditRate);
+				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddPictureTrack(Streams.back()->GetTrackNumber(), EditRate);
+			}
+			else
+			if(ThisDescriptor->IsA(GenericSoundEssenceDescriptor_UL))
+			{
+				if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddSoundTrack(EditRate);
+				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddSoundTrack(Streams.back()->GetTrackNumber(), EditRate);
+			}
+			else
+			if(ThisDescriptor->IsA(GenericDataEssenceDescriptor_UL))
+			{
+				if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddDataTrack(EditRate);
+				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddDataTrack(Streams.back()->GetTrackNumber(), EditRate);
+			}
+			else
+			{
+				// If we can't determine the track type from the descriptor, use the essence type
+				switch((*WrapCfgList_it)->WrapOpt->GCEssenceType)
+				{
+				case 0x05: case 0x15:
+					if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddPictureTrack(EditRate);
+					if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddPictureTrack(Streams.back()->GetTrackNumber(), EditRate);
+					break;
+				case 0x06: case 0x16:
+					if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddSoundTrack(EditRate);
+					if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddSoundTrack(Streams.back()->GetTrackNumber(), EditRate);
+					break;
+				case 0x07: case 0x17: default:
+					TrackInfoList.back()->FPTrack = FilePackage->AddDataTrack(Streams.back()->GetTrackNumber(), EditRate);
+					if(WriteFP) if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddDataTrack(EditRate);
+					break;
+				}
+			}
+
+			EssenceTrackInfoPtr p = (*TrackInfoIt);
+			// Add a single Component to this Track of the Material Package
+			TrackInfoList.back()->MPClip = (*TrackInfoIt)->MPTrack->AddSourceClip();
+
+			// Add a single Component to this Track of the File Package
+			if(WriteFP) TrackInfoList.back()->FPClip = TrackInfoList.back()->FPTrack->AddSourceClip();
+
+			// Add the file descriptor to the file package
+			// except for externally ref'ed essence in OP-Atom
+			if( OPAtom )
+			{
+				// Write a File Descriptor only on the internally ref'ed Track 
+				if( WriteFP ) // (iTrack == OutFileNum)
+				{
+					ThisDescriptor->SetUInt(LinkedTrackID_UL, TrackInfoList.back()->FPTrack->GetUInt(TrackID_UL));
+					FilePackage->AddChild(Descriptor_UL)->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
+
+					MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
+
+					// Link the MP to the FP
+					TrackInfoList.back()->MPClip->MakeLink(TrackInfoList.back()->FPTrack, 0);
+				}
+				else // (!WriteFP)
+				{
+					// Link the MP to the external FP
+					// DRAGONS: We must assume what the linked track will be... track 2
+					//          This is because there will be only two tracks, track 1 will be timecode, track 2 will be the essence
+					// FIXME: What if there is no timecode track?
+					TrackInfoList.back()->MPClip->MakeLink(FPUMID[iTrack], 2, 0);
+				}
+			}
+			else if( FrameGroup ) // !OPAtom
+			{
+				// write a MultipleDescriptor only on the first Iteration
+				if( iTrack == 0 )
+				{
+						MDObjectPtr MuxDescriptor = new MDObject(MultipleDescriptor_UL);
+						MuxDescriptor->AddChild(SampleRate_UL)->SetInt("Numerator",(*WrapCfgList_it)->EssenceDescriptor[SampleRate_UL]->GetInt("Numerator"));
+						MuxDescriptor->AddChild(SampleRate_UL)->SetInt("Denominator",(*WrapCfgList_it)->EssenceDescriptor[SampleRate_UL]->GetInt("Denominator"));
+
+						MuxDescriptor->AddChild(EssenceContainer_UL,false)->SetValue(DataChunk(16,mxflib::GCMulti_Data));
+
+						MuxDescriptor->AddChild(SubDescriptorUIDs_UL);
+						FilePackage->AddChild(Descriptor_UL)->MakeRef(MuxDescriptor);
+				}
+
+				// Write a SubDescriptor
+				ThisDescriptor->SetUInt(LinkedTrackID_UL, TrackInfoList.back()->FPTrack->GetUInt(TrackID_UL));
+				
+				MDObjectPtr MuxDescriptor = FilePackage[Descriptor_UL]->GetLink();
+
+				MuxDescriptor[SubDescriptorUIDs_UL]->AddChild()->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
 
 				MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
 
 				// Link the MP to the FP
-				MPClip[iTrack]->MakeLink(FPTrack[iTrack], 0);
+				TrackInfoList.back()->MPClip->MakeLink(TrackInfoList.back()->FPTrack, 0);
 			}
-			else // (!WriteFP)
+			else // !OPAtom, !FrameGroup
 			{
-				// Link the MP to the external FP
-				// DRAGONS: We must assume what the linked track will be... track 2
-				MPClip[iTrack]->MakeLink(FPUMID[iTrack], 2, 0);
-			}
-		}
-		else if( FrameGroup ) // !OPAtom
-		{
-			// write a MultipleDescriptor only on the first Iteration
-			if( iTrack == 0 )
-			{
-					MDObjectPtr MuxDescriptor = new MDObject(MultipleDescriptor_UL);
-					MuxDescriptor->AddChild(SampleRate_UL)->SetInt("Numerator",(*WrapCfgList_it)->EssenceDescriptor[SampleRate_UL]->GetInt("Numerator"));
-					MuxDescriptor->AddChild(SampleRate_UL)->SetInt("Denominator",(*WrapCfgList_it)->EssenceDescriptor[SampleRate_UL]->GetInt("Denominator"));
+				// Write a FileDescriptor
+				// DRAGONS Can we ever need a MultipleDescriptor?
+				ThisDescriptor->SetUInt(LinkedTrackID_UL, TrackInfoList.back()->FPTrack->GetUInt(TrackID_UL));
+				
+				// If this is multiple essence, only add the mux descriptor and essence type on the first sub-track
+				if((!SubDescriptors) || (SubTrackIndex == 0))
+				{
+					FilePackage->AddChild(Descriptor_UL)->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
+					MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
+				}
 
-					MuxDescriptor->AddChild(EssenceContainer_UL,false)->SetValue(DataChunk(16,mxflib::GCMulti_Data));
-
-					MuxDescriptor->AddChild(SubDescriptorUIDs_UL);
-					FilePackage->AddChild(Descriptor_UL)->MakeRef(MuxDescriptor);
+				// Link the MP to the FP
+				TrackInfoList.back()->MPClip->MakeLink(TrackInfoList.back()->FPTrack, 0);
 			}
 
-			// Write a SubDescriptor
-			(*WrapCfgList_it)->EssenceDescriptor->SetUInt(LinkedTrackID_UL, FPTrack[iTrack]->GetUInt(TrackID_UL));
+			// Exit loop after a single iteration if not multiple essence
+			if(!SubDescriptors) break;
+
+			// Move to next sub-descriptor
+			SubDescriptorsIt++;
+			SubTrackIndex++;
 			
-			MDObjectPtr MuxDescriptor = FilePackage[Descriptor_UL]->GetLink();
-
-			MuxDescriptor[SubDescriptorUIDs_UL]->AddChild()->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
-
-			MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
-
-			// Link the MP to the FP
-			MPClip[iTrack]->MakeLink(FPTrack[iTrack], 0);
-		}
-		else // !OPAtom, !FrameGroup
-		{
-			// Write a FileDescriptor
-			// DRAGONS Can we ever need a MultipleDescriptor?
-			(*WrapCfgList_it)->EssenceDescriptor->SetUInt(LinkedTrackID_UL, FPTrack[iTrack]->GetUInt(TrackID_UL));
-			FilePackage->AddChild(Descriptor_UL)->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
-
-			MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
-
-			// Link the MP to the FP
-			MPClip[iTrack]->MakeLink(FPTrack[iTrack], 0);
-		}
+			// DRAGONS: This may step off the end on the list, in fact it will for every time through in the first gang
+			//          as we will not yet have added the duplicate track info for the next sub track. We could just add
+			//          the duplication code here - but that would end up wrong if we don't add another sub track, for
+			//          example when we hit the end of the sub track list. Instead we move the pointer back to the new entry
+			//          later if this stepped us off the end
+			TrackInfoIt++;
+		};
 
 		WrapCfgList_it++;
 		iTrack++;
+
+		// Set the gang size when we hit the end of the first gang
+		if(iTrack == InFileGangSize) TracksPerGang = TrackInfoList.size();
 	}
 
 
@@ -1499,8 +1630,9 @@ int Process(	int OutFileNum,
 		if(ECDataSets) ECDataSets = ECDataSets[EssenceContainerDataBatch_UL];
 
 		WrapCfgList_it = WrapCfgList.begin();
+		BodyStreamList::iterator Streams_it = Streams.begin();
 		iTrack=0;
-		while(WrapCfgList_it != WrapCfgList.end())
+		while((WrapCfgList_it != WrapCfgList.end()) && (Streams_it != Streams.end()))
 		{
 			// Only index it if we can
 			// Currently we can only VBR index frame wrapped essence
@@ -1515,16 +1647,16 @@ int Process(	int OutFileNum,
 					// FrameGroup will use a single multi-stream index...
 					if(FrameGroup)
 					{
-						BodySID = Stream[0]->GetBodySID();
+						BodySID = Streams.front()->GetBodySID();
 						IndexSID = 129;
-						Stream[0]->SetIndexSID(129);
+						Streams.front()->SetIndexSID(129);
 					}
 					// ...otherwise one per stream
 					else
 					{
-						BodySID = Stream[iTrack]->GetBodySID();
+						BodySID = (*Streams_it)->GetBodySID();
 						IndexSID = iTrack + 129;
-						Stream[iTrack]->SetIndexSID(IndexSID);
+						(*Streams_it)->SetIndexSID(IndexSID);
 					}
 
 					// Update IndexSID in essence container data set
@@ -1631,12 +1763,23 @@ int Process(	int OutFileNum,
 	MData->SetTime();
 
 	// Update all durations
-	Int32 IndexBaseTrack;
-	if( OPAtom ) IndexBaseTrack = OutFileNum;
-	else if( FrameGroup ) IndexBaseTrack = 0;
-	else  IndexBaseTrack = 0;
+	BodyStreamPtr IndexBaseStream;
+	if( OPAtom ) 
+	{
+		// Locate the (OutFileNum)th stream - which should be the source we are wrapping for this file
+		int i = OutFileNum;
+		BodyStreamList::iterator it = Streams.begin();
+		while((i--) && it != Streams.end()) it++;
 
-	Length EssenceDuration = (Length) Stream[IndexBaseTrack]->GetSource()->GetCurrentPosition();
+		// Back off if we fell off the end of the list
+		if(it == Streams.end()) it--;
+
+		IndexBaseStream = *it;
+	}
+	else if( FrameGroup ) IndexBaseStream = Streams.front();
+	else IndexBaseStream = Streams.front();
+
+	Length EssenceDuration = (Length) IndexBaseStream->GetSource()->GetCurrentPosition();
 	if(PutTCTrack)
 		MPTimecodeComponent->SetDuration(EssenceDuration);
 
@@ -1644,17 +1787,23 @@ int Process(	int OutFileNum,
 	WrapCfgList_it = WrapCfgList.begin();
 	while(WrapCfgList_it != WrapCfgList.end())
 	{
-		MPClip[iTrack]->SetDuration(EssenceDuration);
 		if((!OPAtom) || (iTrack == OutFileNum))
 		{
 			if(PutTCTrack)
 				if((iTrack==0) || (!FrameGroup)) FPTimecodeComponent[iTrack]->SetDuration(EssenceDuration);
-			FPClip[iTrack]->SetDuration(EssenceDuration);
 			(*WrapCfgList_it)->EssenceDescriptor->SetInt64(ContainerDuration_UL,EssenceDuration);
 		}
 			
 		WrapCfgList_it++;
 		iTrack++;
+	}
+
+	EssenceTrackInfoList::iterator TrackInfoIt = TrackInfoList.begin();
+	while(TrackInfoIt != TrackInfoList.end())
+	{
+		if((*TrackInfoIt)->MPClip) (*TrackInfoIt)->MPClip->SetDuration(EssenceDuration);
+		if((*TrackInfoIt)->FPClip) (*TrackInfoIt)->FPClip->SetDuration(EssenceDuration);
+		TrackInfoIt++;
 	}
 
 	// Update the generation UIDs in the metadata to reflect the changes
