@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.10 2006/09/04 13:58:09 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.11 2006/09/11 09:09:57 matt-beard Exp $
  *
  */
 /*
@@ -225,8 +225,11 @@ namespace mxflib
 		virtual std::string GetParserName(void) const { return "dvdif"; }
 
 	protected:
-		//! Read the header at the specified position in a DV file to build an essence descriptor
+		//! Read the header at the specified position in a DV file to build a video essence descriptor
 		MDObjectPtr BuildCDCIEssenceDescriptor(FileHandle InFile, UInt64 Start = 0);
+
+		//! Read the header at the specified position in a DV file to build an audio essence descriptor
+		MDObjectPtr BuildSoundEssenceDescriptor(FileHandle InFile, UInt64 Start = 0);
 
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
 		size_t ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count/*, IndexTablePtr Index = NULL*/);

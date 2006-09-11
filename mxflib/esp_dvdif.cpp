@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.11 2006/09/04 13:58:09 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.12 2006/09/11 09:09:57 matt-beard Exp $
  *
  */
 /*
@@ -174,10 +174,10 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	}
 
 	// Attempt to parse the format
-	MDObjectPtr DescObj = BuildCDCIEssenceDescriptor(InFile, 0);
+	MDObjectPtr VideoDescObj = BuildCDCIEssenceDescriptor(InFile, 0);
 
 	// Quit here if we couldn't build an essence descriptor
-	if(!DescObj) return Ret;
+	if(!VideoDescObj) return Ret;
 
 	// Check the size (assume the entire file is DIF data)
 	DIFStart = 0;
@@ -192,13 +192,49 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	Descriptor->ID = 0;
 	Descriptor->Description = "DV-DIF audio/video essence";
 	Descriptor->SourceFormat.Set(DV_DIF_RAW_Format);
-	Descriptor->Descriptor = DescObj;
+	Descriptor->Descriptor = VideoDescObj;
 
-	// Record a pointer to the descriptor so we can check if we are asked to process this source
-	CurrentDescriptor = DescObj;
+	MDObjectPtr AudioDescObj = BuildSoundEssenceDescriptor(InFile, 0);
 
-	// Set the single descriptor
+	// Return to the start of the DIF data (building the audio descriptor will probably have moved the file pointer)
+	FileSeek(InFile, DIFStart);
+
+	// Don't build the multiplex version if we failed to build the sound descriptor (or the mux descriptor)
+	if(AudioDescObj)
+	{
+		MDObjectPtr MuxDescObj = new MDObject(MultipleDescriptor_UL);
+		if(MuxDescObj)
+		{
+			// Copy up the video edit rate
+			MuxDescObj->SetString(SampleRate_UL, VideoDescObj->GetString(SampleRate_UL));
+
+			MDObjectPtr SubDescriptors = MuxDescObj->AddChild(SubDescriptorUIDs_UL);
+			if(SubDescriptors)
+			{
+				MDObjectPtr Ptr = SubDescriptors->AddChild();
+				if(Ptr) Ptr->MakeLink(VideoDescObj);
+				Ptr = SubDescriptors->AddChild();
+				if(Ptr) Ptr->MakeLink(AudioDescObj);
+			
+				// Build a descriptor with a zero ID (we only support single stream files)
+				EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
+				MuxDescriptor->ID = 0;
+				MuxDescriptor->Description = "DV-DIF audio/video essence";
+				MuxDescriptor->SourceFormat.Set(DV_DIF_RAW_Format);
+				MuxDescriptor->Descriptor = MuxDescObj;
+
+				// Add the multiple descriptor
+				Ret.push_back(MuxDescriptor);
+			}
+		}
+	}
+
+	// Add the single descriptor last so that the multiple one will be selected in preference, if allowed
 	Ret.push_back(Descriptor);
+
+	// Attempt to parse the format
+	// Record a pointer to the video descriptor so we can check if we are asked to process this source
+	CurrentDescriptor = VideoDescObj;
 
 	return Ret;
 }
@@ -219,16 +255,42 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	if(memcmp(Descriptor.SourceFormat.GetValue(), DV_DIF_RAW_Format, 16) != 0) return Ret;
 
 	// The identify step configures some member variables so we can only continue if we just identified this very source
-	if((!CurrentDescriptor) || (Descriptor.Descriptor != CurrentDescriptor)) return Ret;
+	bool DescriptorMatch = false;
+	bool MuxDescriptor = false;
+	if(Descriptor.Descriptor == CurrentDescriptor) DescriptorMatch = true;
+	else if(Descriptor.Descriptor->IsA(MultipleDescriptor_UL))
+	{
+		// Check if the first sub of a multiple is our video descriptor
+		MDObjectPtr Ptr = Descriptor.Descriptor[SubDescriptorUIDs_UL];
+		if(Ptr) Ptr = Ptr->front().second;
+		if(Ptr) Ptr = Ptr->GetLink();
+		if(Ptr == CurrentDescriptor)
+		{
+			DescriptorMatch = true;
+			MuxDescriptor = true;
+		}
+	}
+
+	// We didn't build this descriptor, so we can't wrap the essence
+	if(!DescriptorMatch) return Ret;
 
 	// Build a WrappingOption for clip wrapping
 	WrappingOptionPtr ClipWrap = new WrappingOption;
 
 	ClipWrap->Handler = this;							// Set us as the handler
-	ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video data";
+
+	if(MuxDescriptor)
+	{
+		ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video and audio data";
+		ClipWrap->Name = "clip-av";						// Set the wrapping name
+	}
+	else
+	{
+		ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video data";
+		ClipWrap->Name = "clip";						// Set the wrapping name
+	}
 
 	BaseUL[15] = 0x02;									// Clip wrapping
-	ClipWrap->Name = "clip";							// Set the wrapping name
 	ClipWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	ClipWrap->GCEssenceType = 0x18;						// GC Compound wrapping type
 	ClipWrap->GCElementType = 0x02;						// Clip wrapped picture elemenet
@@ -242,10 +304,19 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	WrappingOptionPtr FrameWrap = new WrappingOption;
 
 	FrameWrap->Handler = this;							// Set us as the handler
-	FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video data";
+
+	if(MuxDescriptor)
+	{
+		FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video and audio data";
+		FrameWrap->Name = "frame-av";						// Set the wrapping name
+	}
+	else
+	{
+		FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video data";
+		FrameWrap->Name = "frame";						// Set the wrapping name
+	}
 
 	BaseUL[15] = 0x01;									// Frame wrapping
-	FrameWrap->Name = "frame";							// Set the wrapping name
 	FrameWrap->WrappingUL = new UL(BaseUL);				// Set the UL
 	FrameWrap->GCEssenceType = 0x18;					// GC Compound wrapping type
 	FrameWrap->GCElementType = 0x01;					// Frame wrapped picture elemenet
@@ -483,6 +554,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 
 	Ret->SetUInt(ComponentDepth_UL, 8);
 
+	// FIXME: Currently only supports SD DV
 	if(!is625)
 	{
 		Ret->SetUInt(HorizontalSubsampling_UL, 4);
@@ -503,6 +575,60 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 	}
 
 	Ret->SetUInt(ColorSiting_UL, 0);				// Co-sited
+
+	return Ret;
+}
+
+
+//! Read the header at the specified position in a DV file to build a sound essence descriptor
+/*! DRAGONS: Currently rather scrappy */
+MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptor(FileHandle InFile, UInt64 Start /*=0*/)
+{
+	MDObjectPtr Ret;
+	UInt8 Buffer[80];
+
+	// Read the header DIF block
+	FileSeek(InFile, Start);
+	if(FileRead(InFile, Buffer, 80) < 80) return Ret;
+
+	// Set 625/50 flag from the header
+	bool is625 = ((Buffer[3] & 0x80) == 0x80);
+
+	// Set SMPTE-314M flag by assuming the APT value will only be 001 or 111 if we are in SMPTE-314M
+	bool isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
+
+	// Bug out if the video is flagged as invalid
+	if((Buffer[6] & 0x80) != 0) return Ret;
+
+
+	// Build the essence descriptor, filling in all known values
+
+	Ret = new MDObject(GenericSoundEssenceDescriptor_UL);
+	if(!Ret) return Ret;
+
+	if(!is625)
+	{
+		Ret->SetString(SampleRate_UL, "30000/1001");
+
+		NativeEditRate.Numerator = 30000;
+		NativeEditRate.Denominator = 1001;
+
+		SeqCount = 10;
+	}
+	else
+	{
+		Ret->SetString(SampleRate_UL, "25/1");
+
+		NativeEditRate.Numerator = 25;
+		NativeEditRate.Denominator = 1;
+
+		SeqCount = 12;
+	}
+
+	// FIXME: We currently assume 2 channel, 16-bit, 48kHz audio
+	Ret->SetInt(ChannelCount_UL, 2);
+	Ret->SetString(AudioSamplingRate_UL, "48000/1");
+	Ret->SetInt(QuantizationBits_UL, 16);
 
 	return Ret;
 }
