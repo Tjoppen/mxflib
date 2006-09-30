@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.12 2006/09/01 16:19:01 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.13 2006/09/30 13:39:27 matt-beard Exp $
  *
  */
 /*
@@ -667,10 +667,10 @@ namespace mxflib
 			DataChunk SchemeValue;
 			SchemeValue.Set(16, Scheme->GetValue());
 
-			// Get a list of known containers
+			// Get a list of current schemes
 			MDObjectPtr SchemeList = Object->Child(DMSchemes_UL);
 
-			// Scan the list to see if we already have this type
+			// Scan the list to see if we already have this one
 			MDObjectULList::iterator it = SchemeList->begin();
 			while(it != SchemeList->end())
 			{
