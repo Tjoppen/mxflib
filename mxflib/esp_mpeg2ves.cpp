@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.9 2006/09/04 13:58:09 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.10 2006/09/30 13:40:54 matt-beard Exp $
  *
  */
 /*
@@ -619,7 +619,16 @@ size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 						}
 
 						// Now we have determined if this is an anchor frame we can work out the anchor offset
-						int AnchorOffset = (int)(PictureNumber - AnchorFrame);
+						// DRAGONS: In MPEG all offsets are -ve
+						int AnchorOffset = (int)(AnchorFrame - PictureNumber);
+						
+						// As stated in 381M section A.2 if AnchorOffset bursts the range, it will be fixed at the
+						// "maximum value which can be represented" (note: not the minimum!) and bit 3 of the flags btes be set
+						if(AnchorOffset < 128)
+						{
+							AnchorOffset = 127;
+							Flags |= 4;
+						}
 
 						//
 						// Offer this index table data to the index manager
