@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.27 2006/09/11 09:09:04 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.28 2006/09/30 13:33:06 matt-beard Exp $
  *
  */
 /*
@@ -4232,24 +4232,28 @@ void BodyStream::InitIndexManager(void)
 	// Set the sub-range offset, if required
 	IndexMan->SetSubRangeOffset(front()->GetRangeStart());
 
-	// Locate the highest pre-charge size, so we can set the -ve index edit unit correctly
-	Length HighestPrechargeSize = 0;
-	MapIt = IndexOrderMap.begin();
-	while(MapIt != IndexOrderMap.end())
+	// Set the -ve indexing for pre-charge, if selected
+	if(Feature(FeatureNegPrechargeIndex))
 	{
-		// Check if this is the largest precharge
-		Length ThisSize = (*MapIt).second->GetPrechargeSize();
-		if(ThisSize > HighestPrechargeSize) HighestPrechargeSize = ThisSize;
+		// Locate the highest pre-charge size, so we can set the -ve index edit unit correctly
+		Length HighestPrechargeSize = 0;
+		MapIt = IndexOrderMap.begin();
+		while(MapIt != IndexOrderMap.end())
+		{
+			// Check if this is the largest precharge
+			Length ThisSize = (*MapIt).second->GetPrechargeSize();
+			if(ThisSize > HighestPrechargeSize) HighestPrechargeSize = ThisSize;
 
-		MapIt++;
-	}
+			MapIt++;
+		}
 
-	// Set the index edit unit -ve for the pre-charge, if required
-	if(HighestPrechargeSize) 
-	{
-		// This is also the next edit unit that will be written to a sprinkled index
-		NextSprinkled = 0 - HighestPrechargeSize;
-		StreamWriter->SetIndexEditUnit(NextSprinkled);
+		// Set the index edit unit -ve for the pre-charge, if required
+		if(HighestPrechargeSize) 
+		{
+			// This is also the next edit unit that will be written to a sprinkled index
+			NextSprinkled = 0 - HighestPrechargeSize;
+			StreamWriter->SetIndexEditUnit(NextSprinkled);
+		}
 	}
 }
 
