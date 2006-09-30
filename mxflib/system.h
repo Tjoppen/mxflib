@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.17 2006/09/03 16:33:04 matt-beard Exp $
+ *	\version $Id: system.h,v 1.18 2006/09/30 13:40:01 matt-beard Exp $
  *
  */
 /*
@@ -570,7 +570,7 @@ namespace mxflib
 #include <assert.h>
 #define ASSERT assert		// use -DNDEBUG
 
-/** Operating system name for non-windows platrorms **/
+/** Operating system name for non-windows platforms **/
 
 namespace mxflib
 {
