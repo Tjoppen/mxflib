@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.12 2006/09/11 09:09:57 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.13 2006/09/30 16:37:38 matt-beard Exp $
  *
  */
 /*
@@ -593,9 +593,6 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptor(FileHandle InFi
 
 	// Set 625/50 flag from the header
 	bool is625 = ((Buffer[3] & 0x80) == 0x80);
-
-	// Set SMPTE-314M flag by assuming the APT value will only be 001 or 111 if we are in SMPTE-314M
-	bool isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
 
 	// Bug out if the video is flagged as invalid
 	if((Buffer[6] & 0x80) != 0) return Ret;
