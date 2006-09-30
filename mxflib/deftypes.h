@@ -1,6 +1,6 @@
 /*! \file	deftypes.h
  *	\brief	Definition of classes that load type and class dictionaries
- *	\version $Id: deftypes.h,v 1.10 2006/08/25 15:49:00 matt-beard Exp $
+ *	\version $Id: deftypes.h,v 1.11 2006/09/30 13:38:49 matt-beard Exp $
  *
  */
 /*
@@ -245,10 +245,9 @@ namespace mxflib
 //! MXFLIB_TYPE_ENUM_VALUE - Use to define a value for the current "Enumeration" type
 /*! \param Name The name of the value being defined
  *  \param Detail A human readable description of the value
- *  \param UL The UL, or endian-swapped UUID, for this item (or "" to force one to be generated)
  *  \param Value The value being defined
  */
-#define MXFLIB_TYPE_ENUM_ITEM(Name, Detail, Type, UL) { TypeSub, Name, Detail, "", UL, Value, 0, false, false, NULL },
+#define MXFLIB_TYPE_ENUM_VALUE(Name, Detail, Value) { TypeSub, Name, Detail, "", "", Value, 0, false, false, NULL },
 
 //! MXFLIB_TYPE_ENUM_END - Use to end definition of a "Enumeration" type
 #define MXFLIB_TYPE_ENUM_END
