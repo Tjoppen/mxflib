@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.20 2006/08/26 12:45:38 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.21 2006/09/30 13:28:13 matt-beard Exp $
  *
  */
 /*
@@ -318,7 +318,7 @@ int mxflib::LoadTypes(const ConstTypeRecord *TypesData, SymbolSpacePtr DefaultSy
 		}
 
 		// Add all children to compounds
-		if(CurrentType->Class == TypeCompound)
+		if((CurrentType->Class == TypeCompound) || (CurrentType->Class == TypeEnum))
 		{
 			CurrentType++;
 			while(CurrentType->Class == TypeSub)
@@ -333,6 +333,7 @@ int mxflib::LoadTypes(const ConstTypeRecord *TypesData, SymbolSpacePtr DefaultSy
 				SubType->Size = CurrentType->Size;
 				SubType->Endian = CurrentType->Endian;
 				SubType->IsBatch = CurrentType->IsBatch;
+				if(CurrentType->Value) SubType->Value = CurrentType->Value;
 				if(CurrentType->UL && *CurrentType->UL) SubType->UL = StringToUL(CurrentType->UL);
 				if(CurrentType->SymSpace) 
 				{
@@ -1196,7 +1197,6 @@ namespace
 				const char *ValueName = name;					// Allow the xml-name to be over-ridden
 				const char *Detail = "";
 				const char *Value = "";
-				const char *TypeUL = NULL;
 				// DRAGONS: Not supporting separate symbol space for enum values
 
 				/* Process attributes */
@@ -1219,10 +1219,6 @@ namespace
 						else if(strcmp(attr, "value") == 0)
 						{
 							Value = val;
-						}
-						else if(strcmp(attr, "ul") == 0)
-						{
-							TypeUL = val;
 						}
 						else if(strcmp(attr, "ref") == 0)
 						{
@@ -1247,7 +1243,6 @@ namespace
 					ThisType->Class = TypeSub;
 					ThisType->Type = ValueName;
 					ThisType->Detail = Detail;
-					if(TypeUL) ThisType->UL = StringToUL(TypeUL);
 					ThisType->Value = Value;
 					ThisType->Endian = false;
 					ThisType->IsBatch = false;
