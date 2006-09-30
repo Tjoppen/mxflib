@@ -29,6 +29,14 @@
 		MXFLIB_TYPE_MULTIPLE("ISO7String", "ISO 7-Bit coded string", "ISO7", "urn:x-ul:060E2B34.0104.0101.01100400.00000000", false, 0)
 		MXFLIB_TYPE_MULTIPLE("Int32Batch", "Batch of Int32 values", "Int32", "", true, 0)
 		MXFLIB_TYPE_MULTIPLE("UInt32Batch", "Batch of UInt32 values", "UInt32", "urn:x-ul:060E2B34.0104.0101.04030200.00000000", true, 0)
+		MXFLIB_TYPE_ENUM("ProductReleaseKind", "Product Release Kind", "UInt16", "")
+			MXFLIB_TYPE_ENUM_VALUE("VersionUnknown", "Unknown", "0")
+			MXFLIB_TYPE_ENUM_VALUE("VersionReleased", "Released", "1")
+			MXFLIB_TYPE_ENUM_VALUE("VersionDebug", "Debug", "2")
+			MXFLIB_TYPE_ENUM_VALUE("VersionPatched", "Patched", "3")
+			MXFLIB_TYPE_ENUM_VALUE("VersionBeta", "Beta", "4")
+			MXFLIB_TYPE_ENUM_VALUE("VersionPrivateBuild", "Private Build", "5")
+		MXFLIB_TYPE_ENUM_END
 		MXFLIB_TYPE_BASIC("RAW", "Raw data bytes, unknown representation", "", 0, false)
 		MXFLIB_TYPE_INTERPRETATION("Stream", "Data mapped to AAF Stream, MXF represents using a SID", "RAW", "urn:x-ul:060E2B34.0104.0101.04100200.00000000", 0)
 		MXFLIB_TYPE_INTERPRETATION("DataValue", "Data represented as AAF varying array of UInt8", "UInt8Array", "urn:x-ul:060E2B34.0104.0101.04100100.00000000", 0)
@@ -66,11 +74,12 @@
 			MXFLIB_TYPE_COMPOUND_ITEM("Minor", "Minor", "UInt16", "urn:x-ul:060E2B34.0104.0101.03010202.00000000", 0)
 			MXFLIB_TYPE_COMPOUND_ITEM("Patch", "Patch", "UInt16", "urn:x-ul:060E2B34.0104.0101.03010203.00000000", 0)
 			MXFLIB_TYPE_COMPOUND_ITEM("Build", "Build", "UInt16", "urn:x-ul:060E2B34.0104.0101.03010204.00000000", 0)
-			MXFLIB_TYPE_COMPOUND_ITEM("Release", "Release", "UInt16", "urn:x-ul:060E2B34.0104.0101.03010205.00000000", 0)
+			MXFLIB_TYPE_COMPOUND_ITEM("Release", "Release", "ProductReleaseKind", "urn:x-ul:060E2B34.0104.0101.03010205.00000000", 0)
 		MXFLIB_TYPE_COMPOUND_END
 		MXFLIB_TYPE_COMPOUND("Indirect", "Indirect Data", "urn:x-ul:060E2B34.0104.0101.04100300.00000000")
-			MXFLIB_TYPE_COMPOUND_ITEM("Type", "Type of Data", "Label", "", 0)
-			MXFLIB_TYPE_COMPOUND_ITEM("Data", "Data", "UInt8Array", "", 0)
+			MXFLIB_TYPE_COMPOUND_ITEM("Order", "Object Byte Order", "UInt8", "", 0)
+			MXFLIB_TYPE_COMPOUND_ITEM("Type", "Type of Data", "DataValue", "", 0)
+			MXFLIB_TYPE_COMPOUND_ITEM("Data", "Data", "DataValue", "", 0)
 		MXFLIB_TYPE_COMPOUND_END
 		MXFLIB_TYPE_COMPOUND("RGBALayoutItem", "Item in an RGBALayout array", "urn:x-ul:060E2B34.0104.0101.03010400.00000000")
 			MXFLIB_TYPE_COMPOUND_ITEM("Code", "Enumerated value specifying component", "RGBACode", "", 0)
@@ -267,7 +276,7 @@
 			MXFLIB_CLASS_ITEM("EventEditRate", "Edit Rate of Event Track", ClassUsageRequired, "Rational", 8, 8, 0x4901, "06 0e 2b 34 01 01 01 02  05 30 04 02 00 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("EventOrigin", "An Offset used to resolved timeline references to this event track. The start of the event track has this timeline value measured in Edit Units.", ClassUsageOptional, "Position", 8, 8, 0x4902, "06 0e 2b 34 01 01 01 05  07 02 01 03 01 0b 00 00", "0", NULL)
 		MXFLIB_CLASS_SET_END
-		MXFLIB_CLASS_SET("StructuralComponent", "Structural Component Superclass", "GenerationInterchangeObject", "")
+		MXFLIB_CLASS_SET("StructuralComponent", "Structural Component Superclass", "GenerationInterchangeObject", "urn:x-ul:060E2B34.0253.0101.0D010101.01010200")
 			MXFLIB_CLASS_ITEM("DataDefinition", "Data Definition - kind of data or metadata this structure refers to", ClassUsageRequired, "Label", 16, 16, 0x0201, "06 0e 2b 34 01 01 01 02  04 07 01 00 00 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("Duration", "Duration (in units of edit rate)", ClassUsageBestEffort, "Length", 8, 8, 0x0202, "06 0e 2b 34 01 01 01 02  07 02 02 01 01 03 00 00", NULL, "-1")
 		MXFLIB_CLASS_SET_END
@@ -371,7 +380,7 @@
 		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_SET("GenericSoundEssenceDescriptor", "Defines the Sound Essence Descriptor set", "FileDescriptor", "06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 42 00")
 			MXFLIB_CLASS_ITEM("AudioSamplingRate", "Sampling rate of the audio essence", ClassUsageBestEffort, "Rational", 8, 8, 0x3d03, "06 0e 2b 34 01 01 01 05  04 02 03 01 01 01 00 00", "48000/1", "0/0")
-			MXFLIB_CLASS_ITEM("Locked", "Boolean indicating that the Number of samples per frame is locked or unlocked (non-0 = locked)", ClassUsageRequired, "Boolean", 1, 1, 0x3d02, "06 0e 2b 34 01 01 01 04  04 02 03 01 04 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("Locked", "Boolean indicating that the Number of samples per frame is locked or unlocked (non-0 = locked)", ClassUsageDecoderRequired, "Boolean", 1, 1, 0x3d02, "06 0e 2b 34 01 01 01 04  04 02 03 01 04 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("AudioRefLevel", "Audio reference level which gives the number of dBm for 0VU", ClassUsageOptional, "Int8", 1, 1, 0x3d04, "06 0e 2b 34 01 01 01 01  04 02 01 01 03 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("ElectroSpatialFormulation", "E.g. mono, dual mono, stereo, A,B etc (enum)", ClassUsageOptional, "UInt8", 1, 1, 0x3d05, "06 0e 2b 34 01 01 01 01  04 02 01 01 01 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("ChannelCount", "Number of Sound Channels", ClassUsageBestEffort, "UInt32", 4, 4, 0x3d07, "06 0e 2b 34 01 01 01 05  04 02 01 01 04 00 00 00", NULL, "0")
@@ -405,7 +414,16 @@
 			MXFLIB_CLASS_ITEM("BlockAlign", "Sample Block alignment", ClassUsageRequired, "UInt16", 0, 0, 0x3d0a, "06 0e 2b 34 01 01 01 05  04 02 03 02 01 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("SequenceOffset", "Zero-based ordinal frame number of first essence data within five-frame sequence", ClassUsageOptional, "UInt8", 0, 0, 0x3d0b, "06 0e 2b 34 01 01 01 05  04 02 03 02 02 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("AvgBps", "Average Bytes per second", ClassUsageRequired, "UInt32", 0, 0, 0x3d09, "06 0e 2b 34 01 01 01 05  04 02 03 03 05 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("PeakEnvelope", "Peak Envelope from <LEVL> Chunk", ClassUsageOptional, "Stream", 0, 0, 0x3d0e, "06 0e 2b 34 01 01 01 05  04 02 03 01 0e 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("ChannelAssignment", "UL enumerating the channel assignment in use", ClassUsageOptional, "UL", 0, 0, 0x3d32, "06 0e 2b 34 01 01 01 07  04 02 01 01 05 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakEnvelopeVersion", "Peak envelope version information (BWF dwVersion)", ClassUsageOptional, "UInt32", 0, 0, 0x3d29, "06 0e 2b 34 01 01 01 08  04 02 03 01 06 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakEnvelopeFormat", "Format of a peak point (BWF dwFormat)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2a, "06 0e 2b 34 01 01 01 08  04 02 03 01 07 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PointsPerPeakValue", "Number of peak points per peak value (BWF dwPointsPerValue)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2b, "06 0e 2b 34 01 01 01 08  04 02 03 01 08 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakEnvelopeBlockSize", "Number of audio samples used to generate each peak frame (BWF dwBlockSize)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2c, "06 0e 2b 34 01 01 01 08  04 02 03 01 09 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakChannels", "Number of peak channels (BWF dwPeakChannels)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2d, "06 0e 2b 34 01 01 01 08  04 02 03 01 0a 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakFrames", "Number of peak frames (BWF dwNumPeakFrames)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2e, "06 0e 2b 34 01 01 01 08  04 02 03 01 0b 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakOfPeaksPosition", "Offset to the first audio sample whose absolute value is the maximum value of the entire audio file (BWF dwPosPeakOfPeaks, extended to 64 bits)", ClassUsageOptional, "Position", 0, 0, 0x3d2f, "06 0e 2b 34 01 01 01 08  04 02 03 01 0c 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakEnvelopeTimestamp", "Time stamp of the creation of the peak data (BWF strTimeStamp converted to TimeStamp)", ClassUsageOptional, "TimeStamp", 0, 0, 0x3d30, "06 0e 2b 34 01 01 01 08  04 02 03 01 0d 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakEnvelopeData", "Peak envelope data (BWF peak_envelope_data)", ClassUsageOptional, "Stream", 0, 0, 0x3d31, "06 0e 2b 34 01 01 01 05  04 02 03 01 0e 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_SET("DM_Framework", "Superclass for all concrete DM Frameworks", "GenerationInterchangeObject", "06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00")
 		MXFLIB_CLASS_SET_END
