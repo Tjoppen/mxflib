@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.8 2006/06/25 14:08:07 matt-beard Exp $
+ *	\version $Id: dictconvert.cpp,v 1.9 2006/09/30 13:25:57 matt-beard Exp $
  *
  */
 /*
@@ -127,6 +127,8 @@ enum CurrentState
 	StateTypesMultiple,							//!< Processing multiple types section
 	StateTypesCompound,							//!< Processing compound types section
 	StateTypesCompoundItem,						//!< Processing sub-items within a compound
+	StateTypesEnum,								//!< Processing enumerated types section
+	StateTypesEnumValue,						//!< Processing valuess within an enumeration
 	StateClasses,								//!< Processing classes
 	StateDone,									//!< Finished processing
 	StateError									//!< Error encountered - process nothing else
@@ -666,6 +668,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				State->State = StateTypesMultiple;
 			else if(strcmp(name, "Compound") == 0)
 				State->State = StateTypesCompound;
+			else if(strcmp(name, "Enumeration") == 0)
+				State->State = StateTypesEnum;
 			else
 				Convert_error(user_data, "Tag <%s> found when types class expected\n", name);
 
@@ -953,6 +957,116 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
 
 			fprintf(State->OutFile, "\t\t\tMXFLIB_TYPE_COMPOUND_ITEM(\"%s\", \"%s\", \"%s\", \"%s\", %d)\n", name, Detail.c_str(), Type, TypeUL.c_str(), Size);
+
+			break;
+		}
+
+		case StateTypesEnum:
+		{
+			std::string ValueName = name;
+			std::string Detail;
+			std::string Base;
+			std::string TypeUL;
+			const char *SymSpace = NULL;
+
+			/* Process attributes */
+			if(attrs != NULL)
+			{
+				int this_attr = 0;
+				while(attrs[this_attr])
+				{
+					char const *attr = attrs[this_attr++];
+					char const *val = attrs[this_attr++];
+					
+					if(strcmp(attr, "detail") == 0)
+					{
+						Detail = CConvert(val);
+					}
+					else if(strcmp(attr, "type") == 0)
+					{
+						Base = CConvert(val);
+					}
+					else if(strcmp(attr, "name") == 0)
+					{
+						ValueName = CConvert(val);
+					}
+					else if(strcmp(attr, "ul") == 0)
+					{
+						TypeUL = CConvert(val);
+					}
+					else if(strcmp(attr, "symSpace") == 0)
+					{
+						SymSpace = val;
+					}
+					else if(strcmp(attr, "ref") == 0)
+					{
+						// Ignore
+					}
+					else
+					{
+						Convert_error(user_data, "Unexpected attribute \"%s\" in compound type \"%s\"\n", attr, ValueName.c_str());
+					}
+				}
+			}
+
+			// Add this type to the ULData map (if it has a UL)
+			if(TypeUL != "") AddType(State, ValueName, Detail, TypeUL);
+
+			if(!SymSpace)
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_ENUM(\"%s\", \"%s\", \"%s\", \"%s\")\n", ValueName.c_str(), Detail.c_str(), Base.c_str(), TypeUL.c_str());
+			else
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_ENUM_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", ValueName.c_str(), Detail.c_str(), Base.c_str(), TypeUL.c_str(), SymSpace);
+
+			State->State = StateTypesEnumValue;
+			State->Parent = ValueName;
+
+			break;
+		}
+
+		case StateTypesEnumValue:
+		{
+			std::string ValueName = name;
+			std::string Detail;
+			std::string Value;
+			std::string TypeUL;
+			
+			/* Process attributes */
+			if(attrs != NULL)
+			{
+				int this_attr = 0;
+				while(attrs[this_attr])
+				{
+					char const *attr = attrs[this_attr++];
+					char const *val = attrs[this_attr++];
+					
+					if(strcmp(attr, "detail") == 0)
+					{
+						Detail = CConvert(val);
+					}
+					else if(strcmp(attr, "name") == 0)
+					{
+						ValueName = CConvert(val);
+					}
+					else if(strcmp(attr, "value") == 0)
+					{
+						Value = CConvert(val);
+					}
+					else if(strcmp(attr, "ul") == 0)
+					{
+						TypeUL = CConvert(val);
+					}
+					else if(strcmp(attr, "ref") == 0)
+					{
+						// Ignore
+					}
+					else
+					{
+						error("Unexpected attribute \"%s\" in compound item \"%s\"\n", attr, ValueName.c_str());
+					}
+				}
+			}
+
+			fprintf(State->OutFile, "\t\t\tMXFLIB_TYPE_ENUM_VALUE(\"%s\", \"%s\", \"%s\")\n", ValueName.c_str(), Detail.c_str(), Value.c_str());
 
 			break;
 		}
@@ -1371,10 +1485,17 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			{
 				if(Type == "") 
 				{
+					// Check if this is a redefinition (which is safe)
+					std::map<std::string, std::string>::iterator it = State->TypeMap.find(name);
+					if(it == State->TypeMap.end())
+					{
 					if(Base == "")
+						{
 						error("Class %s does not have a type specified\n", name);
+						}
 					else
 						warning("Type %s is derived from type %s which is not known at this point - output file may need manual edit\n", name, Base.c_str());
+					}
 				}
 
 				std::string Ref;
@@ -1472,6 +1593,23 @@ void Convert_endElement(void *user_data, const char *name)
 			{
 				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND_END\n");
 				State->State = StateTypesCompound;
+				State->Parent = "";
+			}
+			break;
+		}
+
+		case StateTypesEnum: 
+		{
+			if(strcmp(name,"Enumeration") == 0) State->State = StateTypes;
+			break;
+		}
+		
+		case StateTypesEnumValue:
+		{
+			if(strcmp(name,State->Parent.c_str()) == 0)
+			{
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_ENUM_END\n");
+				State->State = StateTypesEnum;
 				State->Parent = "";
 			}
 			break;
