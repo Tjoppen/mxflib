@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.36 2006/09/11 09:26:54 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.37 2006/09/30 13:42:18 matt-beard Exp $
  *
  */
 /*
@@ -1428,8 +1428,8 @@ int Process(	int OutFileNum,
 			}
 		}
 
-		/* Locate the track info for the material package track containing this essence (or the first sub-stream of */
-		/* This will be the current track info if we are in the firsat gang, otherwise we locate the corresponding track in the first gang */
+		/* Locate the track info for the material package track containing this essence (or the first sub-stream of) */
+		/* This will be the current track info if we are in the first gang, otherwise we locate the corresponding track in the first gang */
 
 		EssenceTrackInfoList::iterator TrackInfoIt;
 		if(iTrack < InFileGangSize)
@@ -1514,13 +1514,12 @@ int Process(	int OutFileNum,
 					if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddSoundTrack(Streams.back()->GetTrackNumber(), EditRate);
 					break;
 				case 0x07: case 0x17: default:
-					TrackInfoList.back()->FPTrack = FilePackage->AddDataTrack(Streams.back()->GetTrackNumber(), EditRate);
-					if(WriteFP) if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddDataTrack(EditRate);
+					if(iTrack < InFileGangSize) TrackInfoList.back()->FPTrack = FilePackage->AddDataTrack(Streams.back()->GetTrackNumber(), EditRate);
+					if(WriteFP) TrackInfoList.back()->MPTrack = MaterialPackage->AddDataTrack(EditRate);
 					break;
 				}
 			}
 
-			EssenceTrackInfoPtr p = (*TrackInfoIt);
 			// Add a single Component to this Track of the Material Package
 			TrackInfoList.back()->MPClip = (*TrackInfoIt)->MPTrack->AddSourceClip();
 
