@@ -414,7 +414,7 @@
 			MXFLIB_CLASS_ITEM("BlockAlign", "Sample Block alignment", ClassUsageRequired, "UInt16", 0, 0, 0x3d0a, "06 0e 2b 34 01 01 01 05  04 02 03 02 01 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("SequenceOffset", "Zero-based ordinal frame number of first essence data within five-frame sequence", ClassUsageOptional, "UInt8", 0, 0, 0x3d0b, "06 0e 2b 34 01 01 01 05  04 02 03 02 02 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("AvgBps", "Average Bytes per second", ClassUsageRequired, "UInt32", 0, 0, 0x3d09, "06 0e 2b 34 01 01 01 05  04 02 03 03 05 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("ChannelAssignment", "UL enumerating the channel assignment in use", ClassUsageOptional, "UL", 0, 0, 0x3d32, "06 0e 2b 34 01 01 01 07  04 02 01 01 05 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("ChannelAssignment", "UL enumerating the channel assignment in use", ClassUsageOptional, "Label", 0, 0, 0x3d32, "06 0e 2b 34 01 01 01 07  04 02 01 01 05 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PeakEnvelopeVersion", "Peak envelope version information (BWF dwVersion)", ClassUsageOptional, "UInt32", 0, 0, 0x3d29, "06 0e 2b 34 01 01 01 08  04 02 03 01 06 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PeakEnvelopeFormat", "Format of a peak point (BWF dwFormat)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2a, "06 0e 2b 34 01 01 01 08  04 02 03 01 07 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PointsPerPeakValue", "Number of peak points per peak value (BWF dwPointsPerValue)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2b, "06 0e 2b 34 01 01 01 08  04 02 03 01 08 00 00 00", NULL, NULL)
@@ -422,7 +422,7 @@
 			MXFLIB_CLASS_ITEM("PeakChannels", "Number of peak channels (BWF dwPeakChannels)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2d, "06 0e 2b 34 01 01 01 08  04 02 03 01 0a 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PeakFrames", "Number of peak frames (BWF dwNumPeakFrames)", ClassUsageOptional, "UInt32", 0, 0, 0x3d2e, "06 0e 2b 34 01 01 01 08  04 02 03 01 0b 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PeakOfPeaksPosition", "Offset to the first audio sample whose absolute value is the maximum value of the entire audio file (BWF dwPosPeakOfPeaks, extended to 64 bits)", ClassUsageOptional, "Position", 0, 0, 0x3d2f, "06 0e 2b 34 01 01 01 08  04 02 03 01 0c 00 00 00", NULL, NULL)
-			MXFLIB_CLASS_ITEM("PeakEnvelopeTimestamp", "Time stamp of the creation of the peak data (BWF strTimeStamp converted to TimeStamp)", ClassUsageOptional, "TimeStamp", 0, 0, 0x3d30, "06 0e 2b 34 01 01 01 08  04 02 03 01 0d 00 00 00", NULL, NULL)
+			MXFLIB_CLASS_ITEM("PeakEnvelopeTimestamp", "Time stamp of the creation of the peak data (BWF strTimeStamp converted to TimeStamp)", ClassUsageOptional, "Timestamp", 0, 0, 0x3d30, "06 0e 2b 34 01 01 01 08  04 02 03 01 0d 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PeakEnvelopeData", "Peak envelope data (BWF peak_envelope_data)", ClassUsageOptional, "Stream", 0, 0, 0x3d31, "06 0e 2b 34 01 01 01 05  04 02 03 01 0e 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_SET("DM_Framework", "Superclass for all concrete DM Frameworks", "GenerationInterchangeObject", "06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00")

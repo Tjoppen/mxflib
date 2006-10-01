@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2006/09/30 13:24:09 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2006/10/01 11:56:23 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -454,7 +454,7 @@
 			<BlockAlign detail="Sample Block alignment" use="required" type="UInt16" key="3d 0a" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 02 01 00 00 00"/>
 			<SequenceOffset detail="Zero-based ordinal frame number of first essence data within five-frame sequence" use="optional" type="UInt8" key="3d 0b" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 02 02 00 00 00"/>
 			<AvgBps detail="Average Bytes per second" use="required" type="UInt32" key="3d 09" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 03 05 00 00 00"/>
-			<ChannelAssignment detail="UL enumerating the channel assignment in use" use="optional" type="UL" key="3d 32" globalKey="06 0e 2b 34 01 01 01 07  04 02 01 01 05 00 00 00"/>
+			<ChannelAssignment detail="UL enumerating the channel assignment in use" use="optional" type="Label" key="3d 32" globalKey="06 0e 2b 34 01 01 01 07  04 02 01 01 05 00 00 00"/>
 			<PeakEnvelopeVersion detail="Peak envelope version information (BWF dwVersion)" use="optional" type="UInt32" key="3d 29" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 06 00 00 00"/>
 			<PeakEnvelopeFormat detail="Format of a peak point (BWF dwFormat)" use="optional" type="UInt32" key="3d 2a" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 07 00 00 00"/>
 			<PointsPerPeakValue detail="Number of peak points per peak value (BWF dwPointsPerValue)" use="optional" type="UInt32" key="3d 2b" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 08 00 00 00"/>
@@ -462,7 +462,7 @@
 			<PeakChannels detail="Number of peak channels (BWF dwPeakChannels)" use="optional" type="UInt32" key="3d 2d" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 0a 00 00 00"/>
 			<PeakFrames detail="Number of peak frames (BWF dwNumPeakFrames)" use="optional" type="UInt32" key="3d 2e" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 0b 00 00 00"/>
 			<PeakOfPeaksPosition detail="Offset to the first audio sample whose absolute value is the maximum value of the entire audio file (BWF dwPosPeakOfPeaks, extended to 64 bits)" use="optional" type="Position" key="3d 2f" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 0c 00 00 00"/>
-			<PeakEnvelopeTimestamp detail="Time stamp of the creation of the peak data (BWF strTimeStamp converted to TimeStamp)" use="optional" type="TimeStamp" key="3d 30" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 0d 00 00 00"/>
+			<PeakEnvelopeTimestamp detail="Time stamp of the creation of the peak data (BWF strTimeStamp converted to TimeStamp)" use="optional" type="Timestamp" key="3d 30" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 0d 00 00 00"/>
 			<PeakEnvelopeData detail="Peak envelope data (BWF peak_envelope_data)" use="optional" type="Stream" key="3d 31" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 0e 00 00 00"/>
 		</WaveAudioDescriptor>
 		<DM_Framework base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00"/>
