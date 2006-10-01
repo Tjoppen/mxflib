@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.37 2006/09/30 13:42:18 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.38 2006/10/01 13:36:09 matt-beard Exp $
  *
  */
 /*
@@ -1413,7 +1413,9 @@ int Process(	int OutFileNum,
 		MDObjectPtr SubDescriptors;
 
 		//! Iterator for scanning the sub-descriptor batch, if this is a multiple stream
-		MDObject::iterator SubDescriptorsIt;
+		// DRAGONS: Here we initialize the iterator with a generic MDObject::iterator::end() value that won't
+		//          ever be used, but keeps strict compilers from complaining it is uninitialized
+		MDObject::iterator SubDescriptorsIt = ThisDescriptor->end();
 
 		//! The index number of the sub track within this multiple essence stream, zero for the first
 		size_t SubTrackIndex = 0;
