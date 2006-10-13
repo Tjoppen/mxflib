@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.16 2006/08/25 16:06:51 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.17 2006/10/13 15:02:50 matt-beard Exp $
  *
  */
 /*
@@ -1234,7 +1234,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 			}
 
 			// If this is less than the requested padding keep adding blocks until it is enough
-			while(BlockAlignHeaderBytes < Padding)
+			while(BlockAlignIndexBytes < Padding)
 			{
 				BlockAlignIndexBytes += BlockAlign;
 				IndexByteCount += BlockAlign;
