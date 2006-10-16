@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.23 2006/09/11 09:09:04 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.24 2006/10/16 12:00:55 matt-beard Exp $
  *
  */
 /*
@@ -440,11 +440,8 @@ namespace mxflib
 		//! Constructor
 		GCWriter(MXFFilePtr File, UInt32 BodySID = 0, int Base = 0);
 
-		//! Destructor - free the stream table
-		~GCWriter()
-		{
-			delete[] StreamTable;
-		}
+		//! Destructor
+		~GCWriter();
 
 		//! Set the KAG for this Essence Container
 		void SetKAG(UInt32 KAG, bool ForceBER4 = false) { KAGSize = KAG; ForceFillerBER4 = ForceBER4; };

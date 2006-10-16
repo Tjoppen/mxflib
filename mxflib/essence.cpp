@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.28 2006/09/30 13:33:06 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.29 2006/10/16 12:00:55 matt-beard Exp $
  *
  */
 /*
@@ -799,6 +799,21 @@ UInt64 GCWriter::CalcWriteSize(void)
 	return Ret;
 }
 
+
+//! GCWriter destructor - clean up all allocated memory
+GCWriter::~GCWriter()
+{
+	// Clear the write-queue buffers
+	WriteQueueMap::iterator it = WriteQueue.begin();
+	while(it != WriteQueue.end())
+	{
+		delete[] (*it).second.Buffer;
+		it++;
+	}
+
+	// Clear the stream table
+	delete[] StreamTable;
+}
 
 //! Flush any remaining data
 /*! \note It is important that any changes to this function are propogated to CalcWriteSize() */
