@@ -1,9 +1,9 @@
-Release Notes for mxflib version 1.0.0-Beta-RC2
+Release Notes for mxflib version 1.0.0-Beta-RC4
 ===============================================
 
-This is the second release candidate for version 1.0.0
+This is the fourth release candidate for version 1.0.0
 
-Please note that although the license text cannot legally mandate this, it is expected that applications using MXFLib, or reusing a significantly amount of the code, include an acknowledgment with all copyright messages.
+Please note that it is expected that applications using MXFLib, or reusing a significantly amount of the code, include an acknowledgment with all copyright messages.
 
 Suggested acknowledgment texts, either:
 
@@ -28,6 +28,23 @@ Things to check in code currently using mxflib 0.6.0:
 ** Change IdentifyEssence() to add EssenceStreamDescriptorPtrs to the returned EssenceStreamDescriptorList rather than EssenceStreamDescriptors
 ** Optionally add a parser name with GetParserName() and name each wrapping with WrappingOption::Name
 ** Optionally add identify each wrapping with WrappingOption::WrappingID
+
+
+Changes since version 1.0.0-Beta-RC3
+====================================
+
+* Updated all essence parsers that could clip-wrap huge quantities of data to ensure memory is not burst
+
+
+Changes since version 1.0.0-Beta-RC2
+====================================
+
+* Add a "feature" to allow -ve index positions for pre-charge essence, if not set all index tables will start at zero
+* Update dictconvert project to convert enumerations
+* Add all final 382M properties of WaveAudioDescriptor in dict.xml
+* Ensure that compile-time dictionary parsing matches the output from the updated dictconvert
+* Add support in essence parsers and mxfwrap for interleaved streams described by a multiple descriptor
+* Ensure AnchorOffset is -ve for MPEG streams
 
 
 Changes since version 1.0.0-Beta-RC1
