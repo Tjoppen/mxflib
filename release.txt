@@ -1,7 +1,7 @@
-Release Notes for mxflib version 1.0.0-Beta-RC3
+Release Notes for mxflib version 1.0.0-Beta-RC4
 ===============================================
 
-This is the second release candidate for version 1.0.0
+This is the fourth release candidate for version 1.0.0
 
 Please note that it is expected that applications using MXFLib, or reusing a significantly amount of the code, include an acknowledgment with all copyright messages.
 
@@ -28,6 +28,12 @@ Things to check in code currently using mxflib 0.6.0:
 ** Change IdentifyEssence() to add EssenceStreamDescriptorPtrs to the returned EssenceStreamDescriptorList rather than EssenceStreamDescriptors
 ** Optionally add a parser name with GetParserName() and name each wrapping with WrappingOption::Name
 ** Optionally add identify each wrapping with WrappingOption::WrappingID
+
+
+Changes since version 1.0.0-Beta-RC3
+====================================
+
+* Updated all essence parsers that could clip-wrap huge quantities of data to ensure memory is not burst
 
 
 Changes since version 1.0.0-Beta-RC2
