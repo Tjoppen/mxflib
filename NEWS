@@ -23,6 +23,7 @@ Things to check in code currently using mxflib 0.6.0:
 * Use MakeRef in preference to MakeLink
 * If you have added any EssenceSubParser classes you need to do the following:
 ** Ensure that GetEssenceData does not increment the current position, it is safest to cache the result until the next Read or GetEssenceData call
+** Ensure that if a single wrapping unit (especially in clip-wrapping) could be larger than can be comfortably held in memory, GetEssenceData() handles chunk reading WITHOUT passing on to BaseGetEssenceData() which always reads whole wrapping units
 ** Change GetEssenceDataSize(), GetEssenceData() to use size_t
 ** Change GetEssenceSource() to return an EssenceSourcePtr
 ** Change IdentifyEssence() to add EssenceStreamDescriptorPtrs to the returned EssenceStreamDescriptorList rather than EssenceStreamDescriptors

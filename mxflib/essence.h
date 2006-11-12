@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.24 2006/10/16 12:00:55 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.25 2006/11/12 12:14:15 matt-beard Exp $
  *
  */
 /*
@@ -761,6 +761,8 @@ namespace mxflib
 			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0) { return BaseGetEssenceData(Size, MaxSize); };
 
 			//! Non-virtual basic version of GetEssenceData() that can be called by derived classes
+			/*! DRAGONS: This implementation always reads whole wrapping units, so it NOT SAFE if these could be too large to fit in memory 
+			 */
 			DataChunkPtr BaseGetEssenceData(size_t Size = 0, size_t MaxSize = 0)
 			{
 				// Allow us to differentiate the first call
