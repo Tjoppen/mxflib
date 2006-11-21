@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.17 2006/10/13 15:02:50 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.18 2006/11/21 16:41:00 matt-beard Exp $
  *
  */
 /*
@@ -1080,32 +1080,54 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		// TODO: We need to do these calculations even if only rewriting with an index table (it could happen!)
 		if(ReWrite)
 		{
-			// Old sizes in existing partition
+			// Old sizes in existing partition - which include padding
 			UInt64 OldHeaderByteCount = OldPartition->GetUInt64(HeaderByteCount_UL);
-			UInt64 OldIndexByteCount = 0;
-			if(IndexByteCount) OldIndexByteCount = OldPartition->GetUInt64(IndexByteCount_UL);
+			UInt64 OldIndexByteCount = OldPartition->GetUInt64(IndexByteCount_UL);
 
-			// Minimum new sizes to obey KAG rules
-			UInt64 NewHeaderByteCount = HeaderByteCount + FillerSize(HeaderByteCount, KAGSize);
-			UInt64 NewIndexByteCount = 0;
-			if(IndexByteCount) NewIndexByteCount = IndexByteCount + FillerSize(IndexByteCount, KAGSize);
-
-			// Record the required extra padding size to make the new partition match the old one
-			Padding =(UInt32)( (OldHeaderByteCount+OldIndexByteCount) - (NewHeaderByteCount+NewIndexByteCount) );
-
-			// Minimum possible filler size is 17 bytes
-			// TODO: Actually the padding may be OK at < 17 if we are aligning to a KAG. Better checking could be done...
-			if(((NewHeaderByteCount+NewIndexByteCount) > (OldHeaderByteCount+OldIndexByteCount)) || (Padding < 17))
+			// Can we make the index data start exactly where it used to?
+			// Criteria for re-using the old layout is:
+			//   * The new header metadata must be no bigger than the old metadata plus its filler
+			//   * The new filler following the new header metadata bust be at least 17 bytes (or exactly zero bytes)
+			//   * The new index table must be no bigger than the old table plus its filler
+			//   * The new filler following the new index table bust be at least 17 bytes (or exactly zero bytes)
+			if(    (HeaderByteCount <= OldHeaderByteCount) 
+				&& ( ((OldHeaderByteCount - HeaderByteCount) >= 17) || (OldHeaderByteCount == HeaderByteCount))
+			    && (IndexByteCount <= OldIndexByteCount) 
+				&& ( ((OldIndexByteCount - IndexByteCount) >= 17) || (OldIndexByteCount == IndexByteCount)) )
 			{
-				error("Not enough space to re-write updated header at position 0x%s in %s\n", Int64toHexString(Tell(), 8).c_str(), Name.c_str());
-				return false;
-			}
+				BlockAlignHeaderBytes = OldHeaderByteCount - HeaderByteCount;
+				HeaderByteCount = OldHeaderByteCount;
 
-			// Add the padding to the required section
-			if(IndexByteCount)
-				IndexByteCount = NewIndexByteCount + Padding;
+				BlockAlignIndexBytes = OldIndexByteCount - IndexByteCount;
+				IndexByteCount = OldIndexByteCount;
+			}
 			else
-				HeaderByteCount = NewHeaderByteCount + Padding;
+			{
+				// We need to figure out a new layout - this may break any block alignment
+
+				// Minimum new sizes to obey KAG rules (without padding)
+				UInt64 NewHeaderByteCount = HeaderByteCount + FillerSize(HeaderByteCount, KAGSize);
+				UInt64 NewIndexByteCount = 0;
+				if(IndexData) NewIndexByteCount = IndexByteCount + FillerSize(IndexByteCount, KAGSize);
+
+				// Record the required extra padding size to make the new partition match the old one
+				// DRAGONS: If it won't fit this will burst the -ve, but the following error check will also fire so it doesn't matter
+				Padding =(UInt32)( (OldHeaderByteCount+OldIndexByteCount) - (NewHeaderByteCount+NewIndexByteCount) );
+
+				// Minimum possible filler size is 17 bytes
+				// TODO: Actually the padding may be OK at < 17 if we are aligning to a KAG. Better checking could be done...
+				if(((NewHeaderByteCount+NewIndexByteCount) > (OldHeaderByteCount+OldIndexByteCount)) || (Padding < 17))
+				{
+					error("Not enough space to re-write updated header at position 0x%s in %s\n", Int64toHexString(Tell(), 8).c_str(), Name.c_str());
+					return false;
+				}
+
+				// Add the padding to the required section
+				if(IndexData)
+					IndexByteCount = NewIndexByteCount + Padding;
+				else
+					HeaderByteCount = NewHeaderByteCount + Padding;
+			}
 
 			// We can't obey a MinPartitionSize request
 			MinPartitionSize = 0;
@@ -1141,7 +1163,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 	// Some systems can run more efficiently if the essence and index data start on a block boundary in addition to any alignment provided by KAG
 	// We perform this alignment here if the partition contains an index table or essence data
-	if(BlockAlign && (IndexData || (BodySID != 0)))
+	if(!ReWrite && (BlockAlign && (IndexData || (BodySID != 0))))
 	{
 		// Work out how far off the block grid we are at the start of this partition
 		Position BlockOffset = Tell() % BlockAlign;
@@ -1193,15 +1215,17 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 				HeaderByteCount += BlockAlign;
 			}
 		}
+
+		// If this padding will come after some header metadata, add its size to the header size
+		// DRAGONS: If we will not be writing any header metadata this block padding will simply be the filler after the partition pack
+		if(OldHeaderByteCount > 0) ThisPartition->SetUInt64(HeaderByteCount_UL, HeaderByteCount);
 	}
 
 	// Calculate the index byte size
 	if(IndexData)
 	{
-		UInt64 IndexByteCount = IndexData->Size;
-
 		// Some systems can run more efficiently if the essence and index data start on a block boundary in addition to any alignment provided by KAG
-		if(BlockAlign && (BodySID != 0))
+		if((!ReWrite) && BlockAlign && (BodySID != 0))
 		{
 			// Work out how far off the block grid we are at the start of this partition
 			Position BlockOffset = Tell() % BlockAlign;
@@ -1247,14 +1271,18 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 				IndexByteCount += BlockAlign;
 			}
 		}
-
-		else if( (!IsFooter) || (Padding > 0) || (MinPartitionSize > HeaderByteCount) ) 
+		else if( (!IsFooter) || (Padding > 0) || (MinPartitionSize > HeaderByteCount) )
 		{
-			// Work out which of the two padding methods requires the greater padding
-			Length UsePadding = (Length)MinPartitionSize - (Length)(HeaderByteCount + IndexByteCount);
-			if(UsePadding > (Length)Padding) Padding = (UInt32)UsePadding;
+			// If we are not block aligning then we work out what padding to use
+			// DRAGONS: BlockAlignIndexBytes may have been set earlier than the above block
+			if(!BlockAlignIndexBytes)
+			{
+				// Work out which of the normal two padding methods requires the greater padding
+				Length UsePadding = (Length)MinPartitionSize - (Length)(HeaderByteCount + IndexByteCount);
+				if(UsePadding > (Length)Padding) Padding = (UInt32)UsePadding;
 
-			IndexByteCount += FillerSize(IndexByteCount, KAGSize, Padding);
+				IndexByteCount += FillerSize(IndexByteCount, KAGSize, Padding);
+			}
 		}
 
 		ThisPartition->SetUInt64(IndexByteCount_UL, IndexByteCount);
@@ -1302,13 +1330,14 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		Write(IndexData);
 
 		// Write a filler of the required size for block alignment (note the forced KAG of 1 in this case)
-		if(BlockAlignIndexBytes) Align((UInt32)1, (UInt32)BlockAlignIndexBytes); 
+		if(BlockAlignIndexBytes) Align((UInt32)1, (UInt32)BlockAlignIndexBytes);
 	}
 
 	// If not a footer align to the KAG (add padding if requested even if it is a footer)
 	if( (!IsFooter) || (Padding > 0))
 	{
-		if(!BlockAlignHeaderBytes)
+		// We don't do both block alignment and padding
+		if((IndexData && (!BlockAlignIndexBytes)) || (!BlockAlignHeaderBytes))
 		{
 			if((KAGSize > 1) || (Padding > 0)) Align(KAGSize, Padding);
 		}
