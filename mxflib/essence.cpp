@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.29 2006/10/16 12:00:55 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.30 2007/01/19 15:02:46 matt-beard Exp $
  *
  */
 /*
@@ -1531,8 +1531,64 @@ Position BodyReader::Seek(Position Pos /*=0*/)
  */
 Position BodyReader::Seek(UInt32 BodySID, Position Pos)
 {
-	error("BodyReader::Seek() per BodySID not currently supported\n");
-	return -1;
+	// We <b>need</b> a RIP for this to work
+	if(File->FileRIP.empty()) File->GetRIP();
+
+	PartitionInfoPtr PartInfo = File->FileRIP.FindPartition(BodySID, Pos);
+
+	if(!PartInfo)
+	{
+		error("BodyReader::Seek(%d, 0x%s) failed to locate the correct partition\n", BodySID, Int64toHexString(Pos).c_str());
+		return -1;
+	}
+
+	// Get the stream offset of the start of this partition
+	Position StreamOffset = PartInfo->GetStreamOffset();
+	
+	// If that was unknown we need to read the partition pack
+	if(StreamOffset == -1)
+	{
+		File->Seek(PartInfo->GetByteOffset());
+		PartInfo->ThePartition = File->ReadPartition();
+
+		if(PartInfo->ThePartition)
+		{
+			StreamOffset = PartInfo->ThePartition->GetInt64("BodyOffset");
+		}
+	}
+
+	Position EssenceStart = PartInfo->GetEssenceStart();
+	if(EssenceStart == -1)
+	{
+		if(!PartInfo->ThePartition)
+		{
+			File->Seek(PartInfo->GetByteOffset());
+			PartInfo->ThePartition = File->ReadPartition();
+		}
+
+		if(!PartInfo->ThePartition)
+		{
+			error("BodyReader::Seek(%d, 0x%s) failed to read the partition\n", BodySID, Int64toHexString(Pos).c_str());
+			return -1;
+		}
+	
+		if(!(PartInfo->ThePartition->SeekEssence()))
+		{
+			error("BodyReader::Seek(%d, 0x%s) failed to locate essence in the predicted partition\n", BodySID, Int64toHexString(Pos).c_str());
+			return -1;
+		}
+
+		EssenceStart = File->Tell();
+		PartInfo->SetEssenceStart(EssenceStart);
+	}
+
+	// Seek beyond end of file is a silent failure as this may be an incomplete file
+	if(File->Seek(EssenceStart + (Pos - StreamOffset)) != 0)
+	{
+		return -1;
+	}
+
+	return File->Tell();
 }
 
 
