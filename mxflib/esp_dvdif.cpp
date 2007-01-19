@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.14 2006/10/30 17:58:48 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.15 2007/01/19 17:47:28 matt-beard Exp $
  *
  */
 /*
@@ -44,8 +44,40 @@ namespace
 
 	//! Modified UUID for AVI-wrapped DV
 	const UInt8 DV_DIF_AVI_Format[] = { 0x45, 0x54, 0x57, 0x62,  0xd6, 0xb4, 0x2e, 0x4e,  0xf3, 0xd2, 0xfa, 'A',  'V', 'I', 'D', 'V' };
+
+	// AVI FOURCC codes
+	
+	const UInt32 ID_LIST = 0x4C495354;		//! "LIST"
+	const UInt32 ID_hdrl = 0x6864726c;		//! "hdrl"
+
+	const UInt32 ID_avih = 0x61766968;		//! "avih"
+
+	const UInt32 ID_strl = 0x7374726c;		//! "strl"
+	const UInt32 ID_strh = 0x73747268;		//! "strh"
+	const UInt32 ID_strf = 0x73747266;		//! "strf"
+	const UInt32 ID_indx = 0x696e6478;		//! "indx"
+
+	const UInt32 ID_dvsd = 0x64767364;		//! "dvsd"
+	const UInt32 ID_DVSD = 0x44565344;		//! "DVSD"
+
+	const UInt32 ID_dvhd = 0x64766864;		//! "dvhd"
+	const UInt32 ID_DVHD = 0x44564844;		//! "DVHD"
+
+	const UInt32 ID_dvsl = 0x6476736c;		//! "dvsl"
+	const UInt32 ID_DVSL = 0x4456534c;		//! "DVSL"
+
+	const UInt32 ID_movi = 0x6d6f7669;		//! "DVSL"
+
+	const UInt32 ID_00db = 0x30306462;		//! "00db" - the base for video streams
 }
 
+
+//! Local functions
+namespace
+{
+	//! Decrement a number from a UInt32, stopping at 0
+	inline void Decrement(UInt32 &Val, UInt32 Subtract) { if(Val <= Subtract) Val = 0; else Val -= Subtract; }
+}
 
 //! Examine the open file and return a list of essence descriptors
 EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle InFile)
@@ -71,9 +103,6 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 		if((Buffer[8] != 'A') || (Buffer[9] != 'V') || (Buffer[10] != 'I') || (Buffer[11] != ' ')) return Ret;
 
 		// So its an AVI file.. but what type?
-		const unsigned int ID_LIST = 0x4C495354;		//! "LIST"
-		const unsigned int ID_hdrl = 0x6864726c;		//! "hdrl"
-		
 		FileSeek(InFile, 12);
 		U32Pair Header = ReadRIFFHeader(InFile);
 
@@ -81,50 +110,136 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 		if(Header.first != ID_LIST) return Ret;
 
 		// Size of header section list
-		int ListSize = Header.second;
+		UInt32 ListSize = Header.second;
 
 		// Sanity check the list
 		if(ListSize < 4) return Ret;
 
 		// Must be an "hdrl" list
 		if(ReadU32(InFile) != ID_hdrl) return Ret;
-		ListSize -= 4;
+		Decrement(ListSize,4);
+
+		// Initialize the video stream number
+		StreamNumber = 0;
 
 		// Find the "strl" entry
-		while(ListSize > 0)
+		while((ListSize > 0) && !FileEof(InFile))
 		{
-			const unsigned int ID_strl = 0x7374726c;		//! "strl"
-			const unsigned int ID_strh = 0x73747268;		//! "strh"
-
 			U32Pair Header = ReadRIFFHeader(InFile);
-			ListSize -= 8;
+			Decrement(ListSize,Header.second + 8);
 
-			if(Header.first == ID_LIST)
+			if(Header.first != ID_LIST)
 			{
-				ListSize -= 4;
+				// Grab the frame count as we pass
+				if(Header.first == ID_avih)
+				{
+					FileSeek(InFile, FileTell(InFile) + 16);
+					UInt8 Buffer[4];
+					FileRead(InFile, Buffer, 4);
+					AVIFrameCount = GetU32_LE(Buffer);
+					
+					// Reduce the amount that we skip forwards as we have already moved 20 bytes
+					Header.second -= 20;
+				}
+
+	 			// Skip anything that is not a list
+				FileSeek(InFile, FileTell(InFile) + Header.second);
+			}
+			else
+			{
+				// Work out where the end of this list is
+				Position ListEnd = FileTell(InFile) + Header.second;
+
+				// Read the list type (we are only interested in stream info lists)
 				if(ReadU32(InFile) == ID_strl)
 				{
+					// We only support file with a stream header at the start of each strl list
 					if(ReadRIFFHeader(InFile).first != ID_strh) return Ret;
-					ListSize -= 8;
 
+					// Skip the fccType
 					ReadU32(InFile);
+
 					UInt32 MediaType = ReadU32(InFile);
-					ListSize -= 4;
 
-					if(
-					   (MediaType == 0x64767364)		// ! "dvsd"
-					|| (MediaType == 0x44565344)		// ! "DVSD"
-					)
+					if( (MediaType == ID_dvsd) || (MediaType == ID_DVSD) )
 					{
-						error("Found a DV AVI file!!! - Code note yet implemented\n");
-					
-						FileSeek(InFile, FileTell(InFile) + ListSize);
+						// Record where the actual essence starts (for building descriptors)
+						Position EssenceStart = FileTell(InFile) - 28;
 
-//						MDObjectPtr DescObj = BuildWaveAudioDescriptor(InFile, 0);
-						
+						// Send the location of the list to the descriptor builder
+						MDObjectPtr VideoDescObj = BuildCDCIEssenceDescriptorFromAVI(InFile, EssenceStart);
+
+						// Quit here if we couldn't build an essence descriptor
+						if(!VideoDescObj) return Ret;
+
+						// Build a descriptor with a zero ID (we only support single stream files)
+						EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
+						Descriptor->ID = 0;
+						Descriptor->Description = "DV-DIF audio/video essence (AVI Wrapped)";
+						Descriptor->SourceFormat.Set(DV_DIF_AVI_Format);
+						Descriptor->Descriptor = VideoDescObj;
+
+						MDObjectPtr AudioDescObj = BuildSoundEssenceDescriptorFromAVI(InFile, EssenceStart);
+
+						// Return to the start of the DIF data (building the audio descriptor will probably have moved the file pointer)
+						FileSeek(InFile, DIFStart);
+
+						// Don't build the multiplex version if we failed to build the sound descriptor (or the mux descriptor)
+						if(AudioDescObj)
+						{
+							MDObjectPtr MuxDescObj = new MDObject(MultipleDescriptor_UL);
+							if(MuxDescObj)
+							{
+								// Copy up the video edit rate
+								MuxDescObj->SetString(SampleRate_UL, VideoDescObj->GetString(SampleRate_UL));
+
+								MDObjectPtr SubDescriptors = MuxDescObj->AddChild(SubDescriptorUIDs_UL);
+								if(SubDescriptors)
+								{
+									MDObjectPtr Ptr = SubDescriptors->AddChild();
+									if(Ptr) Ptr->MakeLink(VideoDescObj);
+									Ptr = SubDescriptors->AddChild();
+									if(Ptr) Ptr->MakeLink(AudioDescObj);
+								
+									// Build a descriptor with a zero ID (we only support single stream files)
+									EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
+									MuxDescriptor->ID = 0;
+									MuxDescriptor->Description = "DV-DIF audio/video essence (AVI Wrapped)";
+									MuxDescriptor->SourceFormat.Set(DV_DIF_RAW_Format);
+									MuxDescriptor->Descriptor = MuxDescObj;
+
+									// Add the multiple descriptor
+									Ret.push_back(MuxDescriptor);
+								}
+							}
+						}
+
+						// Add the single descriptor last so that the multiple one will be selected in preference, if allowed
+						Ret.push_back(Descriptor);
+
+						// Attempt to parse the format
+						// Record a pointer to the video descriptor so we can check if we are asked to process this source
+						CurrentDescriptor = VideoDescObj;
+
 						return Ret;
 					}
+
+					if( (MediaType == ID_dvhd) || (MediaType == ID_DVHD) )
+					{
+						warning("HD DV formats not currently supported by esp_dvdif\n");
+						return Ret;
+					}
+					if( (MediaType == ID_dvsl) || (MediaType == ID_DVSL) )
+					{
+						warning("High-Compression DV formats not currently supported by esp_dvdif\n");
+						return Ret;
+					}
+
+					// We have skipped a stream, so increment the stream number
+					StreamNumber++;
 				}
+				// Skip what is left of this list
+				FileSeek(InFile, ListEnd);
 			}
 		}
 
@@ -251,8 +366,9 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x02, 0x7f, 0x01 };
 	WrappingOptionList Ret;
 
-	// If the source format isn't RAW DV-DIFF then we can't wrap the essence
-	if(memcmp(Descriptor.SourceFormat.GetValue(), DV_DIF_RAW_Format, 16) != 0) return Ret;
+	// If the source format isn't RAW DV-DIFF or AVI-DV then we can't wrap the essence
+	if(   (memcmp(Descriptor.SourceFormat.GetValue(), DV_DIF_RAW_Format, 16) != 0)
+	   && (memcmp(Descriptor.SourceFormat.GetValue(), DV_DIF_AVI_Format, 16) != 0)) return Ret;
 
 	// The identify step configures some member variables so we can only continue if we just identified this very source
 	bool DescriptorMatch = false;
@@ -433,8 +549,79 @@ DataChunkPtr DV_DIF_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UIn
 	size_t Bytes = CachedDataSize;
 	CachedDataSize = static_cast<size_t>(-1);
 
-	// Read the data
-	return FileReadChunk(InFile, Bytes);
+	// If this is not an AVI file read the data and return
+	if(DIFEnd != -1)
+	{
+		// Read the data
+		return FileReadChunk(InFile, Bytes);
+	}
+
+	// Read the bytes from the AVI data
+	return AVIRead(InFile, Bytes);
+}
+
+
+//! Read data from AVI wrapped essence
+/*! Parses the list and chunk structure - can recurse */
+DataChunkPtr DV_DIF_EssenceSubParser::AVIRead(FileHandle InFile, size_t Bytes) 
+{
+	// Can we return all the data from the current chunk?
+	if(AVIChunkRemaining >= Bytes)
+	{
+		Decrement(AVIChunkRemaining, static_cast<UInt32>(Bytes));
+		Decrement(AVIListRemaining, static_cast<UInt32>(Bytes));
+		return FileReadChunk(InFile, Bytes);
+	}
+
+	// Read anything left in the current chunk
+	DataChunkPtr Ret;
+	if(AVIChunkRemaining > 0)
+	{
+		Ret = FileReadChunk(InFile, AVIChunkRemaining);
+		Bytes -= AVIChunkRemaining;
+		Decrement(AVIListRemaining, AVIChunkRemaining);
+	}
+
+	while(!FileEof(InFile))
+	{
+		// Look for another essence stream chunk in this list
+		while(AVIListRemaining && !FileEof(InFile))
+		{
+			U32Pair Header = ReadRIFFHeader(InFile);
+			Decrement(AVIListRemaining, 8);
+			
+			if(Header.first == AVIStreamID)
+			{
+				AVIChunkRemaining = Header.second;
+				
+				// If we haven't yet read anything - simply read what is required
+				if(!Ret) return AVIRead(InFile, Bytes);
+
+				// Append the new data and return that
+				Ret->Append(AVIRead(InFile, Bytes));
+				return Ret;
+			}
+
+			// Skip this chunk
+			FileSeek(InFile, FileTell(InFile) + Header.second);
+			Decrement(AVIListRemaining, Header.second);
+		}
+
+		// If we have exhausted the current list, we need to locate the next list
+		while(!FileEof(InFile))
+		{
+			U32Pair Header = ReadRIFFHeader(InFile);
+
+			if(Header.first == ID_LIST)
+			{
+				AVIListRemaining = Header.second;
+				break;
+			}
+		}
+	}
+
+	// If we hit EOF, return what we have so far
+	return Ret;
 };
 
 
@@ -594,6 +781,9 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptor(FileHandle InFi
 	// Set 625/50 flag from the header
 	bool is625 = ((Buffer[3] & 0x80) == 0x80);
 
+	// Set SMPTE-314M flag by assuming the APT value will only be 001 or 111 if we are in SMPTE-314M
+	bool isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
+
 	// Bug out if the video is flagged as invalid
 	if((Buffer[6] & 0x80) != 0) return Ret;
 
@@ -631,6 +821,246 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptor(FileHandle InFi
 }
 
 
+//! Read the header at the specified position in a DV-AVI file to build an essence descriptor
+MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptorFromAVI(FileHandle InFile, UInt64 Start)
+{
+	MDObjectPtr Ret;
+
+	// Re-read the header list
+	FileSeek(InFile, Start);
+	U32Pair Header = ReadRIFFHeader(InFile);
+	UInt32 ListSize = Header.second;
+
+	// Verify that this is a list
+	if(Header.first != ID_LIST) return Ret;
+
+	// Read the list type (we are only interested in stream info lists)
+	if(ReadU32(InFile) != ID_strl) return Ret;
+	Decrement(ListSize, 4);
+
+	// We only support files with a stream header at the start of each strl list
+	Header = ReadRIFFHeader(InFile);
+	if(Header.first != ID_strh) return Ret;
+	Decrement(ListSize, 8);
+
+	// Read this chunk
+	DataChunkPtr StreamHeader = FileReadChunk(InFile, Header.second);
+	Decrement(ListSize, Header.second);
+
+	// We only support files with a stream format following the stream header
+	if(ListSize < 8) return Ret;
+	Header = ReadRIFFHeader(InFile);
+	if(Header.first != ID_strf) return Ret;
+	Decrement(ListSize, 8);
+
+	// Read this chunk
+	DataChunkPtr StreamFormat = FileReadChunk(InFile, Header.second);
+	Decrement(ListSize, Header.second);
+
+	/* Build the stream ID that this essence uses - this is normally ##db where ## is the stream number in decimal */
+	AVIStreamID = ID_00db;
+	if(StreamNumber > 0) AVIStreamID += (StreamNumber % 10) << 16;
+	if(StreamNumber > 9) AVIStreamID += (StreamNumber / 10) << 24;
+
+	// Check if there is an index chunk - this will define the StreamID
+	if(ListSize > 8)
+	{
+		Header = ReadRIFFHeader(InFile);
+		Decrement(ListSize, 8);
+		if(Header.first == ID_indx) 
+		{
+			// Read this chunk
+			DataChunkPtr IndexChunk = FileReadChunk(InFile, Header.second);
+			Decrement(ListSize, Header.second);
+
+			if(IndexChunk->Size >= 12) AVIStreamID = GetU32(&IndexChunk->Data[8]);
+		}
+	}
+
+	// DRAGONS: We now ignore all this info and build the data from the movi data
+	//          We may make more use of the header in future
+
+	// Start scanning for the movi list
+	Position Scan = FileTell(InFile) + ListSize;
+
+	while(!FileEof(InFile))
+	{
+		// Seek to the next position (and check that we succeeded - if not we are beyond the EOF)
+		FileSeek(InFile, Scan);
+		if(FileTell(InFile) != Scan) return Ret;
+
+		// Read the chunk header
+		Header = ReadRIFFHeader(InFile);
+		
+		// Work out where this chunk ends
+		Position NextScan = FileTell(InFile) + Header.second;
+
+		// Is this the movi list?
+		if(Header.first == ID_LIST)
+		{
+			if(ReadU32(InFile) == ID_movi)
+			{
+				ListSize = Header.second;
+
+				while(ListSize && !FileEof(InFile))
+				{
+					Header = ReadRIFFHeader(InFile);
+					if(Header.first == AVIStreamID)
+					{
+						// Record the start of the data
+						DIFStart = FileTell(InFile);
+						DIFEnd = -1;
+						
+						// Record the outer list and current chunk remaining byte counts
+						AVIListRemaining = ListSize;
+						AVIChunkRemaining = Header.second;
+
+						// Build the header from this data
+						Ret = BuildCDCIEssenceDescriptor(InFile, static_cast<UInt64>(DIFStart));
+						
+						// Return to the start of the data
+						FileSeek(InFile, DIFStart);
+
+						return Ret;
+					}
+
+					// Skip over the contents of this chunk
+					FileSeek(InFile, FileTell(InFile) + Header.second);
+
+					// Remove the size of the chunk header and the chunk from the list size
+					Decrement(ListSize, (Header.second + 8));
+				}
+			}
+		}
+
+		// Move to the end of this chunk
+		Scan = NextScan;
+	}
+
+	return Ret;
+}
+
+
+//! Read the header at the specified position in a DV-AVI file to build an audio essence descriptor
+MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptorFromAVI(FileHandle InFile, UInt64 Start)
+{
+	MDObjectPtr Ret;
+
+	// Re-read the header list
+	FileSeek(InFile, Start);
+	U32Pair Header = ReadRIFFHeader(InFile);
+	UInt32 ListSize = Header.second;
+
+	// Verify that this is a list
+	if(Header.first != ID_LIST) return Ret;
+
+	// Read the list type (we are only interested in stream info lists)
+	if(ReadU32(InFile) != ID_strl) return Ret;
+	Decrement(ListSize, 4);
+
+	// We only support files with a stream header at the start of each strl list
+	Header = ReadRIFFHeader(InFile);
+	if(Header.first != ID_strh) return Ret;
+	Decrement(ListSize, 8);
+
+	// Read this chunk
+	DataChunkPtr StreamHeader = FileReadChunk(InFile, Header.second);
+	Decrement(ListSize, Header.second);
+
+	// We only support files with a stream format following the stream header
+	if(ListSize < 8) return Ret;
+	Header = ReadRIFFHeader(InFile);
+	if(Header.first != ID_strf) return Ret;
+	Decrement(ListSize, 8);
+
+	// Read this chunk
+	DataChunkPtr StreamFormat = FileReadChunk(InFile, Header.second);
+	Decrement(ListSize, Header.second);
+
+	/* Build the stream ID that this essence uses - this is normally ##db where ## is the stream number in decimal */
+	AVIStreamID = ID_00db;
+	if(StreamNumber > 0) AVIStreamID += (StreamNumber % 10) << 16;
+	if(StreamNumber > 9) AVIStreamID += (StreamNumber / 10) << 24;
+
+	// Check if there is an index chunk - this will define the StreamID
+	if(ListSize > 8)
+	{
+		Header = ReadRIFFHeader(InFile);
+		Decrement(ListSize, 8);
+		if(Header.first == ID_indx) 
+		{
+			// Read this chunk
+			DataChunkPtr IndexChunk = FileReadChunk(InFile, Header.second);
+			Decrement(ListSize, Header.second);
+
+			if(IndexChunk->Size >= 12) AVIStreamID = GetU32(&IndexChunk->Data[8]);
+		}
+	}
+
+	// DRAGONS: We now ignore all this info and build the data from the movi data
+	//          We may make more use of the header in future
+
+	// Start scanning for the movi list
+	Position Scan = FileTell(InFile) + ListSize;
+
+	while(!FileEof(InFile))
+	{
+		// Seek to the next position (and check that we succeeded - if not we are beyond the EOF)
+		FileSeek(InFile, Scan);
+		if(FileTell(InFile) != Scan) return Ret;
+
+		// Read the chunk header
+		Header = ReadRIFFHeader(InFile);
+		
+		// Work out where this chunk ends
+		Position NextScan = FileTell(InFile) + Header.second;
+
+		// Is this the movi list?
+		if(Header.first == ID_LIST)
+		{
+			if(ReadU32(InFile) == ID_movi)
+			{
+				ListSize = Header.second;
+
+				while(ListSize && !FileEof(InFile))
+				{
+					Header = ReadRIFFHeader(InFile);
+					if(Header.first == AVIStreamID)
+					{
+						// Record the start of the data
+						DIFStart = FileTell(InFile);
+						DIFEnd = -1;
+						
+						// Record the outer list and current chunk remaining byte counts
+						AVIListRemaining = ListSize;
+						AVIChunkRemaining = Header.second;
+
+						// Build the header from this data
+						Ret = BuildSoundEssenceDescriptor(InFile, static_cast<UInt64>(DIFStart));
+						
+						// Return to the start of the data
+						FileSeek(InFile, DIFStart);
+
+						return Ret;
+					}
+
+					// Skip over the contents of this chunk
+					FileSeek(InFile, FileTell(InFile) + Header.second);
+
+					// Remove the size of the chunk header and the chunk from the list size
+					Decrement(ListSize, (Header.second + 8));
+				}
+			}
+		}
+
+		// Move to the end of this chunk
+		Scan = NextScan;
+	}
+
+	return Ret;
+}
+
+
 //! Scan the essence to calculate how many bytes to transfer for the given edit unit count
 /*! \note The file position pointer is moved to the start of the chunk at the end of 
  *		  this function, but CurrentPos points to the start of the next edit unit
@@ -650,18 +1080,27 @@ size_t DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, U
 	// Return anything remaining if clip wrapping
 	if((Count == 0) && (SelectedWrapping->ThisWrapType == WrappingOption::Clip))
 	{
-		Count = ((DIFEnd - DIFStart) / (150 * 80)) - PictureNumber;
+		if(DIFEnd == -1)
+			Count = AVIFrameCount - PictureNumber;
+		else
+			Count = ((DIFEnd - DIFStart) / (150 * 80)) - PictureNumber;
 	}
 
 	// Simple version - we are working in our native edit rate
 	if((SelectedEditRate.Denominator == NativeEditRate.Denominator) && (SelectedEditRate.Numerator = NativeEditRate.Numerator))
 	{
+		// Check for end of AVI essence, and adjust the count as required
+		if(DIFEnd == -1)
+		{
+			if((PictureNumber + Count) > AVIFrameCount) Count = AVIFrameCount - PictureNumber;
+		}
+
 		// Work out how many bytes to read
 		Length Ret = (Length)(Count * 150 * 80 * SeqCount);
 		PictureNumber += Count;
 
 		// If this would read beyond the end of the file stop at the end (don't test on AVI files)
-		if((Ret + static_cast<Position>(FileTell(InFile))) > DIFEnd)
+		if((DIFEnd != -1) && ((Ret + static_cast<Position>(FileTell(InFile))) > DIFEnd))
 		{
 			Position SeqSize = (150 * 80 * SeqCount);
 

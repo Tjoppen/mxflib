@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.12 2006/10/30 17:58:48 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.13 2007/01/19 17:47:29 matt-beard Exp $
  *
  */
 /*
@@ -49,10 +49,16 @@ namespace mxflib
 		Position CurrentPos;								//!< Current position in the input file
 
 		Position DIFStart;									//!< Byte offset of first byte of first DIF
-		Position DIFEnd;									//!< Byte offset of last byte of last DIF + 1
+		Position DIFEnd;									//!< Byte offset of last byte of last DIF + 1, or -1 if the file is an AVI file
 
 		int SeqCount;										//!< Number of DIF sequences in a frame
 
+		UInt32 AVIFrameCount;								//!< The number of frames, if the essence is AVI wrapped
+		int StreamNumber;									//!< AVI Stream number, if the essence is AVI wrapped
+
+		UInt32 AVIStreamID;									//!< The essence chunk FOURCC for this essence
+		UInt32 AVIListRemaining;							//!< The number of bytes remaining in the current LIST while essence parsing
+		UInt32 AVIChunkRemaining;							//!< The number of bytes remaining in the current ##db chunk while essence parsing
 
 		size_t CachedDataSize;								//!< The size of the next data to be read, or (size_t)-1 if not known
 		UInt64 CachedCount;									//!< The number of wrapping units that CachedDataSize relates to
@@ -132,6 +138,8 @@ namespace mxflib
 			DIFStart = 0;
 			DIFEnd = 0;
 			SeqCount = 10;
+			AVIFrameCount = 0;
+			StreamNumber = 0;
 			Buffer = NULL;
 
 			CachedDataSize = static_cast<size_t>(-1);
@@ -236,8 +244,18 @@ namespace mxflib
 		//! Read the header at the specified position in a DV file to build an audio essence descriptor
 		MDObjectPtr BuildSoundEssenceDescriptor(FileHandle InFile, UInt64 Start = 0);
 
+		//! Read the header at the specified position in a DV-AVI file to build an essence descriptor
+		MDObjectPtr BuildCDCIEssenceDescriptorFromAVI(FileHandle InFile, UInt64 Start);
+
+		//! Read the header at the specified position in a DV-AVI file to build an audio essence descriptor
+		MDObjectPtr BuildSoundEssenceDescriptorFromAVI(FileHandle InFile, UInt64 Start);
+
 		//! Scan the essence to calculate how many bytes to transfer for the given edit unit count
 		size_t ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count/*, IndexTablePtr Index = NULL*/);
+
+		//! Read data from AVI wrapped essence
+		/*! Parses the list and chunk structure - can recurse */
+		DataChunkPtr AVIRead(FileHandle InFile, size_t Bytes);
 	};
 
 
