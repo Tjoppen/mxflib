@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.25 2006/11/12 12:14:15 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.26 2007/01/19 14:53:15 matt-beard Exp $
  *
  */
 /*
@@ -1971,6 +1971,11 @@ namespace mxflib
 		/*! \return New file offset or -1 on seek error
 		 */
 		Position Seek(UInt32 BodySID, Position Pos);
+
+		//! Report the byte offset in a given stream
+		/*! \return File offset or -1 if not known or stream does not exist
+		 */
+		Position Tell(UInt32 BodySID);
 
 		//! Set the default handler for all new GCReaders
 		/*! Each time a new GCReader is created this default handler will be used if no other is specified
