@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.21 2006/09/01 15:48:55 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.22 2007/01/20 11:29:31 matt-beard Exp $
  *
  */
 /*
@@ -1100,6 +1100,9 @@ size_t MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, si
 		UnknownCount = false;
 	}
 
+	// Number of bytes read
+	size_t Bytes = 0;
+
 	// If this object is a batch we need to read its header
 	if(Object->GetType()->GetArrayClass() == ARRAYBATCH)
 	{
@@ -1113,6 +1116,7 @@ size_t MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, si
 		UInt32 ItemSize = GetU32(&Buffer[4]);
 
 		Buffer += 8;
+		Bytes += 8;
 		Size -= 8;
 
 		if(Count > (int)ItemCount)
@@ -1122,7 +1126,7 @@ size_t MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, si
 		else
 		{
 			// Only update the count if it was unknown (this allows a valid request to read less than available)
-			if(Count == 0) Count = ItemCount;
+			if(UnknownCount) Count = ItemCount;
 
 			// Now the count IS known
 			UnknownCount = false;
@@ -1134,12 +1138,11 @@ size_t MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, si
 		}
 	}
 
-	// Figure out the maximum number of items to read
+	// Figure out the maximum number of items to read, or zero if open-ended
 	UInt32 MaxItems = Object->GetType()->Size;
 
 	// Count of actual items read, and bytes read in doing so
 	UInt32 ActualCount = 0;
-	size_t Bytes = 0;
 
 	// Either the size of each item to read, or the total size (for unknown count)
 	size_t ThisSize = Size;
