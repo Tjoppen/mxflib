@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.15 2007/01/19 17:47:28 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.16 2007/01/20 16:36:44 matt-beard Exp $
  *
  */
 /*
@@ -187,7 +187,54 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 						// Don't build the multiplex version if we failed to build the sound descriptor (or the mux descriptor)
 						if(AudioDescObj)
 						{
-							MDObjectPtr MuxDescObj = new MDObject(MultipleDescriptor_UL);
+							UInt32 ChannelCount = AudioDescObj->GetUInt(ChannelCount_UL);
+
+							MDObjectPtr MuxDescObj;
+
+							/* If we have 2-16 channels, our preferred method is to make separate tracks for each */
+							if((ChannelCount > 1) && (ChannelCount <= 16))
+							{
+								MuxDescObj = new MDObject(MultipleDescriptor_UL);
+								if(MuxDescObj)
+								{
+									// Make a copy of the multi-track descriptor
+									MDObjectPtr MonoDesc = AudioDescObj->MakeCopy();
+									
+									// Turn it into a mono descriptor
+									MonoDesc->SetUInt(ChannelCount_UL, 1);
+									MDObjectPtr AvgBps = MonoDesc->Child(AvgBps_UL);
+									if(AvgBps) AvgBps->SetUInt(AvgBps->GetUInt() / ChannelCount);
+
+									// Copy up the video edit rate
+									MuxDescObj->SetString(SampleRate_UL, VideoDescObj->GetString(SampleRate_UL));
+
+									MDObjectPtr SubDescriptors = MuxDescObj->AddChild(SubDescriptorUIDs_UL);
+									if(SubDescriptors)
+									{
+										MDObjectPtr Ptr = SubDescriptors->AddChild();
+										if(Ptr) Ptr->MakeLink(VideoDescObj);
+
+										// Add one copy of the mono descriptor per channel
+										while(ChannelCount--)
+										{
+											Ptr = SubDescriptors->AddChild();
+											if(Ptr) Ptr->MakeLink(MonoDesc->MakeCopy());
+										}
+									
+										// Build a descriptor with a zero ID (we only support single stream files)
+										EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
+										MuxDescriptor->ID = 0;
+										MuxDescriptor->Description = "DV-DIF audio/video essence (AVI Wrapped)";
+										MuxDescriptor->SourceFormat.Set(DV_DIF_RAW_Format);
+										MuxDescriptor->Descriptor = MuxDescObj;
+
+										// Add the multiple descriptor
+										Ret.push_back(MuxDescriptor);
+									}
+								}
+							}
+
+							MuxDescObj = new MDObject(MultipleDescriptor_UL);
 							if(MuxDescObj)
 							{
 								// Copy up the video edit rate
@@ -317,7 +364,54 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	// Don't build the multiplex version if we failed to build the sound descriptor (or the mux descriptor)
 	if(AudioDescObj)
 	{
-		MDObjectPtr MuxDescObj = new MDObject(MultipleDescriptor_UL);
+		UInt32 ChannelCount = AudioDescObj->GetUInt(ChannelCount_UL);
+
+		MDObjectPtr MuxDescObj;
+
+		/* If we have 2-16 channels, our preferred method is to make separate tracks for each */
+		if((ChannelCount > 1) && (ChannelCount <= 16))
+		{
+			MuxDescObj = new MDObject(MultipleDescriptor_UL);
+			if(MuxDescObj)
+			{
+				// Make a copy of the multi-track descriptor
+				MDObjectPtr MonoDesc = AudioDescObj->MakeCopy();
+				
+				// Turn it into a mono descriptor
+				MonoDesc->SetUInt(ChannelCount_UL, 1);
+				MDObjectPtr AvgBps = MonoDesc->Child(AvgBps_UL);
+				if(AvgBps) AvgBps->SetUInt(AvgBps->GetUInt() / ChannelCount);
+
+				// Copy up the video edit rate
+				MuxDescObj->SetString(SampleRate_UL, VideoDescObj->GetString(SampleRate_UL));
+
+				MDObjectPtr SubDescriptors = MuxDescObj->AddChild(SubDescriptorUIDs_UL);
+				if(SubDescriptors)
+				{
+					MDObjectPtr Ptr = SubDescriptors->AddChild();
+					if(Ptr) Ptr->MakeLink(VideoDescObj);
+					
+					// Add one copy of the mono descriptor per channel
+					while(ChannelCount--)
+					{
+						Ptr = SubDescriptors->AddChild();
+						if(Ptr) Ptr->MakeLink(MonoDesc->MakeCopy());
+					}
+
+					// Build a descriptor with a zero ID (we only support single stream files)
+					EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
+					MuxDescriptor->ID = 0;
+					MuxDescriptor->Description = "DV-DIF audio/video essence";
+					MuxDescriptor->SourceFormat.Set(DV_DIF_RAW_Format);
+					MuxDescriptor->Descriptor = MuxDescObj;
+
+					// Add the multiple descriptor
+					Ret.push_back(MuxDescriptor);
+				}
+			}
+		}
+
+		MuxDescObj = new MDObject(MultipleDescriptor_UL);
 		if(MuxDescObj)
 		{
 			// Copy up the video edit rate
@@ -373,11 +467,14 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	// The identify step configures some member variables so we can only continue if we just identified this very source
 	bool DescriptorMatch = false;
 	bool MuxDescriptor = false;
+	size_t AudioChannels = 1;
+
 	if(Descriptor.Descriptor == CurrentDescriptor) DescriptorMatch = true;
 	else if(Descriptor.Descriptor->IsA(MultipleDescriptor_UL))
 	{
 		// Check if the first sub of a multiple is our video descriptor
 		MDObjectPtr Ptr = Descriptor.Descriptor[SubDescriptorUIDs_UL];
+		if(Ptr) AudioChannels = Ptr->size() - 1;
 		if(Ptr) Ptr = Ptr->front().second;
 		if(Ptr) Ptr = Ptr->GetLink();
 		if(Ptr == CurrentDescriptor)
@@ -397,8 +494,16 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 
 	if(MuxDescriptor)
 	{
-		ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video and audio data";
-		ClipWrap->Name = "clip-av";						// Set the wrapping name
+		if(AudioChannels > 1)
+		{
+			ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video and audio data - multiple mono audio tracks";
+			ClipWrap->Name = "clip-multi";				// Set the wrapping name
+		}
+		else
+		{
+			ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video and audio data";
+			ClipWrap->Name = "clip-av";					// Set the wrapping name
+		}
 	}
 	else
 	{
@@ -423,8 +528,16 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 
 	if(MuxDescriptor)
 	{
-		FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video and audio data";
-		FrameWrap->Name = "frame-av";						// Set the wrapping name
+		if(AudioChannels > 1)
+		{
+			FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video and audio data - multiple mono audio tracks";
+			FrameWrap->Name = "frame-multi";			// Set the wrapping name
+		}
+		else
+		{
+			FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video and audio data";
+			FrameWrap->Name = "frame-av";				// Set the wrapping name
+		}
 	}
 	else
 	{
