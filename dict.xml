@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2006/10/01 11:56:23 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2007/01/20 16:57:16 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -57,19 +57,25 @@
             <UTF16 detail="Unicode UTF-16 coded character" base="UInt16" ul="urn:x-ul:060E2B34.0104.0101.01100100.00000000"/>
             <Boolean detail="Boolean" base="urn:x-ul:060E2B34.0104.0101.01010100.00000000" ul="urn:x-ul:060E2B34.0104.0101.01040100.00000000"/>
             <ISO7 detail="ISO 7-Bit Coded Character" base="UInt8" ref="ISO/IEC 646:1991" ul="urn:x-ul:060E2B34.0104.0101.01100300.00000000"/>
+			<UTF detail="Byte of a Unicode string of unknown format" base="UInt8" />
             <Length detail="Length in Edit Units" base="Int64" ul="urn:x-ul:060E2B34.0104.0101.01012002.00000000"/>
             <Position detail="Position measured in Edit Units" base="Int64" ul="urn:x-ul:060E2B34.0104.0101.01012001.00000000"/>
             <RGBACode detail="Enumerated value specifying component in an RGBALayoutItem" base="UInt8" ul="urn:x-ul:060E2B34.0104.0101.0201010e.00000000"/>
+            <UTF7 detail="RFC 2152 7-Bit Coded UNICODE Character" base="ISO7" ref="RFC 2152" />
         </Interpretation>
         <Multiple>
+            <UTFString detail="Unicode coded string - unknown format" base="UTF" type="Array" />
             <UTF16String detail="Unicode UTF-16 coded string" base="UTF16" type="Array" ul="urn:x-ul:060E2B34.0104.0101.01100200.00000000"/>
             <Int32Array detail="Array of Int32" base="Int32" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010300.00000000"/>
             <UInt32Array detail="Array of UInt32" base="UInt32" type="Array"/>
             <Int64Array detail="Array of Int64" base="Int64" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010400.00000000"/>
             <UInt8Array detail="Array of UInt8" base="UInt8" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010100.00000000"/>
             <ISO7String detail="ISO 7-Bit coded string" base="ISO7" type="Array" ul="urn:x-ul:060E2B34.0104.0101.01100400.00000000"/>
+            <UTF7String detail="RFC 2152 7-Bit Coded UNICODE string" base="UTF7" type="Array" ul="urn:x-ul:060E2B34.0104.0101.01200500.00000000"/>
             <Int32Batch detail="Batch of Int32 values" base="Int32" type="Batch"/>
             <UInt32Batch detail="Batch of UInt32 values" base="UInt32" type="Batch" ul="urn:x-ul:060E2B34.0104.0101.04030200.00000000"/>
+            <RAWBatch detail="Batch of Raw data items" base="RAW" type="Batch" />
+            <ChannelStatusModeTypeBatch detail="Batch of ChannelStatusModeTypes" base="ChannelStatusModeType" type="Batch" />
         </Multiple>
         <Enumeration>
 			<ProductReleaseKind detail="Product Release Kind" type="UInt16">
@@ -80,6 +86,14 @@
 				<VersionBeta detail="Beta" value="4"/>
 				<VersionPrivateBuild detail="Private Build" value="5"/>
 			</ProductReleaseKind>
+			<ChannelStatusModeType detail="Channel Status Mode" type="UInt8" ul="urn:x-ul:060E2B34.0104.0101.02010125.00000000">
+				<ChannelStatusMode_None detail="No channel status data is encoded" value="0"/>
+				<ChannelStatusMode_Minimum detail="AES3 Minimum (byte 0 bit 0 = '1')" value="1"/>
+				<ChannelStatusMode_Standard detail="AES3 Standard" value="2"/>
+				<ChannelStatusMode_Fixed detail="Fixed 24 byes of data in FixedChannelStatusData property" value="3"/>
+				<ChannelStatusMode_Stream detail="Stream of data within MXF Header Metadata" value="4"/>
+				<ChannelStatusMode_Essence detail="Stream of data multiplexed within MXF Body" value="5"/>
+			</ChannelStatusModeType>
         </Enumeration>
         <Basic>
             <RAW detail="Raw data bytes, unknown representation" size="0" endian="no"/>
@@ -465,6 +479,15 @@
 			<PeakEnvelopeTimestamp detail="Time stamp of the creation of the peak data (BWF strTimeStamp converted to TimeStamp)" use="optional" type="Timestamp" key="3d 30" globalKey="06 0e 2b 34 01 01 01 08  04 02 03 01 0d 00 00 00"/>
 			<PeakEnvelopeData detail="Peak envelope data (BWF peak_envelope_data)" use="optional" type="Stream" key="3d 31" globalKey="06 0e 2b 34 01 01 01 05  04 02 03 01 0e 00 00 00"/>
 		</WaveAudioDescriptor>
+		<AES3PCMDescriptor base="WaveAudioDescriptor" detail="AES3 PCM Descriptor Set" globalKey="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 47 00">
+			<Emphasis detail="AES3 Emphasis (aligned to LSB of this property)" use="optional" type="UInt8" key="3d 0d" globalKey="urn:x-ul:060E2B34.0101.0105.04020501.06000000" default="0"/>
+			<BlockStartOffset detail="AES3 Position of first Z preamble in essence stream" use="optional" type="UInt16" key="3d 0f" globalKey="urn:x-ul:060E2B34.0101.0105.04020302.03000000" default="0"/>
+			<AuxBitsMode detail="AES3 Use of Auxiliary Bits" use="optional" type="UInt8" key="3d 08" globalKey="urn:x-ul:060E2B34.0101.0105.04020501.01000000" default="0"/>
+			<ChannelStatusMode detail="AES3 Enumerated mode of carriage of channel status data" use="optional" type="ChannelStatusModeTypeBatch" key="3d 10" globalKey="urn:x-ul:060E2B34.0101.0105.04020501.02000000" />
+			<FixedChannelStatusData detail="AES3 Fixed data pattern for channel status data" use="optional" type="RAWBatch" key="3d 11" globalKey="urn:x-ul:060E2B34.0101.0105.04020501.03000000" />
+			<UserDataMode detail="AES3 Enumerated mode of carriage of user data, defined by AES3 section 4." use="optional" type="RAWBatch" key="3d 12" globalKey="urn:x-ul:060E2B34.0101.0105.04020501.04000000" />
+			<FixedUserData detail="AES3 Fixed data pattern for user data" use="optional" type="RAWBatch" key="3d 13" globalKey="urn:x-ul:060E2B34.0101.0105.04020501.05000000" />
+		</AES3PCMDescriptor>
 		<DM_Framework base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00"/>
 		<DM_Set base="GenerationInterchangeObject" detail="Superclass for all concrete DM Frameworks" type="localSet" key="06 0e 2b 34 02 53 01 01 0d 01 04 00 00 00 00 00"/>
 	</MXFClasses>
@@ -532,5 +555,9 @@
 			<CodingStyleDefault detail="Default coding style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="CodingStyleDefault" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0c 00 00 00"/>
 			<QuantizationDefault detail="Default quantization style for all components. Use this value only if static for all pictures in the Essence Container" use="optional" type="QuantizationDefault" globalKey="06 0e 2b 34 01 01 01 0a  04 01 06 03 0d 00 00 00"/>
 		</JPEG2000PictureSubDescriptor>
+	</MXFClasses>
+	<MXFClasses>
+		<XMLDocumentTextIndirect detail="An XML document as a text string" use="optional" globalKey="urn:x-ul:060E2B34.0101.0105.03010220.01000000" type="UTFString"/>
+		<XMLDocumentText_RFC2152 detail="An XML document in UTF-7 text encoding form" use="optional" globalKey="urn:x-ul:060E2B34.0101.0105.03010220.01010000" type="UTF7String"/>
 	</MXFClasses>
 </MXFDictionary>
