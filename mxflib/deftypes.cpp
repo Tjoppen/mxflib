@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.22 2006/10/13 15:02:14 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.23 2007/01/20 16:21:59 matt-beard Exp $
  *
  */
 /*
@@ -189,6 +189,10 @@ namespace
 
 		AddTraitsMapping("ISO7String", new MDTraits_BasicStringArray);
 		AddTraitsMapping("UTF16String", new MDTraits_UTF16String);
+
+		// DRAGONS: At the moment we assume all unknown UTF is basically 7-bit text!
+		AddTraitsMapping("UTF", new MDTraits_ISO7);
+		AddTraitsMapping("UTFString", new MDTraits_BasicStringArray);
 
 		AddTraitsMapping("UInt8Array", new MDTraits_RawArray);
 		AddTraitsMapping("Uint8Array", new MDTraits_RawArray);
