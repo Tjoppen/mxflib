@@ -7,7 +7,8 @@ AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE(mxflib, beta-1.0.0)
 
 # Create a .zip package in addition to .tar.gz when running "make dist"
-AM_INIT_AUTOMAKE(dist-zip)
+# Removed as there is no point in making a zip with the wrong line endings for Windows!
+##AM_INIT_AUTOMAKE(dist-zip)
 
 # Checks for programs.
 AC_PROG_CXX
