@@ -18,17 +18,23 @@
 		MXFLIB_TYPE_INTERPRETATION("UTF16", "Unicode UTF-16 coded character", "UInt16", "urn:x-ul:060E2B34.0104.0101.01100100.00000000", 0)
 		MXFLIB_TYPE_INTERPRETATION("Boolean", "Boolean", "urn:x-ul:060E2B34.0104.0101.01010100.00000000", "urn:x-ul:060E2B34.0104.0101.01040100.00000000", 0)
 		MXFLIB_TYPE_INTERPRETATION("ISO7", "ISO 7-Bit Coded Character", "UInt8", "urn:x-ul:060E2B34.0104.0101.01100300.00000000", 0)
+		MXFLIB_TYPE_INTERPRETATION("UTF", "Byte of a Unicode string of unknown format", "UInt8", "", 0)
 		MXFLIB_TYPE_INTERPRETATION("Length", "Length in Edit Units", "Int64", "urn:x-ul:060E2B34.0104.0101.01012002.00000000", 0)
 		MXFLIB_TYPE_INTERPRETATION("Position", "Position measured in Edit Units", "Int64", "urn:x-ul:060E2B34.0104.0101.01012001.00000000", 0)
 		MXFLIB_TYPE_INTERPRETATION("RGBACode", "Enumerated value specifying component in an RGBALayoutItem", "UInt8", "urn:x-ul:060E2B34.0104.0101.0201010e.00000000", 0)
+		MXFLIB_TYPE_INTERPRETATION("UTF7", "RFC 2152 7-Bit Coded UNICODE Character", "ISO7", "", 0)
+		MXFLIB_TYPE_MULTIPLE("UTFString", "Unicode coded string - unknown format", "UTF", "", false, 0)
 		MXFLIB_TYPE_MULTIPLE("UTF16String", "Unicode UTF-16 coded string", "UTF16", "urn:x-ul:060E2B34.0104.0101.01100200.00000000", false, 0)
 		MXFLIB_TYPE_MULTIPLE("Int32Array", "Array of Int32", "Int32", "urn:x-ul:060E2B34.0104.0101.04010300.00000000", false, 0)
 		MXFLIB_TYPE_MULTIPLE("UInt32Array", "Array of UInt32", "UInt32", "", false, 0)
 		MXFLIB_TYPE_MULTIPLE("Int64Array", "Array of Int64", "Int64", "urn:x-ul:060E2B34.0104.0101.04010400.00000000", false, 0)
 		MXFLIB_TYPE_MULTIPLE("UInt8Array", "Array of UInt8", "UInt8", "urn:x-ul:060E2B34.0104.0101.04010100.00000000", false, 0)
 		MXFLIB_TYPE_MULTIPLE("ISO7String", "ISO 7-Bit coded string", "ISO7", "urn:x-ul:060E2B34.0104.0101.01100400.00000000", false, 0)
+		MXFLIB_TYPE_MULTIPLE("UTF7String", "RFC 2152 7-Bit Coded UNICODE string", "UTF7", "urn:x-ul:060E2B34.0104.0101.01200500.00000000", false, 0)
 		MXFLIB_TYPE_MULTIPLE("Int32Batch", "Batch of Int32 values", "Int32", "", true, 0)
 		MXFLIB_TYPE_MULTIPLE("UInt32Batch", "Batch of UInt32 values", "UInt32", "urn:x-ul:060E2B34.0104.0101.04030200.00000000", true, 0)
+		MXFLIB_TYPE_MULTIPLE("RAWBatch", "Batch of Raw data items", "RAW", "", true, 0)
+		MXFLIB_TYPE_MULTIPLE("ChannelStatusModeTypeBatch", "Batch of ChannelStatusModeTypes", "ChannelStatusModeType", "", true, 0)
 		MXFLIB_TYPE_ENUM("ProductReleaseKind", "Product Release Kind", "UInt16", "")
 			MXFLIB_TYPE_ENUM_VALUE("VersionUnknown", "Unknown", "0")
 			MXFLIB_TYPE_ENUM_VALUE("VersionReleased", "Released", "1")
@@ -36,6 +42,14 @@
 			MXFLIB_TYPE_ENUM_VALUE("VersionPatched", "Patched", "3")
 			MXFLIB_TYPE_ENUM_VALUE("VersionBeta", "Beta", "4")
 			MXFLIB_TYPE_ENUM_VALUE("VersionPrivateBuild", "Private Build", "5")
+		MXFLIB_TYPE_ENUM_END
+		MXFLIB_TYPE_ENUM("ChannelStatusModeType", "Channel Status Mode", "UInt8", "urn:x-ul:060E2B34.0104.0101.02010125.00000000")
+			MXFLIB_TYPE_ENUM_VALUE("ChannelStatusMode_None", "No channel status data is encoded", "0")
+			MXFLIB_TYPE_ENUM_VALUE("ChannelStatusMode_Minimum", "AES3 Minimum (byte 0 bit 0 = '1')", "1")
+			MXFLIB_TYPE_ENUM_VALUE("ChannelStatusMode_Standard", "AES3 Standard", "2")
+			MXFLIB_TYPE_ENUM_VALUE("ChannelStatusMode_Fixed", "Fixed 24 byes of data in FixedChannelStatusData property", "3")
+			MXFLIB_TYPE_ENUM_VALUE("ChannelStatusMode_Stream", "Stream of data within MXF Header Metadata", "4")
+			MXFLIB_TYPE_ENUM_VALUE("ChannelStatusMode_Essence", "Stream of data multiplexed within MXF Body", "5")
 		MXFLIB_TYPE_ENUM_END
 		MXFLIB_TYPE_BASIC("RAW", "Raw data bytes, unknown representation", "", 0, false)
 		MXFLIB_TYPE_INTERPRETATION("Stream", "Data mapped to AAF Stream, MXF represents using a SID", "RAW", "urn:x-ul:060E2B34.0104.0101.04100200.00000000", 0)
@@ -425,6 +439,15 @@
 			MXFLIB_CLASS_ITEM("PeakEnvelopeTimestamp", "Time stamp of the creation of the peak data (BWF strTimeStamp converted to TimeStamp)", ClassUsageOptional, "Timestamp", 0, 0, 0x3d30, "06 0e 2b 34 01 01 01 08  04 02 03 01 0d 00 00 00", NULL, NULL)
 			MXFLIB_CLASS_ITEM("PeakEnvelopeData", "Peak envelope data (BWF peak_envelope_data)", ClassUsageOptional, "Stream", 0, 0, 0x3d31, "06 0e 2b 34 01 01 01 05  04 02 03 01 0e 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
+		MXFLIB_CLASS_SET("AES3PCMDescriptor", "AES3 PCM Descriptor Set", "WaveAudioDescriptor", "06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 47 00")
+			MXFLIB_CLASS_ITEM("Emphasis", "AES3 Emphasis (aligned to LSB of this property)", ClassUsageOptional, "UInt8", 0, 0, 0x3d0d, "urn:x-ul:060E2B34.0101.0105.04020501.06000000", "0", NULL)
+			MXFLIB_CLASS_ITEM("BlockStartOffset", "AES3 Position of first Z preamble in essence stream", ClassUsageOptional, "UInt16", 0, 0, 0x3d0f, "urn:x-ul:060E2B34.0101.0105.04020302.03000000", "0", NULL)
+			MXFLIB_CLASS_ITEM("AuxBitsMode", "AES3 Use of Auxiliary Bits", ClassUsageOptional, "UInt8", 0, 0, 0x3d08, "urn:x-ul:060E2B34.0101.0105.04020501.01000000", "0", NULL)
+			MXFLIB_CLASS_ITEM("ChannelStatusMode", "AES3 Enumerated mode of carriage of channel status data", ClassUsageOptional, "ChannelStatusModeTypeBatch", 0, 0, 0x3d10, "urn:x-ul:060E2B34.0101.0105.04020501.02000000", NULL, NULL)
+			MXFLIB_CLASS_ITEM("FixedChannelStatusData", "AES3 Fixed data pattern for channel status data", ClassUsageOptional, "RAWBatch", 0, 0, 0x3d11, "urn:x-ul:060E2B34.0101.0105.04020501.03000000", NULL, NULL)
+			MXFLIB_CLASS_ITEM("UserDataMode", "AES3 Enumerated mode of carriage of user data, defined by AES3 section 4.", ClassUsageOptional, "RAWBatch", 0, 0, 0x3d12, "urn:x-ul:060E2B34.0101.0105.04020501.04000000", NULL, NULL)
+			MXFLIB_CLASS_ITEM("FixedUserData", "AES3 Fixed data pattern for user data", ClassUsageOptional, "RAWBatch", 0, 0, 0x3d13, "urn:x-ul:060E2B34.0101.0105.04020501.05000000", NULL, NULL)
+		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_SET("DM_Framework", "Superclass for all concrete DM Frameworks", "GenerationInterchangeObject", "06 0e 2b 34 02 53 01 01  0d 01 04 01 00 00 00 00")
 		MXFLIB_CLASS_SET_END
 		MXFLIB_CLASS_SET("DM_Set", "Superclass for all concrete DM Frameworks", "GenerationInterchangeObject", "06 0e 2b 34 02 53 01 01 0d 01 04 00 00 00 00 00")
@@ -494,10 +517,17 @@
 		MXFLIB_CLASS_SET_END
 	MXFLIB_CLASS_END
 
+	// Class definitions converted from file dict.xml
+	MXFLIB_CLASS_START(DictData_Classes_3)
+		MXFLIB_CLASS_ITEM("XMLDocumentTextIndirect", "An XML document as a text string", ClassUsageOptional, "UTFString", 0, 0, 0x0000, "urn:x-ul:060E2B34.0101.0105.03010220.01000000", NULL, NULL)
+		MXFLIB_CLASS_ITEM("XMLDocumentText_RFC2152", "An XML document in UTF-7 text encoding form", ClassUsageOptional, "UTF7String", 0, 0, 0x0000, "urn:x-ul:060E2B34.0101.0105.03010220.01010000", NULL, NULL)
+	MXFLIB_CLASS_END
+
 	// Build a complete dictionary from above types and classes
 	MXFLIB_DICTIONARY_START(DictData)
 		MXFLIB_DICTIONARY_TYPES(DictData_Types)
 		MXFLIB_DICTIONARY_TYPES(DictData_Types_2)
 		MXFLIB_DICTIONARY_CLASSES(DictData_Classes)
 		MXFLIB_DICTIONARY_CLASSES(DictData_Classes_2)
+		MXFLIB_DICTIONARY_CLASSES(DictData_Classes_3)
 	MXFLIB_DICTIONARY_END
