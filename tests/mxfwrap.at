@@ -2,10 +2,10 @@ AT_BANNER([[Checking mxfwrap]])
 
 AT_SETUP([mxfwrap])
 
-AT_CHECK([mxfwrap -a -f -r25/1 ../../small.wav ../../mxfwrap_wav.mxf], 0,
+AT_CHECK([mxfwrap -k=64 -a -f -r25/1 ../../small.wav ../../mxfwrap_wav.mxf], 0,
 [[MXFlib File Wrapper
 
-KAGSize     = 1
+KAGSize     = 64
 
 Input file  = ../../small.wav
 Output file = ../../mxfwrap_wav.mxf
