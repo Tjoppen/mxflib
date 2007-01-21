@@ -99,6 +99,7 @@ AC_CONFIG_FILES([Makefile
                  mxfsplit/Makefile
                  mxfwrap/Makefile
                  simplewrap/Makefile
+				 mxf2dot/Makefile
                  mxfcrypt/Makefile])
 AM_MISSING_PROG([AUTOM4TE], [autom4te])
 
