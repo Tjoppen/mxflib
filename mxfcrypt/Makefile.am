@@ -1,4 +1,4 @@
-# $Id: Makefile.am,v 1.4 2004/12/18 20:19:36 matt-beard Exp $
+# $Id: Makefile.am,v 1.5 2007/01/21 09:58:59 matt-beard Exp $
 #
 
 # mxfcrypt compilation is enabled with ./configure --enable-crypt
@@ -9,7 +9,7 @@ INCLUDES = -I$(top_builddir)
 
 bin_PROGRAMS = mxfcrypt
 
-mxfcrypt_SOURCES = mxfcrypt.cpp crypto_asdcp.cpp
+mxfcrypt_SOURCES = mxfcrypt.cpp crypto_asdcp.cpp crypto_asdcp.h
 
 LDADD = ../mxflib/libmxf.a $(UUIDLIB) -lcrypto
 
