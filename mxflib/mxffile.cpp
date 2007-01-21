@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.19 2007/01/19 14:57:20 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.20 2007/01/21 15:22:37 matt-beard Exp $
  *
  */
 /*
@@ -1120,9 +1120,15 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 				// Add the padding to the required section
 				if(IndexData)
+				{
 					IndexByteCount = NewIndexByteCount + Padding;
+					HeaderByteCount = NewHeaderByteCount;
+				}
 				else
 					HeaderByteCount = NewHeaderByteCount + Padding;
+
+				// Prevent further padding
+				Padding = 0;
 			}
 
 			// We can't obey a MinPartitionSize request
@@ -1302,11 +1308,21 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	// Write the pack
 	WritePartitionPack(ThisPartition);
 
-	if(IncludeMetadata)
+	// If we will not be writting metadata or index, but padding has been requested, write the filler here
+	if((!IncludeMetadata) && (!IndexData) && (Padding > 0))
+	{
+		Align(KAGSize, Padding);
+	}
+	else
 	{
 		// Align if required
-		if(KAGSize > 1) Align(KAGSize);
+		// All non-footer partitions pack are followed by KAG alignment
+		// Any partition with metadata or index has a KAG alignment after the partition pack
+		if((KAGSize > 1) && ((!IsFooter) || IncludeMetadata || IndexData)) Align(KAGSize);
+	}
 
+	if(IncludeMetadata)
+	{
 		// Write the primer
 		Write(PrimerBuffer);
 
@@ -1314,29 +1330,22 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		Write(MetaBuffer);
 	}
 
-	// Write a filler of the required size for block alignment (note the forced KAG of 1 in this case)
-	if(BlockAlignHeaderBytes) Align((UInt32)1, (UInt32)BlockAlignHeaderBytes); 
+	// Ensure the correct size of filler for the already written header byte count - it is possible for duff values to force 2 fillers
+	UInt32 HeaderPadding = static_cast<UInt32>(HeaderByteCount - (PrimerBuffer->Size + MetaBuffer->Size));
+
+	// Write a filler of the required size
+	if(HeaderPadding) Align((UInt32)1, HeaderPadding);
 
 	if(IndexData)
 	{
-		// Align if required
-		if((KAGSize > 1) && (!BlockAlign)) Align(KAGSize);
-
 		// Write the index data
 		Write(IndexData);
 
-		// Write a filler of the required size for block alignment (note the forced KAG of 1 in this case)
-		if(BlockAlignIndexBytes) Align((UInt32)1, (UInt32)BlockAlignIndexBytes);
-	}
+		// Ensure the correct size of filler for the already written index byte count
+		UInt32 IndexPadding = static_cast<UInt32>(IndexByteCount - IndexData->Size);
 
-	// If not a footer align to the KAG (add padding if requested even if it is a footer)
-	if( (!IsFooter) || (Padding > 0))
-	{
-		// We don't do both block alignment and padding
-		if((IndexData && (!BlockAlignIndexBytes)) || (!BlockAlignHeaderBytes))
-		{
-			if((KAGSize > 1) || (Padding > 0)) Align(KAGSize, Padding);
-		}
+		// Write a filler of the required size
+		if(IndexPadding) Align((UInt32)1, IndexPadding);
 	}
 
 	return true;
