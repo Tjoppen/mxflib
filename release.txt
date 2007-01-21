@@ -1,17 +1,17 @@
-Release Notes for mxflib version 1.0.0-Beta-RC4
+Release Notes for mxflib version 1.0.0-Beta-RC5
 ===============================================
 
-This is the fourth release candidate for version 1.0.0
+This is the fifth release candidate for version 1.0.0
 
 Please note that it is expected that applications using MXFLib, or reusing a significantly amount of the code, include an acknowledgment with all copyright messages.
 
 Suggested acknowledgment texts, either:
 
-  Including MXFLib by freemxf.org (c) 2002-2006
+  Including MXFLib by freemxf.org (c) 2002-2007
 
 or:
 
-  Based on MXFLib by freemxf.org (c) 2002-2006
+  Based on MXFLib by freemxf.org (c) 2002-2007
 
 
 Things to check in code currently using mxflib 0.6.0:
@@ -29,6 +29,12 @@ Things to check in code currently using mxflib 0.6.0:
 ** Change IdentifyEssence() to add EssenceStreamDescriptorPtrs to the returned EssenceStreamDescriptorList rather than EssenceStreamDescriptors
 ** Optionally add a parser name with GetParserName() and name each wrapping with WrappingOption::Name
 ** Optionally add identify each wrapping with WrappingOption::WrappingID
+
+
+Changes since version 1.0.0-Beta-RC4
+====================================
+
+* Improved DV parsing, including the ability to parse Type-1 DV-AVI files
 
 
 Changes since version 1.0.0-Beta-RC3
