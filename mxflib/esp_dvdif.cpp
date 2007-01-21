@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.16 2007/01/20 16:36:44 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.17 2007/01/21 12:15:52 matt-beard Exp $
  *
  */
 /*
@@ -212,13 +212,14 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 									if(SubDescriptors)
 									{
 										MDObjectPtr Ptr = SubDescriptors->AddChild();
-										if(Ptr) Ptr->MakeLink(VideoDescObj);
+										if(Ptr) Ptr->MakeRef(VideoDescObj);
 
 										// Add one copy of the mono descriptor per channel
 										while(ChannelCount--)
 										{
 											Ptr = SubDescriptors->AddChild();
-											if(Ptr) Ptr->MakeLink(MonoDesc->MakeCopy());
+											MDObjectPtr NewCopy = MonoDesc->MakeCopy();
+											if(Ptr) Ptr->MakeRef(NewCopy);
 										}
 									
 										// Build a descriptor with a zero ID (we only support single stream files)
@@ -244,9 +245,9 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 								if(SubDescriptors)
 								{
 									MDObjectPtr Ptr = SubDescriptors->AddChild();
-									if(Ptr) Ptr->MakeLink(VideoDescObj);
+									if(Ptr) Ptr->MakeRef(VideoDescObj);
 									Ptr = SubDescriptors->AddChild();
-									if(Ptr) Ptr->MakeLink(AudioDescObj);
+									if(Ptr) Ptr->MakeRef(AudioDescObj);
 								
 									// Build a descriptor with a zero ID (we only support single stream files)
 									EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
@@ -389,13 +390,14 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 				if(SubDescriptors)
 				{
 					MDObjectPtr Ptr = SubDescriptors->AddChild();
-					if(Ptr) Ptr->MakeLink(VideoDescObj);
+					if(Ptr) Ptr->MakeRef(VideoDescObj);
 					
 					// Add one copy of the mono descriptor per channel
 					while(ChannelCount--)
 					{
 						Ptr = SubDescriptors->AddChild();
-						if(Ptr) Ptr->MakeLink(MonoDesc->MakeCopy());
+						MDObjectPtr NewCopy = MonoDesc->MakeCopy();
+						if(Ptr) Ptr->MakeRef(NewCopy);
 					}
 
 					// Build a descriptor with a zero ID (we only support single stream files)
@@ -421,9 +423,9 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 			if(SubDescriptors)
 			{
 				MDObjectPtr Ptr = SubDescriptors->AddChild();
-				if(Ptr) Ptr->MakeLink(VideoDescObj);
+				if(Ptr) Ptr->MakeRef(VideoDescObj);
 				Ptr = SubDescriptors->AddChild();
-				if(Ptr) Ptr->MakeLink(AudioDescObj);
+				if(Ptr) Ptr->MakeRef(AudioDescObj);
 			
 				// Build a descriptor with a zero ID (we only support single stream files)
 				EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
@@ -894,9 +896,6 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptor(FileHandle InFi
 	// Set 625/50 flag from the header
 	bool is625 = ((Buffer[3] & 0x80) == 0x80);
 
-	// Set SMPTE-314M flag by assuming the APT value will only be 001 or 111 if we are in SMPTE-314M
-	bool isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
-
 	// Bug out if the video is flagged as invalid
 	if((Buffer[6] & 0x80) != 0) return Ret;
 
@@ -994,7 +993,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptorFromAVI(FileHandl
 	//          We may make more use of the header in future
 
 	// Start scanning for the movi list
-	Position Scan = FileTell(InFile) + ListSize;
+	UInt64 Scan = FileTell(InFile) + ListSize;
 
 	while(!FileEof(InFile))
 	{
@@ -1006,7 +1005,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptorFromAVI(FileHandl
 		Header = ReadRIFFHeader(InFile);
 		
 		// Work out where this chunk ends
-		Position NextScan = FileTell(InFile) + Header.second;
+		UInt64 NextScan = FileTell(InFile) + Header.second;
 
 		// Is this the movi list?
 		if(Header.first == ID_LIST)
@@ -1114,7 +1113,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptorFromAVI(FileHand
 	//          We may make more use of the header in future
 
 	// Start scanning for the movi list
-	Position Scan = FileTell(InFile) + ListSize;
+	UInt64 Scan = FileTell(InFile) + ListSize;
 
 	while(!FileEof(InFile))
 	{
@@ -1126,7 +1125,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptorFromAVI(FileHand
 		Header = ReadRIFFHeader(InFile);
 		
 		// Work out where this chunk ends
-		Position NextScan = FileTell(InFile) + Header.second;
+		UInt64 NextScan = FileTell(InFile) + Header.second;
 
 		// Is this the movi list?
 		if(Header.first == ID_LIST)
