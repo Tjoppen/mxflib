@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.22 2007/01/20 11:29:31 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.23 2007/02/12 15:48:23 matt-beard Exp $
  *
  */
 /*
@@ -395,7 +395,10 @@ Int32 mxflib::MDTraits_Int16::GetInt(MDValuePtr Object)
 	}
 
 	// Build the 16-bit value
-	return ((Object->GetData().Data)[0] << 8) | (Object->GetData().Data)[1];
+	Int16 Val = ((Object->GetData().Data)[0] << 8) | (Object->GetData().Data)[1];
+
+	// Return that value cast up to 32-bit
+	return static_cast<Int32>(Val);
 }
 
 //! Get UInt32 from an Int16
