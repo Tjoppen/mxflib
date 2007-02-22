@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.17 2007/01/21 12:15:52 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.18 2007/02/22 16:57:28 matt-beard Exp $
  *
  */
 /*
@@ -47,6 +47,9 @@ namespace
 
 	// AVI FOURCC codes
 	
+	const UInt32 ID_RIFF = 0x52494646;		//! "RIFF"
+	const UInt32 ID_AVIX = 0x41564958;		//! "AVIX"
+
 	const UInt32 ID_LIST = 0x4C495354;		//! "LIST"
 	const UInt32 ID_hdrl = 0x6864726c;		//! "hdrl"
 
@@ -67,6 +70,9 @@ namespace
 	const UInt32 ID_DVSL = 0x4456534c;		//! "DVSL"
 
 	const UInt32 ID_movi = 0x6d6f7669;		//! "DVSL"
+
+	const UInt32 ID_odml = 0x6f646d6c;		//! "odml"
+	const UInt32 ID_dmlh = 0x646d6c68;		//! "dmlh"
 
 	const UInt32 ID_00db = 0x30306462;		//! "00db" - the base for video streams
 }
@@ -218,6 +224,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 										while(ChannelCount--)
 										{
 											Ptr = SubDescriptors->AddChild();
+
 											MDObjectPtr NewCopy = MonoDesc->MakeCopy();
 											if(Ptr) Ptr->MakeRef(NewCopy);
 										}
@@ -396,7 +403,9 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 					while(ChannelCount--)
 					{
 						Ptr = SubDescriptors->AddChild();
+
 						MDObjectPtr NewCopy = MonoDesc->MakeCopy();
+
 						if(Ptr) Ptr->MakeRef(NewCopy);
 					}
 
@@ -726,12 +735,36 @@ DataChunkPtr DV_DIF_EssenceSubParser::AVIRead(FileHandle InFile, size_t Bytes)
 		while(!FileEof(InFile))
 		{
 			U32Pair Header = ReadRIFFHeader(InFile);
+			
+			// Ensure we exit gracefully if we run out of valid data
+			if((Header.first == 0) && (Header.second == 0)) break;
 
 			if(Header.first == ID_LIST)
 			{
 				AVIListRemaining = Header.second;
+				
+				// Read and discard the list type
+				ReadU32(InFile);
+
 				break;
 			}
+
+			if(Header.first == ID_RIFF)
+			{
+				UInt32 RIFFType = ReadU32(InFile);
+
+				if(RIFFType != ID_AVIX)
+				{
+					error("Found continuation RIFF of type 0x%08x - expected an AVIX chunk\n", RIFFType);
+					return Ret;
+				}
+
+				// We have found an AVIX chunk - start parsing inside it, looking for our next list
+				continue;
+			}
+
+			// Skip this chunk
+			FileSeek(InFile, FileTell(InFile) + Header.second);
 		}
 	}
 
@@ -1010,7 +1043,8 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptorFromAVI(FileHandl
 		// Is this the movi list?
 		if(Header.first == ID_LIST)
 		{
-			if(ReadU32(InFile) == ID_movi)
+			UInt32 ListID = ReadU32(InFile);
+			if(ListID == ID_movi)
 			{
 				ListSize = Header.second;
 
@@ -1038,6 +1072,30 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptorFromAVI(FileHandl
 
 					// Skip over the contents of this chunk
 					FileSeek(InFile, FileTell(InFile) + Header.second);
+
+					// Remove the size of the chunk header and the chunk from the list size
+					Decrement(ListSize, (Header.second + 8));
+				}
+			}
+			// Have we found an ODML section?
+			else if(ListID == ID_odml)
+			{
+				ListSize = Header.second;
+
+				while(ListSize && !FileEof(InFile))
+				{
+					Header = ReadRIFFHeader(InFile);
+
+					// Work out where this chunk in the list ends
+					Position ChunkEnd = FileTell(InFile) + Header.second;
+
+					if(Header.first == ID_dmlh)
+					{
+						AVIFrameCount = ReadU32_LE(InFile);
+					}
+
+					// Skip over the contents of this chunk
+					FileSeek(InFile, ChunkEnd);
 
 					// Remove the size of the chunk header and the chunk from the list size
 					Decrement(ListSize, (Header.second + 8));
