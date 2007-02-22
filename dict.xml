@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2007/01/20 16:57:16 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2007/02/22 12:54:32 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -158,8 +158,8 @@
             <RGBALayout detail="Specifies the type, order and size of the components within the pixel" base="RGBALayoutItem" type="Array" size="8" ul="urn:x-ul:060E2B34.0104.0101.04020100.00000000"/>
         </Multiple>
     </MXFTypes>
-	<MXFClasses>
-		<KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 01 03 01 02 10 01 00 00 00"/>
+    <MXFClasses>
+        <KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 02 03 01 02 10 01 00 00 00"/>
         <PartitionMetadata detail="Identifies a Partition Pack" type="fixedPack" key="urn:x-ul:060E2B34.0206.0101.0D010200.00000000">
 			<MajorVersion detail="Major Version number of MXF byte-level format (non-backwards compatible version number)" use="required" type="UInt16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 04  03 01 02 01 06 00 00 00" default="0001h"/>
 			<MinorVersion detail="Minor Version number of MXF byte-level format (backwards compatible version number)" use="required" type="UInt16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 04  03 01 02 01 07 00 00 00" default="0002h"/>
