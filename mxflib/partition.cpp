@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.13 2006/09/02 12:37:51 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.14 2007/02/22 12:53:39 matt-beard Exp $
  *
  */
 /*
@@ -257,9 +257,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 			return 0;
 		}
 
-		MDOTypePtr FirstType = MDOType::Find(FirstUL);
-
-		if(FirstType && FirstType->Name() == "KLVFill")
+		if(FirstUL->Matches(KLVFill_UL))
 		{
 			// Skip over the filler, recording how far we went
 			Position NewLocation = File->ReadBER();
@@ -382,7 +380,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 		}
 
 		// Skip any filler items
-		if(NewItem->Name() == "KLVFill")
+		if(NewItem->IsA(KLVFill_UL))
 		{
 			Size -= Len;
 			Bytes += Len;
@@ -465,7 +463,7 @@ MDObjectListPtr mxflib::Partition::ReadIndex(void)
 	}
 
 	MDOTypePtr FirstType = MDOType::Find(FirstUL);
-	if(FirstType->Name() == "KLVFill")
+	if(FirstType->IsA(KLVFill_UL))
 	{
 		// Skip over the filler
 		Len = ParentFile->ReadBER();
@@ -497,7 +495,7 @@ MDObjectListPtr mxflib::Partition::ReadIndex(MXFFilePtr File, UInt64 Size)
 				Ret->push_back(NewIndex);
 				Bytes = File->Tell() - Location;
 			}
-			else if( NewIndex->Name() == "KLVFill" )
+			else if( NewIndex->IsA(KLVFill_UL) )
 			{
 				// Skip over the filler
 				Bytes = File->Tell() - Location;
@@ -567,7 +565,7 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 	}
 
 	MDOTypePtr FirstType = MDOType::Find(FirstUL);
-	if(FirstType->Name() == "KLVFill")
+	if(FirstType->IsA(KLVFill_UL))
 	{
 		// Skip over the filler
 		Len = ParentFile->ReadBER();
@@ -593,10 +591,14 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 		{
 			if(*p == 0x06)
 			{
-				if(memcmp(p, KLVFill_UL.GetValue(), 16) == 0)
+				// Do a versionless compare
+				if(memcmp(p, KLVFill_UL.GetValue(), 7) == 0)
 				{
-					Ret->Resize(p - Ret->Data);
-					break;
+					if(memcmp(&p[8], &(KLVFill_UL.GetValue()[8]), 8) == 0)
+					{
+						Ret->Resize(p - Ret->Data);
+						break;
+					}
 				}
 			}
 			p--;
@@ -739,8 +741,7 @@ UInt64 mxflib::Partition::SkipFill( UInt64 start )
 	ULPtr FirstUL = PF->ReadKey();
 	if(!FirstUL) return 0;
 
-	MDOTypePtr FirstType = MDOType::Find(FirstUL);
-	if(FirstType && FirstType->Name() == "KLVFill")
+	if(FirstUL->Matches(KLVFill_UL))
 	{
 		// Skip over the KLVFill
 		Length Len = PF->ReadBER();
