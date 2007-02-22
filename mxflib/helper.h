@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.9 2006/06/25 14:28:22 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.10 2007/02/22 16:52:01 matt-beard Exp $
  *
  */
 /*
@@ -244,6 +244,31 @@ namespace mxflib
 	
 	//! Read 64-bit signed integer (casts from unsigned version)
 	inline Int64 ReadI64(FileHandle Handle) { return (Int64)ReadU64(Handle); }
+
+	//! Read 8-bit unsigned integer Little-Endian
+	inline UInt8 ReadU8_LE(FileHandle Handle) { unsigned char Buffer[1]; if(FileRead(Handle, Buffer, 1) == 1) return GetU8_LE(Buffer); else return 0; }
+
+	//! Read 16-bit unsigned integer Little-Endian
+	inline UInt16 ReadU16_LE(FileHandle Handle) { unsigned char Buffer[2]; if(FileRead(Handle, Buffer, 2) == 2) return GetU16_LE(Buffer); else return 0; }
+
+	//! Read 32-bit unsigned integer Little-Endian
+	inline UInt32 ReadU32_LE(FileHandle Handle) { unsigned char Buffer[4]; if(FileRead(Handle, Buffer, 4) == 4) return GetU32_LE(Buffer); else return 0; }
+
+	//! Read 64-bit unsigned integer Little-Endian
+	inline UInt64 ReadU64_LE(FileHandle Handle) { unsigned char Buffer[8]; if(FileRead(Handle, Buffer, 8) == 8) return GetU64_LE(Buffer); else return 0; }
+
+	//! Read 8-bit signed integer Little-Endian (casts from unsigned version)
+	inline Int8 ReadI8_LE(FileHandle Handle) { return (Int8)ReadU8_LE(Handle); }
+
+	//! Read 16-bit signed integer Little-Endian (casts from unsigned version)
+	inline Int16 ReadI16_LE(FileHandle Handle) { return (Int16)ReadU16_LE(Handle); }
+	
+	//! Read 32-bit signed integer Little-Endian (casts from unsigned version)
+	inline Int32 ReadI32_LE(FileHandle Handle) { return (Int32)ReadU32_LE(Handle); }
+	
+	//! Read 64-bit signed integer Little-Endian (casts from unsigned version)
+	inline Int64 ReadI64_LE(FileHandle Handle) { return (Int64)ReadU64_LE(Handle); }
+
 
 
 	//! Is a given sequence of bytes a partition pack key?
