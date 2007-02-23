@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.38 2006/10/01 13:36:09 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.39 2007/02/23 17:26:17 matt-beard Exp $
  *
  */
 /*
@@ -1257,7 +1257,7 @@ int Process(	int OutFileNum,
 			if(WriteFP) // (iTrack == OutFileNum)
 			{
 				// Get the source for this essence
-				EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream, 0 );
+				EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream );
 
 				// Build a stream object to write
 				Streams.push_back(new BodyStream(iTrack + 1, Source));
@@ -1303,7 +1303,7 @@ int Process(	int OutFileNum,
 		else if( FrameGroup ) // !OPAtom
 		{
 			// Get the source for this essence
-			EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream, 0 );
+			EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream );
 
 			if(iTrack == 0)
 			{
@@ -1362,7 +1362,7 @@ int Process(	int OutFileNum,
 		else // !OPAtom, !FrameGroup
 		{
 			// Get the source for this essence
-			EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream, 0 );
+			EssenceSourcePtr Source = (*WrapCfgList_it)->WrapOpt->Handler->GetEssenceSource(InFile[iTrack], (*WrapCfgList_it)->Stream );
 
 			// Build a stream object to write
 			Streams.push_back(new BodyStream(iTrack + 1, Source));
