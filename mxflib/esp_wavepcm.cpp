@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.10 2006/09/04 13:58:09 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.11 2007/02/23 13:23:51 matt-beard Exp $
  *
  */
 /*
@@ -151,6 +151,78 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 
 
 
+//! Get the next "installment" of essence data
+/*! \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+ *	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
+ *	\note If Size = 0 the object will decide the size of the chunk to return
+ *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
+ */
+DataChunkPtr WAVE_PCM_EssenceSubParser::ESP_EssenceSource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/)
+{
+	WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
+
+	// Allow us to differentiate the first call
+	if(!Started)
+	{
+		Started = true;
+
+		// Move to the selected position
+		if(pCaller->BytePosition == 0) pCaller->BytePosition = pCaller->DataStart;
+	}
+
+	if(!BytesRemaining)
+	{
+		// Either use the cached value, or scan the stream and find out how many bytes to read
+		if((pCaller->CachedDataSize == static_cast<size_t>(-1)) || (pCaller->CachedCount != RequestedCount)) pCaller->ReadInternal(File, Stream, RequestedCount);
+
+		// Record, then clear, the data size
+		BytesRemaining = pCaller->CachedDataSize;
+		pCaller->CachedDataSize = static_cast<size_t>(-1);
+
+		// Flag all done when no more to read
+		if(BytesRemaining == 0) return NULL;
+	}
+
+	// Decide how many bytes to read this time - start by trying to read them all
+	size_t Bytes = BytesRemaining;
+
+	// Hard limit to MaxSize
+	if((MaxSize != 0) && (Bytes > MaxSize))
+	{
+		Bytes = MaxSize;
+	}
+
+	// Also limit to Size
+	if((Size != 0) && (Bytes > Size))
+	{
+		Bytes = Size;
+	}
+
+	// Remove this number of bytes from the remaining count
+	BytesRemaining -= Bytes;
+
+	// Seek to the current position
+	FileSeek(File, pCaller->BytePosition);
+
+	// Read the data
+	DataChunkPtr Ret = FileReadChunk(File, Bytes);
+
+	// Update the file pointer
+	pCaller->BytePosition = FileTell(File);
+
+	// Move the edit unit pointer forward by the number of edit units read (if the last part of a read)
+	if(!BytesRemaining)	
+	{
+		// Only do a simple add if not reading the whole clip, and if the read succeeded
+		if((RequestedCount != 0) && (Ret->Size == Bytes)) pCaller->CurrentPosition += RequestedCount;
+		// ... otherwise calculate the new position
+		else pCaller->CalcCurrentPosition();
+	}
+
+	return Ret;
+}
+
+
 //! Read a number of wrapping items from the specified stream and return them in a data chunk
 /*! If frame or line mapping is used the parameter Count is used to
  *	determine how many items are read. In frame wrapping it is in
@@ -166,7 +238,7 @@ DataChunkPtr mxflib::WAVE_PCM_EssenceSubParser::Read(FileHandle InFile, UInt32 S
 	FileSeek(InFile, BytePosition);
 	
 	// Either use the cached value, or scan the stream and find out how many bytes to read
-	if(CachedDataSize == static_cast<size_t>(-1)) ReadInternal(InFile, Stream, Count);
+	if((CachedDataSize == static_cast<size_t>(-1)) || (CachedCount != Count)) ReadInternal(InFile, Stream, Count);
 
 	// Record, then clear, the data size
 	size_t Bytes = CachedDataSize;
@@ -215,9 +287,14 @@ Length mxflib::WAVE_PCM_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream
 	if(BytePosition == 0) BytePosition = DataStart;
 	FileSeek(InFile, BytePosition);
 	
-	// Find out how many bytes to transfer
-	size_t Bytes = ReadInternal(InFile, Stream, Count);
+	// Scan the stream and find out how many bytes to transfer
+	// Either use the cached value, or scan the stream and find out how many bytes to read
+	if((CachedDataSize == static_cast<size_t>(-1)) || (CachedCount != Count)) ReadInternal(InFile, Stream, Count);
+	size_t Bytes = CachedDataSize;
 	Length Ret = static_cast<Length>(Bytes);
+
+	// Clear the cached size
+	CachedDataSize = static_cast<size_t>(-1);
 
 	while(Bytes)
 	{
@@ -489,7 +566,7 @@ size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	UInt32 SamplesPerEditUnit;
 	
 	// Return the cached value if we have not yet used it
-	if(CachedDataSize != static_cast<size_t>(-1)) return CachedDataSize;
+	if((CachedDataSize != static_cast<size_t>(-1)) && (CachedCount == Count)) return CachedDataSize;
 
 	// If we haven't determined the sample sequence we do it now
 	if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
@@ -546,6 +623,7 @@ size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 
 	// Store so we don't have to calculate if called again without reading
 	CachedDataSize =  static_cast<size_t>(Ret);
+	CachedCount = Count;
 	
 	return CachedDataSize;
 }

@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.12 2006/09/04 13:58:09 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.13 2007/02/23 13:23:51 matt-beard Exp $
  *
  */
 /*
@@ -52,6 +52,7 @@ namespace mxflib
 															 *         pointer between calls to our functions */
 
 		size_t CachedDataSize;								//!< The size of the next data to be read, or (size_t)-1 if not known
+		UInt64 CachedCount;									//!< The number of wrapping units that CachedDataSize relates to
 
 		int SampleSize;										//!< Size of each sample in bytes (includes all channels)
 		UInt32 ConstSamples;								//!< Number of samples per edit unit (if constant, else zero)
@@ -67,16 +68,14 @@ namespace mxflib
 		class ESP_EssenceSource : public EssenceSubParserBase::ESP_EssenceSource
 		{
 		protected:
-			Position EssenceBytePos;
+			size_t BytesRemaining;							//!< The number of bytes remaining in a multi-part GetEssenceData, or zero if not part read
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
-				WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
-				EssenceBytePos = pCaller->BytePosition;
-				if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
+				BytesRemaining = 0;
 			};
 
 			//! Get the size of the essence data in bytes
@@ -94,21 +93,19 @@ namespace mxflib
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 			 */
-			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0)
-			{
-				// Allow us to differentiate the first call
-				if(!Started)
-				{
-					Started = true;
+			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0);
 
-					WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
-
-					// Move to the selected position
-					if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
-					pCaller->BytePosition = EssenceBytePos;
-				}
-
-				return BaseGetEssenceData(Size, MaxSize);
+			//! Did the last call to GetEssenceData() return the end of a wrapping item
+			/*! \return true if the last call to GetEssenceData() returned an entire wrapping unit.
+			 *  \return true if the last call to GetEssenceData() returned the last chunk of a wrapping unit.
+			 *  \return true if the last call to GetEssenceData() returned the end of a clip-wrapped clip.
+			 *  \return false if there is more data pending for the current wrapping unit.
+			 *  \return false if the source is to be clip-wrapped and there is more data pending for the clip
+			 */
+			virtual bool EndOfItem(void) 
+			{ 
+				// Items end when there is no data remaining from the last read
+				return !BytesRemaining;
 			}
 
 			//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
@@ -143,6 +140,7 @@ namespace mxflib
 			UseEditRate.Denominator = 1;
 
 			CachedDataSize = static_cast<size_t>(-1);
+			CachedCount = 0;
 		}
 
 		//! Build a new parser of this type and return a pointer to it

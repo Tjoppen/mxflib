@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.10 2006/09/30 13:40:54 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.11 2007/02/23 13:23:50 matt-beard Exp $
  *
  */
 /*
@@ -257,6 +257,52 @@ Position MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
 }
 
 
+//! Get the next "installment" of essence data
+/*! \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+ *	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
+ *	\note If Size = 0 the object will decide the size of the chunk to return
+ *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
+ */
+DataChunkPtr MPEG2_VES_EssenceSubParser::ESP_EssenceSource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/)
+{
+	MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
+
+	if(!BytesRemaining)
+	{
+		// Either use the cached value, or scan the stream and find out how many bytes to read
+		if((pCaller->CachedDataSize == static_cast<size_t>(-1)) || (pCaller->CachedCount != RequestedCount)) pCaller->ReadInternal(File, Stream, RequestedCount);
+
+		// Record, then clear, the data size
+		BytesRemaining = pCaller->CachedDataSize;
+		pCaller->CachedDataSize = static_cast<size_t>(-1);
+
+		// Flag all done when no more to read
+		if(BytesRemaining == 0) return NULL;
+	}
+
+	// Decide how many bytes to read this time - start by trying to read them all
+	size_t Bytes = BytesRemaining;
+
+	// Hard limit to MaxSize
+	if((MaxSize != 0) && (Bytes > MaxSize))
+	{
+		Bytes = MaxSize;
+	}
+
+	// Also limit to Size
+	if((Size != 0) && (Bytes > Size))
+	{
+		Bytes = Size;
+	}
+
+	// Remove this number of bytes from the remaining count
+	BytesRemaining -= Bytes;
+
+	// Read the data
+	return FileReadChunk(File, Bytes);
+}
+
+
 //! Read a number of wrapping items from the specified stream and return them in a data chunk
 /*! If frame or line mapping is used the parameter Count is used to
  *	determine how many items are read. In frame wrapping it is in
@@ -267,13 +313,10 @@ Position MPEG2_VES_EssenceSubParser::GetCurrentPosition(void)
 DataChunkPtr MPEG2_VES_EssenceSubParser::Read(FileHandle InFile, UInt32 Stream, UInt64 Count /*=1*/ /*, IndexTablePtr Index *//*=NULL*/) 
 { 
 	// Either use the cached value, or scan the stream and find out how many bytes to read
-	if(CachedDataSize == static_cast<size_t>(-1)) ReadInternal(InFile, Stream, Count);
-
-	// Make a datachunk with enough space
-	DataChunkPtr Ret = new DataChunk(CachedDataSize);
+	if((CachedDataSize == static_cast<size_t>(-1)) || (CachedCount != Count)) ReadInternal(InFile, Stream, Count);
 
 	// Read the data
-	FileRead(InFile, Ret->Data, CachedDataSize);
+	DataChunkPtr Ret = FileReadChunk(InFile, CachedDataSize);
 
 	// Clear the cached size
 	CachedDataSize = static_cast<size_t>(-1);
@@ -296,8 +339,13 @@ Length MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFi
 	UInt8 *Buffer = new UInt8[BUFFERSIZE];
 
 	// Scan the stream and find out how many bytes to transfer
-	size_t Bytes = ReadInternal(InFile, Stream, Count /*, Index*/);
+	// Either use the cached value, or scan the stream and find out how many bytes to read
+	if((CachedDataSize == static_cast<size_t>(-1)) || (CachedCount != Count)) ReadInternal(InFile, Stream, Count);
+	size_t Bytes = CachedDataSize;
 	Length Ret = static_cast<Length>(Bytes);
+
+	// Clear the cached size
+	CachedDataSize = static_cast<size_t>(-1);
 
 	while(Bytes)
 	{
@@ -537,7 +585,13 @@ size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 	}
 
 	// Return the cached value if we have not yet used it
-	if(CachedDataSize != static_cast<size_t>(-1)) return CachedDataSize;
+	if((CachedDataSize != static_cast<size_t>(-1)) && (CachedCount == Count)) return CachedDataSize;
+
+	// Store the count first - as this will get destroyed during the parsing
+	CachedCount = Count;
+
+	// ... but clear the cached count in case of an early exit
+	CachedDataSize = static_cast<size_t>(-1);
 
 	Position CurrentStart = CurrentPos;
 

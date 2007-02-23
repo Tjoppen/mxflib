@@ -1,7 +1,7 @@
 /*! \file	esp_template.cpp
  *	\brief	Implementation of class that handles parsing of <File Type>
  *
- *	\version $Id: esp_template.cpp,v 1.3 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_template.cpp,v 1.4 2007/02/23 13:23:50 matt-beard Exp $
  *
  */
 /*
@@ -150,6 +150,81 @@ WrappingOptionList mxflib::TEMPLATE_EssenceSubParser::IdentifyWrappingOptions(Fi
 }
 
 
+//! Get the next "installment" of essence data
+/*! \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+	*	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
+	*	\note If Size = 0 the object will decide the size of the chunk to return
+	*	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
+	*/
+DataChunkPtr TEMPLATE_EssenceSubParser::ESP_EssenceSource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/)
+{
+	TEMPLATE_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, TEMPLATE_EssenceSubParser);
+
+	// Allow us to differentiate the first call
+	if(!Started)
+	{
+		Started = true;
+
+		// Move to the selected position
+		if(pCaller->CurrentPos == 0) pCaller->CurrentPos = pCaller->DataStart;
+	}
+
+#if Template type will only ever produce small essence chunks (small enough to hold in RAM)
+	return BaseGetEssenceData(Size, MaxSize);
+#else
+	if(!BytesRemaining)
+	{
+		// Either use the cached value, or scan the stream and find out how many bytes to read
+		if((pCaller->CachedDataSize == static_cast<size_t>(-1)) || (pCaller->CachedCount != RequestedCount)) pCaller->ReadInternal(File, Stream, RequestedCount);
+
+		// Record, then clear, the data size
+		BytesRemaining = pCaller->CachedDataSize;
+		pCaller->CachedDataSize = static_cast<size_t>(-1);
+
+		// Flag all done when no more to read
+		if(BytesRemaining == 0) return NULL;
+	}
+
+	// Decide how many bytes to read this time - start by trying to read them all
+	size_t Bytes = BytesRemaining;
+
+	// Hard limit to MaxSize
+	if((MaxSize != 0) && (Bytes > MaxSize))
+	{
+		Bytes = MaxSize;
+	}
+
+	// Also limit to Size
+	if((Size != 0) && (Bytes > Size))
+	{
+		Bytes = Size;
+	}
+
+	// Remove this number of bytes from the remaining count
+	BytesRemaining -= Bytes;
+
+	// Seek to the current position
+	FileSeek(File, pCaller->BytePosition);
+
+	// Read the data
+	DataChunkPtr Ret = FileReadChunk(File, Bytes);
+
+	// Update the file pointer
+	pCaller->BytePosition = FileTell(File);
+
+	// Move the edit unit pointer forward by the number of edit units read (if the last part of a read)
+	if(!BytesRemaining)	
+	{
+		// Only do a simple add if not reading the whole clip, and if the read succeeded
+		if((RequestedCount != 0) && (Ret->Size == Bytes)) pCaller->CurrentPosition += RequestedCount;
+		// ... otherwise calculate the new position
+		else pCaller->CalcCurrentPosition();
+	}
+
+	return Ret;
+#endif
+}
+
 //! Read a number of wrapping items from the specified stream and return them in a data chunk
 /*! If frame or line mapping is used the parameter Count is used to
  *	determine how many items are read. In frame wrapping it is in
@@ -164,8 +239,12 @@ DataChunkPtr mxflib::TEMPLATE_EssenceSubParser::Read(FileHandle InFile, UInt32 S
 
 	FileSeek(InFile, CurrentPos);
 	
-	// Find out how many bytes to read
-	size_t Bytes = ReadInternal(InFile, Stream, Count);
+	// Either use the cached value, or scan the stream and find out how many bytes to read
+	if((CachedDataSize == static_cast<size_t>(-1)) || (CachedCount != Count)) ReadInternal(InFile, Stream, Count);
+
+	// Record, then clear, the data size
+	size_t Bytes = CachedDataSize;
+	CachedDataSize = static_cast<size_t>(-1);
 
 	// Make a datachunk with enough space
 	DataChunkPtr Ret = new DataChunk(Bytes);
@@ -197,9 +276,14 @@ Length mxflib::TEMPLATE_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream
 	if(CurrentPos == 0) CurrentPos = DataStart;
 	FileSeek(InFile, CurrentPos);
 	
-	// Find out how many bytes to transfer
-	size_t Bytes = ReadInternal(InFile, Stream, Count);
+	// Scan the stream and find out how many bytes to transfer
+	// Either use the cached value, or scan the stream and find out how many bytes to read
+	if((CachedDataSize == static_cast<size_t>(-1)) || (CachedCount != Count)) ReadInternal(InFile, Stream, Count);
+	size_t Bytes = CachedDataSize;
 	Length Ret = static_cast<Length>(Bytes);
+
+	// Clear the cached size
+	CachedDataSize = static_cast<size_t>(-1);
 
 	while(Bytes)
 	{
@@ -395,6 +479,9 @@ size_t mxflib::TEMPLATE_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	Length Ret;
 	UInt32 SamplesPerEditUnit;
 	
+	// Return the cached value if we have not yet used it
+	if((CachedDataSize != static_cast<size_t>(-1)) && (CachedCount == Count)) return CachedDataSize;
+
 	// If we haven't determined the sample sequence we do it now
 	if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
 
@@ -441,8 +528,12 @@ size_t mxflib::TEMPLATE_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	if((sizeof(size_t) < 8) && (Ret > 0xffffffff))
 	{
 		error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
-		return 0;
+		Ret = 0;
 	}
+
+	// Store so we don't have to calculate if called again without reading
+	CachedDataSize =  static_cast<size_t>(Ret);
+	CachedCount = Count;
 
 	return static_cast<size_t>(Ret);
 }

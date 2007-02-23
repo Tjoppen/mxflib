@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.h
  *	\brief	Definition of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.h,v 1.9 2006/09/04 13:58:09 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.h,v 1.10 2007/02/23 13:23:50 matt-beard Exp $
  *
  */
 /*
@@ -49,6 +49,7 @@ namespace mxflib
 		Position AnchorFrame;								//!< Picture number of last "anchor frame"
 
 		size_t CachedDataSize;								//!< The size of the next data to be read, or (size_t)-1 if not known
+		UInt64 CachedCount;									//!< The number of wrapping units that CachedDataSize relates to
 
 		Position CurrentPos;								//!< Current position in the input file
 															/*!< \note Other functions may move the file
@@ -78,11 +79,15 @@ namespace mxflib
 		//! Class for EssenceSource objects for parsing/sourcing MPEG-VES essence
 		class ESP_EssenceSource : public EssenceSubParserBase::ESP_EssenceSource
 		{
+		protected:
+			size_t BytesRemaining;							//!< The number of bytes remaining in a multi-part GetEssenceData, or zero if not part read
+
 		public:
 			//! Construct and initialise for essence parsing/sourcing
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count) 
 			{
+				BytesRemaining = 0;
 			};
 
 			//! Get the size of the essence data in bytes
@@ -103,16 +108,19 @@ namespace mxflib
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 			 */
-			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0)
-			{
-/*				// Allow us to differentiate the first call
-				if(!Started)
-				{
-					MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
-					Started = true;
-				}
+			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0);
+
+			//! Did the last call to GetEssenceData() return the end of a wrapping item
+			/*! \return true if the last call to GetEssenceData() returned an entire wrapping unit.
+			 *  \return true if the last call to GetEssenceData() returned the last chunk of a wrapping unit.
+			 *  \return true if the last call to GetEssenceData() returned the end of a clip-wrapped clip.
+			 *  \return false if there is more data pending for the current wrapping unit.
+			 *  \return false if the source is to be clip-wrapped and there is more data pending for the clip
 */
-				return BaseGetEssenceData(Size, MaxSize);
+			virtual bool EndOfItem(void) 
+			{ 
+				// Items end when there is no data remaining from the last read
+				return !BytesRemaining;
 			}
 
 			//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
@@ -140,6 +148,7 @@ namespace mxflib
 		MPEG2_VES_EssenceSubParser()
 		{
 			CachedDataSize = static_cast<size_t>(-1);
+			CachedCount = 0;
 
 			EditPoint = false;
 			EndOfStream = false;

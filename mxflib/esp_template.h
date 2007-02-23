@@ -1,7 +1,7 @@
 /*! \file	esp_template.h
  *	\brief	Definition of class that handles parsing of <File Type>
  *
- *	\version $Id: esp_template.h,v 1.3 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: esp_template.h,v 1.4 2007/02/23 13:23:51 matt-beard Exp $
  *
  */
 /*
@@ -50,6 +50,9 @@ namespace mxflib
 															 *	 \note Other functions may move the file
 															 *         pointer between calls to our functions */
 
+		size_t CachedDataSize;								//!< The size of the next data to be read, or (size_t)-1 if not known
+		UInt64 CachedCount;									//!< The number of wrapping units that CachedDataSize relates to
+
 		int SampleSize;										//!< Size of each sample in bytes (if constant)
 		UInt32 ConstSamples;								//!< Number of samples per edit unit (if constant, else zero)
 		int SampleSequenceSize;								//!< Size of SampleSequence if used
@@ -64,21 +67,14 @@ namespace mxflib
 		class ESP_EssenceSource : public EssenceSubParserBase::ESP_EssenceSource
 		{
 		protected:
-			Position EssenceBytePos;
-			bool CountSet;
-			size_t ByteCount;
-			Position Offset;
+			size_t BytesRemaining;							//!< The number of bytes remaining in a multi-part GetEssenceData, or zero if not part read
 
 		public:
 			//! Construct and initialise for essence parsing/sourcing
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
-				TEMPLATE_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, TEMPLATE_EssenceSubParser);
-				EssenceBytePos = pCaller->CurrentPos;
-				if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
-
-				CountSet = false;		// Flag unknown size
+				BytesRemaining = 0;
 			};
 
 			//! Get the size of the essence data in bytes
@@ -86,11 +82,8 @@ namespace mxflib
 			 */
 			virtual size_t GetEssenceDataSize(void) 
 			{
-				CountSet = true;
-				Offset = 0;
 				TEMPLATE_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, TEMPLATE_EssenceSubParser);
-				ByteCount = pCaller->ReadInternal(File, Stream, RequestedCount);
-				return ByteCount;
+				return pCaller->ReadInternal(File, Stream, RequestedCount);
 			};
 
 			//! Get the next "installment" of essence data
@@ -99,22 +92,7 @@ namespace mxflib
 			 *	\note If Size = 0 the object will decide the size of the chunk to return
 			 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
 			 */
-			virtual DataChunkPtr GetEssenceData(UInt64 Size = 0, UInt64 MaxSize = 0)
-			{
-				// Allow us to differentiate the first call
-				if(!Started)
-				{
-					Started = true;
-
-					TEMPLATE_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, TEMPLATE_EssenceSubParser);
-
-					// Move to the selected position
-					if(EssenceBytePos == 0) EssenceBytePos = pCaller->DataStart;
-					pCaller->CurrentPos = EssenceBytePos;
-				}
-
-				return BaseGetEssenceData(Size, MaxSize);
-			}
+			virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0);
 		};
 
 		// Give our essence source class privilaged access
@@ -206,7 +184,7 @@ namespace mxflib
 
 			UInt32 Ret = SampleSize*ConstSamples;
 
-			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 
+			if(Ret && (SelectedWrapping->ThisWrapType == WrappingOption::Frame))
 			{
 				// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
 				Ret += 16 + 4;
@@ -222,7 +200,12 @@ namespace mxflib
 					Ret += Remainder;
 
 					// If there is not enough space to fit a filler in the remaining space an extra KAG will be required
-					if((Remainder > 0) && (Remainder < 17)) Ret++;
+					// DRAGONS: For very small KAGSizes we may need to add several KAGs
+					while((Remainder > 0) && (Remainder < 17))
+					{
+						Ret += KAGSize;
+						Remainder += KAGSize;
+					}
 				}
 			}
 
