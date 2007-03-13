@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.11 2006/08/25 15:52:31 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.12 2007/03/13 18:21:37 matt-beard Exp $
  *
  */
 /*
@@ -260,6 +260,9 @@ DataChunkPtr mxflib::JP2K_EssenceSubParser::Read(FileHandle InFile, UInt32 Strea
 	
 	// Find out how many bytes to read
 	size_t Bytes = ReadInternal(InFile, Stream, Count);
+
+	// Clear the cached size as we are about to read it, so it will need to be recalculated
+	CachedDataSize = static_cast<size_t>(-1);
 
 	// If there is no data left return a NULL pointer as a signal
 	if(!Bytes) return Ret;
