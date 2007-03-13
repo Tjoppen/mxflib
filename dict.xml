@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2007/02/22 12:54:32 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2007/03/13 18:22:18 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -374,7 +374,12 @@
 			<Locators detail="Ordered array of strong references to Locator sets" use="optional" type="subVector" ref="strong" target="Locator" key="2f 01" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 03 00 00">
 				<Locator detail="Essence Locator" type="UUID" minLength="16" maxLength="16"/>
 			</Locators>
-			<SubDescriptor detail="Strong reference to a sub descriptor set" type="UUID" ref="strong" target="SubDescriptor" use="optional" key="33 40" globalKey="06 0e 2b 34 01 01 01 0a  06 01 01 04 02 10 00 00"/>
+			<!-- Kept for compatibility with older drafts of S422M -->
+			<SubDescriptor detail="Strong reference to a sub descriptor set" type="UUID" ref="strong" target="SubDescriptor" use="optional" globalKey="06 0e 2b 34 01 01 01 0a  06 01 01 04 02 10 00 00"/>
+			<!-- ================================================= -->
+			<SubDescriptors detail="Ordered array of strong references to sub descriptor sets" type="subVector" ref="strong" target="SubDescriptor" use="optional" globalKey="06 0e 2b 34 01 01 01 0a  06 01 01 04 06 10 00 00">
+				<SubDescriptor detail="Strong reference to a sub descriptor set" type="UUID"/>
+			</SubDescriptors>
 		</GenericDescriptor>
 		<FileDescriptor base="GenericDescriptor" detail="File Descriptor" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 25 00">
 			<LinkedTrackID detail="Link to (i.e. value of) the Track ID of the Track in this Package to which the Descriptor applies" use="optional" type="UInt32" key="30 06" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 03 05 00 00 00"/>
