@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.23 2007/02/12 15:48:23 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.24 2007/03/31 14:42:42 matt-beard Exp $
  *
  */
 /*
@@ -53,7 +53,11 @@ UInt32 mxflib::MDTraits_StringLimit = 10240;
 bool mxflib::TerminateStrings = false;
 
 
+//! List of all traits that exist
 mxflib::MDTraitsMap mxflib::MDTraits::AllTraits;
+
+//! The current options for converting labels to strings
+mxflib::LabelFormat mxflib::LabelFormatOption = LabelFormatText;
 
 
 //! Add a new trait to the list of known traits
@@ -1604,7 +1608,10 @@ void MDTraits_UUID::SetString(MDValuePtr Object, std::string Val)
 	// Check for URN format
 	if((tolower(*p) == 'u') && (tolower(p[1]) == 'r') && (tolower(p[2]) == 'n') && (tolower(p[3]) == ':'))
 	{
-		if( (strcasecmp(Val.substr(0,7).c_str(), "urn:ul:") == 0) || (strcasecmp(Val.substr(0,9).c_str(), "urn:smpte-ul:") == 0) || (strcasecmp(Val.substr(0,9).c_str(), "urn:x-ul:") == 0) )
+		if(    (strcasecmp(Val.substr(0,7).c_str(), "urn:ul:") == 0) 
+			|| (strcasecmp(Val.substr(0,13).c_str(), "urn:smpte-ul:") == 0) 
+			|| (strcasecmp(Val.substr(0,13).c_str(), "urn:smpte:ul:") == 0) 
+			|| (strcasecmp(Val.substr(0,9).c_str(), "urn:x-ul:") == 0) )
 		{
 			EndSwap = true;
 		}
@@ -1880,16 +1887,27 @@ void MDTraits_Label::SetString(MDValuePtr Object, std::string Val)
 
 std::string MDTraits_Label::GetString(MDValuePtr Object)
 {
-	// TODO: This uses the sets registry for label lookups, which can work but is not really correct
+	std::string Ret;
 
 	ASSERT(Object->GetData().Size >= 16);
 	const UInt8 *Ident = Object->GetData().Data;
 
-	// Look up the Ident in the dictionary
-	// if found, emit the Name (should by symbol)
-	MDOTypePtr Label = MDOType::Find( UL(Ident) );
+	// If we are not simply returning the hex, lookup the string
+	if(GetLabelFormat() != LabelFormatHex)
+	{
+		if(Object->GetData().Size == 16)
+		{
+			LabelPtr Label =  Label::Find(Ident);
+			if(Label) 
+			{
+				Ret = Label->GetDetail();
 
-	if( Label ) return Label->Name();
+				// If we are just getting the text - return it
+				if(    (GetLabelFormat() == LabelFormatText) 
+					|| ((GetLabelFormat() == LabelFormatTextHexMask) && !Label->HasMask())) return Ret;
+			}
+		}
+	}
 
 	// ...else emit underlying identifier
 
@@ -1917,7 +1935,17 @@ std::string MDTraits_Label::GetString(MDValuePtr Object)
 				);
 	}
 
-	return std::string(Buffer);
+	if(Ret.length() == 0)
+	{
+		Ret = Buffer;
+	}
+	else
+	{
+		Ret += " ";
+		Ret += Buffer;
+	}
+
+	return Ret;
 };
 
 

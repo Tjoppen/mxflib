@@ -1,7 +1,7 @@
 /*! \file	mdtraits.h
  *	\brief	Definition of traits for MDType definitions
  *
- *	\version $Id: mdtraits.h,v 1.7 2006/08/25 15:58:45 matt-beard Exp $
+ *	\version $Id: mdtraits.h,v 1.8 2007/03/31 14:43:16 matt-beard Exp $
  *
  */
 /*
@@ -77,6 +77,24 @@ namespace mxflib
 
 	//! Get the string termination flag
 	inline bool GetStringTermination(void) { return TerminateStrings; }
+
+	//! Options for converting labels to a string of text or hex
+	enum LabelFormat 
+	{
+		LabelFormatText = 0,			//!< Use just the text, if known, otherwise use hex
+		LabelFormatHex,				//!< Use only the hex
+		LabelFormatTextHex,			//!< Use the text, if known, but append the hex
+		LabelFormatTextHexMask			//!< Use the text, if known, but append the hex if a mask was used in label matching
+	};
+
+	//! The current options for converting labels to strings
+	extern LabelFormat LabelFormatOption;
+
+	//! Set the options for converting labels to strings
+	inline void SetLabelFormat(LabelFormat Value) { LabelFormatOption = Value; }
+
+	//! Get the options for converting labels to strings
+	inline LabelFormat GetLabelFormat(void) { return LabelFormatOption; }
 }
 
 
@@ -85,6 +103,7 @@ namespace mxflib
 	class MDTraits : public RefCount<MDTraits>
 	{
 	protected:
+		//! List of all traits that exist
 		static MDTraitsMap AllTraits;
 
 		//! Protected constructor so all traits need to be created via Create()
