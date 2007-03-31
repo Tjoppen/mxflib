@@ -62,6 +62,9 @@ static bool FullBody = false;
 //! Flag for dumping object locations as well as object data
 static bool DumpLocation = false;
 
+//! Flag for following global references
+static bool FollowGlobals = true;
+
 //! Flag for very simple check summary dump only
 static bool CheckDump = false;
 
@@ -105,6 +108,8 @@ int main_process(int argc, char *argv[])
 				CheckDump = true;
 			else if((argv[i][1] == 'b') || (argv[i][1] == 'B'))
 				FullBody = true;
+//			else if((argv[i][1] == 'g') || (argv[i][1] == 'G'))
+//				FollowGlobals = true;
 			else if((argv[i][1] == 'l') || (argv[i][1] == 'L'))
 				DumpLocation = true;
 			else if((argv[i][1] == 'd') || (argv[i][1] == 'D'))
@@ -118,6 +123,16 @@ int main_process(int argc, char *argv[])
 					SuppDicts.push_back(argv[++i]);
 					num_options++;
 				}
+			}
+			else if((argv[i][1] == 'u') || (argv[i][1] == 'U'))
+			{
+				MDObject::SetParseDark(true);
+			}
+			else if((argv[i][1] == 'x') || (argv[i][1] == 'X'))
+			{
+				if(argv[i][2] == '0') SetLabelFormat(LabelFormatHex);
+				else if(argv[i][2] == '1') SetLabelFormat(LabelFormatTextHex);
+				else SetLabelFormat(LabelFormatTextHexMask);
 			}
 			else if((argv[i][1] == 'm') || (argv[i][1] == 'M'))
 			{
@@ -140,10 +155,11 @@ int main_process(int argc, char *argv[])
 
 	if (argc - num_options < 2)
 	{
-		printf("\nUsage:   test [-b] [-i] [-v] <filename>\n\n");
+		printf("\nUsage:   test [options] <filename>\n\n");
 		printf("Options: -b         Dump body partitions (rather than just header and footer)\n");
 		printf("         -c         Check dump (produce simple counts for automated testing)\n");
 		printf("         -dd <dict> Load supplementary dictionary (also -d for legacy)\n");
+		printf("         -g         Follow global references (if linked)\n");
 		printf("         -i         Dump full index tables (can be lengthy)\n");
 		printf("         -l         Show the location (byte offset) of metadata items dumped\n");
 #ifdef COMPILED_DICT
@@ -151,7 +167,11 @@ int main_process(int argc, char *argv[])
 #else
 		printf("         -m <dict>  Specify main dictionary (instead of dict.xml)\n");
 #endif // COMPILED_DICT
+		printf("         -u         Attempt to parse unknown or 'dark' sets\n");
 		printf("         -v         Verbose mode - shows lots of debug info\n");
+		printf("         -x0        Always show labels as hex data\n");
+		printf("         -x1        Append hex data to labels\n");
+		printf("         -x2 or -x  Append hex data to labels if 'fuzzy' matching used\n");
 		printf("         -z         Pause for input before final exit\n");
 		return 1;
 	}
@@ -461,7 +481,7 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 
 	if(Object->GetLink())
 	{
-		if(Object->GetRefType() == DICT_REF_STRONG)
+		if(Object->GetRefType() == ClassRefStrong)
 		{
 			printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
 
@@ -469,6 +489,22 @@ void DumpObject(MDObjectPtr Object, std::string Prefix)
 			printf("%s%s -> Strong Reference to %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetLink()->Name().c_str());
 
 			DumpObject(Object->GetLink(), Prefix + "  ");
+		}
+		else if(Object->GetRefType() == ClassRefGlobal)
+		{
+			if(FollowGlobals)
+			{
+				printf("%s%s = %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetString().c_str());
+
+				if(DumpLocation) printf("0x%s : ", Int64toHexString(Object->GetLocation(),8).c_str());
+				printf("%s%s -> Global Reference to %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetLink()->Name().c_str());
+
+				DumpObject(Object->GetLink(), Prefix + "  ");
+			}
+			else
+			{
+				printf("%s%s -> Global Reference to %s, %s\n", Prefix.c_str(), Object->Name().c_str(), Object->GetLink()->Name().c_str(), Object->GetString().c_str());
+			}
 		}
 		else
 		{
