@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.39 2007/02/23 17:26:17 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.40 2007/03/31 16:15:21 matt-beard Exp $
  *
  */
 /*
@@ -588,7 +588,11 @@ bool ParseCommandLine(int &argc, char **argv)
 			char *Val = "";							// Any value attached to the option
 			if(strlen(p) > 2) Val = &p[2];			// Only set a value if one found
 
-			if(Opt == 'a') 
+			if(Opt == '1') 
+			{
+				SetFeature(FeatureVersion1KLVFill);
+			}
+			else if(Opt == 'a') 
 			{
 				OPAtom = true;
 
@@ -777,6 +781,7 @@ bool ParseCommandLine(int &argc, char **argv)
 		printf("      Also all files in each set must be the same duration\n\n");
 
 		printf("Options:\n");
+		printf("    -1         = Use a version 1 KLVFill item key\n");
 		printf("    -a[2]      = Force OP-Atom (optionally with only 2 partitions if VBR)\n");
 		printf("    -e         = Only start body partitions at edit points\n");
 		printf("    -f         = Frame-wrap and group in one container\n");
@@ -1029,6 +1034,11 @@ bool ParseCommandLine(int &argc, char **argv)
 		else printf("Index table segments will not share a partition with essence\n");
 	}
 
+	if(Feature(FeatureVersion1KLVFill))
+	{
+		printf("KLVFill items will be written with a version 1 key, for compatibility\n");
+	}
+
 	// Check for stray parameters as a space in the wrong place can otherise cause us to overwrite input files!
 	if(argc > 3)
 	{
@@ -1150,6 +1160,7 @@ int Process(	int OutFileNum,
 	ASSERT(MData);
 	ASSERT(MData->Object);
 
+#if defined FORCEGCMULTI 
 	// 377M MultipleDescriptor (D.5) requires an EssenceContainer label (D.1), which must be this
 	// degenerate label (see mxfIG FAQ). Therefore the degenerate value must also appear in the
 	// Header (A.1) and partition pack...
@@ -1161,6 +1172,7 @@ int Process(	int OutFileNum,
 	// Assume we are doing GC
 	ULPtr GCUL = new UL( mxflib::GCMulti_Data );
 	MData->AddEssenceType( GCUL );
+#endif
 
 	// Set the OP label
 	// If we are writing OP-Atom we write the header as OP1a initially as another process
@@ -1538,7 +1550,15 @@ int Process(	int OutFileNum,
 					ThisDescriptor->SetUInt(LinkedTrackID_UL, TrackInfoList.back()->FPTrack->GetUInt(TrackID_UL));
 					FilePackage->AddChild(Descriptor_UL)->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
 
+					// Add the essence type
 					MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
+
+					if((*WrapCfgList_it)->EssenceDescriptor->IsA(MultipleDescriptor_UL))
+					{
+						// Ensure that we have flagged a multiple descriptor if one is used
+						ULPtr GCUL = new UL( mxflib::GCMulti_Data );
+						MData->AddEssenceType( GCUL );
+					}
 
 					// Link the MP to the FP
 					TrackInfoList.back()->MPClip->MakeLink(TrackInfoList.back()->FPTrack, 0);
@@ -1565,6 +1585,10 @@ int Process(	int OutFileNum,
 
 						MuxDescriptor->AddChild(SubDescriptorUIDs_UL);
 						FilePackage->AddChild(Descriptor_UL)->MakeRef(MuxDescriptor);
+
+						// Ensure that we have flagged a multiple descriptor
+						ULPtr GCUL = new UL( mxflib::GCMulti_Data );
+						MData->AddEssenceType( GCUL );
 				}
 
 				// Write a SubDescriptor
@@ -1584,12 +1608,21 @@ int Process(	int OutFileNum,
 				// Write a FileDescriptor
 				// DRAGONS Can we ever need a MultipleDescriptor?
 				ThisDescriptor->SetUInt(LinkedTrackID_UL, TrackInfoList.back()->FPTrack->GetUInt(TrackID_UL));
-				
+
 				// If this is multiple essence, only add the mux descriptor and essence type on the first sub-track
 				if((!SubDescriptors) || (SubTrackIndex == 0))
 				{
 					FilePackage->AddChild(Descriptor_UL)->MakeRef((*WrapCfgList_it)->EssenceDescriptor);
+
+					// Add the essence type
 					MData->AddEssenceType((*WrapCfgList_it)->WrapOpt->WrappingUL);
+
+					if((*WrapCfgList_it)->EssenceDescriptor->IsA(MultipleDescriptor_UL))
+					{
+						// Ensure that we have flagged a multiple descriptor if one is used
+						ULPtr GCUL = new UL( mxflib::GCMulti_Data );
+						MData->AddEssenceType( GCUL );
+					}
 				}
 
 				// Link the MP to the FP
