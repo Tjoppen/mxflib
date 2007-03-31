@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2007/03/13 18:22:18 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2007/03/31 14:19:53 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -38,9 +38,9 @@
 <MXFDictionary>
 	<MXFTypes>
         <Basic>
-            <Float32 detail="32 bit IEEE Floating Point" size="4" endian="no" ref="IEEE 754-1985"/>
-            <Float64 detail="64 bit IEEE Floating Point" size="8" endian="no" ref="IEEE 754-1985"/>
-            <Float80 detail="80 bit IEEE Floating Point" size="10" endian="no" ref="IEEE 754-1985"/>
+            <Float32 detail="32 bit IEEE Floating Point" size="4" endian="no" doc="IEEE 754-1985"/>
+            <Float64 detail="64 bit IEEE Floating Point" size="8" endian="no" doc="IEEE 754-1985"/>
+            <Float80 detail="80 bit IEEE Floating Point" size="10" endian="no" doc="IEEE 754-1985"/>
             <Int8 detail="8 bit integer" size="1" endian="no" ul="urn:x-ul:060E2B34.0104.0101.01010500.00000000"/>
             <Int16 detail="16 bit integer" size="2" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010600.00000000"/>
             <Int24 detail="24 bit integer" size="3" endian="yes"/>
@@ -56,12 +56,12 @@
             <VersionType detail="Version number (created from major*256 + minor)" base="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010300.00000000"/>
             <UTF16 detail="Unicode UTF-16 coded character" base="UInt16" ul="urn:x-ul:060E2B34.0104.0101.01100100.00000000"/>
             <Boolean detail="Boolean" base="urn:x-ul:060E2B34.0104.0101.01010100.00000000" ul="urn:x-ul:060E2B34.0104.0101.01040100.00000000"/>
-            <ISO7 detail="ISO 7-Bit Coded Character" base="UInt8" ref="ISO/IEC 646:1991" ul="urn:x-ul:060E2B34.0104.0101.01100300.00000000"/>
+            <ISO7 detail="ISO 7-Bit Coded Character" base="UInt8" doc="ISO/IEC 646:1991" ul="urn:x-ul:060E2B34.0104.0101.01100300.00000000"/>
 			<UTF detail="Byte of a Unicode string of unknown format" base="UInt8" />
             <Length detail="Length in Edit Units" base="Int64" ul="urn:x-ul:060E2B34.0104.0101.01012002.00000000"/>
             <Position detail="Position measured in Edit Units" base="Int64" ul="urn:x-ul:060E2B34.0104.0101.01012001.00000000"/>
             <RGBACode detail="Enumerated value specifying component in an RGBALayoutItem" base="UInt8" ul="urn:x-ul:060E2B34.0104.0101.0201010e.00000000"/>
-            <UTF7 detail="RFC 2152 7-Bit Coded UNICODE Character" base="ISO7" ref="RFC 2152" />
+            <UTF7 detail="RFC 2152 7-Bit Coded UNICODE Character" base="ISO7" doc="RFC 2152" />
         </Interpretation>
         <Multiple>
             <UTFString detail="Unicode coded string - unknown format" base="UTF" type="Array" />
@@ -111,8 +111,9 @@
             <UUID detail="UUID" base="Identifier" size="16"/>
             <AUID detail="AUID is a Label or a swapped UUID" base="Label" ul="urn:x-ul:060E2B34.0104.0101.01030100.00000000"/>
             <PackageID detail="Package ID" base="UMID" ul="urn:x-ul:060E2B34.0104.0101.01030200.00000000"/>
-            <StrongRef detail="Strong Reference" base="UUID" ul="urn:x-ul:060E2B34.0104.0101.05020000.00000000"/>
-            <WeakRef detail="Weak Reference" base="UUID" ul="urn:x-ul:060E2B34.0104.0101.05010000.00000000"/>
+            <StrongRef detail="Strong Reference" base="UUID" ul="urn:x-ul:060E2B34.0104.0101.05020000.00000000" ref="strong"/>
+            <WeakRef detail="Weak Reference" base="UUID" ul="urn:x-ul:060E2B34.0104.0101.05010000.00000000" ref="weak"/>
+            <StrongReferenceTrack detail="StrongReference to a Tracks" base="StrongRef" ul="urn:x-ul:060E2B34.0104.0101.05021400.00000000" target="GenericTrack"/>
         </Interpretation>
         <Multiple>
             <AUIDArray detail="Array of AUIDs" base="AUID" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010600.00000000"/>
@@ -121,6 +122,7 @@
             <StrongRefBatch detail="Batch of StrongRefs" base="StrongRef" type="Batch"/>
             <WeakRefArray detail="Array of WeakRefs" base="StrongRef" type="Array"/>
             <WeakRefBatch detail="Batch of WeakRefs" base="WeakRef" type="Batch"/>
+            <StrongReferenceVectorTrack detail="Vector of StrongReferences to Tracks" base="StrongReferenceTrack" ul="urn:x-ul:060E2B34.0104.0101.05060500.00000000"/>
         </Multiple>
         <Compound>
             <Rational detail="Rational" ul="urn:x-ul:060E2B34.0104.0101.03010100.00000000">
@@ -158,6 +160,7 @@
             <RGBALayout detail="Specifies the type, order and size of the components within the pixel" base="RGBALayoutItem" type="Array" size="8" ul="urn:x-ul:060E2B34.0104.0101.04020100.00000000"/>
         </Multiple>
     </MXFTypes>
+
     <MXFClasses>
         <KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 02 03 01 02 10 01 00 00 00"/>
         <PartitionMetadata detail="Identifies a Partition Pack" type="fixedPack" key="urn:x-ul:060E2B34.0206.0101.0D010200.00000000">
@@ -307,10 +310,8 @@
 			<Name detail="Human readable package name" use="optional" type="UTF16String" key="44 02" globalKey="06 0e 2b 34 01 01 01 01  01 03 03 02 01 00 00 00"/>
 			<PackageCreationDate detail="The date &amp; time of creation of this package" use="required" type="Timestamp" minLength="8" maxLength="8" key="44 05" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 10 01 03 00 00"/>
 			<PackageModifiedDate detail="The date &amp; time of last modification of this package" use="required" type="Timestamp" minLength="8" maxLength="8" key="44 04" globalKey="06 0e 2b 34 01 01 01 02  07 02 01 10 02 05 00 00"/>
-			<Tracks detail="Array of Unique IDs of Tracks" use="required" type="subVector" ref="strong" target="GenericTrack" key="44 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 05 00 00">
-				<Track detail="Track ID" type="UUID" minLength="16" maxLength="16"/>
-			</Tracks>
-        </GenericPackage>
+			<Tracks detail="Array of Unique IDs of Tracks" use="required" type="StrongReferenceVectorTrack" key="44 03" globalKey="06 0e 2b 34 01 01 01 02  06 01 01 04 06 05 00 00"/>
+		</GenericPackage>
 		<Locator base="GenerationInterchangeObject"/>
 		<NetworkLocator base="Locator" detail="Network Locator set for location with a URL" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 32 00">
 			<URLString detail="A URL indicating where the essence may be found." use="required" type="UTF16String" key="40 01" globalKey="06 0e 2b 34 01 01 01 01  01 02 01 01 01 00 00 00"/>
@@ -334,7 +335,7 @@
 			<EventOrigin detail="An Offset used to resolved timeline references to this event track. The start of the event track has this timeline value measured in Edit Units." use="optional" type="Position" minLength="8" maxLength="8" key="49 02" globalKey="06 0e 2b 34 01 01 01 05  07 02 01 03 01 0b 00 00" default="0"/>
 		</EventTrack>
 		<StructuralComponent base="GenerationInterchangeObject" detail="Structural Component Superclass" type="localSet" key="urn:x-ul:060E2B34.0253.0101.0D010101.01010200">
-            <DataDefinition detail="Data Definition - kind of data or metadata this structure refers to" use="required" type="Label" minLength="16" maxLength="16" key="02 01" globalKey="06 0e 2b 34 01 01 01 02  04 07 01 00 00 00 00 00"/>
+            <DataDefinition detail="Data Definition - kind of data or metadata this structure refers to" use="required" type="Label" ref="global" minLength="16" maxLength="16" key="02 01" globalKey="06 0e 2b 34 01 01 01 02  04 07 01 00 00 00 00 00"/>
             <Duration detail="Duration (in units of edit rate)" use="best effort" dvalue="-1" type="Length" minLength="8" maxLength="8" key="02 02" globalKey="06 0e 2b 34 01 01 01 02  07 02 02 01 01 03 00 00"/>
 		</StructuralComponent>
         <Sequence base="StructuralComponent" detail="Sequence" type="localSet" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 0f 00">
@@ -565,4 +566,56 @@
 		<XMLDocumentTextIndirect detail="An XML document as a text string" use="optional" globalKey="urn:x-ul:060E2B34.0101.0105.03010220.01000000" type="UTFString"/>
 		<XMLDocumentText_RFC2152 detail="An XML document in UTF-7 text encoding form" use="optional" globalKey="urn:x-ul:060E2B34.0101.0105.03010220.01010000" type="UTF7String"/>
 	</MXFClasses>
+
+    <MXFLabels>
+   		<MXFOP1x detail="MXF OP1x SingleItem" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.01.01.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.03.ff.ff" />
+		<MXFOP1a detail="MXF OP1a SingleItem SinglePackage" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.01.01.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP2a detail="MXF OP2a PlaylistItems SinglePackage" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.02.01.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP3a detail="MXF OP3a EditItems SinglePackage" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.03.01.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP1b detail="MXF OP1b SingleItem GangedPackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.01.02.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP2b detail="MXF OP2b PlaylistItems GangedPackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.02.02.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP3b detail="MXF OP3b EditItems GangedPackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.03.02.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP1c detail="MXF OP1c SingleItem AlternatePackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.01.03.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP2c detail="MXF OP2c PlaylistItems AlternatePackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.02.03.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP3c detail="MXF OP3c EditItems AlternatePackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.03.03.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOPSpecialized detail="MXF Specialized OP" ul="06.0E.2B.34.04.01.01.00.0D.01.02.01.00.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.7f.ff.ff.ff" />
+		<MXFOPAtom detail="MXF Specialized OP Atom" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.10.00.00.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.03.00.00" />
+
+		<MXFEC detail="MXF Essence Containers" ul="06.0E.2B.34.04.01.01.00.0D.01.03.00.00.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.ff.ff.ff.ff.ff" />
+		<MXFGC detail="MXF Generic Container" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.ff.ff.ff" />
+		<MXFGCD10 detail="MXF-GC SMPTE D-10 Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.01.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCDV detail="MXF-GC DV-DIF Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.02.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCD10 detail="MXF-GC SMPTE D-11 Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.03.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMPEGES detail="MXF-GC MPEG Elementary Streams" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.04.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCUncompressed detail="MXF-GC Uncompressed Pictures" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.05.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCAESBWF detail="MXF-GC AES-BWF Audio" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.06.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMPEGPES detail="MXF-GC MPEG Packetised Elementary Streams" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.07.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMPEGPS detail="MXF-GC MPEG Program Streams" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.08.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMPEGTS detail="MXF-GC MPEG Transport Streams" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.09.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCALaw detail="MXF-GC A-law Audio Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.0A.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCEncrypted detail="MXF-GC Encrypted Data Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.0B.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCJP2K detail="MXF-GC JPEG-2000 Picture Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.0C.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCVBI detail="MXF-GC Generic VBI Data Mapping Undefined Payload" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.0D.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMultiple detail="MXF-GC Generic Essence Multiple Mappings" ul="06.0E.2B.34.04.01.01.03.0D.01.03.01.02.7f.01.00"/>
+
+		<SMPTE12MTimecodeTrack detail="SMPTE 12M Timecode Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.01.01.00.00.00"/>
+		<SMPTE12MTimecodeTrackActiveUserBits detail="SMPTE 12M Timecode Track with active user bits" ul="06.0E.2B.34.04.01.01.01.01.03.02.01.02.00.00.00"/>
+		<SMPTE309MTimecodeTrack detail="SMPTE 309M Timecode Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.01.03.00.00.00"/>
+		<DescriptiveMetadataTrack detail="Descriptive Metadata Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.01.10.00.00.00"/>
+		<PictureEssenceTrack detail="Picture Essence Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.02.01.00.00.00"/>
+		<SoundEssenceTrack detail="Sound Essence Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.02.02.00.00.00"/>
+		<DataEssenceTrack detail="Data Essence Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.02.03.00.00.00"/>
+
+		<DMS1 detail="MXF Descriptive Metadata Scheme 1" ul="06.0E.2B.34.04.01.01.01.0D.01.04.01.01.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.ff.ff.ff"/>
+		<DMS1Production detail="MXF DMS-1 Production Framework constrained to the standard version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.01.01"/>
+		<DMS1ProductionExtended detail="MXF DMS-1 Clip Framework constrained to the extended version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.01.02"/>
+		<DMS1Clip detail="MXF DMS-1 Clip Framework constrained to the standard version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.02.01"/>
+		<DMS1ClipExtended detail="MXF DMS-1 Production Framework constrained to the extended version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.02.02"/>
+		<DMS1Scene detail="MXF DMS-1 Scene Framework constrained to the standard version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.03.01"/>
+		<DMS1SceneExtended detail="MXF DMS-1 Scene Framework constrained to the extended version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.03.02"/>
+
+		<DMSCrypto detail="MXF Cryptographic DM Scheme" ul="06.0E.2B.34.04.01.01.07.0D.01.04.01.02.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.ff.ff.ff"/>
+		<DMSCryptoFramework detail="Cryptographic framework for the DC28 MXF cryptographic DM scheme" ul="06.0E.2B.34.04.01.01.07.0D.01.04.01.02.01.01.00"/>
+    </MXFLabels>
+
 </MXFDictionary>
