@@ -1,7 +1,7 @@
 /*! \file	deftypes.cpp
  *	\brief	Dictionary processing
  *
- *	\version $Id: deftypes.cpp,v 1.23 2007/01/20 16:21:59 matt-beard Exp $
+ *	\version $Id: deftypes.cpp,v 1.24 2007/03/31 14:23:29 matt-beard Exp $
  *
  */
 /*
@@ -30,7 +30,6 @@
 #include "mxflib/mxflib.h"
 
 #include <stdarg.h>
-
 
 using namespace mxflib;
 
@@ -136,6 +135,7 @@ namespace
 		StateTypesCompoundItem,				//!< Processing sub-items within a compound
 		StateTypesEnum,						//!< Processing enumerated types section
 		StateTypesEnumValue,				//!< Processing valuess within an enumeration
+		StateTypesLabel,					//!< Processing labels types section
 		StateDone							//!< Finished processing
 	};
 
@@ -146,6 +146,8 @@ namespace
 		TypeRecordList Types;				//!< The types being built
 		TypeRecordPtr Parent;				//!< The current compound or enum being built (or NULL)
 		SymbolSpacePtr DefaultSymbolSpace;	//!< Default symbol space to use for all types (in current MXFTypes section)
+		bool LabelsOnly;					//!< True if this is a labels section rather than a full types section
+											// ** DRAGONS: Labels are treated as types rather than defining a third kind (types, classes and labels)
 	};
 
 	//! Build the map of all known traits
@@ -252,6 +254,7 @@ int mxflib::LoadTypes(char *TypesFile, SymbolSpacePtr DefaultSymbolSpace /*=MXFL
 	// Initialize the state
 	State.State = StateIdle;
 	State.DefaultSymbolSpace = DefaultSymbolSpace;
+	State.LabelsOnly = false;
 
 	// Get the qualified filename
 	std::string XMLFilePath = LookupDictionaryPath(TypesFile);
@@ -308,9 +311,12 @@ int mxflib::LoadTypes(const ConstTypeRecord *TypesData, SymbolSpacePtr DefaultSy
 		ThisType->Type = CurrentType->Type;
 		ThisType->Detail = CurrentType->Detail;
 		ThisType->Base = CurrentType->Base;
+		if(CurrentType->Value) ThisType->Value = CurrentType->Value;
 		ThisType->Size = CurrentType->Size;
 		ThisType->Endian = CurrentType->Endian;
 		ThisType->IsBatch = CurrentType->IsBatch;
+		ThisType->RefType = CurrentType->RefType;
+		if(CurrentType->RefTarget) ThisType->RefTarget = CurrentType->RefTarget;
 		if(CurrentType->UL && *CurrentType->UL) ThisType->UL = StringToUL(CurrentType->UL);
 		if(CurrentType->SymSpace) 
 		{
@@ -431,6 +437,9 @@ int mxflib::LoadTypes(TypeRecordList &TypesData, SymbolSpacePtr DefaultSymbolSpa
 				// Add the name and UL to the symbol space
 				(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
 
+				if((*it)->RefType != TypeRefUndefined) Ptr->SetRefType((*it)->RefType);
+				if((*it)->RefTarget.length() != 0) Ptr->SetRefTarget((*it)->RefTarget);
+
 				break;
 			}
 
@@ -469,6 +478,9 @@ int mxflib::LoadTypes(TypeRecordList &TypesData, SymbolSpacePtr DefaultSymbolSpa
 
 					// Add the name and UL to the symbol space
 					(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
+
+					if((*it)->RefType != TypeRefUndefined) Ptr->SetRefType((*it)->RefType);
+					if((*it)->RefTarget.length() != 0) Ptr->SetRefTarget((*it)->RefTarget);
 				}
 
 				break;
@@ -507,6 +519,9 @@ int mxflib::LoadTypes(TypeRecordList &TypesData, SymbolSpacePtr DefaultSymbolSpa
 
 					// Add the name and UL to the symbol space
 					(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
+
+					if((*it)->RefType != TypeRefUndefined) Ptr->SetRefType((*it)->RefType);
+					if((*it)->RefTarget.length() != 0) Ptr->SetRefTarget((*it)->RefTarget);
 				}
 
 				break;
@@ -641,6 +656,38 @@ int mxflib::LoadTypes(TypeRecordList &TypesData, SymbolSpacePtr DefaultSymbolSpa
 				break;
 			}
 
+			// Label definition
+			case TypeLabel:
+			{
+				UInt8 *Mask = NULL;
+				UInt8 MaskData[16];
+
+				// Check for a mask - kept in the value field an a hex string
+				if((*it)->Value.length())
+				{
+					// We need to make a safe copy of the mask to parse
+					char *MaskString = new char[(*it)->Value.length() + 1];
+					strcpy(MaskString, (*it)->Value.c_str());
+
+					// We read the hex mask, but if this fails we leave "Mask" as NULL so we don't attempt to use it
+					if(ReadHexString(MaskString, 16, MaskData, " \t.") > 0) Mask = MaskData;
+
+					delete[] MaskString;
+				}
+
+				if(!Label::Insert((*it)->Type, (*it)->Detail, (*it)->UL, Mask))
+				{
+					warning("Failed to add label %s - this probably means that it matches an existing label definition", (*it)->Type.c_str());
+				}
+				else
+				{
+					// Add the name and UL to the symbol space
+					(*it)->SymSpace->AddSymbol((*it)->Type, (*it)->UL);
+				}
+
+				break;
+			}
+
 			// Should never be possible to get here
 			default:
 				ASSERT(0);
@@ -657,7 +704,7 @@ int mxflib::LoadTypes(TypeRecordList &TypesData, SymbolSpacePtr DefaultSymbolSpa
 		// Unless we were stuck this time (cannot resolve any more)
 		if(UnresolvedCount == (int)TypesData.size())
 		{
-			error("Undefined base class or circular reference in types definitions (first unresolvable = %s)\n", Unresolved.front()->Type.c_str());
+			error("Undefined base type or circular reference in types definitions (first unresolvable = %s)\n", Unresolved.front()->Type.c_str());
 
 			it = Unresolved.begin();
 			while(it != Unresolved.end())
@@ -689,13 +736,18 @@ namespace
 		{
 			case StateIdle:
 			{
-				if(strcmp(name, "MXFTypes") != 0)
+				State->State = StateTypes;
+
+				if((strcmp(name, "MXFLabels") == 0) || (strcmp(name, "Labels") == 0))
+				{
+					State->LabelsOnly = true;
+					State->State = StateTypesLabel;
+				}
+				else if(strcmp(name, "MXFTypes") != 0)
 				{
 					XML_fatalError(user_data, "Outer tag <MXFTypes> expected - <%s> found\n", name);
 					return;
 				}
-
-				State->State = StateTypes;
 
 				/* Check for symSpace */
 				if(attrs != NULL)
@@ -737,6 +789,11 @@ namespace
 					State->State = StateTypesCompound;
 				else if(strcmp(name, "Enumeration") == 0)
 					State->State = StateTypesEnum;
+				else if((strcmp(name, "Labels") == 0) || (strcmp(name, "MXFLabels") == 0))
+				{
+					State->LabelsOnly = false;
+					State->State = StateTypesLabel;
+				}
 				else
 					XML_error(user_data, "Tag <%s> found when types class expected\n", name);
 
@@ -748,6 +805,8 @@ namespace
 				const char *Detail = "";
 				const char *TypeUL = NULL;
 				const char *SymSpace = NULL;
+				TypeRef RefType = TypeRefUndefined;
+				const char *RefTarget = NULL;
 				int Size = 1;
 				bool Endian = false;
 				
@@ -782,7 +841,23 @@ namespace
 						}
 						else if(strcmp(attr, "ref") == 0)
 						{
-							// Ignore
+							if(strcasecmp(val,"strong") == 0) RefType = TypeRefStrong;
+							else if(strcasecmp(val,"target") == 0) RefType = TypeRefTarget;
+							else if(strcasecmp(val,"weak") == 0) RefType = TypeRefWeak;
+							else if(strcasecmp(val,"none") == 0) RefType = TypeRefNone;
+							else if(strcasecmp(val,"global") == 0) RefType = TypeRefGlobal;
+							else
+							{
+								XML_warning(user_data, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+							}
+						}
+						else if(strcmp(attr, "target") == 0)
+						{
+							RefTarget = val;
+						}
+						else if(strcmp(attr, "doc") == 0)
+						{
+							// Ignore any documentation attributes
 						}
 						else
 						{
@@ -814,6 +889,8 @@ namespace
 				ThisType->Size = Size;
 				ThisType->Endian = Endian;
 				ThisType->IsBatch = false;
+				ThisType->RefType = RefType;
+				if(RefTarget) ThisType->RefTarget = RefTarget;
 
 				// Add this type record
 				State->Types.push_back(ThisType);
@@ -827,6 +904,8 @@ namespace
 				const char *Base = "";
 				const char *TypeUL = NULL;
 				const char *SymSpace = NULL;
+				TypeRef RefType = TypeRefUndefined;
+				const char *RefTarget = NULL;
 				int Size = 0;
 				
 				/* Process attributes */
@@ -860,7 +939,23 @@ namespace
 						}
 						else if(strcmp(attr, "ref") == 0)
 						{
-							// Ignore
+							if(strcasecmp(val,"strong") == 0) RefType = TypeRefStrong;
+							else if(strcasecmp(val,"target") == 0) RefType = TypeRefTarget;
+							else if(strcasecmp(val,"weak") == 0) RefType = TypeRefWeak;
+							else if(strcasecmp(val,"none") == 0) RefType = TypeRefNone;
+							else if(strcasecmp(val,"global") == 0) RefType = TypeRefGlobal;
+							else
+							{
+								XML_warning(user_data, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+							}
+						}
+						else if(strcmp(attr, "target") == 0)
+						{
+							RefTarget = val;
+						}
+						else if(strcmp(attr, "doc") == 0)
+						{
+							// Ignore any documentation attributes
 						}
 						else
 						{
@@ -892,6 +987,8 @@ namespace
 				ThisType->Size = Size;
 				ThisType->Endian = false;
 				ThisType->IsBatch = false;
+				ThisType->RefType = RefType;
+				if(RefTarget) ThisType->RefTarget = RefTarget;
 
 				// Add this type record
 				State->Types.push_back(ThisType);
@@ -905,6 +1002,8 @@ namespace
 				const char *Base = "";
 				const char *TypeUL = NULL;
 				const char *SymSpace = NULL;
+				TypeRef RefType = TypeRefUndefined;
+				const char *RefTarget = NULL;
 				bool IsBatch = false;
 				int Size = 0;
 
@@ -943,7 +1042,23 @@ namespace
 						}
 						else if(strcmp(attr, "ref") == 0)
 						{
-							// Ignore
+							if(strcasecmp(val,"strong") == 0) RefType = TypeRefStrong;
+							else if(strcasecmp(val,"target") == 0) RefType = TypeRefTarget;
+							else if(strcasecmp(val,"weak") == 0) RefType = TypeRefWeak;
+							else if(strcasecmp(val,"none") == 0) RefType = TypeRefNone;
+							else if(strcasecmp(val,"global") == 0) RefType = TypeRefGlobal;
+							else
+							{
+								XML_warning(user_data, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+							}
+						}
+						else if(strcmp(attr, "target") == 0)
+						{
+							RefTarget = val;
+						}
+						else if(strcmp(attr, "doc") == 0)
+						{
+							// Ignore any documentation attributes
 						}
 						else
 						{
@@ -975,6 +1090,8 @@ namespace
 				ThisType->Size = Size;
 				ThisType->Endian = false;
 				ThisType->IsBatch = IsBatch;
+				ThisType->RefType = RefType;
+				if(RefTarget) ThisType->RefTarget = RefTarget;
 
 				// Add this type record
 				State->Types.push_back(ThisType);
@@ -1009,9 +1126,9 @@ namespace
 						{
 							SymSpace = val;
 						}
-						else if(strcmp(attr, "ref") == 0)
+						else if(strcmp(attr, "doc") == 0)
 						{
-							// Ignore
+							// Ignore any documentation attributes
 						}
 						else
 						{
@@ -1059,6 +1176,8 @@ namespace
 				const char *Type = "";
 				const char *TypeUL = NULL;
 				// DRAGONS: Not supporting separate symbol space for sub-items in a compound
+				TypeRef RefType = TypeRefUndefined;
+				const char *RefTarget = NULL;
 				int Size = 0;
 
 				/* Process attributes */
@@ -1086,9 +1205,13 @@ namespace
 						{
 							TypeUL = val;
 						}
-						else if(strcmp(attr, "ref") == 0)
+						else if(strcmp(attr, "target") == 0)
 						{
-							// Ignore
+							RefTarget = val;
+						}
+						else if(strcmp(attr, "doc") == 0)
+						{
+							// Ignore any documentation attributes
 						}
 						else
 						{
@@ -1108,6 +1231,8 @@ namespace
 				ThisType->Size = Size;
 				ThisType->Endian = false;
 				ThisType->IsBatch = false;
+				ThisType->RefType = RefType;
+				if(RefTarget) ThisType->RefTarget = RefTarget;
 
 				// Add as a child of the current compound
 				State->Parent->Children.push_back(ThisType);
@@ -1147,9 +1272,9 @@ namespace
 						{
 							SymSpace = val;
 						}
-						else if(strcmp(attr, "ref") == 0)
+						else if(strcmp(attr, "doc") == 0)
 						{
-							// Ignore
+							// Ignore any documentation attributes
 						}
 						else
 						{
@@ -1224,9 +1349,9 @@ namespace
 						{
 							Value = val;
 						}
-						else if(strcmp(attr, "ref") == 0)
+						else if(strcmp(attr, "doc") == 0)
 						{
-							// Ignore
+							// Ignore any documentation attributes
 						}
 						else
 						{
@@ -1254,6 +1379,80 @@ namespace
 					// Add as a child of the current compound
 					State->Parent->Children.push_back(ThisType);
 				}
+
+				break;
+			}
+
+			case StateTypesLabel:
+			{
+				const char *Detail = "";
+				const char *TypeUL = NULL;
+				const char *Mask = NULL;
+				const char *SymSpace = NULL;
+
+				/* Process attributes */
+				if(attrs != NULL)
+				{
+					int this_attr = 0;
+					while(attrs[this_attr])
+					{
+						char const *attr = attrs[this_attr++];
+						char const *val = attrs[this_attr++];
+						
+						if(strcmp(attr, "detail") == 0)
+						{
+							Detail = val;
+						}
+						else if(strcmp(attr, "ul") == 0)
+						{
+							TypeUL = val;
+						}
+						else if(strcmp(attr, "mask") == 0)
+						{
+							Mask = val;
+						}
+						else if(strcmp(attr, "symSpace") == 0)
+						{
+							SymSpace = val;
+						}
+						else if(strcmp(attr, "doc") == 0)
+						{
+							// Ignore any documentation attributes
+						}
+						else
+						{
+							XML_error(user_data, "Unexpected attribute \"%s\" in label \"%s\"\n", attr, name);
+						}
+					}
+				}
+
+				// Build a new type record
+				TypeRecordPtr ThisType = new TypeRecord;
+
+				ThisType->Class = TypeLabel;
+				ThisType->Type = name;
+				ThisType->Detail = Detail;
+				if(TypeUL) ThisType->UL = StringToUL(TypeUL);
+				if(Mask) ThisType->Value = Mask;
+
+				if(SymSpace)
+				{
+					// A symbol space has been specified - look it up
+					ThisType->SymSpace = SymbolSpace::FindSymbolSpace(SymSpace);
+
+					// If it does not already exist, create it
+					if(!ThisType->SymSpace) ThisType->SymSpace = new SymbolSpace(SymSpace);
+				}
+				else
+				{
+					ThisType->SymSpace = State->DefaultSymbolSpace;
+				}
+				ThisType->Size = 0;
+				ThisType->Endian = false;
+				ThisType->IsBatch = false;
+
+				// Add this type record
+				State->Types.push_back(ThisType);
 
 				break;
 			}
@@ -1312,7 +1511,6 @@ namespace
 				if(strcmp(name,"Compound") == 0) State->State = StateTypes;
 				break;
 			}
-			
 			case StateTypesCompoundItem:
 			{
 				if(strcmp(name,State->Parent->Type.c_str()) == 0)
@@ -1327,13 +1525,21 @@ namespace
 				if(strcmp(name,"Enumeration") == 0) State->State = StateTypes;
 				break;
 			}
-			
 			case StateTypesEnumValue:
 			{
 				if(strcmp(name,State->Parent->Type.c_str()) == 0)
 				{
 					State->State = StateTypesEnum;
 					State->Parent = NULL;
+				}
+				break;
+			}
+			case StateTypesLabel:
+			{
+				if((strcmp(name,"MXFLabels") == 0) || (strcmp(name,"Labels") == 0))
+				{
+					if(State->LabelsOnly) State->State = StateDone;
+					else State->State = StateTypes;
 				}
 				break;
 			}
@@ -1631,7 +1837,46 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 				return Ret;
 			}
 
-			Ret = new MDOType(NONE, RootName, ThisClass->Name, ThisClass->Detail, Type, DICT_KEY_NONE, DICT_LEN_NONE, ThisClass->MinSize, ThisClass->MaxSize, ThisClass->Usage);
+			if(Type->EffectiveClass() == TYPEARRAY)
+			{
+//#printf("** ARRAY = %s", ThisClass->Name.c_str());
+				MDTypePtr SubType = Type->EffectiveBase();
+
+				TypeRef RefType = Type->GetRefType();
+//#printf(", RefType=%d", (int)RefType);
+				if(RefType == TypeRefUndefined)
+				{
+					if(SubType) RefType = SubType->EffectiveRefType();
+//#printf(", EffRefType=%d", (int)RefType);
+				}
+//#printf("\n");
+
+				if((RefType != TypeRefNone) && (RefType != TypeRefUndefined) && SubType)
+				{
+//#printf("** REF ARRAY :");
+					
+					// Make a class description that is a copy of this item, but is an array of sub items
+//					ClassRecordPtr ArrayClass = new ClassRecord;
+//					*ArrayClass = *ThisClass;
+//					ArrayClass->Class = Array or vector?
+					Ret = new MDOType(BATCH, RootName, ThisClass->Name, ThisClass->Detail, NULL, DICT_KEY_NONE, DICT_LEN_NONE, 0, 0, ThisClass->Usage);
+//#printf(" Added %s", (RootName + ThisClass->Name).c_str());
+
+					// Make a sub that is a copy of this item, but is an array member
+					ClassRecordPtr SubClass = new ClassRecord;
+					*SubClass = *ThisClass;
+					SubClass->Name += "_Item";
+					SubClass->Base = SubType->Name();
+
+					DefineClass(SubClass, ThisClass->SymSpace ? ThisClass->SymSpace : DefaultSymbolSpace, Ret);
+//#printf(" Added %s of type %s\n", SubClass->Name.c_str(), SubClass->Base.c_str());
+
+//					MDOTypePtr SubItem = new MDOType(NONE, RootName + ThisClass->Name + "/", ThisClass->Name + "_Item", ThisClass->Detail + "(sub-item)", SubType, DICT_KEY_NONE, DICT_LEN_NONE, -1, -1, ClassUsageRequired);
+				}
+			}
+
+			// Only define if we have not just defined as an array
+			if(!Ret) Ret = new MDOType(NONE, RootName, ThisClass->Name, ThisClass->Detail, Type, DICT_KEY_NONE, DICT_LEN_NONE, ThisClass->MinSize, ThisClass->MaxSize, ThisClass->Usage);
 		}
 		// Are we defining a derived class?
 		else if(ThisClass->Base.size())
@@ -1699,6 +1944,11 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		if(!Ret) return Ret;
 	}
 
+	// Work out which reference details to use - default to anything specified in this definition
+	ClassRef RefType = ThisClass->RefType;
+	std::string RefTarget = ThisClass->RefTarget;
+//#printf("Processing class %s, RefType = %d, RefTarget=%s\n", Ret->Name().c_str(), (int)RefType, RefTarget.c_str());
+
 	// Add us to the class lists
 	if(!Extending)
 	{
@@ -1711,11 +1961,15 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 			Parent->insert(Ret);
 
 			// Move reference details from parent (used for vectors)
-			if(Parent->RefType != DICT_REF_NONE)
+			if(Parent->RefType != ClassRefNone)
 			{
-				Ret->RefType = Parent->RefType;
-				Ret->RefTargetName = Parent->RefTargetName;
-				Parent->RefType = DICT_REF_NONE;
+//#printf("Inheriting --> %s, Parent->RefType = %d, RefTarget=%s\n", Ret->Name().c_str(), (int)Parent->RefType, Parent->RefTargetName.c_str());
+
+				RefType = Parent->RefType;
+				RefTarget = Parent->RefTargetName;
+				
+				// DRAGONS: What if we have multiple subs?
+				Parent->RefType = ClassRefNone;
 			}
 
 			// If we are not top level then record out "family tree"
@@ -1723,8 +1977,18 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 		}
 	}
 
+	// If nothing specified this time then we use the details from the type
+	if((!Extending) && Ret->ValueType)
+	{
+//#printf("Override...?\n");
+		if(RefType == ClassRefUndefined) RefType = static_cast<ClassRef>(Ret->ValueType->EffectiveRefType());
+		if(RefTarget.length() == 0) RefTarget = Ret->ValueType->EffectiveRefTarget();
+//#printf("  RefType = %d, RefTarget=%s\n", (int)RefType, RefTarget.c_str());
+	}
+
 	// Sort referencing (overrides anything inherited)
-	if(ThisClass->RefType != ClassRefNone)
+	if(RefType != ClassRefUndefined)
+//	if(RefType != ClassRefNone)
 	{
 		if(!Ret->empty())
 		{
@@ -1733,18 +1997,26 @@ MDOTypePtr MDOType::DefineClass(ClassRecordPtr &ThisClass, SymbolSpacePtr Defaul
 			{
 				if(((*it).second->minLength == 16) && ((*it).second->maxLength == 16))
 				{
-					(*it).second->RefType = ThisClass->RefType;
-					(*it).second->RefTargetName = ThisClass->RefTarget;
+					(*it).second->RefType = RefType;
+					(*it).second->RefTargetName = RefTarget;
+//#printf("**SET** ");
 				}
 				it++;
 			}
+//#printf("\n");
 		}
 		else
 		{
-			Ret->RefType = ThisClass->RefType;
-			Ret->RefTargetName = ThisClass->RefTarget;
+//#printf("- %s changed from %d to %d\n", Ret->Name().c_str(), (int)Ret->RefType, (int)RefType);
+			Ret->RefType = RefType;
+			Ret->RefTargetName = RefTarget;
+//#printf("Set\n");		
 		}
 	}
+//#	else
+//#	{
+//#printf("= Diff is - %s NOT changed from %d to %d\n", Ret->Name().c_str(), (int)Ret->RefType, (int)RefType);
+//#	}
 
 	// Set the local tag (if one exists)
 	if(ThisClass->Tag)
@@ -2076,7 +2348,7 @@ namespace
 
 			case DictStateDictionary:
 			{
-				if(strcmp(name, "MXFTypes") == 0)
+				if((strcmp(name, "MXFTypes") == 0) || (strcmp(name, "MXFLabels") == 0) || (strcmp(name, "Labels") == 0))
 				{
 					/* Start types parsing */
 
@@ -2272,9 +2544,11 @@ namespace
 				}
 				else if(strcmp(attr, "ref") == 0)
 				{
-					if(strcasecmp(val,"strong") == 0) ThisClass->RefType = DICT_REF_STRONG;
-					else if(strcasecmp(val,"target") == 0) ThisClass->RefType = DICT_REF_TARGET;
-					else if(strcasecmp(val,"weak") == 0) ThisClass->RefType = DICT_REF_WEAK;
+					if(strcasecmp(val,"strong") == 0) ThisClass->RefType = ClassRefStrong;
+					else if(strcasecmp(val,"target") == 0) ThisClass->RefType = ClassRefTarget;
+					else if(strcasecmp(val,"weak") == 0) ThisClass->RefType = ClassRefWeak;
+					else if(strcasecmp(val,"none") == 0) ThisClass->RefType = ClassRefNone;
+					else if(strcasecmp(val,"global") == 0) ThisClass->RefType = ClassRefGlobal;
 					else
 					{
 						XML_warning(user_data, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
@@ -2370,6 +2644,10 @@ namespace
 					if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0))ThisClass->ExtendSubs = true;
 					else ThisClass->ExtendSubs = false;
 				}
+				else if(strcmp(attr, "doc") == 0)
+				{
+					// Ignore any documentation attributes
+				}
 				else
 				{
 					XML_warning(user_data, "Unexpected attribute '%s' in <%s/>", attr, name);
@@ -2461,7 +2739,8 @@ namespace
 			// Call the old parser
 			DefTypes_endElement(&State->ClassState, name);
 
-			if(strcmp(name, "MXFTypes") == 0)
+			// Do a load if we have hit the end of the types
+			if(State->ClassState.State == StateDone)
 			{
 				// Load the types that were found
 				LoadTypes(State->ClassState.Types);
@@ -2489,3 +2768,227 @@ namespace
 		}
 	}
 }
+
+
+namespace
+{
+	// Map of bit counts for each byte value
+	static UInt8 BitCount[256] = 
+	{
+		0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
+	    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+	    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+	    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+	    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+		2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+		2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+		3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+		1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+		2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+		2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+		3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+		2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+		3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+		3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+		4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8
+	};
+}
+
+//! Find a label with a given value, from a UL reference
+/*! If more than one masked label matches, the value with the least mask bits is returned. 
+ *  If more than one have the same number of mask bits, the last one found will be returned - which this is is undefined.
+ */
+LabelPtr Label::Find(const UL &LabelValue)
+{
+	// Search for an exact match
+	LabelULMap::iterator it = LabelMap.find(LabelValue);
+
+	// If we found an exact match, return it
+	if(it != LabelMap.end()) return (*it).second;
+
+	/* Now we have to do the long-hand search for masked values */
+
+	// DRAGONS: This can be simplified by seeking to a point in the list before the first possible match - but this code is good enough
+	
+	int SmallestBitMask = 255;
+	LabelPtr BestMatch;
+
+	LabelULMultiMap::iterator mit = LabelMultiMap.begin();
+	while(mit != LabelMultiMap.end())
+	{
+		// Only check those entries that have a mask (non-masked matches will have been found with the "find" call
+		if((*mit).second->NonZeroMask)
+		{
+			// Set up pointers to this entry's mask and value
+			const UInt8 *p1 = (*mit).first.GetValue();
+			const UInt8 *pMask = (*mit).second->Mask;
+
+			// Set up a pointer to the search value
+			const UInt8 *p2 = LabelValue.GetValue();
+
+			// Compare each byte
+			int Count = 16;
+			do
+			{
+				// Do a masked compare, first use XOR to select which bits don't match, then clear the masked ones
+				// Any bytes that match the test will end up zero, otherwise the failing bit will be set
+				if( ((*p1++) ^ (*p2++)) & ~(*pMask++) ) break;
+			} while(Count--);
+
+			// If we counted all the way to zero, we found a match - so count the mask bits
+			if(!Count)
+			{
+				int BitMaskSize = 0;
+
+				pMask = (*mit).second->Mask;
+				Count = 16;
+//while(Count--) { printf("%02x[%d].", *pMask, BitCount[*pMask]); BitMaskSize += BitCount[*pMask++]; };
+				while(Count--) { BitMaskSize += BitCount[*pMask++]; };
+
+//printf("Found a match with %d mask bits = %s\n", BitMaskSize, (*mit).second->GetName().c_str());
+				if(BitMaskSize <= SmallestBitMask)
+				{
+//printf("Best so far\n");
+					SmallestBitMask = BitMaskSize;
+					BestMatch = (*mit).second;
+				}
+			}	
+		}
+
+		mit++;
+	}
+
+	// Return the best match - which may be NULL
+	return BestMatch;
+}
+
+
+
+//! Map of all existing labels that don't use masking
+Label::LabelULMap Label::LabelMap;
+
+//! Map of all existing labels that use masking - this is a multimap to allow the same base with different masks
+Label::LabelULMultiMap Label::LabelMultiMap;
+
+
+//! Construct and add a label from a byte array
+/*! \return true if succeeded, else false
+	*/
+bool Label::Insert(std::string Name, std::string Detail, const UInt8 *LabelValue, const UInt8 *LabelMask /*=NULL*/)
+{
+	// Create the new Label
+	// If the insert succeeds the label map will take ownership, 
+	// if not it will only be owned by this pointer and will be deleted at the end of this function
+	LabelPtr NewLabel = new Label(Name, Detail, LabelValue, LabelMask);
+
+	if(LabelMask)
+	{
+//#printf("Adding %s to the masked map\n", Name.c_str());
+		// Masked labels go in the multi-map and this will always succeed
+		LabelMultiMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel));
+		return true;
+	}
+	else
+	{
+//#printf("Adding %s to the unmasked map\n", Name.c_str());
+		// Try and insert this new label - if that succeeded, return true
+		return LabelMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel)).second;
+	}
+}
+
+
+//! Construct and add a label from a UL smart pointer
+/*! \return true if succeeded, else false
+	*/
+bool Label::Insert(std::string Name, std::string Detail, const ULPtr &LabelValue, const UInt8 *LabelMask /*=NULL*/)
+{
+	// Create the new Label
+	// If the insert succeeds the label map will take ownership, 
+	// if not it will only be owned by this pointer and will be deleted at the end of this function
+	LabelPtr NewLabel = new Label(Name, Detail, LabelValue->GetValue(), LabelMask);
+
+	if(LabelMask)
+	{
+		// Masked labels go in the multi-map and this will always succeed
+		LabelMultiMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel));
+		return true;
+	}
+	else
+	{
+		// Try and insert this new label - if that succeeded, return true
+		return LabelMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel)).second;
+	}
+}
+
+
+//! Construct and add a label from a UL reference
+/*! \return true if succeeded, else false
+	*/
+bool Label::Insert(std::string Name, std::string Detail, const UL &LabelValue, const UInt8 *LabelMask /*=NULL*/)
+{
+	// Create the new Label
+	// If the insert succeeds the label map will take ownership, 
+	// if not it will only be owned by this pointer and will be deleted at the end of this function
+	LabelPtr NewLabel = new Label(Name, Detail, LabelValue.GetValue(), LabelMask);
+
+	if(LabelMask)
+	{
+		// Masked labels go in the multi-map and this will always succeed
+		LabelMultiMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel));
+		return true;
+	}
+	else
+	{
+		// Try and insert this new label - if that succeeded, return true
+		return LabelMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel)).second;
+	}
+}
+
+
+//! Construct and add a label from a UUID smart pointer
+/*! \return true if succeeded, else false
+	*/
+bool Label::Insert(std::string Name, std::string Detail, const UUIDPtr &LabelValue, const UInt8 *LabelMask /*=NULL*/)
+{
+	// Create the new Label
+	// If the insert succeeds the label map will take ownership, 
+	// if not it will only be owned by this pointer and will be deleted at the end of this function
+	LabelPtr NewLabel = new Label(Name, Detail, *LabelValue, LabelMask);
+
+	if(LabelMask)
+	{
+		// Masked labels go in the multi-map and this will always succeed
+		LabelMultiMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel));
+		return true;
+	}
+	else
+	{
+		// Try and insert this new label - if that succeeded, return true
+		return LabelMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel)).second;
+	}
+}
+
+
+//! Construct and add a label from a UUID reference
+/*! \return true if succeeded, else false
+	*/
+bool Label::Insert(std::string Name, std::string Detail, const mxflib::UUID &LabelValue, const UInt8 *LabelMask /*=NULL*/)
+{
+	// Create the new Label
+	// If the insert succeeds the label map will take ownership, 
+	// if not it will only be owned by this pointer and will be deleted at the end of this function
+	LabelPtr NewLabel = new Label(Name, Detail, LabelValue, LabelMask);
+
+	if(LabelMask)
+	{
+		// Masked labels go in the multi-map and this will always succeed
+		LabelMultiMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel));
+		return true;
+	}
+	else
+	{
+		// Try and insert this new label - if that succeeded, return true
+		return LabelMap.insert(LabelULMap::value_type(NewLabel->Value, NewLabel)).second;
+	}
+}
+

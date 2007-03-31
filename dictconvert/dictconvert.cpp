@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.9 2006/09/30 13:25:57 matt-beard Exp $
+ *	\version $Id: dictconvert.cpp,v 1.10 2007/03/31 14:23:00 matt-beard Exp $
  *
  */
 /*
@@ -128,7 +128,8 @@ enum CurrentState
 	StateTypesCompound,							//!< Processing compound types section
 	StateTypesCompoundItem,						//!< Processing sub-items within a compound
 	StateTypesEnum,								//!< Processing enumerated types section
-	StateTypesEnumValue,						//!< Processing valuess within an enumeration
+	StateTypesEnumValue,						//!< Processing values within an enumeration
+	StateTypesLabel,							//!< Processing lablels, possibly inside a types section
 	StateClasses,								//!< Processing classes
 	StateDone,									//!< Finished processing
 	StateError									//!< Error encountered - process nothing else
@@ -149,6 +150,9 @@ struct ConvertState
 	std::list<bool> ExtendSubsList;				//!< List of extendSubs flags (explicit and inherited) for each level
 	bool FoundType;								//!< Set true once we have determined the dictionary type (old or new)
 	bool FoundMulti;							//!< Found new multi-style dictionary
+	bool LabelsOnly;							//!< True if this is a labels section rather than a full types section
+												// ** DRAGONS: Labels are treated as types rather than defining a third kind (types, classes and labels)
+
 	std::string SymSpace;						//!< The symbol space attribute of the classes tag (stored if deferring the header line)
 };
 
@@ -525,7 +529,21 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 	{
 		case StateIdle:
 		{
-			if(strcmp(name, "MXFTypes") == 0)
+			bool FoundMXFTypes = false;
+
+			if(strcmp(name, "MXFTypes") == 0) 
+			{
+				FoundMXFTypes = true;
+				State->LabelsOnly = false;
+			}
+			// DRAGONS: We treat MXFLabels as a special case of the types section
+			else if((strcmp(name, "MXFLabels") == 0) || (strcmp(name, "Labels") == 0))
+			{
+				FoundMXFTypes = true;
+				State->LabelsOnly = true;
+			}
+
+			if(FoundMXFTypes)
 			{
 				// Types at the outer level is an old style dictionary
 				if(!State->FoundType)
@@ -536,7 +554,9 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 				if(State->FoundMulti) TypesCount++;
 
-				State->State = StateTypes;
+				// Set state to types - unless we are straight into the labels
+				if(State->LabelsOnly) State->State = StateTypesLabel;
+				else State->State = StateTypes;
 
 				/* Check for symSpace */
 				const char *SymSpace = NULL;
@@ -557,7 +577,10 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 				if((ClassesCount + TypesCount) > 0)	fprintf(State->OutFile, "\n");
 
-				fprintf(State->OutFile, "\t// Types definitions converted from file %s\n", InputFile);
+				if(State->LabelsOnly)
+					fprintf(State->OutFile, "\t// Label definitions converted from file %s\n", InputFile);
+				else
+					fprintf(State->OutFile, "\t// Types definitions converted from file %s\n", InputFile);
 
 				if(!State->FoundMulti)
 				{
@@ -680,6 +703,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 		{
 			std::string Detail;
 			std::string TypeUL;
+			char *RefType = NULL;
+			std::string RefTargetName;
 			const char *SymSpace = NULL;
 
 			int Size = 1;
@@ -716,6 +741,22 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
+						if(strcasecmp(val,"strong") == 0) RefType = "ClassRefStrong";
+						else if(strcasecmp(val,"target") == 0) RefType = "ClassRefTarget";
+						else if(strcasecmp(val,"weak") == 0) RefType = "ClassRefWeak";
+						else if(strcasecmp(val,"global") == 0) RefType = "ClassRefGlobal";
+						else
+						{
+							Convert_warning(State, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+							RefType = NULL;
+						}
+					}
+					else if(strcmp(attr, "target") == 0)
+					{
+						RefTargetName = val;
+					}
+					else if(strcmp(attr, "doc") == 0)
+					{
 						// Ignore
 					}
 					else
@@ -728,11 +769,23 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Add this type to the ULData map (if it has a UL)
 			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
 
-			if(!SymSpace)
-				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC(\"%s\", \"%s\", \"%s\", %d, %s)\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false");
-			else
-				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_SYM(\"%s\", \"%s\", \"%s\", %d, %s, \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", SymSpace);
+			// Allow only the target type to be set
+			if((!RefType) && (RefTargetName.length() > 0)) RefType = "ClassRefUndefined";
 
+			if(!SymSpace)
+			{
+				if(!RefType)
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC(\"%s\", \"%s\", \"%s\", %d, %s)\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false");
+				else
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_REF(\"%s\", \"%s\", \"%s\", %d, %s, %s, \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", RefType, RefTargetName.c_str());
+			}
+			else
+			{
+				if(!RefType)
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_SYM(\"%s\", \"%s\", \"%s\", %d, %s, \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", SymSpace);
+				else
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_REF_SYM(\"%s\", \"%s\", \"%s\", %d, %s, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", RefType, RefTargetName.c_str(), SymSpace);
+			}
 			break;
 		}
 
@@ -743,7 +796,9 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			const char *SymSpace = NULL;
 			const char *Base = "";
 			int Size = 0;
-			
+			char *RefType = NULL;
+			std::string RefTargetName;
+
 			/* Process attributes */
 			if(attrs != NULL)
 			{
@@ -775,6 +830,22 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
+						if(strcasecmp(val,"strong") == 0) RefType = "ClassRefStrong";
+						else if(strcasecmp(val,"target") == 0) RefType = "ClassRefTarget";
+						else if(strcasecmp(val,"weak") == 0) RefType = "ClassRefWeak";
+						else if(strcasecmp(val,"global") == 0) RefType = "ClassRefGlobal";
+						else
+						{
+							Convert_warning(State, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+							RefType = NULL;
+						}
+					}
+					else if(strcmp(attr, "target") == 0)
+					{
+						RefTargetName = val;
+					}
+					else if(strcmp(attr, "doc") == 0)
+					{
 						// Ignore
 					}
 					else
@@ -787,10 +858,23 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Add this type to the ULData map (if it has a UL)
 			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
 
+			// Allow only the target type to be set
+			if((!RefType) && (RefTargetName.length() > 0)) RefType = "ClassRefUndefined";
+
 			if(!SymSpace)
-				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION(\"%s\", \"%s\", \"%s\", \"%s\", %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size);
+			{
+				if(!RefType)
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION(\"%s\", \"%s\", \"%s\", \"%s\", %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size);
+				else
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_REF(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, RefType, RefTargetName.c_str());
+			}
 			else
-				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, SymSpace);
+			{
+				if(!RefType)
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, SymSpace);
+				else
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_REF_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, RefType, RefTargetName.c_str(), SymSpace);
+			}
 
 			break;
 		}
@@ -803,6 +887,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			const char *SymSpace = NULL;
 			bool IsBatch = false;
 			int Size = 0;
+			char *RefType = NULL;
+			std::string RefTargetName;
 
 			/* Process attributes */
 			if(attrs != NULL)
@@ -839,6 +925,22 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					}
 					else if(strcmp(attr, "ref") == 0)
 					{
+						if(strcasecmp(val,"strong") == 0) RefType = "ClassRefStrong";
+						else if(strcasecmp(val,"target") == 0) RefType = "ClassRefTarget";
+						else if(strcasecmp(val,"weak") == 0) RefType = "ClassRefWeak";
+						else if(strcasecmp(val,"global") == 0) RefType = "ClassRefGlobal";
+						else
+						{
+							Convert_warning(State, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
+							RefType = NULL;
+						}
+					}
+					else if(strcmp(attr, "target") == 0)
+					{
+						RefTargetName = val;
+					}
+					else if(strcmp(attr, "doc") == 0)
+					{
 						// Ignore
 					}
 					else
@@ -851,10 +953,23 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Add this type to the ULData map (if it has a UL)
 			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
 
+			// Allow only the target type to be set
+			if((!RefType) && (RefTargetName.length() > 0)) RefType = "ClassRefUndefined";
+
 			if(!SymSpace)
-                fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size);
+ 			{
+				if(!RefType)
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size);
+				else
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_REF(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, %s, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size, RefType, RefTargetName.c_str());
+			}
 			else
-				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size, SymSpace);
+ 			{
+				if(!RefType)
+                    fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size, SymSpace);
+				else
+                    fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_REF_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size, RefType, RefTargetName.c_str(), SymSpace);
+			}
 			break;
 		}
 
@@ -885,7 +1000,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						SymSpace = val;
 					}
-					else if(strcmp(attr, "ref") == 0)
+					else if(strcmp(attr, "doc") == 0)
 					{
 						// Ignore
 					}
@@ -942,7 +1057,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						TypeUL = CConvert(val);
 					}
-					else if(strcmp(attr, "ref") == 0)
+					else if(strcmp(attr, "doc") == 0)
 					{
 						// Ignore
 					}
@@ -998,7 +1113,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						SymSpace = val;
 					}
-					else if(strcmp(attr, "ref") == 0)
+					else if(strcmp(attr, "doc") == 0)
 					{
 						// Ignore
 					}
@@ -1055,7 +1170,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						TypeUL = CConvert(val);
 					}
-					else if(strcmp(attr, "ref") == 0)
+					else if(strcmp(attr, "doc") == 0)
 					{
 						// Ignore
 					}
@@ -1067,6 +1182,78 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			}
 
 			fprintf(State->OutFile, "\t\t\tMXFLIB_TYPE_ENUM_VALUE(\"%s\", \"%s\", \"%s\")\n", ValueName.c_str(), Detail.c_str(), Value.c_str());
+
+			break;
+		}
+
+		case StateTypesLabel:
+		{
+			std::string Detail;
+			const char *TypeUL = NULL;
+			const char *Mask = NULL;
+			const char *SymSpace = NULL;
+			std::string ValueName = name;
+
+			/* Process attributes */
+			if(attrs != NULL)
+			{
+				int this_attr = 0;
+				while(attrs[this_attr])
+				{
+					char const *attr = attrs[this_attr++];
+					char const *val = attrs[this_attr++];
+					
+					if(strcmp(attr, "detail") == 0)
+					{
+						Detail = CConvert(val);
+					}
+					else if(strcmp(attr, "ul") == 0)
+					{
+						TypeUL = val;
+					}
+					else if(strcmp(attr, "mask") == 0)
+					{
+						Mask = val;
+					}
+					else if(strcmp(attr, "symSpace") == 0)
+					{
+						SymSpace = val;
+					}
+					else if(strcmp(attr, "name") == 0)
+					{
+						ValueName = CConvert(val);
+					}
+					else if(strcmp(attr, "doc") == 0)
+					{
+						// Ignore any documentation attributes
+					}
+					else
+					{
+						error("Unexpected attribute \"%s\" in label \"%s\"\n", attr, name);
+					}
+				}
+			}
+
+			// DRAGONS: We don't add labels to the UL map
+
+			// Work out the correct indentation level
+			char *Indent = "\t\t\t";
+			if(State->LabelsOnly) Indent = "\t\t";
+
+			if(!SymSpace)
+			{
+				if(!Mask)
+                    fprintf(State->OutFile, "%sMXFLIB_LABEL(\"%s\", \"%s\", \"%s\")\n", Indent, ValueName.c_str(), Detail.c_str(), TypeUL);
+				else
+					fprintf(State->OutFile, "%sMXFLIB_MASKED_LABEL(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent, ValueName.c_str(), Detail.c_str(), TypeUL, Mask);
+			}
+			else
+			{
+				if(!Mask)
+                    fprintf(State->OutFile, "%sMXFLIB_LABEL_SYM(\"%s\", \"%s\", \"%s\", \"%s\")\n", Indent, ValueName.c_str(), Detail.c_str(), TypeUL, SymSpace);
+				else
+					fprintf(State->OutFile, "%sMXFLIB_MASKED_LABEL_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", Indent, ValueName.c_str(), Detail.c_str(), TypeUL, Mask, SymSpace);
+			}
 
 			break;
 		}
@@ -1164,6 +1351,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 						if(strcasecmp(val,"strong") == 0) RefType = "ClassRefStrong";
 						else if(strcasecmp(val,"target") == 0) RefType = "ClassRefTarget";
 						else if(strcasecmp(val,"weak") == 0) RefType = "ClassRefWeak";
+						else if(strcasecmp(val,"global") == 0) RefType = "ClassRefGlobal";
 						else
 						{
 							Convert_warning(State, "Unknown ref value ref=\"%s\" in <%s/>\n", val, name);
@@ -1611,6 +1799,21 @@ void Convert_endElement(void *user_data, const char *name)
 				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_ENUM_END\n");
 				State->State = StateTypesEnum;
 				State->Parent = "";
+			}
+			break;
+		}
+
+		case StateTypesLabel: 
+		{
+			if((strcmp(name,"MXFLabels") == 0) || (strcmp(name,"Labels") == 0)) 
+			{
+				if(State->LabelsOnly) 
+				{
+					fprintf(State->OutFile, "\tMXFLIB_TYPE_END\n");
+					State->State = StateIdle;
+				}
+				else 
+					State->State = StateTypes;
 			}
 			break;
 		}
