@@ -1,7 +1,7 @@
 /*! \file	mxflib.h
  *	\brief	The main MXFLib header file
  *
- *	\version $Id: mxflib.h,v 1.25 2007/01/21 18:46:35 matt-beard Exp $
+ *	\version $Id: mxflib.h,v 1.26 2007/03/31 16:04:14 matt-beard Exp $
  *
  */
 /*
@@ -97,8 +97,8 @@ namespace mxflib
 #include <mxflib/ulmap.h>
 
 #include <mxflib/mdtraits.h>
-#include <mxflib/mdtype.h>
 #include <mxflib/deftypes.h>
+#include <mxflib/mdtype.h>
 
 #include <mxflib/mdobject.h>
 
