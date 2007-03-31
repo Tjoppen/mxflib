@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.13 2007/01/19 17:47:29 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.14 2007/03/31 14:29:42 matt-beard Exp $
  *
  */
 /*
@@ -52,6 +52,8 @@ namespace mxflib
 		Position DIFEnd;									//!< Byte offset of last byte of last DIF + 1, or -1 if the file is an AVI file
 
 		int SeqCount;										//!< Number of DIF sequences in a frame
+
+		bool isS314M;										//!< True if this is a SMPTE 314M DV stream ("DV-Based")
 
 		UInt32 AVIFrameCount;								//!< The number of frames, if the essence is AVI wrapped
 		int StreamNumber;									//!< AVI Stream number, if the essence is AVI wrapped

@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.18 2007/02/22 16:57:28 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.19 2007/03/31 14:29:42 matt-beard Exp $
  *
  */
 /*
@@ -469,6 +469,10 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
 	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x02, 0x7f, 0x01 };
+
+	// Correct for IEC or DV-BAsed
+	if(isS314M) BaseUL[14] = 0x3f;
+
 	WrappingOptionList Ret;
 
 	// If the source format isn't RAW DV-DIFF or AVI-DV then we can't wrap the essence
@@ -825,7 +829,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 	bool is625 = ((Buffer[3] & 0x80) == 0x80);
 
 	// Set SMPTE-314M flag by assuming the APT value will only be 001 or 111 if we are in SMPTE-314M
-	bool isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
+	isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
 
 	// Bug out if the video is flagged as invalid
 	if((Buffer[6] & 0x80) != 0) return Ret;
@@ -929,8 +933,11 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptor(FileHandle InFi
 	// Set 625/50 flag from the header
 	bool is625 = ((Buffer[3] & 0x80) == 0x80);
 
-	// Bug out if the video is flagged as invalid
-	if((Buffer[6] & 0x80) != 0) return Ret;
+	// Set SMPTE-314M flag by assuming the APT value will only be 001 or 111 if we are in SMPTE-314M
+	isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
+
+	// Bug out if the audio is flagged as invalid
+	if((Buffer[5] & 0x80) != 0) return Ret;
 
 
 	// Build the essence descriptor, filling in all known values
