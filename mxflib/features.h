@@ -1,7 +1,7 @@
 /*! \file	features.h
  *	\brief	Control compile-time and run-time selectable library features
  *
- *	\version $Id: features.h,v 1.6 2006/09/30 13:33:06 matt-beard Exp $
+ *	\version $Id: features.h,v 1.7 2007/03/31 14:34:58 matt-beard Exp $
  *
  *  \detail 
  *  Library feature selection allows the behaviour of the library to be modified at run-time or compile-time.
@@ -74,14 +74,14 @@ namespace mxflib
 {
 	/* Standard library features (bits 0 to 30) */
 
-	const UInt64 Feature0 = UINT64_C(1) << 0;			//!< MXFLib feature: Not used
+	const UInt64 FeatureVersion1KLVFill = UINT64_C(1) << 0;		//!< MXFLib feature: Write KLVFill items with the version 1 key
 
 	/* This sub-range is currently used by temporary fixes (bits 16 to 30) */
 
-	const UInt64 FeatureNegPrechargeIndex = UINT64_C(1) << 16;	//!< Use -ve indexing for precharge
+	const UInt64 FeatureNegPrechargeIndex = UINT64_C(1) << 16;	//!< MXFLib feature: Use -ve indexing for precharge
 
 	// Reserve a bit for user-extensions
-	const UInt64 UserExtension = UINT64_C(1) << 31;		//!< MXFLib feature: Reserved to allow user extensions
+	const UInt64 UserExtension = UINT64_C(1) << 31;				//!< MXFLib feature: Reserved to allow user extensions
 
 
 	/* Non-Standard library functions - may cause non-complient behaviour (bits 32 to 63) */
