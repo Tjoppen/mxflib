@@ -7,7 +7,7 @@
  *			the XML dictionary.
  *<br><br>
  *
- *	\version $Id: mdobject.h,v 1.21 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: mdobject.h,v 1.22 2007/03/31 14:41:00 matt-beard Exp $
  *
  */
 /*
@@ -286,7 +286,7 @@ namespace mxflib
 		DictUse			Use;			//!< Usage requirements
 		DataChunk		Default;		//!< Default value (if one exists)
 		DataChunk		DValue;			//!< Distinguished value (if one is defined)
-		DictRefType		RefType;		//!< Reference type if this is a reference
+		ClassRef		RefType;		//!< Reference type if this is a reference
 		MDOTypeParent	RefTarget;		//!< Type (or base type) of item this ref source must target
 		std::string		RefTargetName;	//!< Name of the type (or base type) of item this ref source must target
 										/*!< \note This must only be used during dictionary parsing or for error reporting,
@@ -317,7 +317,7 @@ namespace mxflib
 		};
 
 		//! Set the referencing details for this type
-		void SetRef(DictRefType Type, ULPtr &Target, std::string TargetName = "")
+		void SetRef(ClassRef Type, ULPtr &Target, std::string TargetName = "")
 		{
 			ASSERT(Target);
 
@@ -335,7 +335,7 @@ namespace mxflib
 		}
 
 		//! Set the referencing details for this type
-		void SetRef(DictRefType Type, MDOTypePtr Target, std::string TargetName = "")
+		void SetRef(ClassRef Type, MDOTypePtr Target, std::string TargetName = "")
 		{
 			RefType = Type;
 			RefTarget = Target;
@@ -356,7 +356,7 @@ namespace mxflib
 		const MDContainerType &GetContainerType(void) const { return (const MDContainerType &)ContainerType; };
 
 		//! Ref access function
-		DictRefType GetRefType(void) const { return RefType; };
+		ClassRef GetRefType(void) const { return RefType; };
 
 		//! Accessor for Reference Target
 		MDOTypePtr GetRefTarget(void) const { return RefTarget; };
@@ -1098,7 +1098,7 @@ namespace mxflib
 		void SetLink(MDObjectPtr NewLink) { Link = NewLink; };
 
 		//! Ref access function
-		DictRefType GetRefType(void) const { ASSERT(Type); return Type->GetRefType(); };
+		ClassRef GetRefType(void) const { ASSERT(Type); return Type->GetRefType(); };
 
 		//! Accessor for Reference Target
 		MDOTypePtr GetRefTarget(void) const { if(Type) return Type->GetRefTarget(); else return NULL; };
@@ -1396,7 +1396,7 @@ namespace mxflib
 		MDOTypePtr GetType(void) const { return Object->GetType(); };
 		MDObjectPtr GetLink(void) const { return Object->GetLink(); };
 		void SetLink(MDObjectPtr NewLink) { Object->SetLink(NewLink); };
-		DictRefType GetRefType(void) const { return Object->GetRefType(); };
+		ClassRef GetRefType(void) const { return Object->GetRefType(); };
 
 		//! Determine if this object is derived from a specified type (directly or indirectly)
 		bool IsA(std::string BaseType) { return Object->IsA(BaseType); }
