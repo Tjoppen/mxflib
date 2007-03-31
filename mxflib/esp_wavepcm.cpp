@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.12 2007/02/23 17:25:43 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.13 2007/03/31 14:34:06 matt-beard Exp $
  *
  */
 /*
@@ -180,7 +180,11 @@ DataChunkPtr WAVE_PCM_EssenceSubParser::ESP_EssenceSource::GetEssenceData(size_t
 		pCaller->CachedDataSize = static_cast<size_t>(-1);
 
 		// Flag all done when no more to read
-		if(BytesRemaining == 0) return NULL;
+		if(BytesRemaining == 0)
+		{
+			AtEndOfData = true;
+			return NULL;
+		}
 	}
 
 	// Decide how many bytes to read this time - start by trying to read them all
