@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.13 2006/08/26 14:49:15 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.14 2007/03/31 16:01:39 matt-beard Exp $
  *
  */
 /*
@@ -444,6 +444,38 @@ MDTypePtr MDType::EffectiveBase(void) const
 	}
 
 	return Base;
+}
+
+
+//! Report the effective reference type of this type
+TypeRef MDType::EffectiveRefType(void) const
+{
+	if(RefType != TypeRefUndefined) return RefType;
+
+	// If we are an interpretation then see what of
+	if(Class == INTERPRETATION || Class == ENUM)
+	{
+		ASSERT(Base);
+		return Base->EffectiveRefType();
+	}
+
+	return TypeRefNone;
+}
+
+
+//! Report the effective reference target of this type
+std::string MDType::EffectiveRefTarget(void) const
+{
+	if(RefTarget.length() != 0) return RefTarget;
+
+	// If we are an interpretation then see what of
+	if(Class == INTERPRETATION || Class == ENUM)
+	{
+		ASSERT(Base);
+		return Base->EffectiveRefTarget();
+	}
+
+	return "";
 }
 
 

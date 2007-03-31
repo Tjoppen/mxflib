@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.12 2006/08/25 16:04:28 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.13 2007/03/31 16:01:39 matt-beard Exp $
  *
  */
 /*
@@ -192,6 +192,8 @@ namespace mxflib
 		MDTraitsPtr Traits;				//!< Traits for this MDType
 		ULPtr TypeUL;					//!< The UL for this type
 		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
+		TypeRef RefType;				//!< Reference type of this type (if a reference source or target), if TypeRefUndefined then inherit
+		std::string RefTarget;			//!< Reference target of this type (if a reference source), if "" then inherit
 
 	public:
 		//! Name and value pair for enums
@@ -219,7 +221,8 @@ namespace mxflib
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
 		MDType(std::string TypeName, MDTypeClass TypeClass, ULPtr &UL, MDTraitsPtr TypeTraits)
-			: TypeName(TypeName), Class(TypeClass), ArrayClass(ARRAYARRAY), Traits(TypeTraits), TypeUL(UL), Endian(false) 
+			: TypeName(TypeName), Class(TypeClass), ArrayClass(ARRAYARRAY), Traits(TypeTraits), TypeUL(UL), Endian(false),
+			  RefType(TypeRefUndefined)
 		{ };
  
 		//! Prevent auto construction by NOT having an implementation to this constructor
@@ -241,6 +244,12 @@ namespace mxflib
 		//! Report the effective base type of this type
 		MDTypePtr EffectiveBase(void) const;
 
+		//! Report the effective reference type of this type
+		TypeRef EffectiveRefType(void) const;
+
+		//! Report the effective reference target of this type
+		std::string EffectiveRefTarget(void) const;
+
 		//! Report the effective size of this type
 		/*! \return The size in bytes of a single instance of this type, or 0 if variable size
 		 */
@@ -258,7 +267,7 @@ namespace mxflib
 		void SetEndian(bool Val) { Endian = Val; };
 
 		//! Endian access function (get)
-		bool GetEndian(void) { return Endian; };
+		bool GetEndian(void) const { return Endian; };
 
 		//! ArrayClass access function (set)
 		void SetArrayClass(MDArrayClass Val) { ArrayClass = Val; };
@@ -274,6 +283,18 @@ namespace mxflib
 
 		//! (not Read-only) access to the enumerated value list
 		NamedValueList &GetEnumValues(void) { return EnumValues; }
+
+		//! Set the reference type
+		void SetRefType(TypeRef Val) { RefType = Val; }
+
+		//! Get the reference type
+		TypeRef GetRefType(void) const { return RefType; }
+
+		//! Set the reference target
+		void SetRefTarget(std::string Val) { RefTarget = Val; }
+
+		//! Get the reference target
+		std::string GetRefTarget(void) const { return RefTarget; }
 
 
 	//** Static Dictionary Handling data and functions **
