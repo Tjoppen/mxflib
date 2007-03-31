@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.14 2007/02/22 12:53:39 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.15 2007/03/31 16:07:30 matt-beard Exp $
  *
  */
 /*
@@ -56,9 +56,9 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 	MDObjectULList::iterator it = NewObject->begin();
 	while(it != NewObject->end())
 	{
-		DictRefType RefType = (*it).second->GetRefType();
+		ClassRef RefType = (*it).second->GetRefType();
 
-		if(RefType == DICT_REF_TARGET)
+		if(RefType == ClassRefTarget)
 		{
 			if((*it).second->Value->GetData().Size != 16)
 			{
@@ -99,7 +99,7 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 				}
 			}
 		}
-		else if(RefType == DICT_REF_STRONG)
+		else if(RefType == ClassRefStrong)
 		{
 			MDObjectPtr Link = (*it).second->GetLink();
 			if(Link)
@@ -158,18 +158,29 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 		// Only try to match references if not already matched
 		if(!(*it).second->GetLink())
 		{
-			DictRefType Ref = (*it).second->GetRefType();
-			if((Ref == DICT_REF_STRONG) || (Ref == DICT_REF_WEAK))
+			ClassRef Ref = (*it).second->GetRefType();
+			if((Ref == ClassRefStrong) || (Ref == ClassRefWeak) || (Ref == ClassRefGlobal))
 			{
 				if(!(*it).second->Value)
 				{
-					error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has no valid value\n",
-						  ThisObject->Name().c_str(), (*it).second->Name().c_str());
+					if(Ref != ClassRefGlobal)
+					{
+						error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has no valid value\n",
+							  ThisObject->Name().c_str(), (*it).second->Name().c_str());
+					}
 				}
 				else if((*it).second->Value->GetData().Size != 16)
 				{
-					error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
-						  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
+					if(Ref == ClassRefGlobal)
+					{
+						error("Metadata Object \"%s/%s\" should be a global reference (a UL or UUID), but has size %d\n",
+							ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
+					}
+					else
+					{
+						error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
+							ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
+					}
 				}
 				else
 				{
