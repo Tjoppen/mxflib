@@ -27,10 +27,10 @@ ClosedCompleteHeader
   IndexSID = 0
   BodyOffset = 0
   BodySID = 1
-  OperationalPattern = [060e2b34.0401.0101.0d010201.10000000]
+  OperationalPattern = MXF Specialized OP Atom
   EssenceContainers
-    EssenceContainer = [060e2b34.0401.0103.0d010301.027f0100]
-    EssenceContainer = [060e2b34.0401.0102.0d010301.02060100]
+    EssenceContainer = MXF-GC Generic Essence Multiple Mappings
+    EssenceContainer = MXF-GC AES-BWF Audio
 
 Header Metadata:
   Preface
@@ -59,8 +59,8 @@ Header Metadata:
           InstanceUID = {2cf4bc4e-657f-4e05-87b4-4cfdaae30a2b}
           ThisGenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
     EssenceContainers
-      EssenceContainer = [060e2b34.0401.0103.0d010301.027f0100]
-      EssenceContainer = [060e2b34.0401.0102.0d010301.02060100]
+      EssenceContainer = MXF-GC Generic Essence Multiple Mappings
+      EssenceContainer = MXF-GC AES-BWF Audio
     DMSchemes
     ContentStorage = {898a4470-327a-40aa-9c41-c6c63a647718}
     ContentStorage -> Strong Reference to ContentStorage
@@ -74,8 +74,8 @@ Header Metadata:
               PackageCreationDate = 2004-04-26 14:18:29.348
               PackageModifiedDate = 2004-04-26 14:18:29.348
               Tracks
-                Track = {9e69d947-1a63-45d7-a385-c579fa483fcf}
-                Track -> Strong Reference to Track
+                Tracks_Item = {9e69d947-1a63-45d7-a385-c579fa483fcf}
+                Tracks_Item -> Strong Reference to Track
                   Track
                     TrackName = Timecode Track
                     TrackNumber = 0
@@ -85,7 +85,7 @@ Header Metadata:
                     Sequence = {b15d1aad-9e13-4f9d-89a6-28006f0b23d7}
                     Sequence -> Strong Reference to Sequence
                       Sequence
-                        DataDefinition = [060e2b34.0401.0101.01030201.01000000]
+                        DataDefinition = SMPTE 12M Timecode Track
                         Duration = 1
                         StructuralComponents
                           StructuralComponent = {a45f103a-6379-4556-b665-172df2f00e6e}
@@ -96,13 +96,13 @@ Header Metadata:
                               StartTimecode = 0
                               Duration = 1
                               InstanceUID = {a45f103a-6379-4556-b665-172df2f00e6e}
-                              DataDefinition = [060e2b34.0401.0101.01030201.01000000]
+                              DataDefinition = SMPTE 12M Timecode Track
                               GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
                         InstanceUID = {b15d1aad-9e13-4f9d-89a6-28006f0b23d7}
                         GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
                     InstanceUID = {9e69d947-1a63-45d7-a385-c579fa483fcf}
-                Track = {3a213bc8-7bb9-40bd-a054-144f3834e808}
-                Track -> Strong Reference to Track
+                Tracks_Item = {3a213bc8-7bb9-40bd-a054-144f3834e808}
+                Tracks_Item -> Strong Reference to Track
                   Track
                     TrackName = Sound Track
                     TrackNumber = 0
@@ -112,7 +112,7 @@ Header Metadata:
                     Sequence = {bf207331-e2c5-4547-9be1-1a07899497ef}
                     Sequence -> Strong Reference to Sequence
                       Sequence
-                        DataDefinition = [060e2b34.0401.0101.01030202.02000000]
+                        DataDefinition = Sound Essence Track
                         Duration = 1
                         StructuralComponents
                           StructuralComponent = {9b27feda-8d2f-4572-af06-f699b8c89eb5}
@@ -123,7 +123,7 @@ Header Metadata:
                               SourceTrackID = 2
                               StartPosition = 0
                               InstanceUID = {9b27feda-8d2f-4572-af06-f699b8c89eb5}
-                              DataDefinition = [060e2b34.0401.0101.01030202.02000000]
+                              DataDefinition = Sound Essence Track
                               GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
                         InstanceUID = {bf207331-e2c5-4547-9be1-1a07899497ef}
                         GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
@@ -137,8 +137,8 @@ Header Metadata:
               PackageCreationDate = 2004-04-26 14:18:29.348
               PackageModifiedDate = 2004-04-26 14:18:29.348
               Tracks
-                Track = {f2bfb360-10b7-49a7-af2e-c4fa6219bc01}
-                Track -> Strong Reference to Track
+                Tracks_Item = {f2bfb360-10b7-49a7-af2e-c4fa6219bc01}
+                Tracks_Item -> Strong Reference to Track
                   Track
                     TrackName = Timecode Track
                     TrackNumber = 0
@@ -148,7 +148,7 @@ Header Metadata:
                     Sequence = {77b27d53-cbef-431c-84bd-e642590e92cc}
                     Sequence -> Strong Reference to Sequence
                       Sequence
-                        DataDefinition = [060e2b34.0401.0101.01030201.01000000]
+                        DataDefinition = SMPTE 12M Timecode Track
                         Duration = 1
                         StructuralComponents
                           StructuralComponent = {6d858723-b90e-4d67-8dd8-e128f24bbcf5}
@@ -159,13 +159,13 @@ Header Metadata:
                               StartTimecode = 18000
                               Duration = 1
                               InstanceUID = {6d858723-b90e-4d67-8dd8-e128f24bbcf5}
-                              DataDefinition = [060e2b34.0401.0101.01030201.01000000]
+                              DataDefinition = SMPTE 12M Timecode Track
                               GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
                         InstanceUID = {77b27d53-cbef-431c-84bd-e642590e92cc}
                         GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
                     InstanceUID = {f2bfb360-10b7-49a7-af2e-c4fa6219bc01}
-                Track = {2aae1eb3-c5a0-4da5-b178-f1eb9a68f08c}
-                Track -> Strong Reference to Track
+                Tracks_Item = {2aae1eb3-c5a0-4da5-b178-f1eb9a68f08c}
+                Tracks_Item -> Strong Reference to Track
                   Track
                     TrackName = Sound Track
                     TrackNumber = 369164545
@@ -175,7 +175,7 @@ Header Metadata:
                     Sequence = {f267d527-0fbd-4555-a03e-3552ae317c4a}
                     Sequence -> Strong Reference to Sequence
                       Sequence
-                        DataDefinition = [060e2b34.0401.0101.01030202.02000000]
+                        DataDefinition = Sound Essence Track
                         Duration = 1
                         StructuralComponents
                           StructuralComponent = {df85498b-7243-4ba4-a24e-faedd87aa00d}
@@ -186,7 +186,7 @@ Header Metadata:
                               SourceTrackID = 0
                               StartPosition = 0
                               InstanceUID = {df85498b-7243-4ba4-a24e-faedd87aa00d}
-                              DataDefinition = [060e2b34.0401.0101.01030202.02000000]
+                              DataDefinition = Sound Essence Track
                               GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
                         InstanceUID = {f267d527-0fbd-4555-a03e-3552ae317c4a}
                         GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
@@ -202,7 +202,7 @@ Header Metadata:
                   QuantizationBits = 8
                   BlockAlign = 1
                   AvgBps = 11025
-                  EssenceContainer = [060e2b34.0401.0102.0d010301.02060100]
+                  EssenceContainer = MXF-GC AES-BWF Audio
                   LinkedTrackID = 2
                   InstanceUID = {c4e1bab5-668d-4f3c-b416-7806264dc6e8}
                   ContainerDuration = 1
@@ -217,7 +217,7 @@ Header Metadata:
               IndexSID = 129
               GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
         InstanceUID = {898a4470-327a-40aa-9c41-c6c63a647718}
-    OperationalPattern = [060e2b34.0401.0101.0d010201.10000000]
+    OperationalPattern = MXF Specialized OP Atom
     PrimaryPackage -> Weak Reference to SourcePackage
     GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
 
@@ -236,10 +236,10 @@ CompleteFooter
   IndexSID = 129
   BodyOffset = 0
   BodySID = 0
-  OperationalPattern = [060e2b34.0401.0101.0d010201.10000000]
+  OperationalPattern = MXF Specialized OP Atom
   EssenceContainers
-    EssenceContainer = [060e2b34.0401.0103.0d010301.027f0100]
-    EssenceContainer = [060e2b34.0401.0102.0d010301.02060100]
+    EssenceContainer = MXF-GC Generic Essence Multiple Mappings
+    EssenceContainer = MXF-GC AES-BWF Audio
 No header metadata in this partition
 CBR Index Table Segment (covering whole Essence Container) :
   Indexing BodySID 0x0001 from IndexSID 0x0081
