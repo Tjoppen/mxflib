@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.15 2006/09/04 16:18:21 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.16 2007/04/01 20:40:23 matt-beard Exp $
  *
  */
 /*
@@ -79,6 +79,12 @@ bool DecryptMode = false;
 //! Flag for preserving the index table (non complient!)
 bool PreserveIndex = false;
 
+//! Flag for preserving the essence containers labels batch
+bool PreserveECBatch = false;
+
+//! Flag for preserving the essence containers label in the descriptor
+bool PreserveECLabel = true;
+
 //! The original IndexSID
 UInt32 IndexSID;
 
@@ -118,6 +124,11 @@ int main(int argc, char *argv[])
 				}
 				KeyFileName = std::string(&argv[i][3]);
 			}
+			else if((argv[i][1] == 'l') || (argv[i][1] == 'L'))
+			{
+				if(argv[i][2] == '+') PreserveECLabel = false;
+				else if(argv[i][2] == '-') PreserveECBatch = true;
+			}
 			else if((argv[i][1] == 'i') || (argv[i][1] == 'I'))
 			{
 				if((argv[i][2] == 'p') && (argv[i][2] != 'P'))
@@ -145,7 +156,17 @@ int main(int argc, char *argv[])
 
 	if (argc - num_options < 3)
 	{
-		printf( "\nUsage:  %s [-d] [-h] [-v] [-k=keyfile] [-p=offset] [-ip] <in-filename> <out-filename>\n\n", argv[0] );
+		printf("\nUsage:  %s [options] <in-filename> <out-filename>\n\n", argv[0] );
+
+		printf("Options:\n");
+		printf("  -d         Decrypt (rather than encrypt)\n");
+		printf("  -h         Perform HMAC hashing\n");
+		printf("  -k=keyfile Use the specified key file\n");
+		printf("  -p=offset  Leave plaintext bytes at the start\n");
+		printf("  -ip        Preserve the existing index table values\n");
+		printf("  -l-        Don't update the EssenceContainers batch\n");
+		printf("  -l+        Do update the EssenceContainer value in the descriptor\n");
+		printf("\n");
 
 		return 1;
 	}
@@ -514,7 +535,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 
 	/* Update DMSchemes as required */
 
-	// Locate the Content Storage set
+	// Locate the DMSchemes batch
 	MDObjectPtr DMSchemes = HMeta[DMSchemes_UL];
 
 	if(!DMSchemes)
@@ -576,6 +597,92 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 		}
 	}
 
+	/* Update the EssenceContainers Batch */
+	if(!PreserveECBatch)
+	{
+		MDObjectPtr ECBatch = HMeta[EssenceContainers_UL];
+		if(!ECBatch) ECBatch = HMeta->AddChild(EssenceContainers_UL);
+
+		// Clear the current list
+		while(!ECBatch->empty()) ECBatch->pop_back();
+
+		if(!DecryptMode)
+		{
+			// In encrypting mode we are left with the encrypted container only
+			HMeta->AddEssenceType(EncryptedContainerLabel_UL);
+		}
+		else
+		{
+			// Search through all packages
+			PackageList::iterator Package_it = HMeta->Packages.begin();
+			while(Package_it != HMeta->Packages.end())
+			{
+				// Locate the package ID
+				MDObjectPtr ThisIDObject = (*Package_it)[PackageUID_UL];
+				if(ThisIDObject)
+				{
+					// Build a datachunk of the UMID to compare
+					DataChunkPtr PackageID = ThisIDObject->PutData();
+
+					// Look for a matching BodySID (to see if this is an internal file package)
+					DataChunkMap::iterator PackageMap_it = FilePackageMap.begin();
+					while(PackageMap_it != FilePackageMap.end())
+					{
+						// If the package IDs match we will have encrypted this package
+						if(*((*PackageMap_it).second) == *PackageID)
+						{
+							// Locate the descriptor for this package
+							MDObjectPtr Ptr = (*Package_it)[Descriptor_UL];
+							if(Ptr) Ptr = Ptr->GetLink();
+							if(Ptr)
+							{
+								// If this is a multiple descriptor we need to scan the sub-descriptors
+								if(Ptr->IsA(MultipleDescriptor_UL))
+								{
+									// Ensure that we have flagged a multiple descriptor if one is used
+									ULPtr GCUL = new UL( mxflib::GCMulti_Data );
+									HMeta->AddEssenceType( GCUL );
+
+									MDObjectPtr SubPtr = Ptr[SubDescriptorUIDs_UL];
+									if(SubPtr)
+									{
+										MDObject::iterator subit = SubPtr->begin();
+										while(subit != SubPtr->end())
+										{
+											MDObjectPtr ECLabel = (*subit).second->GetLink();
+											if(ECLabel) ECLabel = ECLabel[EssenceContainer_UL];
+											if(ECLabel)
+											{
+												DataChunkPtr LabelData = ECLabel->PutData();
+												ULPtr LabelUL = new UL(LabelData->Data);
+												HMeta->AddEssenceType(LabelUL);
+											}
+
+											subit++;
+										}
+									}
+								}
+								else
+								{
+									MDObjectPtr ECLabel = Ptr[EssenceContainer_UL];
+									if(ECLabel)
+									{
+										DataChunkPtr LabelData = ECLabel->PutData();
+										ULPtr LabelUL = new UL(LabelData->Data);
+										HMeta->AddEssenceType(LabelUL);
+									}
+								}
+
+							}
+						}
+						PackageMap_it++;
+					}
+				}
+				Package_it++;
+			}
+		}
+	}
+
 	// Build an Ident set describing us and link into the metadata
 	MDObjectPtr Ident = new MDObject(Identification_UL);
 	Ident->SetString(CompanyName_UL, CompanyName);
@@ -622,9 +729,12 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	// Record the original essence UL
 	DataChunkPtr EssenceUL = ContainerUL->PutData();
 
-	// Change the essence UL in the descriptor to claim to be encrypted
-	const UInt8 EncryptedEssenceUL[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x0b, 0x01, 0x00 };
-	ContainerUL->ReadValue(EncryptedEssenceUL, 16);
+	if(!PreserveECLabel)
+	{
+		// Change the essence UL in the descriptor to claim to be encrypted
+		const UInt8 EncryptedEssenceUL[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x0b, 0x01, 0x00 };
+		ContainerUL->ReadValue(EncryptedEssenceUL, 16);
+	}
 
 	// Add a crypto track
 	TrackPtr CryptoDMTrack = ThisPackage->AddDMTrack("Cryptographic DM Track");
@@ -830,9 +940,11 @@ bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 		return false;
 	}
 
-	// Change the essence UL in the descriptor back to the original version
-	ContainerUL->ReadValue(OriginalEssenceUL);
-
+	if(!PreserveECLabel)
+	{
+		// Change the essence UL in the descriptor back to the original version
+		ContainerUL->ReadValue(OriginalEssenceUL);
+	}
 
 	// Don't validate or set up crypto if not loading data
 	if(!LoadInfo) return true;
