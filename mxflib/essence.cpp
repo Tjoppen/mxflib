@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.30 2007/01/19 15:02:46 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.31 2007/04/01 21:52:07 matt-beard Exp $
  *
  */
 /*
@@ -1678,15 +1678,15 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 		// Start at the new location
 		File->Seek(CurrentPos);
 
+		// Use resync to locate the next partition pack
+		// TODO: We could allow reinitializing within a partition if we can validate the offsets
+		//       This would involve knowledge of the partition pack for this partition which could
+		//       be found by a valid RIP or by scanning backwards from the current location
+		if(!ReSync()) return false;
+
 		PartitionPtr NewPartition;				// Pointer to the new partition pack
 		for(;;)
 		{
-			// Use resync to locate the next partition pack
-			// TODO: We could allow reinitializing within a partition if we can validate the offsets
-			//       This would involve knowledge of the partition pack for this partition which could
-			//       be found by a valid RIP or by scanning backwards from the current location
-			if(!ReSync()) return false;
-
 			// Read the partition pack to establish offsets and BodySID
 			NewPartition = File->ReadPartition();
 			if(!NewPartition) return false;
@@ -1703,6 +1703,9 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 			NewPartition->SeekEssence();
 			CurrentPos = File->Tell();
 			AtPartition = false;
+
+			// Move to the next partition pack then return to caller for them to inspect this pack if required
+			return ReSync();
 		}
 
 		// Set the stream offset
