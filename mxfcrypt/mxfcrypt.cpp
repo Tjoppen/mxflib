@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.16 2007/04/01 20:40:23 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.17 2007/04/01 21:53:39 matt-beard Exp $
  *
  */
 /*
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* Locate an index table to update (Required seeking!) */
+	/* Locate an index table to update (Requires seeking!) */
 
 	InFile->GetRIP();
 	if(InFile->FileRIP.empty())
@@ -346,6 +346,8 @@ int main(int argc, char *argv[])
 
 	// Process the file...
 
+	bool WriteMetadataInFooter = false;
+
 	// Start at the beginning of the file
 	InFile->Seek(0);
 
@@ -373,14 +375,42 @@ int main(int argc, char *argv[])
 		// Don't update the header if we have just written an updated closed version 
 		if((CurrentPos==0) && (ClosingHeader)) UpdatePartition = false;
 		else
-			// Don't update the footer - we will write that later
-			if(CurrentPartition->IsA(CompleteFooter_UL) || CurrentPartition->IsA(Footer_UL)) UpdatePartition = false;
+		{
+			// Don't update the footer (if it has metadata) - we will write that later
+			if(CurrentPartition->IsA(CompleteFooter_UL) || CurrentPartition->IsA(Footer_UL)) 
+			{
+				if(CurrentPartition->GetInt64(HeaderByteCount_UL) != 0) 
+				{
+					WriteMetadataInFooter = true;
+					UpdatePartition = false;
+				}
+			}
+		}
 
 		if(UpdatePartition)
 		{
 			// TODO: We should probably insert updated metadata here if the input file has it
 			CurrentPartition->SetUInt64(FooterPartition_UL, 0);
-			OutFile->WritePartition(CurrentPartition);
+			
+			// Update essence containers
+			MDObjectPtr DstECBatch = CurrentPartition->AddChild(EssenceContainers_UL, true);
+			if(DstECBatch)
+			{
+				DstECBatch->clear();
+				MDObjectPtr SrcECBatch = HMeta[EssenceContainers_UL];
+
+				if(SrcECBatch)
+				{
+					MDObjectULList::iterator it = SrcECBatch->begin();
+					while(it != SrcECBatch->end())
+					{
+						DstECBatch->AddChild()->ReadValue((*it).second->Value->PutData());
+						it++;
+					}
+				}
+			}
+
+			OutFile->WritePartition(CurrentPartition, false);
 		}
 
 		// Ensure we match the KAG
@@ -392,28 +422,31 @@ int main(int argc, char *argv[])
 
 	// Write the footer partition
 
-	if(MasterPartition->IsComplete()) 
-		MasterPartition->ChangeType(CompleteFooter_UL);
-	else
-		MasterPartition->ChangeType(Footer_UL);
-
-	// Ensure we maintain the same KAG as the previous footer
-	MasterPartition->SetKAG(Writer->GetKAG());
-
-	if(PreserveIndex)
+	if(WriteMetadataInFooter)
 	{
-		MasterPartition->SetUInt(IndexSID_UL, IndexSID);
-		OutFile->WritePartitionWithIndex(MasterPartition, OriginalIndexData);
+		if(MasterPartition->IsComplete()) 
+			MasterPartition->ChangeType(CompleteFooter_UL);
+		else
+			MasterPartition->ChangeType(Footer_UL);
+
+		// Ensure we maintain the same KAG as the previous footer
+		MasterPartition->SetKAG(Writer->GetKAG());
+
+		if(PreserveIndex)
+		{
+			MasterPartition->SetUInt(IndexSID_UL, IndexSID);
+			OutFile->WritePartitionWithIndex(MasterPartition, OriginalIndexData);
+		}
+		else if(Index)
+		{
+			MasterPartition->SetUInt(IndexSID_UL, IndexSID);
+			DataChunkPtr IndexData = new DataChunk;
+			Index->WriteIndex(*IndexData);
+			OutFile->WritePartitionWithIndex(MasterPartition, IndexData);
+		}
+		else
+			OutFile->WritePartition(MasterPartition);
 	}
-	else if(Index)
-	{
-		MasterPartition->SetUInt(IndexSID_UL, IndexSID);
-		DataChunkPtr IndexData = new DataChunk;
-		Index->WriteIndex(*IndexData);
-		OutFile->WritePartitionWithIndex(MasterPartition, IndexData);
-	}
-	else
-		OutFile->WritePartition(MasterPartition);
 
 	// Add a RIP
 	OutFile->WriteRIP();
@@ -604,7 +637,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 		if(!ECBatch) ECBatch = HMeta->AddChild(EssenceContainers_UL);
 
 		// Clear the current list
-		while(!ECBatch->empty()) ECBatch->pop_back();
+		ECBatch->clear();
 
 		if(!DecryptMode)
 		{
