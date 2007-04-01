@@ -1,7 +1,7 @@
-Release Notes for mxflib version 1.0.0-Beta-RC5
-===============================================
+Release Notes for mxflib version 1.0.0
+======================================
 
-This is the fifth release candidate for version 1.0.0
+This is the first production release of MXFLib
 
 Please note that it is expected that applications using MXFLib, or reusing a significantly amount of the code, include an acknowledgment with all copyright messages.
 
@@ -29,6 +29,17 @@ Things to check in code currently using mxflib 0.6.0:
 ** Change IdentifyEssence() to add EssenceStreamDescriptorPtrs to the returned EssenceStreamDescriptorList rather than EssenceStreamDescriptors
 ** Optionally add a parser name with GetParserName() and name each wrapping with WrappingOption::Name
 ** Optionally add identify each wrapping with WrappingOption::WrappingID
+
+
+Changes since version 1.0.0-Beta-RC5
+====================================
+
+* Add global references that need not be satisfied in the scope of the file
+* Add a number of basic MXF labels to the dictionary for more human-readable dumps
+* Add an option to write version 1 KLVFill keys in mxfwrap (for compatibility with some other implementations)
+* Add parsing of new "urn:smpte:ul:" format  
+* Ensure that all parsers are memory-frugal when clip-wrapping
+* Support ODML extensions to parsing of DV AVI files
 
 
 Changes since version 1.0.0-Beta-RC4
