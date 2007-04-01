@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.13 2006/09/30 13:39:27 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.14 2007/04/01 20:39:42 matt-beard Exp $
  *
  */
 /*
@@ -684,10 +684,14 @@ namespace mxflib
 
 		//! Add an essence type UL to the listed essence types
 		/*! Only added if it does not already appear in the list */
-		void AddEssenceType(ULPtr ECType)
+		void AddEssenceType(ULPtr ECType) { AddEssenceType(*ECType); };
+
+		//! Add an essence type UL to the listed essence types
+		/*! Only added if it does not already appear in the list */
+		void AddEssenceType(const UL &ECType)
 		{
 			DataChunk ECTypeValue;
-			ECTypeValue.Set(16, ECType->GetValue());
+			ECTypeValue.Set(16, ECType.GetValue());
 
 			// Get a list of known containers
 			MDObjectPtr ECTypeList = Object->Child(EssenceContainers_UL);
