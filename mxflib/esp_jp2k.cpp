@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.12 2007/03/13 18:21:37 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.13 2007/04/02 13:21:22 matt-beard Exp $
  *
  */
 /*
@@ -511,7 +511,8 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 
 	
 	// Link the sub-descrioptor to the file descriptor
-	MDObjectPtr Link = Ret->AddChild(SubDescriptor_UL);
+	MDObjectPtr Link = Ret->AddChild(SubDescriptors_UL);
+	if(Link) Link = Link->AddChild();
 	if(Link) Link->MakeRef(SubDescriptor);
 
 	return Ret;
