@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2007/03/31 14:19:53 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2007/04/02 08:53:59 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -579,7 +579,7 @@
 		<MXFOP2c detail="MXF OP2c PlaylistItems AlternatePackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.02.03.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
 		<MXFOP3c detail="MXF OP3c EditItems AlternatePackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.03.03.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
 		<MXFOPSpecialized detail="MXF Specialized OP" ul="06.0E.2B.34.04.01.01.00.0D.01.02.01.00.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.7f.ff.ff.ff" />
-		<MXFOPAtom detail="MXF Specialized OP Atom" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.10.00.00.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.03.00.00" />
+		<MXFOPAtom detail="MXF Specialized OP Atom" ul="06.0E.2B.34.04.01.01.02.0D.01.02.01.10.00.00.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.03.00.00" />
 
 		<MXFEC detail="MXF Essence Containers" ul="06.0E.2B.34.04.01.01.00.0D.01.03.00.00.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.ff.ff.ff.ff.ff" />
 		<MXFGC detail="MXF Generic Container" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.ff.ff.ff" />
