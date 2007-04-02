@@ -27,7 +27,7 @@ ClosedCompleteHeader
   IndexSID = 0
   BodyOffset = 0
   BodySID = 1
-  OperationalPattern = MXF Specialized OP Atom
+  OperationalPattern = MXF Specialized OP
   EssenceContainers
     EssenceContainer = MXF-GC Generic Essence Multiple Mappings
     EssenceContainer = MXF-GC AES-BWF Audio
@@ -218,7 +218,7 @@ Header Metadata:
               IndexSID = 129
               GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
         InstanceUID = {898a4470-327a-40aa-9c41-c6c63a647718}
-    OperationalPattern = MXF Specialized OP Atom
+    OperationalPattern = MXF Specialized OP
     PrimaryPackage -> Weak Reference to SourcePackage
     GenerationUID = {35ac1004-0ee7-4e21-94bf-0df4e4e52414}
 
@@ -242,7 +242,7 @@ CompleteFooter
   IndexSID = 129
   BodyOffset = 0
   BodySID = 0
-  OperationalPattern = MXF Specialized OP Atom
+  OperationalPattern = MXF Specialized OP
   EssenceContainers
     EssenceContainer = MXF-GC Generic Essence Multiple Mappings
     EssenceContainer = MXF-GC AES-BWF Audio
