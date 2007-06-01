@@ -1,4 +1,4 @@
-<!-- Version 11a $Author: matt-beard $ $Date: 2007/04/02 08:53:59 $ -->
+<!-- Version 11a $Author: matt-beard $ $Date: 2007/06/01 10:23:45 $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and 2005 Matt Beard								 -->
 <!-- Portions Copyright (c) 2003-2005 Metaglue Corporation -->
@@ -435,7 +435,7 @@
 			<AlphaMaxRef detail="Maximum value for alpha component, e.g. 235 or 940 (8 or 10 bits)" type="UInt32" minLength="4" maxLength="4" key="34 08" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0d 00 00 00" use="optional" default="255"/>
 			<AlphaMinRef detail="Minimum value for alpha component, e.g. 16 or 64 (8 or 10 bits)" type="UInt32" minLength="4" maxLength="4" key="34 09" globalKey="06 0e 2b 34 01 01 01 05  04 01 05 03 0e 00 00 00" use="optional" default="0"/>
 			<ScanningDirection detail="Enumerated Scanning Direction" type="UInt8" minLength="1" maxLength="1" key="34 05" globalKey="06 0e 2b 34 01 01 01 05  04 01 04 04 01 00 00 00" use="optional"/>
-			<PixelLayout detail="Pixel Layout" type="RGBALayout" minLength="16" maxLength="16" key="34 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 06 00 00 00" use="best effort" dvalue="{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}"/>
+			<PixelLayout detail="Pixel Layout" type="RGBALayout" key="34 01" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 06 00 00 00" use="best effort" dvalue="{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}"/>
 			<Palette detail="Palette" type="DataValue" key="34 03" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 08 00 00 00" use="optional"/>
 			<PaletteLayout detail="Palette Layout" type="RGBALayout" minLength="16" maxLength="16" key="34 04" globalKey="06 0e 2b 34 01 01 01 02  04 01 05 03 09 00 00 00" use="optional"/>
 		</RGBAEssenceDescriptor>
