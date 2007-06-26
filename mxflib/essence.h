@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.26 2007/01/19 14:53:15 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.27 2007/06/26 11:40:43 matt-beard Exp $
  *
  */
 /*
@@ -112,7 +112,7 @@ namespace mxflib
 		//! Virtual destructor to allow polymorphism
 		virtual ~EssenceSource() { };
 
-		//! Get the size of the essence data in bytes
+		//! Get the size of the next "installment" of essence data in bytes
 		/*! \note There is intentionally no support for an "unknown" response */
 		virtual size_t GetEssenceDataSize(void) = 0;
 
@@ -139,7 +139,7 @@ namespace mxflib
 		virtual bool EndOfItem(void) = 0;
 
 		//! Is all data exhasted?
-		/*! \return true if a call to GetEssenceData() will return some valid essence data
+		/*! \return false if a call to GetEssenceData() will return some valid essence data
 		 */
 		virtual bool EndOfData(void) = 0;
 
