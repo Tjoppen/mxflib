@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.33 2007/07/06 12:08:02 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.34 2007/07/06 13:58:59 matt-beard Exp $
  *
  */
 /*
@@ -1963,7 +1963,7 @@ bool mxflib::IsGCSystemItem(const ULPtr TheUL)
 	if( ( TheUL->GetValue()[10] == GCSystemKey[10] )
 	 && ( TheUL->GetValue()[9]  == GCSystemKey[9]  )
 	 && ( TheUL->GetValue()[8]  == GCSystemKey[8]  )
-	 && ( TheUL->GetValue()[8]  == GCSystemKey[6]  )
+	 && ( TheUL->GetValue()[6]  == GCSystemKey[6]  )
 	 && ( memcmp(TheUL->GetValue(), GCSystemKey, 5 ) == 0) )
 	{
 		return true;
