@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.12 2006/09/02 13:50:22 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.13 2007/07/06 12:01:31 matt-beard Exp $
  *
  */
 /*
@@ -402,6 +402,18 @@ GCElementKind KLVEObject::GetGCElementKind(void)
 
 	// Return the GCElementKind of the plaintext KLV
 	return mxflib::GetGCElementKind(SourceKey);
+}
+
+
+//! Determine if this is a system item
+bool KLVEObject::IsGCSystemItem(void)
+{
+	if(!DataLoaded) 
+	{
+		if(!LoadData()) return false;
+	}
+
+	return mxflib::IsGCSystemItem(TheUL);
 }
 
 

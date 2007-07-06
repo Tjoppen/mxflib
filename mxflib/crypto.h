@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.7 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.8 2007/07/06 12:03:06 matt-beard Exp $
  *
  */
 /*
@@ -427,6 +427,9 @@ namespace mxflib
 
 		//! Get a GCElementKind structure
 		virtual GCElementKind GetGCElementKind(void);
+
+		//! Determine if this is a system item
+		virtual bool IsGCSystemItem(void);
 
 		//! Get the track number of this KLVObject (if it is a GC KLV, else 0)
 		virtual UInt32 GetGCTrackNumber(void);
