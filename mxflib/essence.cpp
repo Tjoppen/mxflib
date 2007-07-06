@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.32 2007/07/06 12:00:34 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.33 2007/07/06 12:08:02 matt-beard Exp $
  *
  */
 /*
@@ -51,7 +51,7 @@ namespace
 
 	//! The standard Generic Container system item key root
 	const UInt8 GCSystemKey[16] =	{ 0x06, 0x0e, 0x2B, 0x34,
-									  0x01, 0x02, 0x01, 0x00,
+									  0x02, 0x00, 0x01, 0x00,
 									  0x0d, 0x01, 0x03, 0x01,
 									  0x00, 0x00, 0x00, 0x00  };
 
