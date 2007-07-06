@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.20 2006/09/02 14:04:17 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.21 2007/07/06 13:59:27 matt-beard Exp $
  *
  */
 /*
@@ -592,32 +592,41 @@ static void DumpBody( PartitionPtr ThisPartition )
 
 			if( !kind.IsValid )
 			{
-				if( !Quiet ) printf( "EXTRANEOUS (non-GC) Element: K=%s L=0x%s\n", 
-															anElement->GetUL()->GetString().c_str(),
-															Int64toHexString( anElement->GetLength(), 8 ).c_str() );
-				if( DumpExtraneous )
+				if(anElement->IsGCSystemItem())
 				{
-					// anElement isa KLVObject
-					//IDB the kludge with tmpUL ois to get it to compile with GCC>3.4.0
-					// see http://www.gnu.org/software/gcc/gcc-3.4/changes.html
-					ULPtr tmpUL=anElement->GetUL();
-					MDObjectPtr anObj = new MDObject( tmpUL );
-
-					// this may take a long time if we only want to report the size of a mystery KLV
-					anElement->ReadData();
-
-					DataChunk& theChunk = anElement->GetData();
-					anObj->ReadValue( theChunk );
-
-					DumpObject( anObj, "  " );
-					printf( "\n" );
-
+					if( !Quiet ) printf( "GC System: L=0x%s\n", Int64toHexString( anElement->GetLength(), 8 ).c_str()); 
 				}
-
-				if( ++limit >= 35 )
+				else
 				{
-					printf( "Excessive Extraneous Elements in this Partition...skipping the rest\n" );
-					break;
+					if(limit < 35)
+					{
+						if( !Quiet ) printf( "EXTRANEOUS (non-GC) Element: K=%s L=0x%s\n", 
+																	anElement->GetUL()->GetString().c_str(),
+																	Int64toHexString( anElement->GetLength(), 8 ).c_str() );
+						if( DumpExtraneous )
+						{
+							// anElement isa KLVObject
+							//IDB the kludge with tmpUL ois to get it to compile with GCC>3.4.0
+							// see http://www.gnu.org/software/gcc/gcc-3.4/changes.html
+							ULPtr tmpUL=anElement->GetUL();
+							MDObjectPtr anObj = new MDObject( tmpUL );
+
+							// this may take a long time if we only want to report the size of a mystery KLV
+							anElement->ReadData();
+
+							DataChunk& theChunk = anElement->GetData();
+							anObj->ReadValue( theChunk );
+
+							DumpObject( anObj, "  " );
+							printf( "\n" );
+
+						}
+
+						if( ++limit >= 35 )
+						{
+							printf( "Excessive Extraneous Elements in this Partition...skipping reporting the rest\n" );
+						}
+					}
 				}
 			}
 			else
