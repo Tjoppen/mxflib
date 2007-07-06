@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.5 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.6 2007/07/06 12:02:34 matt-beard Exp $
  *
  */
 /*
@@ -257,6 +257,9 @@ namespace mxflib
 
 		//! Get a GCElementKind structure
 		virtual GCElementKind GetGCElementKind(void) { return mxflib::GetGCElementKind(TheUL); }
+
+		//! Determine if this is a system item
+		virtual bool IsGCSystemItem(void) { return mxflib::IsGCSystemItem(TheUL); }
 
 		//! Get the track number of this KLVObject (if it is a GC KLV, else 0)
 		virtual UInt32 GetGCTrackNumber(void) { return mxflib::GetGCTrackNumber(TheUL); };

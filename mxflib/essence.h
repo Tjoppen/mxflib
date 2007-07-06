@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.27 2007/06/26 11:40:43 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.28 2007/07/06 12:02:12 matt-beard Exp $
  *
  */
 /*
@@ -2071,12 +2071,23 @@ namespace mxflib
 
 	//! Register an essence key to be treated as a GC essence key
 	/*! This allows private or experimental essence keys to be treated as standard GC keys when reading 
-	 *  \note If the key specified is less than 
+	 *  /note If the size is less than 16-bytes, only that part of the key given will be compared (all the rest will be treated as wildcard bytes).
+	 *        Byte 8 is never compared (the version number byte)
 	 */
 	void RegisterGCElementKey(DataChunkPtr &Key);
 
+	//! Register a system item key to be treated as a GC system key
+	/*! This allows private or experimental essence keys to be treated as standard GC keys when reading 
+	 *  /note If the size is less than 16-bytes, only that part of the key given will be compared (all the rest will be treated as wildcard bytes).
+	 *        Byte 8 is never compared (the version number byte)
+	 */
+	void RegisterGCSystemKey(DataChunkPtr &Key);
+
 	//! Get a GCElementKind structure from a key
-	GCElementKind GetGCElementKind(ULPtr TheUL);
+	GCElementKind GetGCElementKind(const ULPtr TheUL);
+
+	//! Determine if this is a system item
+	bool IsGCSystemItem(const ULPtr TheUL);
 
 	//! Get the track number of this essence key (if it is a GC Key)
 	/*! \return 0 if not a valid GC Key

@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.31 2007/04/01 21:52:07 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.32 2007/07/06 12:00:34 matt-beard Exp $
  *
  */
 /*
@@ -47,6 +47,18 @@ namespace
 	/*! This allows private or experimental essence keys to be treated as standard GC keys when reading 
 	 */
 	DataChunkList GCEssenceKeyAlternatives;
+
+
+	//! The standard Generic Container system item key root
+	const UInt8 GCSystemKey[16] =	{ 0x06, 0x0e, 0x2B, 0x34,
+									  0x01, 0x02, 0x01, 0x00,
+									  0x0d, 0x01, 0x03, 0x01,
+									  0x00, 0x00, 0x00, 0x00  };
+
+	//! A list of pointers to alternative system item key roots to treat as GC keys
+	/*! This allows private or experimental system item keys to be treated as standard GC keys when reading 
+	 */
+	DataChunkList GCSystemKeyAlternatives;
 }
 
 
@@ -1840,13 +1852,14 @@ bool BodyReader::ReSync()
 
 //! Register an essence key to be treated as a GC essence key
 /*! This allows private or experimental essence keys to be treated as standard GC keys when reading 
- *  \note If the key specified is less than 
+ *  /note If the size is less than 16-bytes, only that part of the key given will be compared (all the rest will be treated as wildcard bytes).
+ *        Byte 8 is never compared (the version number byte)
  */
 void mxflib::RegisterGCElementKey(DataChunkPtr &Key)
 {
 	if((Key->Size < 1) || (Key->Size > 16))
 	{
-		error("Invalid key size %d supplied to RegisterGCElementKey()\n");
+		error("Invalid key size %d supplied to RegisterGCElementKey()\n", (int)Key->Size);
 		return;
 	}
 
@@ -1854,8 +1867,25 @@ void mxflib::RegisterGCElementKey(DataChunkPtr &Key)
 }
 
 
+//! Register a system item key to be treated as a GC system key
+/*! This allows private or experimental system item keys to be treated as standard GC keys when reading 
+ *  /note If the size is less than 16-bytes, only that part of the key given will be compared (all the rest will be treated as wildcard bytes).
+ *        Byte 8 is never compared (the version number byte)
+ */
+void mxflib::RegisterGCSystemKey(DataChunkPtr &Key)
+{
+	if((Key->Size < 1) || (Key->Size > 16))
+	{
+		error("Invalid key size %d supplied to RegisterGCSystemKey()\n", (int)Key->Size);
+		return;
+	}
+
+	GCSystemKeyAlternatives.push_back(Key);
+}
+
+
 //! Get a GCElementKind structure
-GCElementKind mxflib::GetGCElementKind(ULPtr TheUL)
+GCElementKind mxflib::GetGCElementKind(const ULPtr TheUL)
 {
 	GCElementKind ret;
 
@@ -1887,22 +1917,23 @@ GCElementKind mxflib::GetGCElementKind(ULPtr TheUL)
 					// Compare top bytes first as these are the most likely to differ
 					if(memcmp(&TheUL->GetValue()[8], &(*it)->Data[8], Size - 8) == 0)
 					{
-						if(memcmp(TheUL->GetValue(), (*it)->Data, 8) == 0)
+						// DRAGONS: Don't test the version number byte
+						if(memcmp(TheUL->GetValue(), (*it)->Data, 7) == 0)
 						{
 							ret.IsValid = true;
 							break;
 						}
 					}
-					else
-					{
-						// There is no point comparing exactly 8 bytes
-						if(Size == 8) Size = 7;
+				}
+				else
+				{
+					// There is no point comparing exactly 8 bytes
+					if(Size == 8) Size = 7;
 
-						if(memcmp(TheUL->GetValue(), (*it)->Data, Size) == 0)
-						{
-							ret.IsValid = true;
-							break;
-						}
+					if(memcmp(TheUL->GetValue(), (*it)->Data, Size) == 0)
+					{
+						ret.IsValid = true;
+						break;
 					}
 				}
 
@@ -1923,29 +1954,70 @@ GCElementKind mxflib::GetGCElementKind(ULPtr TheUL)
 }
 
 
+//! Determine if this is a system item
+bool mxflib::IsGCSystemItem(const ULPtr TheUL)
+{
+	// Note that we first test the 11th byte as this where "Application = MXF Generic Container Keys"
+	// is set and so is the same for all GC keys and different in the majority of non-CG keys
+	// also, avoid testing the 6th byte (set or pack structure) and the 8th byte (version number)
+	if( ( TheUL->GetValue()[10] == GCSystemKey[10] )
+	 && ( TheUL->GetValue()[9]  == GCSystemKey[9]  )
+	 && ( TheUL->GetValue()[8]  == GCSystemKey[8]  )
+	 && ( TheUL->GetValue()[8]  == GCSystemKey[6]  )
+	 && ( memcmp(TheUL->GetValue(), GCSystemKey, 5 ) == 0) )
+	{
+		return true;
+	}
+	else
+	{
+		// Scan for any registered alternative GC-type system item keys
+		if(GCSystemKeyAlternatives.size())
+		{
+			DataChunkList::iterator it = GCSystemKeyAlternatives.begin();
+			while(it != GCSystemKeyAlternatives.end())
+			{
+				size_t Size = (*it)->Size;
+				
+				if(Size > 8)
+				{
+					// Compare top bytes first as these are the most likely to differ
+					if(memcmp(&TheUL->GetValue()[8], &(*it)->Data[8], Size - 8) == 0)
+					{
+						// DRAGONS: Don't test the bytes 6 or 8 (array index 5 and 7)
+						if((TheUL->GetValue()[6] == (*it)->Data[6]) && (memcmp(TheUL->GetValue(), (*it)->Data, 5) == 0)) return true;
+					}
+				}
+				else
+				{
+					// Test byte 7 if the test key is that long
+					if((Size < 7) || (TheUL->GetValue()[6] == (*it)->Data[6]))
+					{
+						// Test up to 5 bytes of the start of the key
+						if(memcmp(TheUL->GetValue(), (*it)->Data, (Size > 5) ? 5 : Size) == 0) return true;
+					}
+				}
+
+				it++;
+			}
+		}
+	}
+
+	return false;
+}
+
+
 
 //! Get the track number of this essence key (if it is a GC Key)
 /*! \return 0 if not a valid GC Key
  */
-UInt32 mxflib::GetGCTrackNumber(ULPtr TheUL)
+UInt32 mxflib::GetGCTrackNumber(const ULPtr TheUL)
 {
-	//! Base of all standard GC keys
-	/*! DRAGONS: version number is hard-coded as 1 */
-	const UInt8 DegenerateGCLabel[12] = { 0x06, 0x0E, 0x2B, 0x34, 0x01, 0x02, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01 };
-	
-	// Note that we first test the 11th byte as this where "Application = MXF Generic Container Keys"
-	// is set and so is the same for all GC keys and different in the majority of non-CG keys
-	// also, avoid testing the 8th byte (version number)
-	if( ( TheUL->GetValue()[10] == DegenerateGCLabel[10] )
-	 && ( TheUL->GetValue()[9]  == DegenerateGCLabel[9]  )
-	 && ( TheUL->GetValue()[8]  == DegenerateGCLabel[8]  )
-	 && ( memcmp(TheUL->GetValue(), DegenerateGCLabel, 7 ) == 0) )
-	{
-		return (UInt32(TheUL->GetValue()[12]) << 24) | (UInt32(TheUL->GetValue()[13]) << 16) 
-			 | (UInt32(TheUL->GetValue()[14]) << 8) | UInt32(TheUL->GetValue()[15]);
-	}
-	else
-		return 0;
+	GCElementKind Info = GetGCElementKind(TheUL);
+
+	if(!Info.IsValid) return 0;
+
+	return    (static_cast<UInt32>(TheUL->GetValue()[12]) << 24) | (static_cast<UInt32>(TheUL->GetValue()[13]) << 16) 
+			| (static_cast<UInt32>(TheUL->GetValue()[14]) << 8)  | static_cast<UInt32>(TheUL->GetValue()[15]);
 }
 
 
