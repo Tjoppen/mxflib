@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.24 2007/03/31 14:42:42 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.25 2007/07/09 17:12:43 matt-beard Exp $
  *
  */
 /*
@@ -1139,9 +1139,12 @@ size_t MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, si
 			UnknownCount = false;
 		}
 
-		if((ItemCount * ItemSize) < Size)
+		if((ItemCount * ItemSize) > Size)
 		{
 			error("Invalid batch of type %s - count = %u, item size = %u so 0x%08x bytes required but only 0x%08x available\n", Object->Name().c_str(), ItemCount, ItemSize, (ItemCount * ItemSize), Size);
+			
+			// Make the count safe
+			Count = static_cast<int>(Size / ItemSize);
 		}
 	}
 
