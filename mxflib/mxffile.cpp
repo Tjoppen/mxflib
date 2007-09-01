@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.21 2007/03/31 16:02:39 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.22 2007/09/01 22:12:34 terabrit Exp $
  *
  */
 /*
@@ -1324,20 +1324,24 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		// Align if required
 		// All non-footer partitions pack are followed by KAG alignment
 		// Any partition with metadata or index has a KAG alignment after the partition pack
-		if((KAGSize > 1) && ((!IsFooter) || IncludeMetadata || IndexData)) Align(KAGSize);
+		if((KAGSize > 1) && ((!IsFooter) || IncludeMetadata || IndexData) && !BlockAlign) Align(KAGSize);
+
 	}
+
+	// Ensure the correct size of filler for the already written header byte count - it is possible for duff values to force 2 fillers
+	UInt32 HeaderPadding = static_cast<UInt32>(HeaderByteCount - (PrimerBuffer->Size + MetaBuffer->Size));
 
 	if(IncludeMetadata)
 	{
 		// Write the primer
 		Write(PrimerBuffer);
 
-		// Write the other header metadata
+		// Write header structural and descriptive metadata
 		Write(MetaBuffer);
 	}
 
-	// Ensure the correct size of filler for the already written header byte count - it is possible for duff values to force 2 fillers
-	UInt32 HeaderPadding = static_cast<UInt32>(HeaderByteCount - (PrimerBuffer->Size + MetaBuffer->Size));
+
+
 
 	// Write a filler of the required size
 	if(HeaderPadding) Align((UInt32)1, HeaderPadding);
