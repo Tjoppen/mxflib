@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.13 2007/03/31 14:34:06 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.14 2007/10/09 12:51:52 matt-beard Exp $
  *
  */
 /*
@@ -218,9 +218,9 @@ DataChunkPtr WAVE_PCM_EssenceSubParser::ESP_EssenceSource::GetEssenceData(size_t
 	if(!BytesRemaining)	
 	{
 		// Only do a simple add if not reading the whole clip, and if the read succeeded
-		if((RequestedCount != 0) && (Ret->Size == Bytes)) pCaller->CurrentPosition += RequestedCount;
+		if((pCaller->SelectedWrapping->ThisWrapType != WrappingOption::Clip) && (Ret->Size == Bytes)) pCaller->CurrentPosition += RequestedCount;
 		// ... otherwise calculate the new position
-		else pCaller->CalcCurrentPosition();
+		else pCaller->CurrentPosition = pCaller->CalcCurrentPosition();
 	}
 
 	return Ret;
