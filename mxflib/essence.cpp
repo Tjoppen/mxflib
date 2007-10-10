@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.34 2007/07/06 13:58:59 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.35 2007/10/10 15:27:51 matt-beard Exp $
  *
  */
 /*
@@ -64,6 +64,13 @@ namespace
 
 //! Flag that allows faster clip wrapping using random access
 bool mxflib::AllowFastClipWrap;
+
+
+namespace
+{
+	//! Max nmumber of bytes that we will try and wrap in one go (stops clip-wrapping bursting our memory)
+	const size_t MaxWrapChunkSize = 1024 * 1024 * 32;
+}
 
 
 //! Constructor
@@ -951,7 +958,7 @@ void GCWriter::Flush(void)
 					}
 				}
 
-				DataChunkPtr Data = (*it).second.Source->GetEssenceData();
+				DataChunkPtr Data = (*it).second.Source->GetEssenceData(0, MaxWrapChunkSize);
 				
 				// Exit when no more data left
 				if(!Data) break;
