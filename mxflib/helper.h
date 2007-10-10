@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.10 2007/02/22 16:52:01 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.11 2007/10/10 15:43:13 matt-beard Exp $
  *
  */
 /*
@@ -142,7 +142,7 @@ namespace mxflib
 	UMIDPtr MakeUMID(int Type, const UUIDPtr AssetID = NULL);
 
 	//! Read a "Chunk" from a non-MXF file
-	DataChunkPtr FileReadChunk(FileHandle InFile, UInt64 Size);
+	DataChunkPtr FileReadChunk(FileHandle InFile, size_t Size);
 
 
 	//! Read an IFF chunk header (from an open file)
