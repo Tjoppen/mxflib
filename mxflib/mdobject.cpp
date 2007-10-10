@@ -6,7 +6,7 @@
  *			Class MDOType holds the definition of MDObjects derived from
  *			the XML dictionary.
  *
- *	\version $Id: mdobject.cpp,v 1.24 2007/03/31 14:37:02 matt-beard Exp $
+ *	\version $Id: mdobject.cpp,v 1.25 2007/10/10 15:45:35 matt-beard Exp $
  *
  */
 /*
@@ -2366,7 +2366,7 @@ void MDOType::ReDefine(std::string NewDetail, std::string NewBase, unsigned int 
 	{
 		MDTypePtr Type = MDType::Find(NewBase);
 		if(!Type)
-			error(NULL, "Attempt to redefine %s to be of type %s which is not known\n", FullName().c_str(), NewBase.c_str());
+			error("Attempt to redefine %s to be of type %s which is not known\n", FullName().c_str(), NewBase.c_str());
 		else
 			ValueType = Type;
 	}
