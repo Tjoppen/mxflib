@@ -1,7 +1,7 @@
 /*! \file	vbi.cpp
  *	\brief	Implementation of classes that handle Vertical Inerval Blanking data
  *
- *	\version $Id: vbi.cpp,v 1.3 2006/08/25 16:20:18 matt-beard Exp $
+ *	\version $Id: vbi.cpp,v 1.4 2007/10/10 15:21:07 matt-beard Exp $
  *
  */
 /*
@@ -128,10 +128,17 @@ void VBILine::WriteData(UInt8 *Buffer)
 	// And the sample count
 	PutU16(static_cast<UInt16>(SampleCount), &Buffer[4]);
 
-	// Then copy in all the line data (assuming we have some)
+	// Then copy in all the line data (assuming we have some) including the array header
 	if(Data.Data)
 	{
-		memcpy(&Buffer[6], Data.Data, Data.Size);
+		PutU32(static_cast<UInt32>(Data.Size), &Buffer[6]);
+		PutU32(1, &Buffer[10]);
+		memcpy(&Buffer[14], Data.Data, Data.Size);
+	}
+	else
+	{
+		PutU32(0, &Buffer[6]);
+		PutU32(1, &Buffer[10]);
 	}
 }
 
