@@ -155,7 +155,7 @@ int main_process(int argc, char *argv[])
 
 	if (argc - num_options < 2)
 	{
-		printf("\nUsage:   test [options] <filename>\n\n");
+		printf("\nUsage:   %s [options] <filename>\n\n", argv[0]);
 		printf("Options: -b         Dump body partitions (rather than just header and footer)\n");
 		printf("         -c         Check dump (produce simple counts for automated testing)\n");
 		printf("         -dd <dict> Load supplementary dictionary (also -d for legacy)\n");
