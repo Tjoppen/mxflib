@@ -1,7 +1,7 @@
 /*! \file	features.h
  *	\brief	Control compile-time and run-time selectable library features
  *
- *	\version $Id: features.h,v 1.7 2007/03/31 14:34:58 matt-beard Exp $
+ *	\version $Id: features.h,v 1.8 2007/10/10 15:41:58 matt-beard Exp $
  *
  *  \detail 
  *  Library feature selection allows the behaviour of the library to be modified at run-time or compile-time.
@@ -53,6 +53,8 @@
  *                       Default setting is all features unlocked
  */
 
+#ifndef MXFLIB__FEATURES_H
+#define MXFLIB__FEATURES_H
 
 // Those features that may be enabled
 #ifndef MXFLIB_FEATURE_MASK
@@ -185,3 +187,4 @@ namespace mxflib
 	}
 }
 
+#endif // MXFLIB__FEATURES_H
