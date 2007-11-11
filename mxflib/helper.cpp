@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.18 2007/10/10 15:43:13 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.19 2007/11/11 01:48:33 terabrit Exp $
  *
  */
 /*
@@ -383,7 +383,7 @@ std::string mxflib::SearchPath(const char *Path, const char *Filename)
 	char *Buffer = new char[strlen(Path) + strlen(Filename) + 2];
 
 	// Start searching all paths
-	const char *p = Path;
+	char *p = const_cast<char*>(Path);
 	while(p && *p)
 	{
 		char *sep = strchr(p, PATH_SEPARATOR);
