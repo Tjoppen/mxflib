@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.40 2007/03/31 16:15:21 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.41 2007/11/19 12:18:38 matt-beard Exp $
  *
  */
 /*
@@ -1337,9 +1337,6 @@ int Process(	int OutFileNum,
 				Streams.push_back(Streams.front());
 			}
 
-			// The source will have be allocated a StreamID when added to the BodyStream - we need that for track linking later
-			TrackInfoList.back()->EssenceID = Source->GetStreamID();
-
 			// Set indexing options for this stream
 			// FIXME: This needs to be done only once based on CBR or VBR nature of combined group!!
 			if(UseIndex || SparseIndex || SprinkledIndex)
@@ -1360,6 +1357,9 @@ int Process(	int OutFileNum,
 
 			// Add this stream to the body writer (first pass only)
 			if(iTrack == 0) Writer->AddStream(Streams.front());
+
+			// The source will have be allocated a StreamID when added to the BodyStream - we need that for track linking later
+			TrackInfoList.back()->EssenceID = Source->GetStreamID();
 
 			PrevEssenceType = (*WrapCfgList_it)->WrapOpt->GCEssenceType;
 
@@ -1500,19 +1500,19 @@ int Process(	int OutFileNum,
 			if(ThisDescriptor->IsA(GenericPictureEssenceDescriptor_UL))
 			{
 				if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddPictureTrack(EditRate);
-				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddPictureTrack(Streams.back()->GetTrackNumber(), EditRate);
+				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddPictureTrack(Streams.back()->GetTrackNumber(TrackInfoList.back()->EssenceID), EditRate);
 			}
 			else
 			if(ThisDescriptor->IsA(GenericSoundEssenceDescriptor_UL))
 			{
 				if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddSoundTrack(EditRate);
-				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddSoundTrack(Streams.back()->GetTrackNumber(), EditRate);
+				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddSoundTrack(Streams.back()->GetTrackNumber(TrackInfoList.back()->EssenceID), EditRate);
 			}
 			else
 			if(ThisDescriptor->IsA(GenericDataEssenceDescriptor_UL))
 			{
 				if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddDataTrack(EditRate);
-				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddDataTrack(Streams.back()->GetTrackNumber(), EditRate);
+				if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddDataTrack(Streams.back()->GetTrackNumber(TrackInfoList.back()->EssenceID), EditRate);
 			}
 			else
 			{
@@ -1521,14 +1521,14 @@ int Process(	int OutFileNum,
 				{
 				case 0x05: case 0x15:
 					if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddPictureTrack(EditRate);
-					if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddPictureTrack(Streams.back()->GetTrackNumber(), EditRate);
+					if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddPictureTrack(Streams.back()->GetTrackNumber(TrackInfoList.back()->EssenceID), EditRate);
 					break;
 				case 0x06: case 0x16:
 					if(iTrack < InFileGangSize) TrackInfoList.back()->MPTrack = MaterialPackage->AddSoundTrack(EditRate);
-					if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddSoundTrack(Streams.back()->GetTrackNumber(), EditRate);
+					if(WriteFP) TrackInfoList.back()->FPTrack = FilePackage->AddSoundTrack(Streams.back()->GetTrackNumber(TrackInfoList.back()->EssenceID), EditRate);
 					break;
 				case 0x07: case 0x17: default:
-					if(iTrack < InFileGangSize) TrackInfoList.back()->FPTrack = FilePackage->AddDataTrack(Streams.back()->GetTrackNumber(), EditRate);
+					if(iTrack < InFileGangSize) TrackInfoList.back()->FPTrack = FilePackage->AddDataTrack(Streams.back()->GetTrackNumber(TrackInfoList.back()->EssenceID), EditRate);
 					if(WriteFP) TrackInfoList.back()->MPTrack = MaterialPackage->AddDataTrack(EditRate);
 					break;
 				}
