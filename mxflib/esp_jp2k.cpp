@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.13 2007/04/02 13:21:22 matt-beard Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.14 2007/12/10 23:34:25 terabrit Exp $
  *
  */
 /*
@@ -424,7 +424,7 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 		if(!Ret) return Ret;
 
 		if(Components < 1) Ret->SetInt(ComponentDepth_UL, 0);
-		else Ret->SetInt("ComponentDepth", CDepth[0] + 1);
+		else Ret->SetInt(ComponentDepth_UL, CDepth[0] + 1);
 
 		MDObjectPtr PixelLayout = Ret->AddChild(PixelLayout_UL);
 		if(PixelLayout)
@@ -504,7 +504,8 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 	MDObjectPtr VLMItem = Ret->AddChild(VideoLineMap_UL);
 	if(VLMItem)
 	{
-		VLMItem->AddChild()->SetInt(1);
+		MDObjectPtr VLMChild = VLMItem->AddChild();
+		if( VLMChild ) VLMChild->SetInt(1);
 	}
 
 	// TODO: Add alpha transparency?
