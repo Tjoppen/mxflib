@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.14 2007/03/31 16:01:39 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.15 2008/03/13 11:15:04 matt-beard Exp $
  *
  */
 /*
@@ -1093,13 +1093,22 @@ size_t MDValue::ReadValue(const UInt8 *Buffer, size_t Size, int Count /*=0*/)
 DataChunkPtr MDValue::PutData(void) 
 {
 	DataChunkPtr Ret = new DataChunk;
+	
+	// True if we are a batch, but the size is not currently known
+	bool BatchCorrection = false;
+	UInt32 Count = static_cast<UInt32>(size());
 
 	MDTypePtr EffType = EffectiveType();
 	if(EffType->GetArrayClass() == ARRAYBATCH)
 	{
+		// Write the item count
 		UInt8 Buffer[8];
-		PutU32(static_cast<UInt32>(size()), Buffer);
-		PutU32(Type->EffectiveSize(), &Buffer[4]);
+		PutU32(Count, Buffer);
+
+		// Write the item size - here we check to see if this is 'unknown' (flagged by zero), in which case we need to fix it at the end
+		UInt32 Size = Type->EffectiveSize();
+		if(Size == 0) BatchCorrection = true;
+		PutU32(Size, &Buffer[4]);
 
 		// Set the header
 		Ret->Set(8, Buffer);
@@ -1135,6 +1144,13 @@ DataChunkPtr MDValue::PutData(void)
 				it++;
 			}
 		}
+	}
+
+	// If this is a batch where we did not know the item size, set it now we havbe written all items
+	if(BatchCorrection)
+	{
+		UInt32 Size = static_cast<UInt32>((Ret->Size - 8) / Count);
+		PutU32(Size, &Ret->Data[4]);
 	}
 
 	return Ret;
