@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.28 2007/07/06 12:02:12 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.29 2008/03/14 14:46:45 matt-beard Exp $
  *
  */
 /*
@@ -860,6 +860,13 @@ namespace mxflib
 			{
 				// Set the manager in our containing parser
 				Caller->SetIndexManager(Manager, StreamID);
+			}
+
+			//! Get the IndexManager StreamID for this essence stream
+			virtual int GetIndexStreamID(void)
+			{
+				// Get from our containing parser
+				return Caller->GetIndexStreamID();
 			}
 		};
 
