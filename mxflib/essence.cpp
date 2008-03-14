@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.35 2007/10/10 15:27:51 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.36 2008/03/14 15:06:41 matt-beard Exp $
  *
  */
 /*
@@ -3617,7 +3617,15 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 
 		// Set the "done" flag for this index type
 		// DRAGONS: Is this an MSVC funny or can we really not do bitmaths with enums without them becoming integers?
-		Stream->SetFooterIndex((BodyStream::IndexType) (Stream->GetFooterIndex() | IndexFlags) );
+		BodyStream::IndexType Flags = Stream->GetFooterIndex();
+		Stream->SetFooterIndex((BodyStream::IndexType) (Flags | IndexFlags) );
+		if(Flags == Stream->GetFooterIndex())
+		{
+			error("Internal Error: Failed to clear footer index flag 0x%04x for BodySID 0x%04x\n", (int)IndexFlags, (int)CurrentBodySID);
+			
+			// Flag all indexing done
+			Stream->SetFooterIndex(Stream->GetIndexType());
+		}
 
 		// This stream has done a cycle - move to the next stream
 		SetNextStream();
