@@ -1447,10 +1447,6 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\mxflib\waveheader.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\mxflib\xmlparser.h"
 				>
 			</File>

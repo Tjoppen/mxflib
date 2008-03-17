@@ -305,10 +305,6 @@ SOURCE=..\..\mxflib\vbi.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mxflib\waveheader.h
-# End Source File
-# Begin Source File
-
 SOURCE=..\..\mxflib\xmlparser.h
 # End Source File
 # End Group
