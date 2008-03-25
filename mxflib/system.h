@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.18 2006/09/30 13:40:01 matt-beard Exp $
+ *	\version $Id: system.h,v 1.19 2008/03/25 17:01:35 matt-beard Exp $
  *
  */
 /*
@@ -191,7 +191,7 @@ namespace mxflib
 	};
 
 #define ASSERT _ASSERT					//!< Debug assert
-#define strcasecmp(s1, s2) stricmp(s1, s2)
+#define strcasecmp(s1, s2) _stricmp(s1, s2)
 
 //! Allow command-line switches to be prefixed with '/' or '-'
 #define IsCommandLineSwitchPrefix(x) ( (x == '/') || (x == '-'))
@@ -237,18 +237,18 @@ namespace mxflib
 	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END) == -1 ? -1 : 0; }
 	
 	// DRAGONS: MSVC can't read or write more than 4Gb in one go currently
-	inline size_t FileRead(FileHandle file, unsigned char *dest, size_t size) { return read(file, dest, (unsigned int)size); }
-	inline size_t FileWrite(FileHandle file, const unsigned char *source, size_t size) { return write(file, source, (unsigned int)size); }
+	inline size_t FileRead(FileHandle file, unsigned char *dest, size_t size) { return _read(file, dest, (unsigned int)size); }
+	inline size_t FileWrite(FileHandle file, const unsigned char *source, size_t size) { return _write(file, source, (unsigned int)size); }
 
 	inline int FileGetc(FileHandle file) { UInt8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
-	inline FileHandle FileOpen(const char *filename) { return open(filename, _O_BINARY | _O_RDWR ); }
-	inline FileHandle FileOpenRead(const char *filename) { return open(filename, _O_BINARY | _O_RDONLY ); }
-	inline FileHandle FileOpenNew(const char *filename) { return open(filename, _O_BINARY | _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE); }
+	inline FileHandle FileOpen(const char *filename) { return _open(filename, _O_BINARY | _O_RDWR ); }
+	inline FileHandle FileOpenRead(const char *filename) { return _open(filename, _O_BINARY | _O_RDONLY ); }
+	inline FileHandle FileOpenNew(const char *filename) { return _open(filename, _O_BINARY | _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE); }
 	inline bool FileValid(FileHandle file) { return (file >= 0); }
-	inline bool FileEof(FileHandle file) { return eof(file) ? true : false; }
+	inline bool FileEof(FileHandle file) { return _eof(file) ? true : false; }
 	inline UInt64 FileTell(FileHandle file) { return _telli64(file); }
-	inline void FileClose(FileHandle file) { close(file); }
-	inline bool FileExists(const char *filename) { struct stat buf; return stat(filename, &buf) == 0; }
+	inline void FileClose(FileHandle file) { _close(file); }
+	inline bool FileExists(const char *filename) { struct _stat buf; return _stat(filename, &buf) == 0; }
 #endif //MXFLIB_NO_FILE_IO
 
 
@@ -335,18 +335,18 @@ namespace mxflib
 				{
 #ifdef _MSC_VER
 #if _MSC_VER >= 1300
-					if(OSInfo.wProductType & VER_NT_SERVER) Ret = "Windows Server \"Longhorn\"";
+					if(OSInfo.wProductType == VER_NT_SERVER) Ret = "Windows Server 2008";
 					else Ret = "Windows Vista";
 					
 					if (0)	// Remove following pre-VC7 version
 #endif // _MSC_VER >= 1300
 #endif // _MSC_VER
-						Ret = "Windows Vista or Server \"Longhorn\"";
+						Ret = "Windows Vista or Server 2008";
 				}
 			}
 
 			// Add any service pack details
-			if(OSInfo.szCSDVersion)
+			if(OSInfo.szCSDVersion[0])
 			{
 				if(OSInfo.dwPlatformId & VER_PLATFORM_WIN32_WINDOWS)
 				{
