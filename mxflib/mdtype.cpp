@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.15 2008/03/13 11:15:04 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.16 2008/05/02 16:26:22 matt-beard Exp $
  *
  */
 /*
@@ -1146,8 +1146,8 @@ DataChunkPtr MDValue::PutData(void)
 		}
 	}
 
-	// If this is a batch where we did not know the item size, set it now we havbe written all items
-	if(BatchCorrection)
+	// If this is a batch where we did not know the item size, set it now we have written all items
+	if(BatchCorrection && (Count > 0) && (Ret->Size > 8))
 	{
 		UInt32 Size = static_cast<UInt32>((Ret->Size - 8) / Count);
 		PutU32(Size, &Ret->Data[4]);
