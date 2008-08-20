@@ -1,7 +1,7 @@
 /*! \file	mxfsplit.cpp
  *	\brief	Splitter (linear sequential unwrap program) for MXFLib
  *
- *	\version $Id: mxfsplit.cpp,v 1.21 2007/07/06 13:59:27 matt-beard Exp $
+ *	\version $Id: mxfsplit.cpp,v 1.22 2008/08/20 13:02:42 matt-beard Exp $
  *
  */
 /*
@@ -249,7 +249,7 @@ int main_process(int argc, char *argv[])
 				// DM Dictionary
 				if(tolower(*(p+1))=='d')
 				{
-					char *name=""; // default name
+					const char *name=""; // default name
 					if( '='==*(p+2) || ':'==*(p+2))	name=p+3; // explicit name
 					else if( i+1<argc ) name=argv[++i]; // explicit name in next arg
 

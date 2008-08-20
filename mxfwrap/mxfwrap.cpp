@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.42 2008/03/17 13:03:29 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.43 2008/08/20 13:02:55 matt-beard Exp $
  *
  */
 /*
@@ -167,7 +167,7 @@ namespace
 	int OutFileCount;						//!< The number of files to output
 
 	FileHandle InFile[16];					//!< File handles
-	Int64 Duration[16];						//!< Duration of each ganged section of essence
+//	Int64 Duration[16];						//!< Duration of each ganged section of essence
 
 	bool PutTCTrack=true;					//!< If false suppresses the output or Timecode tracks
 
@@ -185,7 +185,7 @@ namespace
 	int SelectedWrappingOption = -1;		//!< Selected wrapping option number: -1 = auto, 0 = list choices (or use SelectedWrappingName)
 	std::string SelectedWrappingOptionText;	//!< Selected wrapping option name
 
-	Position LastEditUnit[128];				//!< Table of last edit units written in sparse index tables (per BodySID)
+//	Position LastEditUnit[128];				//!< Table of last edit units written in sparse index tables (per BodySID)
 
 
 	// DRAGONS: Temporary option!
@@ -585,7 +585,7 @@ bool ParseCommandLine(int &argc, char **argv)
 		{
 			char *p = &argv[i][1];					// The option less the '-'
 			char Opt = tolower(*p);					// The option itself (in lower case)
-			char *Val = "";							// Any value attached to the option
+			const char *Val = "";					// Any value attached to the option
 			if(strlen(p) > 2) Val = &p[2];			// Only set a value if one found
 
 			if(Opt == '1') 
@@ -686,7 +686,7 @@ bool ParseCommandLine(int &argc, char **argv)
 				// -dp=DictionaryPath
 				if(tolower(*(p+1))=='p')
 				{
-					char *name=""; // default name
+					const char *name=""; // default name
 					if( '='==*(p+2) || ':'==*(p+2))	name=p+3; // explicit name
 					else if( i+1<argc ) name=argv[++i]; // explicit name in next arg
 
@@ -703,7 +703,7 @@ bool ParseCommandLine(int &argc, char **argv)
 				// -do=Orthodox Dictionary
 				else if(tolower(*(p+1))=='o')
 				{
-					char *name=""; // default name
+					const char *name=""; // default name
 					if( '='==*(p+2) || ':'==*(p+2))	name=p+3; // explicit name
 					else if( i+1<argc ) name=argv[++i]; // explicit name in next arg
 
@@ -715,7 +715,7 @@ bool ParseCommandLine(int &argc, char **argv)
 				// DM Dictionary
 				else if(tolower(*(p+1))=='d')
 				{
-					char *name=""; // default name
+					const char *name=""; // default name
 					if( '='==*(p+2) || ':'==*(p+2))	name=p+3; // explicit name
 					else if( i+1<argc ) name=argv[++i]; // explicit name in next arg
 
@@ -727,7 +727,7 @@ bool ParseCommandLine(int &argc, char **argv)
 				// DM Material instance data
 				else if(tolower(p[1])=='m' )
 				{
-					char *name=""; // default name
+					const char *name=""; // default name
 					if( '='==*(p+2) || ':'==*(p+2))	name=p+3; // explicit name
 					else if( i+1<argc ) name=argv[++i]; // explicit name in next arg
 
@@ -739,7 +739,7 @@ bool ParseCommandLine(int &argc, char **argv)
 				// DM File instance data
 				else if(tolower(p[1])=='f' )
 				{
-					char *name=""; // default name
+					const char *name=""; // default name
 					if( '='==*(p+2) || ':'==*(p+2))	name=p+3; // explicit name
 					else if( i+1<argc ) name=argv[++i]; // explicit name in next arg
 
