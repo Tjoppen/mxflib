@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.8 2006/08/30 15:30:26 matt-beard Exp $
+ *	\version $Id: types.h,v 1.9 2008/08/20 15:08:48 matt-beard Exp $
  *
  */
 /*
@@ -34,6 +34,7 @@
 #include <stdlib.h>
 
 // Standard library includes
+#include <cstring>
 #include <list>
 
 
