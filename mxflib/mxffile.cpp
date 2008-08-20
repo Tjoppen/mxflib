@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.22 2007/09/01 22:12:34 terabrit Exp $
+ *	\version $Id: mxffile.cpp,v 1.23 2008/08/20 12:53:59 matt-beard Exp $
  *
  */
 /*

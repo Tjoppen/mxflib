@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.36 2008/03/14 15:06:41 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.37 2008/08/20 12:53:59 matt-beard Exp $
  *
  */
 /*
@@ -3226,9 +3226,13 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			if((!IndexSharesWithMetadata) && (!PartitionDone))
 			{
 				if(PartitionWritePending)
+				{
 					if(PendingHeader || PendingMetadata) PartitionDone = true;
+				}
 				else
+				{
 					if(BasePartition->GetUInt64(HeaderByteCount_UL) > 0) PartitionDone = true;
+				}
 			}
 
 			// Fall through to no-index version
@@ -3240,9 +3244,13 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			if((!EssenceSharesWithMetadata) && (!PartitionDone))
 			{
 				if(PartitionWritePending)
+				{
 					if(PendingHeader || PendingMetadata) PartitionDone = true;
+				}
 				else
+				{
 					if(BasePartition->GetUInt64(HeaderByteCount_UL) > 0) PartitionDone = true;
+				}
 			}
 
 			// It's OK to continue with the current partition if:

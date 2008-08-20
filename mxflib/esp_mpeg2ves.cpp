@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.12 2007/03/31 14:32:02 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.13 2008/08/20 12:53:59 matt-beard Exp $
  *
  */
 /*
@@ -385,7 +385,7 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 	UInt32 HSize = (Buffer[4] << 4) | (Buffer[5] >> 4);
 	UInt32 VSize = ((Buffer[5] & 0x0f) << 8) | (Buffer[6]);
 
-	char *Aspect;
+	const char *Aspect;
 	switch(Buffer[7] & 0xf0)
 	{
 	default: Aspect = NULL; break;
