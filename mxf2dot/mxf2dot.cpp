@@ -402,14 +402,13 @@ void preprocessObjects(int partitionNum, DotFile* dotFile, MXFFilePtr mxfFile,
         PartitionPtr partition = mxfFile->ReadPartition();
         if (partition)
         {
-            if (partitionNum == partitionCount ||
-                partitionNum < 0 && 
-                    (partition->IsA(ClosedCompleteHeader_UL) || 
-                        partition->IsA(CompleteFooter_UL)))
+            if (    (partitionNum == partitionCount) 
+				 || ((partitionNum < 0) && (partition->IsA(ClosedCompleteHeader_UL) || partition->IsA(CompleteFooter_UL)) ))
             {
                 foundPartition = true;
-                if (partitionNum == partitionCount && 
-                    !(partition->IsA(ClosedCompleteHeader_UL) || partition->IsA(CompleteFooter_UL)))
+                if (     (partitionNum == partitionCount)
+					 &&  (!partition->IsA(ClosedCompleteHeader_UL) 
+					 &&  (!partition->IsA(CompleteFooter_UL))))
                 {
                     mxf2dotWarning("Partition %d is not a closed complete header "
                         "or complete footer partition\n", partitionNum);
