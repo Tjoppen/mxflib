@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.19 2008/03/25 17:01:35 matt-beard Exp $
+ *	\version $Id: system.h,v 1.20 2008/09/01 10:44:55 matt-beard Exp $
  *
  */
 /*
@@ -47,6 +47,7 @@
 // Required headers for non-system specific bits
 #include <time.h>
 #include <stdlib.h>						// Required for integer conversions
+#include <cstring>						// Required for memcpy
 
 /************************************************/
 /*           (Hopefully) Common types           */
@@ -267,7 +268,21 @@ namespace mxflib
 	/******** UUID Generation ********/
 	inline void MakeUUID(UInt8 *Buffer)
 	{
-		CoCreateGuid(reinterpret_cast<GUID*>(Buffer));
+		// Build a GUID using the Windows API call
+		GUID Value;
+		CoCreateGuid(&Value);
+
+		// Transfer the parts of the GUID and endian-swap them as we do so
+		UInt8 *p = Buffer;
+		*(p++) = static_cast<UInt8>(Value.Data1 >> 24);
+		*(p++) = static_cast<UInt8>(Value.Data1 >> 16);
+		*(p++) = static_cast<UInt8>(Value.Data1 >> 8);
+		*(p++) = static_cast<UInt8>(Value.Data1);
+		*(p++) = static_cast<UInt8>(Value.Data2 >> 8);
+		*(p++) = static_cast<UInt8>(Value.Data2);
+		*(p++) = static_cast<UInt8>(Value.Data3 >> 8);
+		*(p++) = static_cast<UInt8>(Value.Data3);
+		memcpy(p, Value.Data4, 8);
 	}
 
 	//! Determine if the specified filename refers to an absolute path
