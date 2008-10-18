@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.15 2006/09/04 18:31:35 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.16 2008/10/18 14:13:34 matt-beard Exp $
  *
  */
 /*
@@ -379,7 +379,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 			// Free any old delta array
 			if(BaseDeltaCount) delete[] BaseDeltaArray; 
 
-			BaseDeltaCount = static_cast<int>(Ptr->size() / 3);		// << There are 3 items in each DeltaCount entry
+			BaseDeltaCount = static_cast<int>(Ptr->size());
 
 			BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 
@@ -416,14 +416,32 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		}
 		else
 		{
-			Ret->DeltaCount = static_cast<int>(Ptr->size() / 3);		// << There are 3 items in each DeltaCount entry
+			int NewDeltaCount = static_cast<int>(Ptr->size() / 3);		// << There are 3 items in each DeltaCount entry
 
-			Ret->DeltaArray = new DeltaEntry[Ret->DeltaCount];
-			
+			// If there is already a known BaseDeltaArray Ret will have been given a copy of it by AddSegment(StartPosition)
+			// If the sizes match there is no need to re-allocate the array
+			if(Ret->DeltaCount != NewDeltaCount)
+			{
+				Ret->DeltaCount = NewDeltaCount;
+
+				// Delete any old array
+				if(Ret->DeltaArray) delete[] Ret->DeltaArray;
+
+				// Build a new one (unless the size is zero, when we just flag it as not allocated)
+				if(NewDeltaCount) Ret->DeltaArray = new DeltaEntry[Ret->DeltaCount];
+				else Ret->DeltaArray = NULL;
+			}
+
 			int Delta = 0;
 			MDObjectULList::iterator it = Ptr->begin();
 			while(it != Ptr->end())
 			{
+				if(Delta > NewDeltaCount)
+				{
+					error("Malformed DeltaEntryArray in %s at %s\n", Segment->FullName().c_str(), Segment->GetSourceLocation().c_str());
+					break;
+				}
+
 				Ret->DeltaArray[Delta].PosTableIndex = (*it).second->GetInt();
 				if(++it == Ptr->end()) break;
 
@@ -434,7 +452,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 				it++;
 				Delta++;
 			}
-			if(Delta != Ret->DeltaCount)
+			if(Delta != NewDeltaCount)
 			{
 				error("Malformed DeltaEntryArray in %s at %s\n", Segment->FullName().c_str(), Segment->GetSourceLocation().c_str());
 			}

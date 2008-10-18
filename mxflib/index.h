@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.9 2006/08/25 15:56:40 matt-beard Exp $
+ *	\version $Id: index.h,v 1.10 2008/10/18 14:13:34 matt-beard Exp $
  *
  */
 /*
@@ -330,7 +330,7 @@ namespace mxflib
 		//! Number of entries in DeltaArray
 		int DeltaCount;
 
-		//! Deltas for this segment
+		//! Deltas for this segment, or NULL if no memory allocated
 		DeltaEntry *DeltaArray;
 
 		//! Number of entries in IndexEntryArray
@@ -342,11 +342,11 @@ namespace mxflib
 
 	private:
 		//! Private constructor to force construction via AddIndexSegmentToIndexTable()
-		IndexSegment() : EntryCount(0) { };
+		IndexSegment() : DeltaArray(NULL), EntryCount(0) { };
 
 	public:
 		//! Destructor cleans up the segment
-		~IndexSegment() { if(DeltaCount) delete[] DeltaArray; };
+		~IndexSegment() { if(DeltaArray) delete[] DeltaArray; };
 
 		//! Index segment pseudo-constructor
 		/*! \note <b>Only</b> call this from IndexTable::AddSegment() because it adds the segment to its SegmentMap */
