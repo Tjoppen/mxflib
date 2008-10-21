@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.16 2008/10/18 14:13:34 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.17 2008/10/21 11:07:39 matt-beard Exp $
  *
  */
 /*
@@ -377,16 +377,25 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		if(Ptr)
 		{
 			// Free any old delta array
-			if(BaseDeltaCount) delete[] BaseDeltaArray; 
+			if(BaseDeltaArray) 
+			{
+				delete[] BaseDeltaArray;
+				BaseDeltaArray = NULL;
+			}
 
-			BaseDeltaCount = static_cast<int>(Ptr->size());
-
-			BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
+			BaseDeltaCount = static_cast<int>(Ptr->size() / 3);
+			if(BaseDeltaEntryCount) BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 
 			int Delta = 0;
 			MDObjectULList::iterator it = Ptr->begin();
 			while(it != Ptr->end())
 			{
+				if(Delta > BaseDeltaCount)
+				{
+					error("Malformed DeltaEntryArray in %s at %s\n", Segment->FullName().c_str(), Segment->GetSourceLocation().c_str());
+					break;
+				}
+
 				BaseDeltaArray[Delta].PosTableIndex = (*it).second->GetInt();
 				if(++it == Ptr->end()) break;
 
@@ -468,9 +477,10 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		if((BaseDeltaCount == 0) && (Ret->DeltaCount != 0))
 		{
 			BaseDeltaCount = Ret->DeltaCount;
-			BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 			if(BaseDeltaCount) 
 			{
+				if(BaseDeltaArray) delete[] BaseDeltaArray;
+				BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 				memcpy(BaseDeltaArray, Ret->DeltaArray, BaseDeltaCount * sizeof(DeltaEntry));
 			}
 		}
