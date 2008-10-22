@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.17 2008/10/21 11:07:39 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.18 2008/10/22 12:04:49 matt-beard Exp $
  *
  */
 /*
@@ -384,7 +384,7 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 			}
 
 			BaseDeltaCount = static_cast<int>(Ptr->size() / 3);
-			if(BaseDeltaEntryCount) BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
+			if(BaseDeltaCount) BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 
 			int Delta = 0;
 			MDObjectULList::iterator it = Ptr->begin();
