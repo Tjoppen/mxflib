@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.13 2008/08/20 12:53:59 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.14 2008/10/22 12:04:57 matt-beard Exp $
  *
  */
 /*
@@ -376,11 +376,12 @@ Length MPEG2_VES_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFi
 MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InFile, UInt64 Start /*=0*/)
 {
 	MDObjectPtr Ret;
-	UInt8 Buffer[12];
+	const size_t BUFFERSIZE = 512;
+	UInt8 Buffer[BUFFERSIZE];
 
 	// Read the sequence header
 	FileSeek(InFile, Start);
-	if(FileRead(InFile, Buffer, 12) < 12) return Ret;
+	if(FileRead(InFile, Buffer, BUFFERSIZE) < BUFFERSIZE) return Ret;
 
 	UInt32 HSize = (Buffer[4] << 4) | (Buffer[5] >> 4);
 	UInt32 VSize = ((Buffer[5] & 0x0f) << 8) | (Buffer[6]);
@@ -439,36 +440,45 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 	}
 
 	// Work out where the sequence extension should be
-	int ExtPos =(int)( Start + 12);
+	int ExtPos = 12;
 	if(LoadIntra) ExtPos += 64;
 	if(LoadNonIntra) ExtPos += 64;
+	UInt8 *pSeqExt = &Buffer[ExtPos];
 
-	FileSeek(InFile, ExtPos);
-	// Read the sequence extention
-	FileRead(InFile, Buffer, 10);
+	/* We are currently at the end of the sequence header and should now find a sequence extension.
+	 * This could follow immediately, or there could be some padding zeros before the start code
+	 */
 
-	if((Buffer[0] != 0) || (Buffer[1] != 0) || (Buffer[2] != 1) || (Buffer[3] != 0xb5))
+	// Scan for a non-zero byte
+	while(!(*pSeqExt))
+	{
+		// Hit the end of the buffer without finding a complete sequence extension
+		if(++ExtPos > (BUFFERSIZE - 8)) break;
+		pSeqExt++;
+	}
+
+	if((pSeqExt[0] != 1) || (pSeqExt[1] != 0xb5))
 	{
 		warning("Building MPEG2VideoDescriptor - extension does not follow sequence header (possibly MPEG1), some assumptions made\n");
 	}
 	else
 	{
-		PandL = (Buffer[4] << 4) | (Buffer[5] >> 4);
+		PandL = (pSeqExt[2] << 4) | (pSeqExt[3] >> 4);
 		
-		if(Buffer[5] & 0x08) Progressive = true; else Progressive = false;
+		if(pSeqExt[3] & 0x08) Progressive = true; else Progressive = false;
 
-		int Sub = ((Buffer[5] & 0x01) << 1) | (Buffer[6] >> 7);
+		int Sub = ((pSeqExt[3] & 0x01) << 1) | (pSeqExt[4] >> 7);
 		if(Sub >= 2) VChromaSub = 1;
 		if(Sub == 3) HChromaSub = 1;
 
-		HSize |= ((Buffer[5] & 0x01) << 13) | ((Buffer[6] & 0x80) << 5);
-		VSize |= ((Buffer[6] & 0x60) << 7);
-		BitRate |= ((Buffer[6] & 0x1f) << 25) | ((Buffer[7] & 0xfe) << 17);
+		HSize |= ((pSeqExt[3] & 0x01) << 13) | ((pSeqExt[4] & 0x80) << 5);
+		VSize |= ((pSeqExt[4] & 0x60) << 7);
+		BitRate |= ((pSeqExt[4] & 0x1f) << 25) | ((pSeqExt[5] & 0xfe) << 17);
 
-		if(Buffer[9] & 0x80) LowDelay = true;
+		if(pSeqExt[7] & 0x80) LowDelay = true;
 
-		int FR_n = ((Buffer[9] & 0x60) >> 5) + 1;
-		int FR_d = (Buffer[9] & 0x1f) + 1;
+		int FR_n = ((pSeqExt[7] & 0x60) >> 5) + 1;
+		int FR_d = (pSeqExt[7] & 0x1f) + 1;
 
 		FrameRate *= FR_n;
 		FrameRate /= FR_d;
