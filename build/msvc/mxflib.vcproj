@@ -1054,6 +1054,9 @@
 				RelativePath="..\..\mxflib\deftypes.h">
 			</File>
 			<File
+				RelativePath="..\..\mxflib\dict.h">
+			</File>
+			<File
 				RelativePath="..\..\mxflib\endian.h">
 			</File>
 			<File
