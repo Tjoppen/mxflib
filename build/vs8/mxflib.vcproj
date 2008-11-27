@@ -90,7 +90,7 @@
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -1340,6 +1340,10 @@
 			</File>
 			<File
 				RelativePath="..\..\mxflib\deftypes.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\mxflib\dict.h"
 				>
 			</File>
 			<File
