@@ -1,7 +1,7 @@
 /*! \file	mdtraits.cpp
  *	\brief	Implementation of traits for MDType definitions
  *
- *	\version $Id: mdtraits.cpp,v 1.25 2007/07/09 17:12:43 matt-beard Exp $
+ *	\version $Id: mdtraits.cpp,v 1.26 2008/11/28 14:32:15 terabrit Exp $
  *
  */
 /*
@@ -1126,7 +1126,7 @@ size_t MDTraits_BasicArray::ReadValue(MDValuePtr Object, const UInt8 *Buffer, si
 		Bytes += 8;
 		Size -= 8;
 
-		if(Count > (int)ItemCount)
+		if(Count > (int)ItemCount  && !UnknownCount)
 		{
 			error("Tried to read more items from batch of type %s than available - requested = %u, available = %u\n", Object->Name().c_str(), Count, ItemCount);
 		}
