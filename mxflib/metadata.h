@@ -8,7 +8,7 @@
  *			- The Package class holds data about a package.
  *			- The Track class holds data about a track.
  *
- *	\version $Id: metadata.h,v 1.14 2007/04/01 20:39:42 matt-beard Exp $
+ *	\version $Id: metadata.h,v 1.15 2009/09/17 07:59:41 matt-beard Exp $
  *
  */
 /*
@@ -590,8 +590,8 @@ namespace mxflib
 			return AddTrack(DataDD, TrackNumber, EditRate, TrackName, TrackID);
 		}
 
-		TrackPtr AddTimecodeTrack(Rational EditRate, std::string TrackName = "Timecode Track", UInt32 TrackID = 0) { return AddTimecodeTrack(0, EditRate, TrackName, TrackID); }
-		TrackPtr AddTimecodeTrack(UInt32 TrackNumber, Rational EditRate, std::string TrackName = "Timecode Track", UInt32 TrackID = 0)
+		TrackPtr AddTimecodeTrack(Rational EditRate, std::string TrackName = "Master Timecode", UInt32 TrackID = 0) { return AddTimecodeTrack(0, EditRate, TrackName, TrackID); }
+		TrackPtr AddTimecodeTrack(UInt32 TrackNumber, Rational EditRate, std::string TrackName = "Master Timecode", UInt32 TrackID = 0)
 		{
 			static const ULPtr TCDD = new UL(TrackTypeDataDefTimecode12M);
 			return AddTrack(TCDD, TrackNumber, EditRate, TrackName, TrackID);
