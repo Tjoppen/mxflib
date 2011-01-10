@@ -3,7 +3,8 @@
 	ProjectType="Visual C++"
 	Version="8.00"
 	Name="mxflib"
-	ProjectGUID="{DA7B54E1-39AC-4806-91EF-6A29F31E05FF}"
+	ProjectGUID="{10CFA824-5645-4D02-AE6D-7623DBB6E012}"
+	RootNamespace="mxflib"
 	>
 	<Platforms>
 		<Platform
@@ -15,11 +16,12 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
+			UseOfATL="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
 			>
@@ -40,18 +42,22 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
-				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;_DEBUG;_LIB"
+				AdditionalIncludeDirectories="..\..;&quot;$(EXPAT_ROOT)\lib&quot;"
+				PreprocessorDefinitions="_DEBUG;WIN32;_LIB;HAVE_EXPAT;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;AS_PBS"
+				StringPooling="false"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
+				EnableFunctionLevelLinking="false"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough=""
 				PrecompiledHeaderFile=".\Debug/mxflib.pch"
+				ProgramDataBaseFileName="$(OutDir)\vc80.pdb"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
+				CallingConvention="0"
 				CompileAs="0"
 			/>
 			<Tool
@@ -67,7 +73,10 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
-				SuppressStartupBanner="true"
+				AdditionalDependencies="$(EXPAT_ROOT)\win32\vs8\release\libexpatMD.lib"
+				AdditionalLibraryDirectories=""
+				SuppressStartupBanner="false"
+				IgnoreAllDefaultLibraries="true"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -87,10 +96,10 @@
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -112,16 +121,16 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
-				Optimization="4"
-				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;NDEBUG;_LIB"
+				Optimization="0"
+				AdditionalIncludeDirectories="..\..;&quot;$(EXPAT_ROOT)\lib&quot;"
+				PreprocessorDefinitions="NDEBUG;WIN32;_LIB;HAVE_EXPAT;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;AS_PBS"
 				RuntimeLibrary="2"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxflib.pch"
+				PrecompiledHeaderFile=""
+				ProgramDataBaseFileName="$(OutDir)\vc80.pdb"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				DebugInformationFormat="3"
 				CompileAs="0"
 			/>
 			<Tool
@@ -137,7 +146,11 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
+				AdditionalDependencies="$(EXPAT_ROOT)\win32\vs8\release\libexpatMD.lib"
+				OutputFile="$(OutDir)/mxflib.lib"
+				AdditionalLibraryDirectories=""
 				SuppressStartupBanner="true"
+				IgnoreAllDefaultLibraries="true"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -157,11 +170,12 @@
 		</Configuration>
 		<Configuration
 			Name="DebugStatic|Win32"
-			OutputDirectory="$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
+			UseOfATL="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
 			>
@@ -182,18 +196,21 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
-				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;_DEBUG;_LIB"
+				AdditionalIncludeDirectories="..\..;&quot;$(EXPAT_ROOT)\lib&quot;"
+				PreprocessorDefinitions="_DEBUG;WIN32;_LIB;HAVE_EXPAT;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;AS_PBS"
+				StringPooling="false"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
+				EnableFunctionLevelLinking="false"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough=""
 				PrecompiledHeaderFile=".\Debug/mxflib.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
+				CallingConvention="0"
 				CompileAs="0"
 			/>
 			<Tool
@@ -209,7 +226,10 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
-				SuppressStartupBanner="true"
+				AdditionalDependencies="$(EXPAT_ROOT)\win32\vs8\DebugStatic\libexpatMT.lib"
+				AdditionalLibraryDirectories=""
+				SuppressStartupBanner="false"
+				IgnoreAllDefaultLibraries="true"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -229,10 +249,10 @@
 		</Configuration>
 		<Configuration
 			Name="ReleaseStatic|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -254,16 +274,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="4"
-				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;NDEBUG;_LIB"
+				AdditionalIncludeDirectories="..\..;&quot;$(EXPAT_ROOT)\lib&quot;"
+				PreprocessorDefinitions="NDEBUG;WIN32;_LIB;HAVE_EXPAT;XML_STATIC;AS_PBS"
 				RuntimeLibrary="0"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxflib.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				DebugInformationFormat="3"
 				CompileAs="0"
 			/>
 			<Tool
@@ -279,7 +298,11 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
+				AdditionalDependencies="$(EXPAT_ROOT)\win32\vs8\releasestatic\libexpatMT.lib"
+				OutputFile="$(OutDir)/mxflib.lib"
+				AdditionalLibraryDirectories=""
 				SuppressStartupBanner="true"
+				IgnoreAllDefaultLibraries="true"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -305,6 +328,10 @@
 			Name="Source Files"
 			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 			>
+			<File
+				RelativePath="..\..\mxflib\audiomux.cpp"
+				>
+			</File>
 			<File
 				RelativePath="..\..\mxflib\crypto.cpp"
 				>
@@ -440,46 +467,6 @@
 			<File
 				RelativePath="..\..\mxflib\esp.cpp"
 				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						Optimization="0"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-						BasicRuntimeChecks="3"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="DebugStatic|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						Optimization="0"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-						BasicRuntimeChecks="3"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="ReleaseStatic|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath="..\..\mxflib\esp_dvdif.cpp"
@@ -528,46 +515,6 @@
 			<File
 				RelativePath="..\..\mxflib\esp_jp2k.cpp"
 				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						Optimization="0"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-						BasicRuntimeChecks="3"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="DebugStatic|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						Optimization="0"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-						BasicRuntimeChecks="3"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="ReleaseStatic|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath="..\..\mxflib\esp_mpeg2ves.cpp"
@@ -834,6 +781,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\mxflib\legacytypes.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\..\mxflib\mdobject.cpp"
 				>
 				<FileConfiguration
@@ -1008,6 +959,10 @@
 						PreprocessorDefinitions=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\mxflib\metadict.cpp"
+				>
 			</File>
 			<File
 				RelativePath="..\..\mxflib\mxffile.cpp"
@@ -1186,6 +1141,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\mxflib\rxiparser.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\..\mxflib\sopsax.cpp"
 				>
 				<FileConfiguration
@@ -1230,92 +1189,16 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\mxflib\types.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\..\mxflib\vbi.cpp"
 				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						Optimization="0"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-						BasicRuntimeChecks="3"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="DebugStatic|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						Optimization="0"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-						BasicRuntimeChecks="3"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="ReleaseStatic|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath="..\..\mxflib\xmlparser.cpp"
 				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						Optimization="0"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-						BasicRuntimeChecks="3"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="DebugStatic|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						Optimization="0"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-						BasicRuntimeChecks="3"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="ReleaseStatic|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
 			</File>
 		</Filter>
 		<Filter
@@ -1323,7 +1206,7 @@
 			Filter="h;hpp;hxx;hm;inl"
 			>
 			<File
-				RelativePath="..\..\mxflib\constants.h"
+				RelativePath="..\..\mxflib\audiomux.h"
 				>
 			</File>
 			<File
@@ -1344,6 +1227,10 @@
 			</File>
 			<File
 				RelativePath="..\..\mxflib\dict.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\mxflib\dict_dms1.h"
 				>
 			</File>
 			<File
@@ -1391,6 +1278,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\mxflib\legacytypes.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\mxflib\mdobject.h"
 				>
 			</File>
@@ -1407,11 +1298,19 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\mxflib\metadict.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\mxflib\mxffile.h"
 				>
 			</File>
 			<File
 				RelativePath="..\..\mxflib\mxflib.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\mxflib\mxflib_assert.h"
 				>
 			</File>
 			<File
@@ -1423,7 +1322,15 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\mxflib\refmetadict.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\mxflib\rip.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\mxflib\rxiparser.h"
 				>
 			</File>
 			<File
@@ -1439,6 +1346,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\mxflib\typeif.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\mxflib\types.h"
 				>
 			</File>
@@ -1448,6 +1359,10 @@
 			</File>
 			<File
 				RelativePath="..\..\mxflib\vbi.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\mxflib\XMLMetaParser.h"
 				>
 			</File>
 			<File
@@ -1474,10 +1389,6 @@
 		</Filter>
 		<File
 			RelativePath="..\..\dict.xml"
-			>
-		</File>
-		<File
-			RelativePath="..\..\license.txt"
 			>
 		</File>
 		<File

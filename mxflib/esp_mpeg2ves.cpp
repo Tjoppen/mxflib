@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.cpp
  *	\brief	Implementation of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.cpp,v 1.14 2008/10/22 12:04:57 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.cpp,v 1.15 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -64,14 +64,14 @@ StringList MPEG2_VES_EssenceSubParser::HandledExtensions(void)
 EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHandle InFile)
 {
 	int BufferBytes;
-	UInt8 Buffer[512];
+	UInt8 Buffer[1024*8];
 	UInt8 *BuffPtr;
 
 	EssenceStreamDescriptorList Ret;
 
 	// Read the first 512 bytes of the file to allow us to investigate it
 	FileSeek(InFile, 0);
-	BufferBytes = (int)FileRead(InFile, Buffer, 512);
+	BufferBytes = (int)FileRead(InFile, Buffer, 1024*8);
 	
 	// If the file is smaller than 16 bytes give up now!
 	if(BufferBytes < 16) return Ret;
@@ -84,20 +84,34 @@ EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHand
 	BuffPtr = &Buffer[2];
 	int StartPos = 0;						//!< Start position of sequence header (when found)
 	int ScanLeft = BufferBytes - 3;			//!< Number of bytes left in buffer to scan
-	while(!(*BuffPtr))
+	for(;;)
 	{
-		if(!--ScanLeft) break;
-		StartPos++;
-		BuffPtr++;
+		while(!(*BuffPtr))
+		{
+			if(!--ScanLeft) break;			// End of buffer and no start code
+			BuffPtr++;
+			StartPos++;
+		}
+
+		// Got close to the end of the buffer without finding the qequence header - give up
+		if(ScanLeft < 2) return Ret;
+
+		// Is this a start code?
+		if(*BuffPtr == 1)
+		{
+			// .. is it a sequence header?
+			if(BuffPtr[1] == 0xb3) break;
+		}
+
+		// Not found - scan for another start code
+		while(--ScanLeft)
+		{
+			// Stop when we find a pair of zeros
+			if((*BuffPtr == 0) && ((ScanLeft > 1) && (BuffPtr[1] == 0))) break;
+			BuffPtr++;
+			StartPos++;
+		}
 	}
-
-	// If we haven't found a start code then quit
-	if(*BuffPtr != 1) return Ret;
-
-	// Check what type of start code we have found
-	// Only accept MPEG2-VES which will always start with a sequence header
-	BuffPtr++;
-	if(*BuffPtr != 0xb3) return Ret;
 
 	MDObjectPtr DescObj = BuildMPEG2VideoDescriptor(InFile, StartPos);
 	
@@ -110,6 +124,9 @@ EssenceStreamDescriptorList MPEG2_VES_EssenceSubParser::IdentifyEssence(FileHand
 	Descriptor->Description = "MPEG2 video essence";
 	Descriptor->SourceFormat.Set(MPEG2_VES_Format);
 	Descriptor->Descriptor = DescObj;
+	
+	// Set the start timecode, if read during the building of the video descriptor
+	Descriptor->StartTimecode = GOPStartTimecode;
 
 	// Record a pointer to the descriptor so we can check if we are asked to process this source
 	CurrentDescriptor = DescObj;
@@ -303,7 +320,9 @@ DataChunkPtr MPEG2_VES_EssenceSubParser::ESP_EssenceSource::GetEssenceData(size_
 	BytesRemaining -= Bytes;
 
 	// Read the data
-	return FileReadChunk(File, Bytes);
+	DataChunkPtr Ret = FileReadChunk(File, Bytes);
+
+	return Ret;
 }
 
 
@@ -386,13 +405,20 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 	UInt32 HSize = (Buffer[4] << 4) | (Buffer[5] >> 4);
 	UInt32 VSize = ((Buffer[5] & 0x0f) << 8) | (Buffer[6]);
 
-	const char *Aspect;
+	char *Aspect;
 	switch(Buffer[7] & 0xf0)
 	{
 	default: Aspect = NULL; break;
 	case 0x10: Aspect = "1/1"; break;
 	case 0x20: Aspect = "4/3"; break;
-	case 0x30: Aspect = "16/9"; break;
+	case 0x30:
+//#ifdef AS_PBS
+//		// override Bruce's 16/9 video to say 4/3
+//		Aspect = "4/3"; 
+//#else
+		Aspect = "16/9"; 
+//#endif
+		break;
 	case 0x40: Aspect = "221/100"; break;
 	}
 
@@ -467,7 +493,7 @@ MDObjectPtr MPEG2_VES_EssenceSubParser::BuildMPEG2VideoDescriptor(FileHandle InF
 		
 		if(pSeqExt[3] & 0x08) Progressive = true; else Progressive = false;
 
-		int Sub = ((pSeqExt[3] & 0x01) << 1) | (pSeqExt[4] >> 7);
+		int Sub = (pSeqExt[3] & 0x06) >> 1;
 		if(Sub >= 2) VChromaSub = 1;
 		if(Sub == 3) HChromaSub = 1;
 
@@ -523,7 +549,7 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 	if(Progressive) Ret->SetInt(FrameLayout_UL, 0); else Ret->SetInt(FrameLayout_UL, 1);
 
 	Ret->SetUInt(StoredWidth_UL, HSize);
-	Ret->SetUInt(StoredHeight_UL, VSize);
+	Ret->SetUInt(StoredHeight_UL, Progressive ? VSize : (VSize / 2));
 
 	if(Aspect) Ret->SetString(AspectRatio_UL, Aspect); else Ret->SetDValue(AspectRatio_UL);
 
@@ -533,21 +559,31 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 		int F1 = 0;
 		int F2 = 0;
 
-		if(VSize == 576) { F1 = 1; F2 = 313; }
-		else if(VSize == 480) { F1 = 4; F2 = 266; }
-//		else if(VSize == 720) { F1 = 1; F2 = 0; }
-//		else if((VSize == 1080) && Progressive) { F1 = 1; F2 = 0; }
-//		else if(VSize == 1080) { F1 = 1; F2 = 564; }
-
-		if((F1 == 0) & (F2 == 0))
+		if(Progressive)
 		{
-			Ptr->AddChild()->SetDValue();
-			Ptr->AddChild()->SetDValue();
+			if(VSize == 480) { F1 = 45; F2 = 0; }
+			else if(VSize == 512) { F1 = 13; F2 = 0; }
+			else if(VSize == 720) { F1 = 26; F2 = 0; }
+			else if(VSize == 1080) { F1 = 42; F2 = 0; }
 		}
 		else
 		{
-			Ptr->AddChild()->SetUInt(F1);
-			Ptr->AddChild()->SetUInt(F2);
+			if(VSize == 576) { F1 = 23; F2 = 336; }
+			else if(VSize == 480) { F1 = 23; F2 = 286; }
+			else if(VSize == 512) { F1 = 7; F2 = 270; }
+			else if(VSize == 608) { F1 = 7; F2 = 320; }
+			else if(VSize == 1080) { F1 = 21; F2 = 584; }
+		}
+
+		Ptr->Value->Resize(2);
+		if((F1 == 0) & (F2 == 0))
+		{
+			Ptr->SetDValue();
+		}
+		else
+		{
+			Ptr[0]->SetUInt(F1);
+			Ptr[1]->SetUInt(F2);
 		}
 	}
 
@@ -578,6 +614,43 @@ printf("Chroma vertical sub-sampling = %d\n", VChromaSub);
 	Ret->SetUInt(MaxGOP_UL,				15);			// from IBP Descriptor, check while parsing
 	Ret->SetUInt(BPictureCount_UL, 2);				// evaluate while parsing
 #endif
+
+	const char *PECL_MPML_IFrame = "06.0E.2B.34.04.01.01.03.04.01.02.02.01.01.10.00";
+	const char *PECL_MPML_LongGop = "06.0E.2B.34.04.01.01.03.04.01.02.02.01.01.11.00";
+	const char *PECL_HPHL_IFrame = "06.0E.2B.34.04.01.01.09.04.01.02.02.01.07.02.00";
+	const char *PECL_HPHL_LongGop = "06.0E.2B.34.04.01.01.09.04.01.02.02.01.07.03.00";
+
+	if(PandL == 0x14) Ret->SetString(PictureEssenceCoding_UL, PECL_HPHL_LongGop);
+	else if(PandL == 0x48)  Ret->SetString(PictureEssenceCoding_UL, PECL_MPML_LongGop);
+
+	/* Scan the buffer for a GOP header to pick out the starting timecode */
+
+	// Only scan up to the last 8 bytes as that would not leave enough usable for the GOP Header
+	// Don't scan the first 3 as we are looking for the final byte of the start code, then looking backwards
+	int i;
+	UInt8 *p = &Buffer[3];
+	for(i=3; i<(BUFFERSIZE-8); i++)
+	{
+		// Test the GOP Header start code of 0x000001b8 backwards
+		if(*p == 0xb8)
+		{
+			if((p[-1] == 0x01) && (p[-2] == 0x00) && (p[-3] == 0x00))
+			{
+				// DRAGONS: p now points to the last byte of the start code
+
+				bool StartTCDrop = (p[1] & 0x80) != 0;
+				int StartTCHours = (p[1] >> 2) & 0x1f;
+				int StartTCMinutes = ((p[1] & 0x03) << 4) | (p[2] >> 4);
+				int StartTCSeconds = ((p[2] & 0x07) << 3) | (p[3] >> 5);
+				int StartTCPictures = ((p[3] & 0x1f) << 1) | (p[4] >> 7);
+
+				GOPStartTimecode = TCtoFrames(FrameRate, StartTCDrop, StartTCHours, StartTCMinutes, StartTCSeconds, StartTCPictures);
+
+				break;
+			}
+		}
+		p++;
+	}
 
 	return Ret;
 }
@@ -613,7 +686,7 @@ size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 	Count *= EditRatio;
 
 	// Return anything we can find if clip wrapping
-	if(SelectedWrapping->ThisWrapType == WrappingOption::Clip) Count = UINT64_C(0xffffffffffffffff);
+	//if(SelectedWrapping->ThisWrapType == WrappingOption::Clip) Count = UINT64_C(0xffffffffffffffff);
 
 	while(Count)
 	{
@@ -691,8 +764,8 @@ size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 						int AnchorOffset = (int)(AnchorFrame - PictureNumber);
 						
 						// As stated in 381M section A.2 if AnchorOffset bursts the range, it will be fixed at the
-						// "maximum value which can be represented" (note: not the minimum!) and bit 3 of the flags btes be set
-						if(AnchorOffset < 128)
+						// "maximum value which can be represented" (note: not the minimum!) and bit 3 of the flags byte be set
+						if(AnchorOffset < -128)
 						{
 							AnchorOffset = 127;
 							Flags |= 4;
@@ -769,7 +842,7 @@ size_t MPEG2_VES_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream
 
 	// Store so we don't have to calculate if called again without reading
 	CachedDataSize =  static_cast<size_t>(Ret);
-	
+
 	return CachedDataSize;
 }
 
@@ -797,7 +870,7 @@ bool MPEG2_VES_EssenceSubParser::SetOption(std::string Option, Int64 Param /*=0*
 {
 	if(Option == "EditPoint") return EditPoint;
 
-	warning("MPEG2_VES_EssenceSubParser::SetOption(\"%s\", Param) not a known option\n", Option.c_str());
+	debug("MPEG2_VES_EssenceSubParser::SetOption(\"%s\", Param) not a known option\n", Option.c_str());
 
 	return false; 
 }

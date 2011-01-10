@@ -4,7 +4,7 @@
  *			The Metadata class holds data about a set of Header Metadata.
  *			The class holds a Preface set object
  *
- *	\version $Id: metadata.cpp,v 1.12 2006/09/01 15:54:38 matt-beard Exp $
+ *	\version $Id: metadata.cpp,v 1.13 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -31,13 +31,13 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
 /* Define metadata static members */
 
-Track::TrackTypeList Track::TrackTypes;		//!< List of known track type definitions
+Track::TrackTypeMap Track::TrackTypes;		//!< List of known track type definitions
 bool Track::TrackTypesInited;				//!< Set true once TrackTypeList has been initialized
 
 
@@ -64,9 +64,9 @@ void Metadata::Init(void)
 	Object = new MDObject(Preface_UL);
 
 	// Even though it isn't used the preface needs an InstanceUID
-	// as it is defived from GenerationInterchangeObject
+	// as it is derived from InterchangeObject
 	UUIDPtr ThisInstance = new UUID;
-	Object->AddChild(InstanceUID_UL)->ReadValue(DataChunk(16, ThisInstance->GetValue()));
+	Object->AddChild(InstanceUID_UL)->SetValue(DataChunk(16, ThisInstance->GetValue()));
 
 	Object->AddChild(LastModifiedDate_UL)->SetString(ModificationTime);
 	Object->AddChild(Version_UL)->SetInt(258);
@@ -77,13 +77,42 @@ void Metadata::Init(void)
 	Object->AddChild(DMSchemes_UL);
 
 	// Add a content storage object
-	MDObjectPtr Content = new MDObject(ContentStorageSet_UL);
-	ASSERT(Content);
+	MDObjectPtr Content = new MDObject(ContentStorage_UL);
+	mxflib_assert(Content);
 	Content->AddChild(Packages_UL);
-	Content->AddChild(EssenceContainerDataBatch_UL);
+	Content->AddChild(EssenceDataObjects_UL);
 
-	Object->AddChild(ContentStorage_UL)->MakeRef(Content);
+	Object->AddChild(ContentStorageObject_UL)->MakeRef(Content);
 }
+
+
+//! Add a DMScheme to the listed schemes
+void Metadata::AddDMScheme(ULPtr Scheme)
+{
+	// Read the string value of this scheme once only
+	std::string SchemeString = Scheme->GetString();
+
+	// Get a list of current schemes
+	MDObjectPtr SchemeList = Object->Child(DMSchemes_UL);
+
+	// Compare the string value of all existing schemes to see if this is a new one
+	MDObject::iterator it = SchemeList->begin();
+	while(it != SchemeList->end())
+	{
+		if((*it).second->GetString() == SchemeString)
+		{
+			// Scheme already in list
+			return;
+		}
+
+		it++;
+	}
+
+	// Not there so add it
+	MDObjectPtr Ptr = SchemeList->AddChild();
+	if(Ptr) Ptr->SetString(SchemeString);
+}
+
 
 // Add a package of the specified type to the matadata
 PackagePtr mxflib::Metadata::AddPackage(const UL &PackageType, std::string PackageName, UMIDPtr PackageUMID, UInt32 BodySID /*=0*/)
@@ -98,21 +127,23 @@ PackagePtr mxflib::Metadata::AddPackage(const UL &PackageType, std::string Packa
 	if(!Ret) return Ret;
 
 	// Set the package name if one supplied
-	if(PackageName.length()) Ret->SetString(GenericPackage_Name_UL, PackageName);
+	if(PackageName.length()) Ret->SetString(PackageName_UL, PackageName);
 
 	// Set the package's properties
-	Ret->AddChild(PackageUID_UL)->ReadValue(PackageUMID->GetValue(), 32);
+	Ret->AddChild(PackageUID_UL)->SetValue(PackageUMID->GetValue(), 32);
 	Ret->SetString(PackageCreationDate_UL, ModificationTime);
 	Ret->SetString(PackageModifiedDate_UL, ModificationTime);
 	Ret->AddChild(Tracks_UL);
 
 	// Add to the content storage set
-	MDObjectPtr Ptr = Object->Child(ContentStorage_UL);
+	MDObjectPtr Ptr = Object->Child(ContentStorageObject_UL);
 	if(Ptr) Ptr = Ptr->GetLink();
 	if(Ptr) Ptr = Ptr[Packages_UL];
 	if(Ptr) Ptr->AddChild()->MakeRef(Ret->Object);
 
 	if(BodySID) AddEssenceContainerData(PackageUMID, BodySID);
+
+	Ret->SetParent(this);
 
 	// Add this package to our "owned" packages
 	Packages.push_back(Ret);
@@ -133,7 +164,7 @@ PackagePtr Metadata::GetPrimaryPackage(void)
 	}
 	else
 	{
-		MDObjectPtr Packages = Child(ContentStorage_UL);
+		MDObjectPtr Packages = Child(ContentStorageObject_UL);
 		if(Packages) Packages = Packages->GetLink();
 		if(Packages) Packages = Packages[Packages_UL];
 		if(!Packages)
@@ -189,20 +220,22 @@ bool SourceClip::MakeLink(UMIDPtr LinkUMID, UInt32 LinkTrackID, Int64 StartPosit
 }
 
 
-//! Set the duration for this Component and update any parent object durations
+
+
+//! Set the duration for this Component and update the track's sequence duration
 /*! \param Duration The duration of this Component, -1 or omitted for unknown */
 void Component::SetDuration(Int64 Duration /*=-1*/)
 {
 	if(Duration < 0)
-		SetDValue(Duration_UL);
+		SetDValue(ComponentLength_UL);
 	else
-		SetInt64(Duration_UL, Duration);
+		SetInt64(ComponentLength_UL, Duration);
 
 	// Update the duration in the sequence
 	if(Duration < 0) 
 	{
-		MDObjectPtr Sequence = Parent[Sequence_UL]->GetLink();
-		if(Sequence) Sequence->SetDValue(Duration_UL);
+		MDObjectPtr Sequence = Parent[TrackSegment_UL]->GetLink();
+		if(Sequence) Sequence->SetDValue(ComponentLength_UL);
 	}
 	else
 	{
@@ -214,19 +247,19 @@ void Component::SetDuration(Int64 Duration /*=-1*/)
 //! Add an entry into the essence container data set for a given essence stream
 bool Metadata::AddEssenceContainerData(UMIDPtr TheUMID, UInt32 BodySID, UInt32 IndexSID /*=0*/)
 {
-	MDObjectPtr EssenceContainerData = new MDObject(EssenceContainerDataSet_UL);
-	ASSERT(EssenceContainerData);
-	
+	MDObjectPtr EssenceContainerData = new MDObject(EssenceContainerData_UL);
+	mxflib_assert(EssenceContainerData);
+
 	EssenceContainerData->SetValue(LinkedPackageUID_UL, DataChunk(TheUMID.GetPtr()));
 	EssenceContainerData->SetUInt(BodySID_UL, BodySID);
 	if(IndexSID) EssenceContainerData->SetUInt(IndexSID_UL, IndexSID);
 
-	MDObjectPtr Content = Object[ContentStorage_UL];
+	MDObjectPtr Content = Object[ContentStorageObject_UL];
 	if(Content) Content = Content->GetLink();
 
 	if(!Content) return false;
 
-	MDObjectPtr Ptr = Content[EssenceContainerDataBatch_UL];
+	MDObjectPtr Ptr = Content[EssenceDataObjects_UL];
 	if(!Ptr) return false;
 
 	Ptr->AddChild()->MakeRef(EssenceContainerData);
@@ -349,6 +382,7 @@ bool Metadata::UpdateGenerations_Internal(MDObjectPtr Obj, UUIDPtr ThisGeneratio
 					Mod = UpdateGenerations_Internal(Link, ThisGeneration) || Mod;
 				}
 			}
+			else Mod = Mod || (*it).second->IsModified();
 		}
 		it++;
 	}
@@ -386,6 +420,7 @@ void Metadata::ClearModified_Internal(MDObjectPtr Obj)
 }
 
 
+
 //! Add a SourceClip to a track
 /*! \param Duration The duration of this SourceClip, -1 or omitted for unknown */
 SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
@@ -396,9 +431,9 @@ SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
 
 	// Set the duration
 	if(Duration < 0)
-		Ret->SetDValue(Duration_UL);
+		Ret->SetDValue(ComponentLength_UL);
 	else
-		Ret->SetInt64(Duration_UL, Duration);
+		Ret->SetInt64(ComponentLength_UL, Duration);
 	
 	// Add zero package and track IDs
 	Ret->AddChild(SourcePackageID_UL);
@@ -407,32 +442,33 @@ SourceClipPtr Track::AddSourceClip(Int64 Duration /*=-1*/)
 	// Initially assume the SourceClip starts at the start of the referenced essence
 	Ret->AddChild(StartPosition_UL, 0);
 
-	// Add this SourceClip to the sequence for this track
-	MDObjectPtr Sequence = Child(Sequence_UL)->GetLink();
-	Sequence[StructuralComponents_UL]->AddChild()->MakeRef(Ret->Object);
-
-	// Copy the data definition from the sequence
-	Ret->AddChild(DataDefinition_UL)->ReadValue(Sequence[DataDefinition_UL]->PutData());
-
-	// Add this sequence to the list of "owned" components
-	Components.push_back(SmartPtr_Cast(Ret, Component));
-//	Components.push_back(Ret);
-
-	// Record the track as the parent of the new SourceClip
-	Ret->SetParent(this);
-
-	// Update the duration in the sequence
-	if(Duration < 0) 
-	{
-		Sequence->SetDValue(Duration_UL);
-	}
-	else
-	{
-		UpdateDuration();
-	}
+		// Add this SourceClip to the sequence for this track
+		MDObjectPtr Sequence = Child(TrackSegment_UL)->GetLink();
+		Sequence[StructuralComponents_UL]->AddChild()->MakeRef(Ret->Object);
+	
+		// Copy the data definition from the sequence
+		Ret->AddChild(ComponentDataDefinition_UL)->SetValue(Sequence[ComponentDataDefinition_UL]->PutData());
+	
+		// Add this sequence to the list of "owned" components
+		Components.push_back(SmartPtr_Cast(Ret, Component));
+	//	Components.push_back(Ret);
+	
+		// Record the track as the parent of the new SourceClip
+		Ret->SetParent(this);
+	
+		// Update the duration in the sequence
+		if(Duration < 0) 
+		{
+			Sequence->SetDValue(ComponentLength_UL);
+		}
+		else
+		{
+			UpdateDuration();
+		}
 
 	return Ret;
 }
+
 
 //! Add a Timecode Component to a track
 /*! \param FPS The rounded integer timebase of the track in frames per second
@@ -455,32 +491,35 @@ TimecodeComponentPtr Track::AddTimecodeComponent(UInt16 FPS, bool DropFrame, Int
 
 	// Set the duration
 	if(Duration < 0)
-		Ret->SetDValue(Duration_UL);
+		Ret->SetDValue(ComponentLength_UL);
 	else
-		Ret->SetInt64(Duration_UL, Duration);
+		Ret->SetInt64(ComponentLength_UL, Duration);
 
-	// Add this Timecode Component to the sequence for this track
-	MDObjectPtr Sequence = Child(Sequence_UL)->GetLink();
-	Sequence[StructuralComponents_UL]->AddChild()->MakeRef(Ret->Object);
+		// Add this Timecode Component to the sequence for this track
+		MDObjectPtr Sequence = Child(TrackSegment_UL)->GetLink();
+		MDObjectPtr S1=Sequence[StructuralComponents_UL];
+		MDObjectPtr C1=S1->AddChild();
+		C1->MakeRef(Ret->Object);
 
-	// Copy the data definition from the sequence
-	Ret->AddChild(DataDefinition_UL)->ReadValue(Sequence[DataDefinition_UL]->PutData());
+		// Copy the data definition from the sequence
+		Ret->AddChild(ComponentDataDefinition_UL)->SetValue(Sequence[ComponentDataDefinition_UL]->PutData());
 
-	// Record the track as the parent of the new Timecode Component
-	Ret->SetParent(this);
+		// Record the track as the parent of the new Timecode Component
+		Ret->SetParent(this);
 
-	// Update the duration in the sequence
-	if(Duration < 0) 
-	{
-		Sequence->SetDValue(Duration_UL);
-	}
-	else
-	{
-		UpdateDuration();
-	}
+		// Update the duration in the sequence
+		if(Duration < 0) 
+		{
+			Sequence->SetDValue(ComponentLength_UL);
+		}
+		else
+		{
+			UpdateDuration();
+		}
 
 	return Ret;
 }
+
 
 //! Add a DMSegment to a track
 /*! \param EventStart The start position of this Segemnt, -1 or omitted for static or timeline
@@ -493,7 +532,7 @@ DMSegmentPtr Track::AddDMSegment(Int64 EventStart /*=-1*/,Int64 Duration /*=-1*/
 
 	// Set the duration - or not if there is none
 	if(Duration >= 0)
-		Ret->SetInt64(Duration_UL, Duration);
+		Ret->SetInt64(ComponentLength_UL, Duration);
 	
 	// Add zero linked track IDs and DMFramework
 	Ret->AddChild(TrackIDs_UL);
@@ -504,11 +543,11 @@ DMSegmentPtr Track::AddDMSegment(Int64 EventStart /*=-1*/,Int64 Duration /*=-1*/
 		Ret->AddChild(EventStartPosition_UL, 0);
 
 	// Add this SourceClip to the sequence for this track
-	MDObjectPtr Sequence = Child(Sequence_UL)->GetLink();
+	MDObjectPtr Sequence = Child(TrackSegment_UL)->GetLink();
 	Sequence[StructuralComponents_UL]->AddChild()->MakeRef(Ret->Object);
 
 	// Copy the data definition from the sequence
-	Ret->AddChild(DataDefinition_UL)->ReadValue(Sequence[DataDefinition_UL]->PutData());
+	Ret->AddChild(ComponentDataDefinition_UL)->SetValue(Sequence[ComponentDataDefinition_UL]->PutData());
 
 	// Record the track as the parent of the new DMSegment
 	Ret->SetParent(this);
@@ -526,7 +565,7 @@ DMSegmentPtr Track::AddDMSegment(Int64 EventStart /*=-1*/,Int64 Duration /*=-1*/
 /*! \return The duration, or -1 if unknown */
 Int64 Track::UpdateDuration(void)
 {
-	MDObjectPtr Sequence = Child(Sequence_UL)->GetLink();
+	MDObjectPtr Sequence = Child(TrackSegment_UL)->GetLink();
 	Int64 SeqDuration = 0;
 	MDObjectPtr Structs = Sequence[StructuralComponents_UL];
 
@@ -546,21 +585,51 @@ Int64 Track::UpdateDuration(void)
 		}
 
 		// If any component is unknown the sum is unknown
-		if(Link->IsDValue(Duration_UL))
+		if(Link->IsDValue(ComponentLength_UL))
 		{
 			SeqDuration = -1;
 			break;
 		}
-		SeqDuration += Link->GetInt64(Duration_UL);
+		SeqDuration += Link->GetInt64(ComponentLength_UL);
 		it++;
 	}
 
 	if(SeqDuration < 0)
-		Sequence->SetDValue(Duration_UL);
+		Sequence->SetDValue(ComponentLength_UL);
 	else
-		Sequence->SetInt64(Duration_UL, SeqDuration);
+		Sequence->SetInt64(ComponentLength_UL, SeqDuration);
 
 	return SeqDuration;
+}
+
+namespace
+{
+	//! Locate the DataDef with a given Identification
+	MDObjectPtr DictionaryLocate(const MDObjectPtr &Dictionary, const ULPtr &Identification)
+	{
+		MDObjectPtr DataDefs = Dictionary->Child(DataDefinitions_UL);
+		if(DataDefs)
+		{
+			MDObject::const_iterator it = DataDefs->begin();
+			while(it != DataDefs->end())
+			{
+				MDObjectPtr ThisDef = (*it).second->GetRef();
+				MDObjectPtr Ident = ThisDef ? ThisDef->Child(DefinitionObjectIdentification_UL) : NULL;
+				if(Ident)
+				{
+					DataChunkPtr IDValue = Ident->PutData();
+					if(IDValue && (IDValue->Size == 16))
+					{
+						if(memcmp(IDValue->Data, Identification->GetValue(), 16) == 0) return ThisDef;
+					}
+				}
+
+				it++;
+			}
+		}
+
+		return NULL;
+	}
 }
 
 
@@ -568,6 +637,19 @@ Int64 Track::UpdateDuration(void)
 /*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
 TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate, std::string TrackName /*=""*/, UInt32 TrackID /*=0*/)
 {
+	mxflib_assert( DataDef);
+
+	// Smart pointer to the dictionary definition to make the target of this dict ref (or NULL for 337-1 style DataDef)
+	MDObjectPtr DictRef = NULL;
+
+	/* Check if this file uses a dictionary for track definitions */
+	MetadataParent const &Meta = GetParent();
+	if(Meta)
+	{
+		MDObjectPtr Dictionary = Meta->GetRef(Dictionaries_UL);
+		if(Dictionary) DictRef = DictionaryLocate(Dictionary, DataDef);
+	}
+
 	TrackPtr Ret = new Track(Track_UL);
 	if(!Ret) return Ret;
 
@@ -585,27 +667,40 @@ TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate,
 	// Auto set the track ID if not supplied
 	if(TrackID == 0)
 	{
-		ASSERT(LastTrackID < 0xffffffff);
+		mxflib_assert(LastTrackID < 0xffffffff);
 
 		LastTrackID++;
 		TrackID = LastTrackID;
 	}
+	else
+	{
+		// save manually set TrackID
+		LastTrackID = TrackID;
+	}
 	Ret->SetInt(TrackID_UL, TrackID);
 
-	// Build a new sequence for this track
-	MDObjectPtr Sequence = new MDObject(SequenceSet_UL);
-	ASSERT(Sequence);
 
-	// Initialise the sequence
-	Sequence->AddChild(DataDefinition_UL)->ReadValue(DataDef->GetValue(), 16);
-	Sequence->SetDValue(Duration_UL);
-	Sequence->AddChild(StructuralComponents_UL);
+	{
+		// Build a new sequence for this track
+		MDObjectPtr Sequence = new MDObject(Sequence_UL);
+		mxflib_assert(Sequence);
 
-	// Add the sequence
-	Ret->AddChild(Sequence_UL)->MakeRef(Sequence);
+		/* Initialise the sequence */
+		if(DictRef)
+			Sequence->MakeRef(ComponentDataDefinition_UL, DictRef);
+		else
+			Sequence->AddChild(ComponentDataDefinition_UL)->SetValue(DataDef->GetValue(), 16);
+
+		Sequence->SetDValue(ComponentLength_UL);
+		Sequence->AddChild(StructuralComponents_UL);
+
+		// Add the sequence
+		Ret->AddChild(TrackSegment_UL)->MakeRef(Sequence);
+	}
+
 
 	// Add this track to the package
-	Child(Tracks_UL)->AddChild()->MakeRef(Ret->Object);
+	AddRef(Tracks_UL, Ret->Object);
 
 	// Add this track to our "owned" tracks
 	Tracks.push_back(Ret);
@@ -636,6 +731,9 @@ void Package::UpdateDurations(void)
 	}
 }
 
+
+
+
 //! Add an event track to the package
 /*! \note If the TrackID is set manually it is the responsibility of the caller to prevent clashes */
 TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate, Length DefaultDuration, std::string TrackName /* = "" */ , UInt32 TrackID /* = 0 */)
@@ -657,7 +755,7 @@ TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate,
 	// Auto set the track ID if not supplied
 	if(TrackID == 0)
 	{
-		ASSERT(LastTrackID < 0xffffffff);
+		mxflib_assert(LastTrackID < 0xffffffff);
 
 		LastTrackID++;
 		TrackID = LastTrackID;
@@ -665,23 +763,23 @@ TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, Rational EditRate,
 	Ret->SetInt(TrackID_UL, TrackID);
 
 	// Build a new sequence for this track
-	MDObjectPtr Sequence = new MDObject(SequenceSet_UL);
-	ASSERT(Sequence);
+	MDObjectPtr Sequence = new MDObject(Sequence_UL);
+	mxflib_assert(Sequence);
 
 	// Initialise the sequence
-	Sequence->AddChild(DataDefinition_UL)->ReadValue(DataDef->GetValue(), 16);
+	Sequence->AddChild(ComponentDataDefinition_UL)->SetValue(DataDef->GetValue(), 16);
 
 	// Pass DefaultDuration on to the Sequence
 	if( DefaultDuration == DurationUnspecified )
-		Sequence->SetDValue(Duration_UL);
+		Sequence->SetDValue(ComponentLength_UL);
 	else
-		Sequence->SetInt64(Duration_UL, DefaultDuration);
+		Sequence->SetInt64(ComponentLength_UL, DefaultDuration);
 
 
 	Sequence->AddChild(StructuralComponents_UL);
 
 	// Add the sequence
-	Ret->AddChild(Sequence_UL)->MakeRef(Sequence);
+	Ret->AddChild(TrackSegment_UL)->MakeRef(Sequence);
 
 	// Add this track to the package
 	Child(Tracks_UL)->AddChild()->MakeRef(Ret->Object);
@@ -708,7 +806,7 @@ TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, std::string TrackN
 	// Auto set the track ID if not supplied
 	if(TrackID == 0)
 	{
-		ASSERT(LastTrackID < 0xffffffff);
+		mxflib_assert(LastTrackID < 0xffffffff);
 
 		LastTrackID++;
 		TrackID = LastTrackID;
@@ -716,15 +814,15 @@ TrackPtr Package::AddTrack(ULPtr DataDef, UInt32 TrackNumber, std::string TrackN
 	Ret->SetInt(TrackID_UL, TrackID);
 
 	// Build a new sequence for this track
-	MDObjectPtr Sequence = new MDObject(SequenceSet_UL);
-	ASSERT(Sequence);
+	MDObjectPtr Sequence = new MDObject(Sequence_UL);
+	mxflib_assert(Sequence);
 
 	// Initialise the sequence
-	Sequence->AddChild(DataDefinition_UL)->ReadValue(DataDef->GetValue(), 16);
+	Sequence->AddChild(ComponentDataDefinition_UL)->SetValue(DataDef->GetValue(), 16);
 	Sequence->AddChild(StructuralComponents_UL);
 
 	// Add the sequence
-	Ret->AddChild(Sequence_UL)->MakeRef(Sequence);
+	Ret->AddChild(TrackSegment_UL)->MakeRef(Sequence);
 
 	// Add this track to the package
 	Child(Tracks_UL)->AddChild()->MakeRef(Ret->Object);
@@ -772,6 +870,7 @@ void Package::RemoveTrack(TrackPtr &Track)
 }
 
 
+
 //! Return the containing "SourceClip" object for this MDObject
 /*! \return NULL if MDObject is not contained in a SourceClip object
  */
@@ -779,6 +878,7 @@ SourceClipPtr SourceClip::GetSourceClip(MDObjectPtr Object)
 {
 	return Object->GetOuter() ? SourceClipPtr(dynamic_cast<SourceClip*>(Object->GetOuter())) : NULL;
 }
+
 
 
 //! Return the containing "DMSourceClip" object for this MDObject
@@ -873,7 +973,7 @@ MetadataPtr Metadata::Parse(MDObjectPtr BaseObject)
 	Ret->ModificationTime = Now2String();
 
 	// Locate the content storage set
-	MDObjectPtr ContentStorage = BaseObject[ContentStorage_UL];
+	MDObjectPtr ContentStorage = BaseObject[ContentStorageObject_UL];
 	if(ContentStorage) ContentStorage = ContentStorage->GetLink();
 
 	// Can't go any further if there is no content storage set!
@@ -900,7 +1000,13 @@ MetadataPtr Metadata::Parse(MDObjectPtr BaseObject)
 			PackagePtr ThisPackage = Package::Parse(LinkedPackage);
 
 			// Add it to the list of packages for this metadata
-			if(ThisPackage) Ret->Packages.push_back(ThisPackage);
+			if(ThisPackage) 
+			{
+				// Set the package's parent pointer
+				ThisPackage->SetParent(Ret);
+
+				Ret->Packages.push_back(ThisPackage);
+			}
 		}
 
 		it++;
@@ -982,7 +1088,7 @@ TrackPtr Track::Parse(MDObjectPtr BaseObject)
 	Ret = new Track(BaseObject);
 
 	// Get the sequence
-	MDObjectPtr Sequence = Ret[Sequence_UL];
+	MDObjectPtr Sequence = Ret[TrackSegment_UL];
 	if(Sequence) Sequence = Sequence->GetLink();
 
 	// Can't go any further if there is no sequence
@@ -1009,6 +1115,8 @@ TrackPtr Track::Parse(MDObjectPtr BaseObject)
 
 			// Parse all the known component types
 			if(LinkedComponent->IsA(SourceClip_UL)) ThisComponent = SourceClip::Parse(LinkedComponent);
+
+
 			else if(LinkedComponent->IsA(TimecodeComponent_UL)) ThisComponent = TimecodeComponent::Parse(LinkedComponent);
 			else if(LinkedComponent->IsA(DMSegment_UL)) ThisComponent = DMSegment::Parse(LinkedComponent);
 
@@ -1045,6 +1153,8 @@ SourceClipPtr SourceClip::Parse(MDObjectPtr BaseObject)
 
 	return Ret;
 }
+
+
 
 
 //! Parse an existing MDObject into a DMSourceClip object
@@ -1102,75 +1212,141 @@ DMSegmentPtr DMSegment::Parse(MDObjectPtr BaseObject)
 
 
 //! Determine the type of this track
-Track::TrackType Track::GetType(void)
+Track::TrackType Track::GetTrackType(void)
 {
 	/* Find the data def in the sequence */
 
-	MDObjectPtr Sequence = Child(Sequence_UL);
+	MDObjectPtr Sequence = Child(TrackSegment_UL);
 	if(Sequence) Sequence = Sequence->GetLink();
 	
 	MDObjectPtr DataDef;
-	if(Sequence) DataDef = Sequence[DataDefinition_UL];
+	if(Sequence) DataDef = Sequence[ComponentDataDefinition_UL];
+
+	// Check for dictionary reference
+	MDObjectPtr DataDefLink;
+	if(DataDef)	DataDefLink=DataDef->GetRef();
+
+	// Take the actual data def value from the dictionary entry
+	if(DataDefLink)	DataDef=DataDefLink[DefinitionObjectIdentification_UL];
 
 	// If we dont seem to have one return the last known value rather than unknown (it may still end up as undetermined)
 	if(!DataDef) return ThisTrackType;
 
 	// If we have already determined the type and it has not changed leave it as it is
-	if((ThisTrackType != TypeUndetermined) && (!DataDef->IsModified()))
+	if((ThisTrackType != TrackTypeUndetermined) && (!DataDef->IsModified()))
 	{
 		return ThisTrackType;
 	}
 
 	// Get the actual data definition bytes
 	DataChunkPtr Data = DataDef->PutData();
-	
+
 	// Sanity check the result
-	if(!Data || Data->Size != 16) return ThisTrackType;
-
-	// Initialise the track type list if required
-	if(!TrackTypesInited) InitTrackTypes();
-
-	// Check all known types
-	TrackTypeList::iterator it = TrackTypes.begin();
-	while(it != TrackTypes.end())
+	if(!Data || Data->Size == 16)
 	{
-		// Compare only the specified length
-		if(memcmp(Data->Data, (*it).Label, (*it).CompareLength) == 0)
-		{
-			ThisTrackType = (*it).Type;
-			break;
-		}
-		it++;
+		// Initialise the track type list if required
+		if(!TrackTypesInited) InitTrackTypes();
+
+		// Check all known types
+		ThisTrackType = Track::GetTrackType( UL(Data->Data) );
+	}
+
+	// If the type is still unknowm, and it is in the dictionary, try parsing the text (both name and description)
+	if((ThisTrackType == TrackTypeUndetermined) && DataDefLink)
+	{
+		std::string DataDefText = DataDefLink->GetString(DefinitionObjectName_UL) + " " + DataDefLink->GetString(DefinitionObjectDescription_UL);
+		ThisTrackType = Track::ParseTrackTypeText(DataDefText);
 	}
 
 	return ThisTrackType;
 }
 
 
+
+//! Get the single word description for the type of this track
+std::string Track::GetTrackWord(void)
+{
+	// Try and determine the track type if not yet known
+	if(ThisTrackType == TrackTypeUndetermined) GetTrackType();
+
+	// Initialise the track type list if required
+	if(!TrackTypesInited) InitTrackTypes();
+
+	TrackTypeMap::iterator it = TrackTypes.begin();
+	while(it != TrackTypes.end())
+	{
+		if((*it).second.Type == ThisTrackType) return (*it).second.Word;
+		it++;
+	}
+
+	return "Undetermined";
+}
+
+
+//! Determine the type of this track
+/*! \param Label The UL that identifies this type of track
+ */
+Track::TrackType Track::GetTrackType( const UL Label )
+{
+	// Initialise the track type list if required
+	if(!TrackTypesInited) InitTrackTypes();
+
+	TrackTypeMap::iterator it = TrackTypes.find( Label );
+
+	if( it != TrackTypes.end() ) return (*it).second.Type;
+	else return TrackTypeUndetermined;
+}
+
+//! Determine the type of this track by Name or Word
+/*! \param Text The text Name or Word that identifies this type of track
+ */
+Track::TrackType Track::GetTrackType( const char* Text )
+{
+	if( !Text ) return TrackTypeUndetermined;
+
+	// Initialise the track type list if required
+	if(!TrackTypesInited) InitTrackTypes();
+
+	// linear search of TrackTypes
+	TrackTypeMap::iterator it = TrackTypes.begin();
+
+	while( it != TrackTypes.end() )
+	{
+		if( (*it).second.Word == Text ) return (*it).second.Type;
+		it++;
+	}
+
+	// if Word seacrh failed, translate Text into UL by search of the LabelMap
+	LabelPtr Ret = Label::Find( Text );
+
+	// then search for that UL
+	if( Ret ) return Track::GetTrackType( Ret->GetValue() );
+
+	// abject failure
+	return TrackTypeUndetermined;
+}
+
+
+
+
 //! Add a new track type definition label
 /*! \param Type The type of track that this new definition identifies
  *  \param Label The label to compare with the data definition
- *  \param CompareLength The number of bytes to compare in the label, this allows generic labels
+ *  \param Word The single word abbreviated name to use for non-propeller-heads
  */
-void mxflib::Track::AddTrackType(TrackType Type, const UInt8 *Label, int CompareLength /* =16 */)
-{
-	TrackTypeListItem Item;
-
+void Track::AddTrackType(TrackType Type, const UL Label, const char* Word)
+{ 
+	TrackTypeMapItem Item;
 	Item.Type = Type;
-	Item.CompareLength = CompareLength;
+	Item.Word = Word;
 
-	// Only copy the compare length (in case the caller sent a small array)
-	memcpy(Item.Label, Label, CompareLength);
+	TrackTypeMapItemPair ItemPair;
+	ItemPair.first = Label;
+	ItemPair.second = Item;
 
-	// If the compare length is less zero pad
-	if(CompareLength < 16)
-	{
-		memset(&Item.Label[CompareLength], 0, 16-CompareLength);
-	}
-
-	// Add this new item
-	TrackTypes.push_back(Item);
+	TrackTypes.insert(ItemPair);
 }
+
 
 
 //! Initialise the TrackTypes list with known track types
@@ -1179,13 +1355,146 @@ void mxflib::Track::InitTrackTypes(void)
 	// Don't initialize twice
 	if(TrackTypesInited) return;
 
-	AddTrackType(TypeTimecode, TrackTypeDataDefTimecode12M, TrackTypeDataDefTimecode12MCompare);
-	AddTrackType(TypeTimecode, TrackTypeDataDefTimecode12MUser, TrackTypeDataDefTimecode12MUserCompare);
-	AddTrackType(TypeTimecode, TrackTypeDataDefTimecode309M, TrackTypeDataDefTimecode309MCompare);
-	AddTrackType(TypePicture, TrackTypeDataDefPicture, TrackTypeDataDefPictureCompare);
-	AddTrackType(TypeSound, TrackTypeDataDefSound, TrackTypeDataDefSoundCompare);
-	AddTrackType(TypeData, TrackTypeDataDefData, TrackTypeDataDefDataCompare);
-	AddTrackType(TypeDM, TrackTypeDataDefDM, TrackTypeDataDefDMCompare);
+	AddTrackType(TrackTypeTimecode, SMPTE12MTimecodeTrack_UL,				"Timecode"		);
+	AddTrackType(TrackTypeTimecode, SMPTE12MTimecodeActiveUserBitsTrack_UL,	"Timecode"		);
+	AddTrackType(TrackTypeTimecode, SMPTE309MTimecodeTrack_UL,				"Timecode"		);
+	AddTrackType(TrackTypePictureEssence, PictureEssenceTrack_UL,			"Picture"		);
+	AddTrackType(TrackTypeSoundEssence, SoundEssenceTrack_UL,				"Sound"			);
+	AddTrackType(TrackTypeDataEssence, DataEssenceTrack_UL,					"DataEssence"	);
+	AddTrackType(TrackTypeDescriptiveMetadata, DescriptiveMetadataTrack_UL,	"Metadata"		);
+
+	// add other TrackTypes as the need arises. also add to Track::TrackType in metadata.h
+
 
 	TrackTypesInited = true;
+}
+
+//! Determine the one-word Track name from the Track Type
+std::string mxflib::Track::GetTrackWord( const TrackType Trk )
+{
+	// Initialise the track type list if required
+	if(!TrackTypesInited) InitTrackTypes();
+
+	// linear search of TrackTypes
+	TrackTypeMap::iterator it = TrackTypes.begin();
+
+	while( it != TrackTypes.end() )
+	{
+		// succeeds if Text contains the Word
+		if( (*it).second.Type == Trk ) return (*it).second.Word;
+		it++;
+	}
+
+	return "Unknown";
+}
+
+
+//! Compare the hex digits of two strings disregarding punctuation and whitespace
+// return 0 if they are equal
+int strxcmp( const char *s1, const char *s2 )
+{
+	int c1=0;
+	int c2=0;
+
+	do
+	{
+		// skip non-hex
+		while( s1 && (c1=tolower(*s1++)) && !isxdigit(c1) );
+		while( s2 && (c2=tolower(*s2++)) && !isxdigit(c2) );
+
+		if( c2 && c1<c2 ) return -1;
+		if( c1 && c2<c1 ) return 1;
+	}
+	while( c1 || c2 );
+
+	return 0;
+}
+
+
+//! Parse the text of a track description and try and determine the track type
+Track::TrackType mxflib::Track::ParseTrackTypeText(std::string Text)
+{
+	//! Type for each entry in TrackWordList
+	struct TrackWordType
+	{
+		char *Word;						//!< A descriptive word
+		Track::TrackType Type;			//!< The track type this word implies
+	};
+
+	//! List of track type word meanings
+	const TrackWordType TrackWordList[] =
+	{
+		{ "TIMECODE",		TrackTypeTimecode },
+		{ "PICTURE",		TrackTypePictureEssence },
+		{ "VIDEO",			TrackTypePictureEssence },
+		{ "SOUND",			TrackTypeSoundEssence },
+		{ "AUDIO",			TrackTypeSoundEssence },
+		{ "DATA",			TrackTypeDataEssence },
+		{ "DESCRIPTIVE",	TrackTypeDescriptiveMetadata },
+		{ "METADATA",		TrackTypeDescriptiveMetadata },
+		{ "DM",				TrackTypeDescriptiveMetadata },
+
+	};
+
+	//! The count of entries in the track word list
+	const int TrackWordCount = (int)(sizeof(TrackWordList) / sizeof(TrackWordList[0]));
+
+	std::string::iterator it = Text.begin();
+	while(it != Text.end())
+	{
+		// Skip any non-letters before this word
+		while(!isalpha(*it)) 
+		{
+			// Quit if we hit the end without reaching a letter
+			if(++it == Text.end()) return TrackTypeUndetermined;
+		}
+	
+		std::string Word = "";
+		Word += toupper(*(it++));
+		while((it != Text.end()) && isalpha(*it))
+		{
+			Word += toupper(*(it++));
+		}
+
+		/* We now have a word */
+		for(int i=0; i<TrackWordCount; i++)
+		{
+			if(Word == TrackWordList[i].Word) return TrackWordList[i].Type;
+		}
+	}
+
+	// the following comparison is done because all other attempts to resolve an AUID into String may have failed
+	// and the only representation that could be delivered is a hexbinary string
+	// AND there are many possible formats, including un-reversed UL shown as a UUID in {}
+	// so the best test is the string of hex digits, ignoring punctuation and whitespace
+
+	//! Type for each entry in TrackWordList
+	struct TrackHexType
+	{
+		char *Hex;						//!< A descriptive word
+		Track::TrackType Type;			//!< The track type this word implies
+	};
+
+	//! List of track type hex strings
+	const TrackHexType TrackHexList[] =
+	{
+		{ "{060e2b34-0401-0101-0103-020101000000}",		TrackTypeTimecode },
+		{ "{060e2b34-0401-0101-0103-020201000000}",		TrackTypePictureEssence },
+		{ "{060e2b34-0401-0101-0103-020202000000}",		TrackTypeSoundEssence },
+		{ "{060e2b34-0401-0101-0103-020303000000}",		TrackTypeDataEssence },
+		{ "{060e2b34-0401-0101-0103-020210000000}",		TrackTypeDescriptiveMetadata },
+		{ "{060e2b34-0401-0101-0103-020301000000}",		TrackTypeAuxiliary },
+		{ "{060e2b34-0401-0101-0103-020302000000}",		TrackTypeParsedText },
+
+	};
+
+	//! The count of entries in the track hex list
+	const int TrackHexCount = (int)(sizeof(TrackHexList) / sizeof(TrackHexList[0]));
+
+	for(int j=0; j<TrackHexCount; j++)
+	{
+		if( 0==strxcmp( Text.c_str(), TrackHexList[j].Hex ) ) return TrackHexList[j].Type;
+	}
+
+	return TrackTypeUnknown;
 }

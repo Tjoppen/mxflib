@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.cpp,v 1.15 2007/03/31 16:07:30 matt-beard Exp $
+ *	\version $Id: partition.cpp,v 1.16 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -30,15 +30,15 @@
  *	  3. This notice may not be removed or altered from any source
  *	     distribution.
  */
-
-#include <mxflib/mxflib.h>
+ 
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
 
 //! Add a metadata object to the header metadata belonging to a partition
 /*! Note that any strongly linked objects are also added */
-void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
+void mxflib::Partition::AddMetadata(MDObjectPtr NewObject, bool ForceFirst /*=false*/)
 {
 	// Start out without a target
 	bool has_target = false;
@@ -46,8 +46,8 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 	// Start out not (strong) reffed
 	bool linked = false;
 
-	// Add us to the list of all items
-	AllMetadata.push_back(NewObject);
+	// Add us to the list of all items - done last if forcing first as the child items will get added first
+	if(!ForceFirst) AllMetadata.push_back(NewObject);
 
 	// Add this object to the ref target list if it is one. At the same time any objects
 	// linked from this object (before this function was called) are added as well
@@ -71,19 +71,19 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 
 				UUIDPtr ID = new UUID((*it).second->Value->PutData()->Data);
 				RefTargets.insert(std::map<UUID, MDObjectPtr>::value_type(*ID, NewObject));
-			
+
 				// Try and satisfy all refs to this set
 				for(;;)
 				{
 					std::multimap<UUID, MDObjectPtr>::iterator mit = UnmatchedRefs.find(*ID);
-					
+
 					// Exit when no more refs to this object
 					if(mit == UnmatchedRefs.end()) break;
 
 					// Sanity check!
 					if((*mit).second->GetLink())
 					{
-						error("Internal error - Object in UnmatchedRefs but already linked!");
+						error("Internal error - %s at 0x%s in UnmatchedRefs but already linked!\n", (*mit).second->FullName().c_str() , Int64toHexString((*mit).second->GetLocation(), 8).c_str());
 					}
 
 					// Make the link
@@ -104,50 +104,80 @@ void mxflib::Partition::AddMetadata(MDObjectPtr NewObject)
 			MDObjectPtr Link = (*it).second->GetLink();
 			if(Link)
 			{
-				AddMetadata(Link);
+				AddMetadata(Link, ForceFirst);
 
 				// Prevent the new item being top-level (which it may be as we are not added yet)
 				// DRAGONS: There is surely a better way than this!!
 				TopLevelMetadata.remove(Link);
 			}
-		} 
-		else if(!((*it).second->empty()))
-		{
-			MDObjectULList::iterator it2 = (*it).second->begin();
-			MDObjectULList::iterator itend2 = (*it).second->end();
-			while(it2 != itend2)
+			// If this item is not a link, it may contain links
+			else if((*it).second->size())
 			{
-				if((*it2).second->GetRefType() == DICT_REF_STRONG)
+				MDObject::iterator subit = (*it).second->begin();
+				while(subit != (*it).second->end())
 				{
-					MDObjectPtr Link = (*it2).second->GetLink();
+					Link = (*subit).second->GetLink();
 					if(Link)
 					{
-						AddMetadata(Link);
+						AddMetadata(Link, ForceFirst);
 
 						// Prevent the new item being top-level (which it may be as we are not added yet)
 						// DRAGONS: There is surely a better way than this!!
 						TopLevelMetadata.remove(Link);
 					}
+					subit++;
 				}
-				else if(!((*it2).second->empty()))
-				{
-					error("Internal error for object %s - Cannot process nesting > 2 in AddMetadata()\n",
-						   (*it2).second->FullName().c_str());
-				}
-				it2++;
 			}
+		} 
+		else if(!((*it).second->empty()))
+		{
+			AddMetadataSubs((*it).second, ForceFirst);
 		}
 
 		it++;
 	}
 
+	// Add any forced-first items after thier children
+	if(ForceFirst) AllMetadata.push_front(NewObject);
+
 	// If we are not yet (strong) reffed then we are top level
-	if(!linked) TopLevelMetadata.push_back(NewObject);
+	if(!linked)
+	{
+		if(ForceFirst) TopLevelMetadata.push_front(NewObject);
+		else TopLevelMetadata.push_back(NewObject);
+	}
 
 	// Satisfy, or record as un-matched, all outgoing references
 	ProcessChildRefs(NewObject);
 }
 
+
+//! Scan a metadata object for strong references in sub-objects and add those to this partition
+void Partition::AddMetadataSubs(MDObjectPtr &NewObject, bool ForceFirst)
+{
+	MDObjectULList::iterator it = NewObject->begin();
+	MDObjectULList::iterator itend = NewObject->end();
+	while(it != itend)
+	{
+		if((*it).second->GetRefType() == DICT_REF_STRONG)
+		{
+			MDObjectPtr Link = (*it).second->GetLink();
+			if(Link)
+			{
+				AddMetadata(Link, ForceFirst);
+
+				// Prevent the new item being top-level (which it may be as we are not added yet)
+				// DRAGONS: There is surely a better way than this!!
+				TopLevelMetadata.remove(Link);
+			}
+		}
+		else if(!((*it).second->empty()))
+		{
+			AddMetadataSubs((*it).second, ForceFirst);
+		}
+		it++;
+	}
+}
 
 //! Satisfy, or record as un-matched, all outgoing references
 void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
@@ -159,7 +189,7 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 		if(!(*it).second->GetLink())
 		{
 			ClassRef Ref = (*it).second->GetRefType();
-			if((Ref == ClassRefStrong) || (Ref == ClassRefWeak) || (Ref == ClassRefGlobal))
+			if(IsRefSource(Ref))
 			{
 				if(!(*it).second->Value)
 				{
@@ -169,17 +199,23 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 							  ThisObject->Name().c_str(), (*it).second->Name().c_str());
 					}
 				}
+				// Container for child items
+				else if((*it).second->Value->GetData().Size == 0)
+				{
+					// Recurse to add refs for our children
+					if((*it).second->size()) ProcessChildRefs((*it).second);
+				}
 				else if((*it).second->Value->GetData().Size != 16)
 				{
 					if(Ref == ClassRefGlobal)
 					{
 						error("Metadata Object \"%s/%s\" should be a global reference (a UL or UUID), but has size %d\n",
-							ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
+							  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
 					}
 					else
 					{
 						error("Metadata Object \"%s/%s\" should be a reference source (a UUID), but has size %d\n",
-							ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
+							  ThisObject->Name().c_str(), (*it).second->Name().c_str(), (*it).second->Value->GetData().Size);
 					}
 				}
 				else
@@ -204,11 +240,80 @@ void mxflib::Partition::ProcessChildRefs(MDObjectPtr ThisObject)
 			}
 		}
 
-		// Recurse to process sub-children if they exist
-		if(!(*it).second->empty()) ProcessChildRefs((*it).second);
+		it++;
+	}
+}
+
+
+//! Load any metadictionaties that are in the list of currently loaded objects
+bool mxflib::Partition::LoadMetadict(void)
+{
+	bool Ret = true;
+
+	/* Search for the metadictionary */
+	MDObjectList::iterator it = AllMetadata.begin();
+	while(it != AllMetadata.end())
+	{
+		if((*it)->IsA(MetaDictionary_UL))
+		{
+			/* We need to set up a symbol space for this metadictionary
+			   At the moment we attach it to one named with the instance ID of this metadictionary item */
+			std::string SymSpaceName = (*it)->GetString(InstanceUID_UL);
+
+			// If there was no InstanceUID, add a random symspace
+			if(SymSpaceName.empty()) SymSpaceName = RandomUL()->GetString();
+			
+			// See if we already have this symbol space (may have already loaded a copy of this metadictionary) - if not, build it
+            SymbolSpacePtr SymSpace = SymbolSpace::FindSymbolSpace(SymSpaceName);
+			if(!SymSpace) SymSpace = new SymbolSpace(SymSpaceName);
+			
+			// Load the metdictionary and update the running status
+			if(!LoadMetadictionary(*it, SymSpace)) Ret = false;
+		}
+		else if((*it)->IsA(Root_UL))
+		{
+			// FIXME: Use UL when ready
+			//MDObjectPtr RootExtensions = (*it)->Child(RootExtensions_UL);
+			MDObjectPtr RootExtensions = (*it)->Child("RootExtensions");
+			if(RootExtensions)
+			{
+				MDObject::iterator Ext_it = RootExtensions->begin();
+				while(Ext_it != RootExtensions->end())
+				{
+					// Get the actual data group
+					MDObjectPtr ExtensionGroup = (*Ext_it).second->GetRef();
+
+					if(!ExtensionGroup)
+					{
+						error("Broken link in ExtensionGroup reference at %s\n", (*Ext_it).second->GetSourceLocation().c_str());
+					}
+					else
+					{
+						/* We need to set up a symbol space for this metadictionary */
+						// FIXME: Use UL when ready
+						//std::string SymSpaceName = ExtensionGroup->GetString(SymbolSpace_UL);
+						std::string SymSpaceName = ExtensionGroup->GetString("SymbolSpace");
+
+						// If there was no SymbolSpace property, add a random symspace
+						if(SymSpaceName.empty()) SymSpaceName = RandomUL()->GetString();
+						
+						// See if we already have this symbol space (may have already loaded a copy of this metadictionary) - if not, build it
+						SymbolSpacePtr SymSpace = SymbolSpace::FindSymbolSpace(SymSpaceName);
+						if(!SymSpace) SymSpace = new SymbolSpace(SymSpaceName);
+						
+						// Load the metdictionary and update the running status
+						if(!LoadMetadictionary(ExtensionGroup, SymSpace)) Ret = false;
+					}
+
+					Ext_it++;
+				}
+			}
+		}
 
 		it++;
 	}
+
+	return Ret;
 }
 
 
@@ -322,8 +427,18 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 */
 		// Build an object (it may come back as an "unknown")
 		ULPtr NewUL = new UL(BuffPtr);
+
+		/* If we are loading metadictionaries, we do so when we first read the Preface key */
+		if(Feature(FeatureLoadMetadict))
+		{
+			if(NewUL->Matches(Preface_UL))
+			{
+				LoadMetadict();
+			}
+		}
+
 		MDObjectPtr NewItem = new MDObject(NewUL);
-		ASSERT(NewItem);
+		mxflib_assert(NewItem);
 
 		BuffPtr += 16;
 		Size -= 16;
@@ -377,7 +492,7 @@ Length mxflib::Partition::ReadMetadata(MXFFilePtr File, Length Size)
 		// Check for the primer until we have found it
 		if(!PartitionPrimer)
 		{
-			if(NewItem->Name() == "Primer")
+			if(NewItem->IsA(Primer_UL))
 			{
 				PartitionPrimer = new Primer;
 				UInt32 ThisBytes = PartitionPrimer->ReadValue(BuffPtr, (UInt32)Len);
@@ -594,8 +709,8 @@ DataChunkPtr mxflib::Partition::ReadIndexChunk(void)
 	// Scan backwards from the end of the index data
 	if(Ret->Size >= 16)
 	{
-		size_t Count = Ret->Size - 16;
-		UInt8 *p = &Ret->Data[Count - 16];
+		size_t Count = Ret->Size - 15;
+		UInt8 *p = &Ret->Data[Count - 1];
 
 		// Do the scan (slightly optimized)
 		while(Count--)
@@ -798,6 +913,7 @@ MetadataPtr Partition::ParseMetadata(void)
 		if((*it)->IsA(Preface_UL))
 		{
 			Ret = Metadata::Parse(*it);
+			Ret->Partition = this;
 			return Ret;
 		}
 
@@ -809,9 +925,10 @@ MetadataPtr Partition::ParseMetadata(void)
 	while(it != AllMetadata.end())
 	{
 		// If we find the preface, parse it
-		if((*it)->IsA("Preface"))
+		if((*it)->IsA(Preface_UL))
 		{
 			Ret = Metadata::Parse(*it);
+			Ret->Partition = this;
 			return Ret;
 		}
 

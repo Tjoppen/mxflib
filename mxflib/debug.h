@@ -4,7 +4,7 @@
  *			The implementation of these functions is an application
  *			issue so they are not contained in the MXFLib library
  *
- *	\version $Id: debug.h,v 1.1 2004/04/26 18:27:47 asuraparaju Exp $
+ *	\version $Id: debug.h,v 1.2 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*

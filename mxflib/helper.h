@@ -1,7 +1,7 @@
 /*! \file	helper.h
  *	\brief	Verious helper function declarations
  *
- *	\version $Id: helper.h,v 1.11 2007/10/10 15:43:13 matt-beard Exp $
+ *	\version $Id: helper.h,v 1.12 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -36,9 +36,21 @@
 
 namespace mxflib
 {
+	// Forware declare MDObjectPtr
+	class MDObjectPtr;
+
 	// Declare the global null-ul which is 16 zero bytes
 	extern const UL Null_UL;
+//_atoi64 is s wondows only - rewrite to linux version
+#ifndef _WIN32
+#define _atoi64 atoll
+#endif
 	
+	inline Int64 ato_Int64(const std::string str) { return _atoi64(str.c_str()); };
+	inline Int64 ato_UInt64(const std::string str) { return (UInt64)_atoi64(str.c_str()); };
+
+
+
 	//! Make a string containing a number
 	inline std::string Int2String(int Num, int Digits = 0)
 	{
@@ -128,8 +140,14 @@ namespace mxflib
 	}
 
 	//! Read a BER length
-	Length ReadBER(UInt8 **Data, int MaxSize);
+	Length ReadBER(UInt8 const **Data, int MaxSize);
 
+	//! Read a BER length
+	inline Length ReadBER(UInt8 **Data, int MaxSize)
+	{
+		// DRAGONS: This is always safe as we are actually adding a const!
+		return ReadBER(const_cast<const UInt8**>(Data), MaxSize);
+	}
 
 	//! Encode a UInt64 as a BER OID subid (7 bits per byte)
 	//! length > 0: length is maximum length of subid
@@ -140,6 +158,10 @@ namespace mxflib
 
 	//! Build a new UMID
 	UMIDPtr MakeUMID(int Type, const UUIDPtr AssetID = NULL);
+
+	//! Build a new UMID from given values
+	//!AssetID is 16 bytes with the desired UUID
+	UMIDPtr MakeUMIDFromUUID(  int Type,  const UInt8 * AssetID );
 
 	//! Read a "Chunk" from a non-MXF file
 	DataChunkPtr FileReadChunk(FileHandle InFile, size_t Size);
@@ -283,6 +305,11 @@ namespace mxflib
 	 *  \return number of values read */
 	int ReadHexString(const char **Source, int Max, UInt8 *Dest, const char *Sep);
 
+	//! Read hex values separated by any of 'Sep', if it is a urn read any of the supported formats via StringToUL
+	/*! \return number of values read 
+	 */
+	int ReadHexStringOrUL(const char *Source, int Max, UInt8 *Dest, const char *Sep);
+
 	//! Read hex values separated by any of 'Sep'
 	/*! \note This version does not modify the value of parameter Source
 	 *  \return number of values read */
@@ -306,6 +333,51 @@ namespace mxflib
 		if(!StringToUL(Data, Val)) return NULL;
 		return new UL(Data);
 	}
+
+	//! Build a new UUID and return it as a UL (via a ULPtr) - effectively a random UL
+	/*! This is useful when a UL is required for a value, but as not been defined. 
+	 * Using an end-swapped UL will allow the code to continue, presumable after a suitable error or warning message.
+	 */
+	inline ULPtr RandomUL(void)
+	{
+		UUIDPtr TempID = new mxflib::UUID;
+		return new UL(TempID);
+	}
+
+	//! Split a StringArray that contains several zero terminated strings into a std::list of std::strings
+	/*! DRAGONS: We use the current UTF16String GetString trait to ensure that we always have the correct handling,
+	 *           even if the user wants these strings handled differently (i.e. we do it their way!)
+	 */
+	std::list<std::string> SplitStringArray(const MDObjectPtr &Array);
+
+	//! Set a StringArray property that contains several zero terminated strings from a std::list of std::strings
+	/*! DRAGONS: We use the current UTF16String SetString trait to ensure that we always have the correct handling,
+	 *           even if the user wants these strings handled differently (i.e. we do it their way!)
+	 */
+	void SetStringArray(MDObjectPtr &Array, const std::list<std::string> &Strings);
+
+	// Convert timecode to frame count
+	// FIXME: Needs some work...
+	inline Position TCtoFrames(int FrameRate, bool DropFrame, int Hours, int Mins, int Secs, int Frames)
+	{
+		Int64 f = Frames + FrameRate*( Secs + 60*( Mins + 60*Hours ) );
+
+		if( (FrameRate == 30) && DropFrame )
+		{
+			UInt16 m = Mins + 60*Hours;
+			f -= 2*( m - m/10 );
+		}
+
+		return f;
+	}
+
+	//! Read a complete line from a file and return it as a string, treats CR, LF, CRLF and LFCR as valid line ends
+	std::string FileGets(FileHandle File);
+
+#ifndef _WIN32
+    //! Return an array of random bytes under linux. Uses the kernel random generator if possible
+	void getRandnumbers( Uint8 * buff, int nbytes);
+#endif
 }
 
 #endif // MXFLIB__HELPER_H

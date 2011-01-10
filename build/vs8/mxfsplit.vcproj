@@ -3,7 +3,8 @@
 	ProjectType="Visual C++"
 	Version="8.00"
 	Name="mxfsplit"
-	ProjectGUID="{26B9488E-1E91-4837-8E01-F8C79E28FCB2}"
+	ProjectGUID="{0A4AFF07-35F9-4C2C-926A-43BB181B075A}"
+	RootNamespace="mxfsplit"
 	>
 	<Platforms>
 		<Platform
@@ -15,10 +16,10 @@
 	<Configurations>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -42,7 +43,6 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\.."
@@ -51,8 +51,7 @@
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxfsplit.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				CompileAs="0"
@@ -70,6 +69,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/mxfsplit.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				SubSystem="1"
@@ -98,15 +98,15 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -130,17 +130,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
 				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;DMStiny"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;DMStiny; _CRT_SECURE_NO_DEPRECATE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Debug/mxfsplit.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				CompileAs="0"
 			/>
@@ -157,8 +155,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
+				AdditionalLibraryDirectories=""
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -186,16 +185,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="DebugStatic|Win32"
-			OutputDirectory="$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -219,17 +218,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
 				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;DMStiny"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;DMStiny; _CRT_SECURE_NO_DEPRECATE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Debug/mxfsplit.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				CompileAs="0"
 			/>
@@ -246,8 +243,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
+				OutputFile="$(OutDir)/mxfsplit.exe"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
+				AdditionalLibraryDirectories=""
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -275,16 +274,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="ReleaseStatic|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -308,7 +307,6 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\.."
@@ -317,8 +315,7 @@
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxfsplit.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				CompileAs="0"
@@ -336,6 +333,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/mxfsplit.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				SubSystem="1"
@@ -364,7 +362,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 	</Configurations>

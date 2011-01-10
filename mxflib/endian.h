@@ -4,7 +4,7 @@
  *  Converted from the version in "klvlib"
  *
  *
- *	\version $Id: endian.h,v 1.5 2005/09/26 08:35:58 matt-beard Exp $
+ *	\version $Id: endian.h,v 1.6 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -30,7 +30,7 @@
  *	     distribution.
  */
 
-#include <mxflib/system.h>
+#include "mxflib/system.h"
 
 namespace mxflib
 {

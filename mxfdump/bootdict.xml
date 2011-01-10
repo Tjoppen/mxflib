@@ -1,0 +1,356 @@
+<!-- Version 11a $Author: matt-beard $ $Date: 2011/01/10 10:42:08 $ -->
+<!-- 																			 -->
+<!-- Copyright (c) 2002 BBC R&D and 2007 Matt Beard								 -->
+<!-- Portions Copyright (c) 2003-2007 Metaglue Corporation -->
+<!-- 																			 -->
+<!-- This software is provided 'as-is', without any express or implied warranty. -->
+<!-- In no event will the authors be held liable for any damages arising from	 -->
+<!-- the use of this software.													 -->
+<!-- 																			 -->
+<!-- Permission is granted to anyone to use this software for any purpose,		 -->
+<!-- including commercial applications, and to alter it and redistribute it		 -->
+<!-- freely, subject to the following restrictions:								 -->
+<!-- 																			 -->
+<!--   1. The origin of this software must not be misrepresented; you must		 -->
+<!--      not claim that you wrote the original software. If you use this		 -->
+<!--      software in a product, an acknowledgment in the product				 -->
+<!--      documentation would be appreciated but is not required.				 -->
+<!-- 																			 -->
+<!--   2. Altered source versions must be plainly marked as such, and must		 -->
+<!--      not be misrepresented as being the original software.					 -->
+<!-- 																			 -->
+<!--   3. This notice may not be removed or altered from any source				 -->
+<!--      distribution.															 -->
+<!-- 																			 -->
+<!-- -->
+<!-- 2007-09-02 Matt   Convert from dict.xml -->
+
+<MXFDictionary>
+    <MXFTypes>
+        <Basic>
+            <Int8 detail="8 bit integer" size="1" endian="no" ul="urn:x-ul:060E2B34.0104.0101.01010500.00000000"/>
+            <Int16 detail="16 bit integer" size="2" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010600.00000000"/>
+            <Int24 detail="24 bit integer" size="3" endian="yes"/>
+            <Int32 detail="32 bit integer" size="4" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010700.00000000"/>
+            <Int64 detail="64 bit integer" size="8" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010800.00000000"/>
+            <UInt8 detail="8 bit unsigned integer" size="1" endian="no" ul="urn:x-ul:060E2B34.0104.0101.01010100.00000000"/>
+            <UInt16 detail="16 bit unsigned integer" size="2" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010200.00000000"/>
+            <UInt24 detail="24 bit unsigned integer" size="3" endian="yes"/>
+            <UInt32 detail="32 bit unsigned integer" size="4" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010300.00000000"/>
+            <UInt64 detail="64 bit unsigned integer" size="8" endian="yes" ul="urn:x-ul:060E2B34.0104.0101.01010400.00000000"/>
+            <UL detail="SMPTE Universal Label" size="16" endian="no" />
+            <UUID detail="Universally Unique ID, as per RFC 4122" size="16"/>
+        </Basic>
+        <Interpretation>
+            <VersionType detail="Version number (created from major*256 + minor)" base="UInt16" ul="urn:x-ul:060E2B34.0104.0101.03010300.00000000"/>
+            <UTF16 detail="Unicode UTF-16 coded character" base="UInt16" character="true" ul="urn:x-ul:060E2B34.0104.0101.01100100.00000000"/>
+            <Boolean detail="Boolean" base="urn:x-ul:060E2B34.0104.0101.01010100.00000000" ul="urn:x-ul:060E2B34.0104.0101.01040100.00000000"/>
+            <ISO7 detail="ISO 7-Bit Coded Character" base="UInt8" character="true" doc="ISO/IEC 646:1991" ul="urn:x-ul:060E2B34.0104.0101.01100300.00000000"/>
+			<UTF detail="Byte of a Unicode string of unknown format" base="UInt8" character="true" />
+            <Length detail="Length in Edit Units" base="Int64" ul="urn:x-ul:060E2B34.0104.0101.01012002.00000000"/>
+            <Position detail="Position measured in Edit Units" base="Int64" ul="urn:x-ul:060E2B34.0104.0101.01012001.00000000"/>
+            <RGBACode detail="Enumerated value specifying component in an RGBALayoutItem" base="UInt8" ul="urn:x-ul:060E2B34.0104.0101.0201010e.00000000"/>
+            <UTF7 detail="RFC 2152 7-Bit Coded UNICODE Character" base="ISO7" character="true" doc="RFC 2152" />
+        </Interpretation>
+        <Multiple>
+            <UTFString detail="Unicode coded string - unknown format" base="UTF" type="String" />
+            <UTF16String detail="Unicode UTF-16 coded string" base="UTF16" type="String" ul="urn:x-ul:060E2B34.0104.0101.01100200.00000000"/>
+            <Int32Array detail="Array of Int32" base="Int32" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010300.00000000"/>
+            <UInt32Array detail="Array of UInt32" base="UInt32" type="Array"/>
+            <Int64Array detail="Array of Int64" base="Int64" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010400.00000000"/>
+            <Int64Batch detail="Batch of Int64" base="Int64" type="Batch"/>
+            <UInt8Array detail="Array of UInt8" base="UInt8" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010100.00000000"/>
+            <ISO7String detail="ISO 7-Bit coded string" base="ISO7" type="String" ul="urn:x-ul:060E2B34.0104.0101.01100400.00000000"/>
+            <UTF7String detail="RFC 2152 7-Bit Coded UNICODE string" base="UTF7" type="String" ul="urn:x-ul:060E2B34.0104.0101.01200500.00000000"/>
+            <Int32Batch detail="Batch of Int32 values" base="Int32" type="Batch"/>
+            <UInt32Batch detail="Batch of UInt32 values" base="UInt32" type="Batch" ul="urn:x-ul:060E2B34.0104.0101.04030200.00000000"/>
+            <RAW detail="Raw data bytes, unknown representation" base="UInt8"/>
+            <RAWBatch detail="Batch of Raw data items" base="RAW" type="Batch" />
+        </Multiple>
+        <Interpretation>
+            <Identifier detail="Generic Identifier" base="UInt8Array"/>
+            <UID detail="UID" base="Identifier"/>
+            <Label detail="SMPTE Universal Label" base="UL"/>
+            <AUID detail="AUID is a Label or a swapped UUID" base="Label" ul="urn:x-ul:060E2B34.0104.0101.01030100.00000000"/>
+            <StrongRef detail="Strong Reference" base="UUID" ul="urn:x-ul:060E2B34.0104.0101.05020000.00000000" ref="strong"/>
+            <WeakRef detail="Weak Reference" base="UUID" ul="urn:x-ul:060E2B34.0104.0101.05010000.00000000" ref="weak"/>
+            <LocalTagType detail="Local Tag for 2-byte tagged SMPTE 336M set" base="UInt16" ul="urn:x-ul:060E2B34.0104.0101.01012004.00000000"/>
+        </Interpretation>
+        <Multiple>
+            <AUIDArray detail="Array of AUIDs" base="AUID" type="Array" ul="urn:x-ul:060E2B34.0104.0101.04010600.00000000"/>
+            <AUIDSet detail="Set of AUIDs" base="AUID" type="Batch" ul="urn:x-ul:060E2B34.0104.0101.04030100.00000000"/>
+            <LabelBatch detail="Batch of SMPTE Universal Labels" base="Label" type="Batch"/>
+            <StrongRefArray detail="Array of StrongRefs" base="StrongRef" type="Array"/>
+            <StrongRefBatch detail="Batch of StrongRefs" base="StrongRef" type="Batch"/>
+            <WeakRefArray detail="Array of WeakRefs" base="StrongRef" type="Array"/>
+            <WeakRefBatch detail="Batch of WeakRefs" base="WeakRef" type="Batch"/>
+        </Multiple>
+        <Compound>
+            <Rational detail="Rational" ul="urn:x-ul:060E2B34.0104.0101.03010100.00000000">
+                <Numerator detail="Numerator" type="urn:x-ul:060E2B34.0104.0101.01010700.00000000" ul="urn:x-ul:060E2B34.0104.0101.03010101.00000000"/>
+                <Denominator detail="Denominator" type="Int32" ul="urn:x-ul:060E2B34.0104.0101.03010102.00000000"/>
+            </Rational>
+        </Compound>
+    </MXFTypes>
+
+    <MXFClasses>
+        <KLVFill detail="KLV Filler packet" type="RAW" key="06 0E 2B 34 01 01 01 02 03 01 02 10 01 00 00 00"/>
+        <PartitionMetadata detail="Identifies a Partition Pack" type="fixedPack" key="urn:x-ul:060E2B34.0206.0101.0D010200.00000000">
+            <MajorVersion detail="Major Version number of MXF byte-level format (non-backwards compatible version number)" use="required" type="UInt16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 04  03 01 02 01 06 00 00 00" default="0001h"/>
+            <MinorVersion detail="Minor Version number of MXF byte-level format (backwards compatible version number)" use="required" type="UInt16" minLength="2" maxLength="2" globalKey="06 0e 2b 34 01 01 01 04  03 01 02 01 07 00 00 00" default="0002h"/>
+            <KAGSize detail="Size of the KLV Alignment Grid (KAG) for this partition, in bytes" use="required" type="UInt32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 05  03 01 02 01 09 00 00 00"/>
+            <ThisPartition detail="Byte offset of the start of This Partition, relative to the start of the Header Partition" use="required" type="UInt64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 10 10 03 01 00 00 00"/>
+            <PreviousPartition detail="Byte offset of the start of the Previous Partition, relative to the start of the Header Partition" use="required" type="UInt64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 10 10 02 01 00 00 00" default="0"/>
+            <FooterPartition detail="Byte offset of the start of the Footer Partition, relative to the start of the Header Partition" use="required" type="UInt64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 10 10 05 01 00 00 00" default="0"/>
+            <HeaderByteCount detail="Count of Bytes used for Header Metadata. This starts at the byte following the Partition pack and includes any trailing filler which is part of the Header Metadata." use="required" type="UInt64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  04 06 09 01 00 00 00 00" default="0"/>
+            <IndexByteCount detail="Count of Bytes used for Index Table Segments. This starts at the byte following the Header Metadata and includes any trailing filler which is part of the Index Table." use="required" type="UInt64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  04 06 09 02 00 00 00 00" default="0"/>
+            <IndexSID detail="Index Table Segment Identifier in this partition. The value 0 defines that there are no Index Table segments in this partition." use="required" type="UInt32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00" default="0"/>
+            <BodyOffset detail="Byte offset of the first byte in the following Essence Container data relative to the start of the Essence Container identified by this BodySID" use="required" type="UInt64" minLength="8" maxLength="8" globalKey="06 0e 2b 34 01 01 01 04  06 08 01 02 01 03 00 00"/>
+            <BodySID detail="Identifier of the Essence Container data found in this partition. The value 0 indicates there is no Essence Container data in this partition." use="required" type="UInt32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00" default="0"/>
+            <OperationalPattern detail="Universal Label of the Operational Pattern to which this file complies" use="required" type="Label" minLength="16" maxLength="16" globalKey="06 0e 2b 34 01 01 01 05  01 02 02 03 00 00 00 00"/>
+            <EssenceContainers detail="The unordered batch of Universal Labels of Essence Containers used in or referenced by this file" use="required" type="AUIDSet" globalKey="06 0e 2b 34 01 01 01 05  01 02 02 10 02 01 00 00"/>
+        </PartitionMetadata>
+        <OpenHeader detail="Open Header Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 02 01 00"/>
+        <OpenCompleteHeader detail="Open Complete Header Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 02 03 00"/>
+        <ClosedHeader detail="Closed Header Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 02 02 00"/>
+        <ClosedCompleteHeader detail="Closed Complete Header Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 02 04 00"/>
+        <OpenBodyPartition detail="Open Body Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 03 01 00"/>
+        <OpenCompleteBodyPartition detail="Open Complete Body Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 03 03 00"/>
+        <ClosedBodyPartition detail="Closed Body Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 03 02 00"/>
+        <ClosedCompleteBodyPartition detail="Closed Complete Body Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 03 04 00"/>
+        <Footer detail="Footer Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 04 02 00"/>
+        <CompleteFooter detail="Complete Footer Partition Pack" base="PartitionMetadata" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 04 04 00"/>
+        <Primer detail="Primer Pack" type="fixedPack" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 05 01 00">
+            <LocalTagEntryBatch detail="Local Tag Entry Batch" use="required" type="LocalTagEntryBatch" globalKey="06 0e 2b 34 01 01 01 05  06 01 01 07 15 00 00 00"/>
+        </Primer>
+		<AbstractObject type="localSet" keyFormat="2" lengthFormat="2" baseline="yes" key="urn:x-ul:060E2B34.027F.0101.0D010101.01017f00">
+			<InstanceUID detail="Unique ID of this instance" use="required" type="UUID" minLength="16" maxLength="16" key="3c 0a" globalKey="06 0e 2b 34 01 01 01 01  01 01 15 02 00 00 00 00" ref="target"/>
+		</AbstractObject>
+		<InterchangeObject base="AbstractObject" key="urn:x-ul:060E2B34.027F.0101.0D010101.01010100">
+			<ObjectClass detail="Specifies a reference to the definition of a class of object" use="decoder required" type="Label" key="01 01" globalKey="urn:x-ul:060E2B34.0101.0102.06010104.01010000"/>
+			<GenerationUID detail="Generation Instance" use="optional" type="UUID" minLength="16" maxLength="16" key="01 02" globalKey="06 0e 2b 34 01 01 01 02  05 20 07 01 08 00 00 00"/>
+		</InterchangeObject>
+        <Preface base="InterchangeObject" detail="Preface Set" type="localSet" keyFormat="2" lengthFormat="2" baseline="yes" key="06 0e 2b 34 02 53 01 01  0d 01 01 01 01 01 2f 00"/>
+    </MXFClasses>
+    
+	<MXFTypes>
+         <Compound>
+                <LocalTagEntry detail="Mapping of Local Tag to UL or UUID">
+                <LocalTag detail="The value of the Local Tag" type="LocalTagType" ul="06 0e 2b 34 01 01 01 05  01 03 06 02 00 00 00 00"/>
+                <UID detail="The UID of which the local tag is an alias" type="AUID" ul="06 0e 2b 34 01 01 01 05  01 03 06 03 00 00 00 00"/>
+            </LocalTagEntry>
+            <DeltaEntryType detail="Map Elements onto Slices" >
+                <PosTableIndex detail="Index into PosTable (or Apply Temporta Reordering if -1)" type="Int8"/>
+                <Slice detail="Slice number in IndexEntry" type="UInt8" />
+                <ElementDelta detail="Delta from start of slice to this Element" type="UInt32" />
+            </DeltaEntryType>
+            <IndexEntryType detail="Index from Edit Unit number to stream offset" >
+                <TemporalOffset detail="Offset in edit units from Display Order to Coded Order" type="Int8" />
+                <AnchorOffset detail="Offset in edit units to previous Anchor Frame. The value is zero if this is an anchor frame." type="Int8" />
+                <Flags detail="Flags for this Edit Unit" type="UInt8" />
+                <StreamOffset detail="Offset in bytes from the first KLV element in this Edit Unit within the Essence Container" type="UInt64" />
+                <SliceOffsetArray detail="Array of offsets in bytes from the Stream Offset to the start of each slice." type="UInt32Array" />
+                <PosTableArray detail="Array of fractional position offsets from the start of the content package to the synchronized sample in the Content Package" type="RationalArray" />
+            </IndexEntryType>
+            <PartitionInfo detail="Partition Start Position Info">
+                <BodySID detail="Stream ID of the Body in this partition" type="UInt32" />
+                <ByteOffset detail="Byte offset from file start (1st byte of the file which is numbered 0) to the 1st byte of the Partition Pack Key" type="UInt64" />
+            </PartitionInfo>
+         </Compound>
+        <Multiple>
+            <RationalArray detail="Array of Rational" base="Rational" type="Implicit" ul="urn:x-ul:060E2B34.0104.0101.04020200.00000000"/>
+            <LocalTagEntryBatch detail="Batch of Local Tag mappings" base="LocalTagEntry" type="Explicit" />
+            <DeltaEntryArray detail="Array of DeltaEntryTypes" base="DeltaEntryType" type="Explicit"/>
+            <IndexEntryArray detail="Array of IndexEntryTypes" base="IndexEntryType" type="Explicit"/>
+            <PartitionArray detail="Array of Partition Start Positions" base="PartitionInfo" type="Implicit"/>
+        </Multiple>
+	</MXFTypes>
+    <MXFClasses>
+            <IndexTableSegment detail="A segment of an Index Table" base="InterchangeObject" key="06 0e 2b 34 02 53 01 01  0d 01 02 01 01 10 01 00">
+            <IndexEditRate detail="Edit Rate copied from the tracks of the Essence Container" use="required" type="Rational" minLength="8" maxLength="8" key="3f 0b" globalKey="06 0e 2b 34 01 01 01 05  05 30 04 06 00 00 00 00"/>
+            <IndexStartPosition detail="The first editable unit indexed by this Index Table segment measured in File Package Edit Units" use="required" type="Position" minLength="8" maxLength="8" key="3f 0c" globalKey="06 0e 2b 34 01 01 01 05  07 02 01 03 01 0a 00 00"/>
+            <IndexDuration detail="Time duration of this table segment measured in Edit Unitsof the referenceg package" use="required" type="Length" minLength="8" maxLength="8" key="3f 0d" globalKey="06 0e 2b 34 01 01 01 05  07 02 02 01 01 02 00 00"/>
+            <EditUnitByteCount detail="Byte count of each and every Edit Unit. A value of 0 defines the byte count of Edit Units is only given in the Index Entry Array" use="decoder required" type="UInt32" minLength="4" maxLength="4" key="3f 05" globalKey="06 0e 2b 34 01 01 01 04  04 06 02 01 00 00 00 00" default="0"/>
+            <IndexSID detail="Stream Identifier (SID) of Index Stream" use="decoder required" type="UInt32" minLength="4" maxLength="4" key="3f 06" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 05 00 00 00 00"/>
+            <BodySID detail="Stream Identifier (SID) of Essence Container Stream" use="required" type="UInt32" minLength="4" maxLength="4" key="3f 07" globalKey="06 0e 2b 34 01 01 01 04  01 03 04 04 00 00 00 00"/>
+            <SliceCount detail="Number of slices minus 1 (NSL)" use="decoder required" type="UInt8" minLength="1" maxLength="1" key="3f 08" globalKey="06 0e 2b 34 01 01 01 04  04 04 04 01 01 00 00 00" default="0"/>
+            <PosTableCount detail="Number of PosTable Entries minus 1 (NPE)" use="optional" type="UInt8" minLength="1" maxLength="1" key="3f 0e" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 01 07 00 00 00" default="0"/>
+            <DeltaEntryArray detail="Map Elements onto Slices" use="optional" type="DeltaEntryArray" key="3f 09" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 01 06 00 00 00"/>
+            <IndexEntryArray detail="Index from Edit Unit number to stream offset" use="decoder required" type="IndexEntryArray" key="3f 0a" globalKey="06 0e 2b 34 01 01 01 05  04 04 04 02 05 00 00 00"/>
+        </IndexTableSegment>
+        <RandomIndexMetadata detail="Random Index Pack" type="fixedPack" baseline="yes" key="06 0e 2b 34 02 05 01 01  0d 01 02 01 01 11 01 00">
+            <!-- DRAGONS: PartitionArray has no UL defined, so we allocate it a GUID to alow us to do a UL-lookup -->
+            <PartitionArray detail="Array of Partition Start Positions" use="required" type="PartitionArray" key="80 62 c1 08 a8 0d eb fe 3a 9d c8 e1 7e 83 b6 4b"/>
+            <Length detail="Overall Length of this Pack including the Set Key and BER Length fields" use="required" type="UInt32" minLength="4" maxLength="4" globalKey="06 0e 2b 34 01 01 01 04  04 06 10 01 00 00 00 00"/>
+        </RandomIndexMetadata>
+	</MXFClasses>
+    
+    <MXFLabels>
+   		<MXFOP1x detail="MXF OP1x SingleItem" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.01.01.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.03.ff.ff" />
+		<MXFOP1a detail="MXF OP1a SingleItem SinglePackage" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.01.01.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP2a detail="MXF OP2a PlaylistItems SinglePackage" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.02.01.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP3a detail="MXF OP3a EditItems SinglePackage" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.03.01.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP1b detail="MXF OP1b SingleItem GangedPackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.01.02.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP2b detail="MXF OP2b PlaylistItems GangedPackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.02.02.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP3b detail="MXF OP3b EditItems GangedPackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.03.02.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP1c detail="MXF OP1c SingleItem AlternatePackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.01.03.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP2c detail="MXF OP2c PlaylistItems AlternatePackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.02.03.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOP3c detail="MXF OP3c EditItems AlternatePackages" ul="06.0E.2B.34.04.01.01.01.0D.01.02.01.03.03.01.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.00.0e.00" />
+		<MXFOPSpecialized detail="MXF Specialized OP" ul="06.0E.2B.34.04.01.01.00.0D.01.02.01.00.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.7f.ff.ff.ff" />
+		<MXFOPAtom detail="MXF Specialized OP Atom" ul="06.0E.2B.34.04.01.01.02.0D.01.02.01.10.00.00.00" mask="00.00.00.00.00.00.00.00.00.00.00.00.00.03.00.00" />
+
+		<MXFEC detail="MXF Essence Containers" ul="06.0E.2B.34.04.01.01.00.0D.01.03.00.00.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.ff.ff.ff.ff.ff" />
+		<MXFGC detail="MXF Generic Container" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.ff.ff.ff" />
+		<MXFGCD10 detail="MXF-GC SMPTE D-10 Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.01.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCDV detail="MXF-GC DV-DIF Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.02.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCD10 detail="MXF-GC SMPTE D-11 Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.03.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMPEGES detail="MXF-GC MPEG Elementary Streams" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.04.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCUncompressed detail="MXF-GC Uncompressed Pictures" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.05.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCAESBWF detail="MXF-GC AES-BWF Audio" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.06.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMPEGPES detail="MXF-GC MPEG Packetised Elementary Streams" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.07.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMPEGPS detail="MXF-GC MPEG Program Streams" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.08.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMPEGTS detail="MXF-GC MPEG Transport Streams" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.09.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCALaw detail="MXF-GC A-law Audio Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.0A.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCEncrypted detail="MXF-GC Encrypted Data Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.0B.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCJP2K detail="MXF-GC JPEG-2000 Picture Mappings" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.0C.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCVBI detail="MXF-GC Generic VBI Data Mapping Undefined Payload" ul="06.0E.2B.34.04.01.01.00.0D.01.03.01.02.0D.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.00.ff.ff" />
+		<MXFGCMultiple detail="MXF-GC Generic Essence Multiple Mappings" ul="06.0E.2B.34.04.01.01.03.0D.01.03.01.02.7f.01.00"/>
+
+		<SMPTE12MTimecodeTrack detail="SMPTE 12M Timecode Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.01.01.00.00.00"/>
+		<SMPTE12MTimecodeTrackActiveUserBits detail="SMPTE 12M Timecode Track with active user bits" ul="06.0E.2B.34.04.01.01.01.01.03.02.01.02.00.00.00"/>
+		<SMPTE309MTimecodeTrack detail="SMPTE 309M Timecode Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.01.03.00.00.00"/>
+		<DescriptiveMetadataTrack detail="Descriptive Metadata Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.01.10.00.00.00"/>
+		<PictureEssenceTrack detail="Picture Essence Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.02.01.00.00.00"/>
+		<SoundEssenceTrack detail="Sound Essence Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.02.02.00.00.00"/>
+		<DataEssenceTrack detail="Data Essence Track" ul="06.0E.2B.34.04.01.01.01.01.03.02.02.03.00.00.00"/>
+
+		<DMS1 detail="MXF Descriptive Metadata Scheme 1" ul="06.0E.2B.34.04.01.01.01.0D.01.04.01.01.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.ff.ff.ff"/>
+		<DMS1Production detail="MXF DMS-1 Production Framework constrained to the standard version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.01.01"/>
+		<DMS1ProductionExtended detail="MXF DMS-1 Clip Framework constrained to the extended version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.01.02"/>
+		<DMS1Clip detail="MXF DMS-1 Clip Framework constrained to the standard version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.02.01"/>
+		<DMS1ClipExtended detail="MXF DMS-1 Production Framework constrained to the extended version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.02.02"/>
+		<DMS1Scene detail="MXF DMS-1 Scene Framework constrained to the standard version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.03.01"/>
+		<DMS1SceneExtended detail="MXF DMS-1 Scene Framework constrained to the extended version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.03.02"/>
+
+		<DMSCrypto detail="MXF Cryptographic DM Scheme" ul="06.0E.2B.34.04.01.01.07.0D.01.04.01.02.00.00.00" mask="00.00.00.00.00.00.00.ff.00.00.00.00.00.ff.ff.ff"/>
+		<DMSCryptoFramework detail="Cryptographic framework for the DC28 MXF cryptographic DM scheme" ul="06.0E.2B.34.04.01.01.07.0D.01.04.01.02.01.01.00"/>
+    </MXFLabels>
+
+	<!-- Metaglue Dictionary Extensions -->
+	<MXFTypes>
+        <Interpretation>
+			<!-- TODO: Check that this StringArray is the right type for the given UL (listed for StringArray in the latest SMPTE types registry draft) -->
+            <StringArray detail="Unicode UTF-16 coded strings, each zero terminated in a single outer string" base="UTF16String" ul="urn:x-ul:060E2B34.0104.0101.04010500.00000000"/>
+            <WeakReferenceTypeDefinition base="WeakRef" target="TypeDefinition"/>
+            <WeakReferenceClassDefinition base="WeakRef" target="ClassDefinition"/>
+        </Interpretation>
+        <Multiple>
+            <StrongReferenceSetClassDefinition detail="Set of StrongReferences to ClassDefinition sets" type="Batch" base="StrongRef" target="ClassDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050100.00000000"/>
+            <StrongReferenceSetTypeDefinition detail="Set of StrongReferences to TypeDefinition sets" type="Batch" base="StrongRef" target="TypeDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050c00.00000000"/>
+            <StrongReferenceSetPropertyDefinition detail="Set of StrongReferences to PropertyDefinition sets" type="Batch" base="StrongRef" target="PropertyDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050B00.00000000"/>
+            <WeakReferenceVectorTypeDefinition detail="Vector of WeakReferences to TypeDefinition sets" type="Batch" base="WeakRef" target="TypeDefinition" ul="urn:x-ul:060E2B34.0104.0101.05040200.00000000"/>
+		</Multiple>
+    </MXFTypes>
+    <MXFClasses>
+        <MetaDictionary detail="[060E2B34.0253.0101.0D010101.02250000] From AAF" type="localSet" key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 25 00 00" base="GenerationInterchangeObject">
+            <ClassDefinitions detail="urn:x-ul:060E2B34.0101.0102.06010107.07000000 from AAF" key="00 03" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 07 00 00 00" use="required" type="StrongReferenceSetClassDefinition"/>
+            <TypeDefinitions detail="urn:x-ul:060E2B34.0101.0102.06010107.08000000 from AAF" key="00 04" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 08 00 00 00" use="required" type="StrongReferenceSetTypeDefinition"/>
+        </MetaDictionary>
+        <MetaDefinition key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 24 00 00" base="InterchangeObject">
+            <Identification detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 13 00 00 00" key="00 05" type="AUID" use="required"/>
+            <Name detail="" globalKey="06 0E 2B 34 01 01 01 02 03 02 04 01 02 01 00 00" key="00 06" type="UTF16String" use="required"/>
+            <Description detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 14 01 00 00" key="00 07" type="UTF16String" use="optional"/>
+        </MetaDefinition>
+        <ClassDefinition key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 01 00 00" base="MetaDefinition">
+            <ParentClass detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 01 00 00 00" key="00 08" type="UUID" ref="weak" use="required"/>
+            <Properties detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 02 00 00 00" key="00 09" type="StrongReferenceSetPropertyDefinition" use="optional" />
+            <IsConcrete detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 03 00 00 00" key="00 0A" type="Boolean" use="required"/>
+        </ClassDefinition>
+        <PropertyDefinition key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 02 00 00" base="MetaDefinition">
+            <Type detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 04 00 00 00" key="00 0B" type="AUID" use="required"/>
+            <IsOptional detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 02 01 00 00 00" key="00 0C" type="Boolean" use="required"/>
+            <LocalIdentification detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 05 00 00 00" key="00 0D" type="UInt16" use="required"/>
+            <IsUniqueIdentifier detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 06 00 00 00" key="00 0E" type="Boolean" use="optional"/>
+        </PropertyDefinition>
+        <TypeDefinition key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 03 00 00" base="MetaDefinition" />
+        <TypeDefinitionInteger key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 04 00 00" base="TypeDefinition">
+            <Size detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 01 00 00 00" key="00 0F" type="UInt8" use="required"/>
+            <IsSigned detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 02 00 00 00" key="00 10" type="Boolean" use="required"/>
+        </TypeDefinitionInteger>
+        <TypeDefinitionStrongObjectReference key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 05 00 00" base="TypeDefinition">
+            <ReferencedType detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 09 00 00 00" key="00 11" type="WeakReferenceTypeDefinition" use="required"/>
+        </TypeDefinitionStrongObjectReference>
+        <TypeDefinitionWeakObjectReference key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 06 00 00" base="TypeDefinition">
+            <ReferencedType detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 0A 00 00 00" key="00 12" type="WeakReferenceTypeDefinition" use="required"/>
+            <TargetSet detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 0B 00 00 00" key="00 13" type="AUIDSet" use="required"/>
+        </TypeDefinitionWeakObjectReference>
+        <TypeDefinitionEnumeration key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 07 00 00" base="TypeDefinition">
+            <ElementType detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 0B 00 00 00" key="00 14" type="WeakReferenceTypeDefinition" use="required"/>
+            <ElementNames detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 04 00 00 00" key="00 15" type="StringArray" use="required"/>
+            <ElementValues detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 05 00 00 00" key="00 16" type="Int64Batch" use="required"/>
+        </TypeDefinitionEnumeration>
+        <TypeDefinitionFixedArray key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 08 00 00" base="TypeDefinition">
+            <ElementType detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 0C 00 00 00" key="00 17" type="WeakReferenceTypeDefinition" use="required"/>
+            <ElementCount detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 03 00 00 00" key="00 18" type="UInt32" use="required"/>
+        </TypeDefinitionFixedArray>
+        <TypeDefinitionVariableArray key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 09 00 00" base="TypeDefinition">
+            <ElementType detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 0D 00 00 00" key="00 19" type="WeakReferenceTypeDefinition" use="required"/>
+        </TypeDefinitionVariableArray>
+        <TypeDefinitionSet key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 0A 00 00" base="TypeDefinition">
+            <ElementType detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 0E 00 00 00" key="00 1A" type="WeakReferenceTypeDefinition" use="required"/>
+        </TypeDefinitionSet>
+        <TypeDefinitionString key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 0B 00 00" base="TypeDefinition">
+            <ElementType detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 0F 00 00 00" key="00 1B" type="WeakReferenceTypeDefinition" use="required"/>
+        </TypeDefinitionString>
+        <TypeDefinitionStream key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 0C 00 00" base="TypeDefinition">
+		</TypeDefinitionStream>
+        <TypeDefinitionRecord key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 0D 00 00" base="TypeDefinition">
+            <MemberTypes detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 11 00 00 00" key="00 1C" type="WeakReferenceVectorTypeDefinition" use="required"/>
+            <MemberNames detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 06 00 00 00" key="00 1D" type="StringArray" use="required"/>
+        </TypeDefinitionRecord>
+        <TypeDefinitionRename key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 0E 00 00" base="TypeDefinition">
+            <RenamedType detail="" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 07 12 00 00 00" key="00 1E" type="WeakReferenceTypeDefinition" use="required"/>
+        </TypeDefinitionRename>
+        <TypeDefinitionExtendibleEnumeration key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 20 00 00" base="TypeDefinition">
+            <ElementNames detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 07 00 00 00" key="00 1F" type="StringArray" use="required"/>
+            <ElementValues detail="" globalKey="06 0E 2B 34 01 01 01 02 03 01 02 03 08 00 00 00" key="00 20" type="AUIDSet" use="required"/>
+        </TypeDefinitionExtendibleEnumeration>
+        <TypeDefinitionIndirect key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 21 00 00" base="TypeDefinition">
+		</TypeDefinitionIndirect>
+        <TypeDefinitionOpaque key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 22 00 00" base="TypeDefinitionIndirect">
+		</TypeDefinitionOpaque>
+        <TypeDefinitionCharacter key="06 0E 2B 34 02 53 01 01 0D 01 01 01 02 23 00 00" base="TypeDefinition">
+		</TypeDefinitionCharacter>
+    </MXFClasses>
+    <MXFTypes>
+        <Compound>
+            <Root_Offsets_Struct>
+                <UnknownA_Offset type="UInt64"/>
+                <UnknownB_Offset type="UInt64"/>
+                <ObjDir_Offset type="UInt64"/>
+            </Root_Offsets_Struct>
+        </Compound>
+        <Compound>
+            <ObjectPosition_Struct>
+                <ObjectID type="AUID"/>
+                <ObjectOffset type="UInt64"/>
+                <ObjectFlags type="UInt8"/>
+            </ObjectPosition_Struct>
+        </Compound>
+        <Multiple>
+			<ObjectPosition base="ObjectPosition_Struct" type="Batch"/>
+        </Multiple>
+    </MXFTypes>
+    <MXFClasses>
+        <AvidRoot type="localSet" keyFormat="2" lengthFormat="2" key="80 53 08 00 36 21 08 04 B3 B3 98 A5 1C 90 11 D4">
+            <Root_MetaDictionary detail="Strong ref to MetaDictionary" use="optional" type="UUID" minLength="16" maxLength="16" key="00 01" globalKey="06 0E 2B 34 01 01 01 02 0D 01 03 01 01 01 00 00" ref="strong" target="MetaDictionary"/>
+            <Root_Preface detail="Strong ref to Preface" use="required" type="UUID" minLength="16" maxLength="16" key="00 02" globalKey="06 0E 2B 34 01 01 01 02 0D 01 03 01 02 01 00 00" ref="strong" target="Preface"/>
+            <Root_Offsets detail="" use="required" type="RAW" key="00 03" globalKey="06 0E 2B 34 01 01 01 02 0D 01 03 01 03 01 00 00"/>
+            <Root_Unknown detail="" use="optional" type="RAW" key="00 04" globalKey="06 0E 2B 34 01 01 01 02 0D 01 03 01 04 01 00 00"/>
+        </AvidRoot>
+        <ObjectDirectory type="fixedPack" globalKey="96 13 B3 8A 87 34 87 46 F1 02 96 F0 56 E0 4D 2A">
+            <!--crap globalKey, just needed something-->
+            <ObjectDetails use="required" type="ObjectPosition" globalKey="38 26 61 0B 00 EA 48 0c A6 F3 B7 A7 D4 79 F6 86"/>
+        </ObjectDirectory>
+    </MXFClasses>
+</MXFDictionary>

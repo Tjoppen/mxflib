@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.h
  *	\brief	Definitions for AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.h,v 1.5 2006/09/04 16:18:21 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.h,v 1.6 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 using namespace mxflib;
 
 #include <stdlib.h>

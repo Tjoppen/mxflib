@@ -15,7 +15,7 @@
  *<br>
  *	\note	File-I/O can be disabled to allow the functions to be supplied by the calling code by defining MXFLIB_NO_FILE_IO
  *
- *	\version $Id: system.h,v 1.20 2008/09/01 10:44:55 matt-beard Exp $
+ *	\version $Id: system.h,v 1.21 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -47,7 +47,6 @@
 // Required headers for non-system specific bits
 #include <time.h>
 #include <stdlib.h>						// Required for integer conversions
-#include <cstring>						// Required for memcpy
 
 /************************************************/
 /*           (Hopefully) Common types           */
@@ -126,7 +125,9 @@ namespace mxflib
 
 #endif // _MSC_VER < 1300
 
+#ifdef _DEBUG
 #include <crtdbg.h>						//!< Debug header
+#endif
 #include <string>						//!< Required for strings
 #include <io.h>							//!< MSVC File I/O
 
@@ -192,6 +193,7 @@ namespace mxflib
 	};
 
 #define ASSERT _ASSERT					//!< Debug assert
+
 #define strcasecmp(s1, s2) _stricmp(s1, s2)
 
 //! Allow command-line switches to be prefixed with '/' or '-'
@@ -223,6 +225,13 @@ namespace mxflib
 #include <sys/stat.h>		//!< for _S_IREAD, _S_IWRITE
 #include <sys/timeb.h>		//!< for _timeb
 
+
+// Define special func pointer for use in determining OS varient
+#ifdef PROCESSOR_ARCHITECTURE_AMD64
+typedef void (WINAPI *WINDOWS_PGNSI)(LPSYSTEM_INFO);
+#endif // PROCESSOR_ARCHITECTURE_AMD64
+
+
 #define DIR_SEPARATOR		'\\'
 #define PATH_SEPARATOR		';'
 #ifndef DEFAULT_DICT_PATH
@@ -238,9 +247,16 @@ namespace mxflib
 	inline int FileSeekEnd(FileHandle file) { return _lseeki64(file, 0, SEEK_END) == -1 ? -1 : 0; }
 	
 	// DRAGONS: MSVC can't read or write more than 4Gb in one go currently
-	inline size_t FileRead(FileHandle file, unsigned char *dest, size_t size) { return _read(file, dest, (unsigned int)size); }
-	inline size_t FileWrite(FileHandle file, const unsigned char *source, size_t size) { return _write(file, source, (unsigned int)size); }
-
+	 inline size_t FileRead(FileHandle file, unsigned char *dest, size_t size) 
+	 { 
+		 int Ret = _read(file, dest, (unsigned int)size);
+		 return (Ret < 0) ? static_cast<size_t>(-1) : Ret; 
+	 }
+	inline size_t FileWrite(FileHandle file, const unsigned char *source, size_t size) 
+	{ 
+		int Ret = _write(file, source, (unsigned int)size); 
+		return (Ret < 0) ? static_cast<size_t>(-1) : Ret; 
+	}
 	inline int FileGetc(FileHandle file) { UInt8 c; return (FileRead(file, &c, 1) == 1) ? (int)c : EOF; }
 	inline FileHandle FileOpen(const char *filename) { return _open(filename, _O_BINARY | _O_RDWR ); }
 	inline FileHandle FileOpenRead(const char *filename) { return _open(filename, _O_BINARY | _O_RDONLY ); }
@@ -249,7 +265,11 @@ namespace mxflib
 	inline bool FileEof(FileHandle file) { return _eof(file) ? true : false; }
 	inline UInt64 FileTell(FileHandle file) { return _telli64(file); }
 	inline void FileClose(FileHandle file) { _close(file); }
+	inline void FileFlush(FileHandle file) { _commit(file); }
 	inline bool FileExists(const char *filename) { struct _stat buf; return _stat(filename, &buf) == 0; }
+	inline int FileDelete(const char *filename) { return _unlink(filename); }
+	inline Int64 FileSize(FileHandle file) { struct _stat64 buf; return _fstat64(file, &buf) != 0 ? -1 : buf.st_size; } 
+
 #endif //MXFLIB_NO_FILE_IO
 
 
@@ -268,21 +288,7 @@ namespace mxflib
 	/******** UUID Generation ********/
 	inline void MakeUUID(UInt8 *Buffer)
 	{
-		// Build a GUID using the Windows API call
-		GUID Value;
-		CoCreateGuid(&Value);
-
-		// Transfer the parts of the GUID and endian-swap them as we do so
-		UInt8 *p = Buffer;
-		*(p++) = static_cast<UInt8>(Value.Data1 >> 24);
-		*(p++) = static_cast<UInt8>(Value.Data1 >> 16);
-		*(p++) = static_cast<UInt8>(Value.Data1 >> 8);
-		*(p++) = static_cast<UInt8>(Value.Data1);
-		*(p++) = static_cast<UInt8>(Value.Data2 >> 8);
-		*(p++) = static_cast<UInt8>(Value.Data2);
-		*(p++) = static_cast<UInt8>(Value.Data3 >> 8);
-		*(p++) = static_cast<UInt8>(Value.Data3);
-		memcpy(p, Value.Data4, 8);
+		CoCreateGuid(reinterpret_cast<GUID*>(Buffer));
 	}
 
 	//! Determine if the specified filename refers to an absolute path
@@ -350,7 +356,7 @@ namespace mxflib
 				{
 #ifdef _MSC_VER
 #if _MSC_VER >= 1300
-					if(OSInfo.wProductType == VER_NT_SERVER) Ret = "Windows Server 2008";
+					if(OSInfo.wProductType != VER_NT_WORKSTATION) Ret = "Windows Server 2008";
 					else Ret = "Windows Vista";
 					
 					if (0)	// Remove following pre-VC7 version
@@ -358,6 +364,18 @@ namespace mxflib
 #endif // _MSC_VER
 						Ret = "Windows Vista or Server 2008";
 				}
+				else if(OSInfo.dwMinorVersion == 1)
+				{
+#ifdef _MSC_VER
+#if _MSC_VER >= 1300
+					if(OSInfo.wProductType != VER_NT_WORKSTATION) Ret = "Windows Server 2008 R2";
+					else Ret = "Windows 7";
+
+					if (0)	// Remove following pre-VC7 version
+#endif // _MSC_VER >= 1300
+#endif // _MSC_VER
+						Ret = "Windows 7 or Server 2008 R2";
+}
 			}
 
 			// Add any service pack details
@@ -373,6 +391,24 @@ namespace mxflib
 			}
 		}
 
+#ifdef PROCESSOR_ARCHITECTURE_AMD64
+		if ( OSInfo.dwMajorVersion >= 5 )
+		{
+			// Read sytem info from Windows kernel
+			SYSTEM_INFO si;
+			WINDOWS_PGNSI pGNSI = (WINDOWS_PGNSI) GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetNativeSystemInfo");
+			if(pGNSI) pGNSI(&si);
+			else GetSystemInfo(&si);
+
+			if ( si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64 )
+				Ret += " (64-bit)";
+#ifdef PROCESSOR_ARCHITECTURE_AMD64
+			else if (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_IA64 )
+				Ret += " (Itanium)";
+#endif // PROCESSOR_ARCHITECTURE_IA64
+		}
+#endif // PROCESSOR_ARCHITECTURE_AMD64
+
 		return Ret;
 	}
 }
@@ -384,7 +420,8 @@ namespace mxflib
 // Support for all platforms with ISO C++ compilers using autoconf environment
 // including the _WIN32 platform with Mingw, Cygwin or Intel compilers.
 
-#include "config.h"		// generated by running ./configure
+//not using autobuild
+//#include "config.h"		// generated by running ./configure
 #include <stdio.h>
 #include <string>
 #include <sys/time.h>
@@ -487,6 +524,7 @@ namespace mxflib
 #define DEFAULT_DICT_PATH	"/usr/local/share/mxflib/"
 #endif //DEFAULT_DICT_PATH
 
+
 	/******** 64-bit file-I/O ********/
 #ifndef MXFLIB_NO_FILE_IO
 	typedef FILE *FileHandle;
@@ -502,7 +540,10 @@ namespace mxflib
 	inline bool FileEof(FileHandle file) { return feof(file); }
 	inline UInt64 FileTell(FileHandle file) { return ftello(file); }
 	inline void FileClose(FileHandle file) { fclose(file); }
+	inline void FileFlush(FileHandle file) { fflush(file); }
 	inline bool FileExists(const char *filename) { struct stat buf; return stat(filename, &buf) == 0; }
+	inline int FileDelete(const char *filename) { return unlink(filename); }
+	inline Int64 FileSize(FileHandle file) { struct stat64 buf; return fstat64(fileno(file), &buf) != 0 ? -1 : buf.st_size; } 
 #endif //MXFLIB_NO_FILE_IO
 
 	/********* Acurate time *********/
@@ -529,37 +570,10 @@ namespace mxflib
 		memcpy(Buffer, &u, sizeof(u));
 	}
 #else // HAVE_UUID_GENERATE
-	inline void MakeUUID(UInt8 *Buffer)
-	{
-		static bool Inited = false;
-		if(!Inited)
-		{
-			// Attempt a reasonably random seed to prevent duplicate UUIDs
-			// The time is normally good enough as a seed, except multiple processes may run this code at the
-			// same time across all machines in use at any time.  The address of the buffer will depend on the
-			// target platform and other processes running on the same machine.  The value of clock() will
-			// depend on how much CPU time has elapsed since the program started and is shifted to reduce the
-			// chance that a system using the same granularity for this and time() will simply give the
-			// program start time. Why also include a random number in the seed? Because if someone has already
-			// seeded the generator with a decent random number this will be taken into account to prevent
-			// degrading the randomness
-			srand((time(NULL)) ^ ((uintptr_t)Buffer) ^ (clock() << 2) ^ rand());
-			Inited = true;
-		}
-		int i;
-		for(i=0; i<16; i++)
-		{
-			Buffer[i] = (UInt8)rand();
-		}
 
-		// Set reserved bits (variant "10" = ISO/IEC 11578)
-		Buffer[8] &= 0x3f;
-		Buffer[8] |= 0x80;
+void MakeUUID(UInt8 *Buffer);
+//implemented in uuid.cpp
 
-		// Set version bits (version "0100" = random or pseudo-random)
-		Buffer[7] &= 0x0f;
-		Buffer[7] |= 0x40;
-	}
 #endif // HAVE_UUID_GENERATE
 
 	//! Determine if the specified filename refers to an absolute path
@@ -570,7 +584,7 @@ namespace mxflib
 	}
 
 #endif // _WIN32
-}
+} //end of namespace mxflib
 
 //! Allow command-line switches to be prefixed only with '-'
 #define IsCommandLineSwitchPrefix(x) ( x == '-' )
@@ -647,7 +661,9 @@ namespace mxflib
 	bool FileEof(FileHandle file);
 	UInt64 FileTell(FileHandle file);
 	void FileClose(FileHandle file);
+	void FileFlush(FileHandle file) ; 
 	bool FileExists(const char *filename);
+	int FileDelete(const char *filename);
 }
 #endif // MXFLIB_NO_FILE_IO
 

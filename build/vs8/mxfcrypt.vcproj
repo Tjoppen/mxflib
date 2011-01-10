@@ -3,7 +3,8 @@
 	ProjectType="Visual C++"
 	Version="8.00"
 	Name="mxfcrypt"
-	ProjectGUID="{73F7FF6C-842D-45AF-A054-5E62F0BB02BC}"
+	ProjectGUID="{6287F237-EE12-4580-B58A-6AF8F2BE9476}"
+	RootNamespace="mxfcrypt"
 	>
 	<Platforms>
 		<Platform
@@ -15,10 +16,10 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -42,17 +43,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..,$(OPENSSL_ROOT)\inc32"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="..\..,$(OPENSSL_ROOT)\include"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE; _CRT_SECURE_NO_DEPRECATE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Debug/mxfcrypt.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				CompileAs="0"
 			/>
@@ -69,8 +68,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="odbc32.lib odbccp32.lib $(OPENSSL_ROOT)\out32\libeay32.lib"
-				LinkIncremental="1"
+				AdditionalDependencies="odbc32.lib odbccp32.lib $(OPENSSL_ROOT)\lib\libeay32.lib"
+				OutputFile="$(OutDir)/mxfcrypt.exe"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -99,16 +99,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -132,17 +132,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="2"
 				InlineFunctionExpansion="1"
-				AdditionalIncludeDirectories="..\..,$(OPENSSL_ROOT)\include"
+				AdditionalIncludeDirectories="..\..,$(OPENSSL_ROOT)\inc32"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxfcrypt.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				CompileAs="0"
@@ -160,7 +158,8 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="odbc32.lib odbccp32.lib $(OPENSSL_ROOT)\out32\libeay32.lib"
+				AdditionalDependencies="odbc32.lib odbccp32.lib $(OPENSSL_ROOT)\lib\VC\static\libeay32MT.lib"
+				OutputFile="$(OutDir)/mxfcrypt.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				SubSystem="1"
@@ -189,16 +188,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="DebugStatic|Win32"
-			OutputDirectory="$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -222,17 +221,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..,$(OPENSSL_ROOT)\include"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="..\..,$(OPENSSL_ROOT)\inc32"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE; _CRT_SECURE_NO_DEPRECATE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Debug/mxfcrypt.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				CompileAs="0"
 			/>
@@ -249,8 +246,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="odbc32.lib odbccp32.lib $(OPENSSL_ROOT)\out32\libeay32.lib"
-				LinkIncremental="1"
+				AdditionalDependencies="odbc32.lib odbccp32.lib $(OPENSSL_ROOT)\lib\VC\static\libeay32MT.lib"
+				OutputFile="$(OutDir)/mxfcrypt.exe"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -279,16 +277,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="ReleaseStatic|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -312,17 +310,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="2"
 				InlineFunctionExpansion="1"
-				AdditionalIncludeDirectories="..\..,$(OPENSSL_ROOT)\include"
+				AdditionalIncludeDirectories="..\..,$(OPENSSL_ROOT)\inc32"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxfcrypt.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				CompileAs="0"
@@ -340,7 +336,8 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="odbc32.lib odbccp32.lib $(OPENSSL_ROOT)\out32\libeay32.lib"
+				AdditionalDependencies="odbc32.lib odbccp32.lib $(OPENSSL_ROOT)\lib\VC\static\libeay32MT.lib"
+				OutputFile="$(OutDir)/mxfcrypt.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				SubSystem="1"
@@ -369,8 +366,8 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 	</Configurations>
@@ -480,6 +477,10 @@
 			>
 			<File
 				RelativePath="..\..\mxfcrypt\crypto_asdcp.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\mxfcrypt\DMS_Crypto.h"
 				>
 			</File>
 		</Filter>

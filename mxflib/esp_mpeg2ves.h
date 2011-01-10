@@ -1,7 +1,7 @@
 /*! \file	esp_mpeg2ves.h
  *	\brief	Definition of class that handles parsing of MPEG-2 video elementary streams
  *
- *	\version $Id: esp_mpeg2ves.h,v 1.10 2007/02/23 13:23:50 matt-beard Exp $
+ *	\version $Id: esp_mpeg2ves.h,v 1.11 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -59,6 +59,9 @@ namespace mxflib
 
 		bool ClosedGOP;										//!< True if the current GOP is flagged as closed
 
+		Position RangeStart;								//!< The first edit unit to return if producing a sub-range, else -1
+		Position RangeEnd;									//!< The last edit unit to return if producing a sub-range, else -1
+
 		// File buffering
 		UInt8 Buffer[MPEG2_VES_BUFFERSIZE];					//!< Buffer for efficient file reading
 		int BuffCount;										//!< Count of bytes still unread in Buffer
@@ -74,6 +77,8 @@ namespace mxflib
 
 		MDObjectParent CurrentDescriptor;					//!< Pointer to the last essence descriptor we built
 															/*!< This is used as a quick-and-dirty check that we know how to process this source */
+
+		Position GOPStartTimecode;							//!< The most recently extracted GOP start timecode
 
 	public:
 		//! Class for EssenceSource objects for parsing/sourcing MPEG-VES essence
@@ -98,7 +103,7 @@ namespace mxflib
 				MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
 				
 				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip) return pCaller->ReadInternal(File, Stream, 0);
-				
+
 				return pCaller->ReadInternal(File, Stream, RequestedCount);
 			};
 
@@ -116,7 +121,7 @@ namespace mxflib
 			 *  \return true if the last call to GetEssenceData() returned the end of a clip-wrapped clip.
 			 *  \return false if there is more data pending for the current wrapping unit.
 			 *  \return false if the source is to be clip-wrapped and there is more data pending for the clip
-*/
+			 */
 			virtual bool EndOfItem(void) 
 			{ 
 				// Items end when there is no data remaining from the last read
@@ -138,6 +143,28 @@ namespace mxflib
 				MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
 				return pCaller->EditPoint; 
 			}
+
+			//! Set a sub-range of the data
+			/*! If supported this must ensure that valid data is returned with sequence headers at the start and including
+			*  any pre-charge and overrun required (setting Origin for GetOrigin() as required)
+			*
+			*  \return false if not supported or not able to comply for some other reason
+			*/
+			virtual bool SetRange(Position Start, Length Duration) 
+			{ 
+				MPEG2_VES_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, MPEG2_VES_EssenceSubParser);
+
+				pCaller->RangeStart = Start;
+				pCaller->RangeEnd = Start + Duration - 1;
+
+				return true;
+			}
+
+			virtual bool EnableVBRIndexMode(void)
+			{
+				// We always return one edit unit at a time
+				return true;
+			}
 		};
 
 		// Give our essence source class privilaged access
@@ -147,11 +174,16 @@ namespace mxflib
 		// TODO: Check why properties are not initialised here!
 		MPEG2_VES_EssenceSubParser()
 		{
+			RangeStart = -1;
+			RangeEnd = -1;
+
 			CachedDataSize = static_cast<size_t>(-1);
 			CachedCount = 0;
 
 			EditPoint = false;
 			EndOfStream = false;
+
+			GOPStartTimecode = 0;
 		}
 
 		//! Build a new parser of this type and return a pointer to it
@@ -221,6 +253,7 @@ namespace mxflib
 
 		//! Get a byte from the current stream
 		int BuffGetU8(FileHandle InFile);
+
 	};
 
 }

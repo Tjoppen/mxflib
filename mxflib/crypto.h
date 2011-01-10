@@ -1,7 +1,7 @@
 /*! \file	crypto.h
  *	\brief	Definition of classes that wrap encryption and decryption tools
  *
- *	\version $Id: crypto.h,v 1.8 2007/07/06 12:03:06 matt-beard Exp $
+ *	\version $Id: crypto.h,v 1.9 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -494,7 +494,7 @@ namespace mxflib
 			Length BytesToWrite = Data.Size - Start;
 
 			// Write the requested size (if valid)
-			if((Size != static_cast<size_t>(-1)) && (Size < BytesToWrite)) BytesToWrite = Size;
+			if((Size != static_cast<size_t>(-1)) && ((Length)Size < BytesToWrite)) BytesToWrite = Size;
 
 			// Sanity check the size of this chunk
 			if((sizeof(size_t) < 8) && (BytesToWrite > 0xffffffff))

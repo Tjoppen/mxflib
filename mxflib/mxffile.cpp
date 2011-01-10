@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.cpp,v 1.23 2008/08/20 12:53:59 matt-beard Exp $
+ *	\version $Id: mxffile.cpp,v 1.24 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -33,11 +33,12 @@
 // Required for strerror()
 #include <string.h>
 #include <errno.h>
+#include <sstream>
+#include <iomanip>
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
-
 
 //! Open the named MXF file
 bool mxflib::MXFFile::Open(std::string FileName, bool ReadOnly /* = false */ )
@@ -46,6 +47,7 @@ bool mxflib::MXFFile::Open(std::string FileName, bool ReadOnly /* = false */ )
 
 	// Set to be a normal file
 	isMemoryFile = false;
+	isHandleFile = false;
 
 	// Record the name
 	Name = FileName;
@@ -74,6 +76,7 @@ bool mxflib::MXFFile::OpenNew(std::string FileName)
 
 	// Set to be a normal file
 	isMemoryFile = false;
+	isHandleFile = false;
 
 	// Record the name
 	Name = FileName;
@@ -97,6 +100,7 @@ bool mxflib::MXFFile::OpenMemory(DataChunkPtr Buff /*=NULL*/, Position Offset /*
 
 	// Set to be a memory file
 	isMemoryFile = true;
+	isHandleFile = false;
 	Name = "Memory File";
 
 	// No run-in currently allowed on memory files
@@ -116,6 +120,30 @@ bool mxflib::MXFFile::OpenMemory(DataChunkPtr Buff /*=NULL*/, Position Offset /*
 	isOpen = true;
 
 	return true;
+}
+
+
+//! Open an MXFFile for an existing, open, file handle
+/*! DRAGONS: Once the file handle given here is closed by the caller, all further I/O will fail! */
+bool mxflib::MXFFile::OpenFromHandle(FileHandle Handle)
+{
+	if(isOpen) Close();
+
+	// Set to be a normal file, but with external handle management
+	isMemoryFile = false;
+	isHandleFile = true;
+
+	// Record the name
+	Name = "Existing Open File";
+
+	// Set up our file handle
+	this->Handle = Handle;
+
+	if(!FileValid(Handle)) return false;
+
+	isOpen = true;
+
+	return ReadRunIn();
 }
 
 
@@ -184,7 +212,7 @@ bool mxflib::MXFFile::Close(void)
 		}
 		else
 		{
-			FileClose(Handle);
+			if(!isHandleFile) FileClose(Handle);
 		}
 	}
 
@@ -201,8 +229,7 @@ DataChunkPtr mxflib::MXFFile::Read(size_t Size)
 
 	if(Size)
 	{
-		// DRAGONS: We use a UInt64 rather than a size_t so we can test for an error return code
-		UInt64 Bytes;
+		size_t Bytes;
 
 		if(isMemoryFile)
 		{
@@ -214,13 +241,13 @@ DataChunkPtr mxflib::MXFFile::Read(size_t Size)
 		}
 
 		// Handle errors
-		if(Bytes == (UInt64)-1)
+		if(Bytes == static_cast<size_t>(-1))
 		{
 			error("Error reading file \"%s\" at 0x%s - %s\n", Name.c_str(), Int64toHexString(Tell(), 8).c_str(), strerror(errno));
 			Bytes = 0;
 		}
 
-		if(Bytes != static_cast<UInt64>(Size)) Ret->Resize(static_cast<size_t>(Bytes));
+		if(Bytes != Size) Ret->Resize(Bytes);
 	}
 
 	return Ret;
@@ -230,8 +257,7 @@ DataChunkPtr mxflib::MXFFile::Read(size_t Size)
 //! Read data from the file into a supplied buffer
 size_t mxflib::MXFFile::Read(UInt8 *Buffer, size_t Size)
 {
-	// DRAGONS: We use a UInt64 rather than a size_t so we can test for an error return code
-	UInt64 Ret = 0;
+	size_t Ret = 0;
 
 	if(Size)
 	{
@@ -245,14 +271,14 @@ size_t mxflib::MXFFile::Read(UInt8 *Buffer, size_t Size)
 		}
 
 		// Handle errors
-		if(Ret == (UInt64)-1)
+		if(Ret == static_cast<size_t>(-1))
 		{
 			error("Error reading file \"%s\" at 0x%s - %s\n", Name.c_str(), Int64toHexString(Tell(), 8).c_str(), strerror(errno));
 			Ret = 0;
 		}
 	}
 
-	return static_cast<size_t>(Ret);
+	return Ret;
 }
 
 
@@ -314,13 +340,28 @@ bool mxflib::MXFFile::ReadRIP(void)
 	// Go back and read the RIP
 	Seek(RIPStart);
 	MDObjectPtr RIPObject = ReadObject();
+	if(!RIPObject) return false;
 
 	MDObjectPtr PartitionArray = RIPObject[PartitionArray_UL];
-	
-	MDObjectULList::iterator it = PartitionArray->begin();
+	if(!PartitionArray) return false;
+
+	MDObject::iterator it = PartitionArray->begin();
+	while(it != PartitionArray->Value->end())
+	{
+		UInt32 BodySID = (*it).second->Child(0)->GetUInt();
+
+		UInt64 ByteOffset = (*it).second->Child(1)->GetUInt64();
+
+		debug("BodySID = 0x%04x, ByteOffset = %s\n", BodySID, Int64toString(ByteOffset).c_str());
+
+		FileRIP.AddPartition(NULL, ByteOffset, BodySID);
+
+		it++;
+	}
+/*	MDObjectULList::iterator it = PartitionArray->begin();
 	while(it != PartitionArray->end())
 	{
-		UInt32 BodySID = (*it).second->GetUInt();
+		UInt32 BodySID = (*it).second->Value[0]->GetUInt();
 
 		it++;
 		if(it == PartitionArray->end())
@@ -329,15 +370,15 @@ bool mxflib::MXFFile::ReadRIP(void)
 			break;
 		}
 
-		UInt64 ByteOffset = (*it).second->GetUInt64();
-		
+		UInt64 ByteOffset = (*it).second->Value[1]->GetUInt64();
+
 		debug("BodySID = 0x%04x, ByteOffset = %s\n", BodySID, Int64toString(ByteOffset).c_str());
 
 		FileRIP.AddPartition(NULL, ByteOffset, BodySID);
 
 		it++;
 	}
-
+*/
 	return true;
 }
 
@@ -451,7 +492,7 @@ Position MXFFile::ScanRIP_FindFooter(Length MaxScan)
 	static const unsigned int ScanChunkSize = 16384;
 
 	// Check that the scan chunk size is valid
-	ASSERT( (sizeof(size_t) >= 8) || (ScanChunkSize <= 0xffffffff));
+	mxflib_assert( (sizeof(size_t) >= 8) || (ScanChunkSize <= 0xffffffff));
 
 	// If too small a scan range is given we can't scan!
 	if(MaxScan < 20) return 0;
@@ -480,6 +521,9 @@ Position MXFFile::ScanRIP_FindFooter(Length MaxScan)
 
 		// Quit if the read failed
 		if(Chunk->Size != ThisScan) return 0;
+
+		// Reduce remaining scan size
+		ScanLeft -= ThisScan;
 
 		unsigned char *p = Chunk->Data;
 		Position i;
@@ -738,6 +782,26 @@ bool mxflib::MXFFile::BuildRIP(void)
 
 			Skip = ReadBER();
 			Position NextPos = Tell() + Skip;
+
+			// Test for badly damaged file - have we ended up in a sequence of zeros?
+			if(Skip == 0)
+			{
+				// If a zero length is followed by 16 zero bytes - abandon all hope!
+				UInt8 Buff[16];
+				if(Read(Buff, 16) == 16)
+				{
+					UInt8 *p = Buff;
+					int Count = 16;
+					while(Count && (*(p++) == 0)) Count--;
+					if(!Count)
+					{
+						error("Unexpected sequence of zero bytes where a KLV stream was expected starting at 0x%s in file \"%s\"\n",
+							  Int64toHexString(NextPos,8).c_str(), Name.c_str() );
+						return false;
+					}
+				}
+			}
+
 			Seek(NextPos);
 			if( (Skip < 0) || (Tell() != NextPos))
 			{
@@ -913,7 +977,8 @@ UInt64 MXFFile::Align(bool ForceBER4, UInt32 KAGSize, UInt32 MinSize /*=0*/)
 
 	// Nothing to do!
 	if(Fill == 0) return Tell();
-
+//if(Fill>0x10000)
+//printf("%d: Fill- %x\n",Handle, Fill );
 	if(Feature(FeatureVersion1KLVFill))
 	{
 		// Write the version 1 filler key
@@ -923,7 +988,7 @@ UInt64 MXFFile::Align(bool ForceBER4, UInt32 KAGSize, UInt32 MinSize /*=0*/)
 	}
 	else
 	{
-		// Write the filler key
+	// Write the filler key
 		Write(KLVFill_UL.GetValue(), 16);
 	}
 
@@ -941,20 +1006,111 @@ UInt64 MXFFile::Align(bool ForceBER4, UInt32 KAGSize, UInt32 MinSize /*=0*/)
 	}
 
 	// Write the filler value
-	// DRAGONS: Only moderately efficient
-	if(Fill > 128)
+	UInt8 Buffer[256];
+	if(Fill > 256)
 	{
-		UInt8 Buffer[128];
-		memset(Buffer, 0, 128);
-		while(Fill > 128)
+		memset(Buffer, 0, 256);
+		while(Fill > 256)
 		{
-			Write(Buffer, 128); 
-			Fill -= 128;
+			Write(Buffer, 256); 
+			Fill -= 256;
 		}
 	}
-	while(Fill--) WriteU8(0);
+	else
+		memset(Buffer, 0, Fill);
+
+	Write(Buffer, Fill); 
 
 	return Tell();
+}
+
+
+namespace
+{
+
+	//! Write a metadictionary, or KXS extensions, for a given partition, into a buffer
+	// FIXME: Need to prevent adding a metadictionary to a file that has a metadictionary!
+	void WriteMetadict(DataChunkPtr &Buffer, PartitionPtr &ThisPartition, PrimerPtr &UsePrimer)
+	{
+
+		if(Feature(FeatureFullMetadict))
+		{
+			warning("Full metadictionary of all known classes, properties and types, not currently supported\n");
+		}
+
+		// Build the metadictionary
+		MDObjectPtr MetaDict = BuildMetadictionary(ThisPartition->AllMetadata, UsePrimer);
+
+		// Return if the build failed
+		if(!MetaDict) return;
+
+		if(Feature(FeatureKXSMetadict))
+		{
+			MDObjectPtr Preface;
+
+			// Locate the preface
+			MDObjectList::iterator it = ThisPartition->TopLevelMetadata.begin();
+			while(it != ThisPartition->TopLevelMetadata.end())
+			{
+				if((*it)->IsA(Preface_UL))
+				{
+					Preface = (*it);
+					break;
+				}
+
+				if((*it)->IsA(Root_UL))
+				{
+					Preface = (*it)->GetRef(RootPreface_UL);
+					break;
+				}
+				it++;
+			}
+
+			// Long scan if quick find failed
+			if(!Preface)
+			{
+				MDObjectList::iterator it = ThisPartition->AllMetadata.begin();
+				while(it != ThisPartition->AllMetadata.end())
+				{
+					if((*it)->IsA(Preface_UL))
+					{
+						Preface = (*it);
+						break;
+					}
+					it++;
+				}
+			}
+
+			if(Feature(FeatureKXSMetadict))
+			{
+				MDObjectPtr Root = new MDObject(Root_UL);
+				if(Root)
+				{
+					// Add the single extension set
+					// FIXME: Need to have a UL available!  Ptr = Root->AddChild(RootExtensions_UL);
+					MDObjectPtr Ptr = Root->AddChild("RootExtensions");
+					if(Ptr) Ptr = Ptr->AddChild();
+					if(Ptr) Ptr->MakeRef(MetaDict);
+
+					// Add the structure version number for KXS 1b
+					Root->SetInt(RootFormatVersion_UL, 0x12);
+
+					// Add reference to the preface
+					// DRAGONS: This must be after all the other definitions as this will cause the 
+					//          definitions to be written before the items that they define!
+					Ptr = Root->AddChild(RootPreface_UL);
+					if(Ptr && Preface) Ptr->MakeRef(Preface);
+
+					// Add the root
+					Root->WriteLinkedObjects(Buffer, UsePrimer);
+				}
+			}
+		}
+		else
+		{
+			MetaDict->WriteLinkedObjects(Buffer, UsePrimer);
+		}
+	}
 }
 
 
@@ -979,51 +1135,75 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	//! Previous partition if re-writing
 	PartitionPtr OldPartition;
 
+	//! Start from a Primer that contains only built-in knowledge
+	//! and add other entries as encountered within the Metadata
 	PrimerPtr ThisPrimer;
-	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = new Primer;
+	if(UsePrimer) ThisPrimer = UsePrimer; else ThisPrimer = MDOType::MakeBuiltInPrimer();
 
-	DataChunkPtr PrimerBuffer = new DataChunk;
-	DataChunkPtr MetaBuffer = new DataChunk;
+	DataChunkPtr RootBuffer = new DataChunk;		//! for Root and MetaDict - remains empty for non Avid
+	DataChunkPtr MetadataBuffer = new DataChunk;	//! for Header Metadata, aka Preface object
+	MDObjectPtr Preface;
+	MDObjectPtr MetaDictionary;
+
+	DataChunkPtr PrimerBuffer = new DataChunk;		//! for Primer - filled AFTER RootBuffer and MetadataBuffer
+
+	DataChunkPtr ObjectDirBuffer = new DataChunk;	//! for Avid Object Directory - remains empty for non Avid
 
 	// Is this a footer?
 	bool IsFooter = (ThisPartition->IsA(CompleteFooter_UL) || ThisPartition->IsA(Footer_UL));
+
+	// Should we build a metadictionary / KXS root and extensions?
+	bool WritePreface = true;
+	if(IncludeMetadata && Feature(FeatureSaveMetadict))
+	{
+		WriteMetadict(MetadataBuffer, ThisPartition, ThisPrimer);
+		
+		// Disable writing of the preface set below if we wrote a metadictionary
+		if(MetadataBuffer->Size != 0) WritePreface = false;
+	}
 
 	// Write all objects
 	MDObjectList::iterator it = ThisPartition->TopLevelMetadata.begin();
 	while(it != ThisPartition->TopLevelMetadata.end())
 	{
-		if(IncludeMetadata) (*it)->WriteLinkedObjects(MetaBuffer, ThisPrimer);
-
-		// Update partition pack settings from the preface (if we find one)
-		if((*it)->IsA(Preface_UL))
+		if(IncludeMetadata)
 		{
-			// Update OP label
-			MDObjectPtr DstPtr = ThisPartition[OperationalPattern_UL];
-			MDObjectPtr SrcPtr = (*it)[OperationalPattern_UL];
-			if((SrcPtr) && (DstPtr))
-			{
-				DstPtr->ReadValue(SrcPtr->Value->PutData());
-			}
+			// FIXME: This is a fudge to prevent the preface being written twice with KXS
+			//        We still need to write any other "top level" items
+			if(WritePreface || (!(*it)->IsA(Preface_UL)))
+				(*it)->WriteLinkedObjects(MetadataBuffer, ThisPrimer);
+		}
 
-			// Update essence containers
-			DstPtr = ThisPartition[EssenceContainers_UL];
-			if(DstPtr)
-			{
-				DstPtr->clear();
-				SrcPtr = (*it)[EssenceContainers_UL];
+		// See if we are dealing with the preface - if so, we need to extract some data
+		if((*it)->IsA(Preface_UL)) Preface = (*it);
 
-				if(SrcPtr)
-				{
-					MDObjectULList::iterator it2 = SrcPtr->begin();
-					while(it2 != SrcPtr->end())
-					{
-						DstPtr->AddChild()->ReadValue((*it2).second->Value->PutData());
-						it2++;
-					}
-				}
+		if((*it)->IsA(MetaDictionary_UL)) MetaDictionary = (*it);
+
+		it++;
+	}
+
+	if(Preface)
+	{
+		// Update OP label
+		MDObjectPtr DstPtr = ThisPartition[OperationalPattern_UL];
+		MDObjectPtr SrcPtr = Preface[OperationalPattern_UL];
+		if((SrcPtr) && (DstPtr))
+		{
+			DstPtr->ReadValue(SrcPtr->Value->PutData());
+		}
+
+		// Update essence containers
+		DstPtr = ThisPartition[EssenceContainers_UL];
+		if(DstPtr)
+		{
+			DstPtr->clear();
+			SrcPtr = Preface[EssenceContainers_UL];
+
+			if(SrcPtr)
+			{
+				DstPtr->SetValue(SrcPtr);
 			}
 		}
-		it++;
 	}
 
 	// Get the KAG size
@@ -1073,11 +1253,12 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 
 	if(IncludeMetadata)
 	{
-		// Build the primer
+
+		// Serialize the primer as KLV
 		ThisPrimer->WritePrimer(PrimerBuffer);
 
-		// Set size of header metadata (including the primer)
-		HeaderByteCount = PrimerBuffer->Size + MetaBuffer->Size;
+		// Set size of header metadata (including the Primer, Root, ObjectDir, and toplevel objects (Preface etc))
+		HeaderByteCount = PrimerBuffer->Size + RootBuffer->Size + ObjectDirBuffer->Size + MetadataBuffer->Size;
 
 		// TODO: We need to do these calculations even if only rewriting with an index table (it could happen!)
 		if(ReWrite)
@@ -1116,25 +1297,32 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 				// DRAGONS: If it won't fit this will burst the -ve, but the following error check will also fire so it doesn't matter
 				Padding =(UInt32)( (OldHeaderByteCount+OldIndexByteCount) - (NewHeaderByteCount+NewIndexByteCount) );
 
+
 				// Minimum possible filler size is 17 bytes
 				// TODO: Actually the padding may be OK at < 17 if we are aligning to a KAG. Better checking could be done...
 				if(((NewHeaderByteCount+NewIndexByteCount) > (OldHeaderByteCount+OldIndexByteCount)) || (Padding < 17))
 				{
-					error("Not enough space to re-write updated header at position 0x%s in %s\n", Int64toHexString(Tell(), 8).c_str(), Name.c_str());
+					warning("Not enough space to re-write updated header metadata at position 0x%s in %s\n", Int64toHexString(Tell(), 8).c_str(), Name.c_str());
 					return false;
 				}
 
 				// Add the padding to the required section
 				if(IndexData)
+
 				{
 					IndexByteCount = NewIndexByteCount + Padding;
+
 					HeaderByteCount = NewHeaderByteCount;
+
 				}
 				else
 					HeaderByteCount = NewHeaderByteCount + Padding;
 
+
 				// Prevent further padding
+
 				Padding = 0;
+
 			}
 
 			// We can't obey a MinPartitionSize request
@@ -1294,6 +1482,7 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		}
 
 		ThisPartition->SetUInt64(IndexByteCount_UL, IndexByteCount);
+
 	}
 	else
 	{
@@ -1315,31 +1504,52 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 	WritePartitionPack(ThisPartition);
 
 	// If we will not be writting metadata or index, but padding has been requested, write the filler here
+
 	if((!IncludeMetadata) && (!IndexData) && (Padding > 0))
+
 	{
+
 		Align(KAGSize, Padding);
+
 	}
+
 	else
+
 	{
+
 		// Align if required
+
 		// All non-footer partitions pack are followed by KAG alignment
+
 		// Any partition with metadata or index has a KAG alignment after the partition pack
+
 		if((KAGSize > 1) && ((!IsFooter) || IncludeMetadata || IndexData) && !BlockAlign) Align(KAGSize);
 
 	}
 
+
+
 	// Ensure the correct size of filler for the already written header byte count - it is possible for duff values to force 2 fillers
-	UInt32 HeaderPadding = static_cast<UInt32>(HeaderByteCount - (PrimerBuffer->Size + MetaBuffer->Size));
+	UInt32 HeaderPadding = static_cast<UInt32>(HeaderByteCount - (PrimerBuffer->Size + MetadataBuffer->Size));
 
 	if(IncludeMetadata)
 	{
 		// Write the primer
 		Write(PrimerBuffer);
 
-		// Write header structural and descriptive metadata
-		Write(MetaBuffer);
-	}
+		{
+			// Write the Root if writing an Avid compatible metadictionary
+			if(RootBuffer->Size)
+			{
+				// Write the Root Object
+				Write(RootBuffer);
+				HeaderPadding -= static_cast<UInt32>(RootBuffer->Size);
+			}
 
+			// Write the other header metadata
+			Write(MetadataBuffer);
+		}
+	}
 
 
 
@@ -1352,11 +1562,17 @@ bool MXFFile::WritePartitionInternal(bool ReWrite, PartitionPtr ThisPartition, b
 		Write(IndexData);
 
 		// Ensure the correct size of filler for the already written index byte count
+
 		UInt32 IndexPadding = static_cast<UInt32>(IndexByteCount - IndexData->Size);
 
+
+
 		// Write a filler of the required size
+
 		if(IndexPadding) Align((UInt32)1, IndexPadding);
+
 	}
+
 
 	return true;
 }
@@ -1435,10 +1651,12 @@ KLVObjectPtr MXFFile::ReadKLV(void)
 //! Locate and read a partition containing closed header metadata
 /*! \ret NULL if none found
  * TODO: Fix slightly iffy assumptions about RIP
+ * DRAGONS: A significant number fo invalid files exist with a closed incomplete header and a closed complete footer. CheckForCompleteFooter=true will return the footer for these files.
  */
-PartitionPtr MXFFile::ReadMasterPartition(Length MaxScan /*=1024*1024*/)
+PartitionPtr MXFFile::ReadMasterPartition(Length MaxScan, bool CheckForCompleteFooter /*=false*/)
 {
 	PartitionPtr Ret;
+	PartitionPtr IncompleteHeader;
 
 	// Start by checking the header
 	Seek(0);
@@ -1447,8 +1665,15 @@ PartitionPtr MXFFile::ReadMasterPartition(Length MaxScan /*=1024*1024*/)
 	Ret = ReadPartition();
 	if(!Ret) return Ret;
 
-	// If the header is closed return it
-	if(Ret->IsA(ClosedCompleteHeader_UL) || Ret->IsA(ClosedHeader_UL)) return Ret;
+	// If the header is closed and complete return it
+	if(Ret->IsA(ClosedCompleteHeader_UL)) return Ret;
+	
+	// If the header is closed and incomplete, see if this if OK, otherwise store and try the footer
+	if(Ret->IsA(ClosedHeader_UL))
+	{
+		if (!CheckForCompleteFooter) return Ret;
+		IncompleteHeader = Ret;
+	}
 
 	/* The header is open - so we must locate the footer */
 	Position FooterPos = 0;
@@ -1484,12 +1709,23 @@ PartitionPtr MXFFile::ReadMasterPartition(Length MaxScan /*=1024*1024*/)
 	Seek(FooterPos);
 	Ret = ReadPartition();
 
-	// If it is a footer, and it contains metadata, return it
+	// If it is a footer, and it contains metadata, see if this is what we want
 	if(Ret)
 	{
-		if((Ret->IsA(CompleteFooter_UL) || Ret->IsA(Footer_UL)) && Ret->GetInt64(HeaderByteCount_UL))
+		if(Ret->GetInt64(HeaderByteCount_UL))
 		{
-			return Ret;
+			// Always return closed and complete header with metadata
+			if(Ret->IsA(CompleteFooter_UL)) return Ret;
+
+			// Closed but incomplete footer
+			if(Ret->IsA(Footer_UL))
+			{
+				// If the header was also closed but incomplete, return the header as the master
+				if(IncompleteHeader) return IncompleteHeader;
+
+				// Otherwise the header must have been open, so return this footer (even though it is incomplete)
+				return Ret;
+			}
 		}
 	}
 
@@ -1548,6 +1784,678 @@ PartitionPtr MXFFile::ReadFooterPartition(Length MaxScan /*=1024*1024*/)
 	Ret = ReadPartition();
 
 	// Return the footer partition
+	return Ret;
+}
+
+
+//! Write the RIP
+void MXFFile::WriteRIP(void)
+{
+	MDObjectPtr RIPObject = new MDObject(RandomIndexMetadata_UL);
+	mxflib_assert(RIPObject);
+
+	if(RIPObject)
+	{
+		MDObjectPtr PA = RIPObject->AddChild(PartitionArray_UL);
+
+		mxflib_assert(PA);
+		if(PA)
+		{
+			RIP::iterator it = FileRIP.begin();
+			while(it != FileRIP.end())
+			{
+				MDObjectPtr ThisEntry = PA->AddChild();
+
+				if(ThisEntry->size() != 2)
+				{
+					error("Unable to build valid Random Index Pack - is the dictionary wrong?\n");
+					return;
+				}
+
+				ThisEntry[0]->SetUInt((*it).second->BodySID);
+				ThisEntry[1]->SetUInt64((*it).second->ByteOffset);
+
+				it++;
+			}
+		}
+
+		// Calculate the pack length
+		RIPObject->SetUInt(Length_UL, 16 + 4 + (static_cast<UInt32>(FileRIP.size()) * 12) + 4);
+
+		DataChunkPtr Buffer = RIPObject->WriteObject();
+
+		Write(Buffer->Data, Buffer->Size);
+	}
+}
+
+
+//! Is this file truncated?
+bool MXFFile::IsTruncated(std::string *Details /*=NULL*/)
+{
+	/* There are cases where the file ends with a sequence of bytes of the same value, such as 0x00 or 0xff,
+	 * often because a transfer has failed after allocating the full file size on the disc. 
+	 * We test for this by looking at the lat 1K of the file, and the first 1K following the last valid KLV
+	 * found for truncated files. If these 2K bytes are all the same value then chances are that all the bytes
+	 * from the last found KLV to the end of the file are the same. We don't test every byte as this could be
+	 * many, many GB.
+	 */
+	int SameByteCount = -1;						// The number of bytes at the end of the file that are identical (-1 if not checked)
+	const int SameByteLimit = 1024;				// The number of identical bytes to regard as enough for this test
+	UInt8 SameByte = 0xcc;						// What byte value if the last 1K
+
+	// If we already know - return the value
+	if(TruncatedKnown && (Details == NULL)) return Truncated;
+
+	// Start by inspecting the header (and getting the file size)
+	Length FileSize = Size();
+	Seek(0);
+	PartitionPtr Header = ReadPartition();
+
+	// Flag that we have not yet determined the file to be truncated, and have not yet found the last KLV
+	Truncated = false;
+	Position LastKLV = -1;
+
+	// If we can't even read the header - then the file is broken
+	if(!Header)
+	{
+		*Details = "File does not start with a valid Header Partition Pack\n";
+		TruncatedKnown = true;
+		Truncated = true;
+		return true;
+	}
+
+	// Does the header tell us where the footer is?
+	Position FooterPos = Header->GetInt64(FooterPartition_UL);
+	if(FooterPos != 0)
+	{
+		// See if the footer is at or beyond the end of the file
+		SeekEnd();
+		if(Tell() <= FooterPos)
+		{
+			if(Details)
+			{
+				std::stringstream s;
+				s << "The Footer should start at 0x" << std::hex << std::setw(8) << std::setfill('0') << FooterPos;
+				s << ", but the file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << Tell();
+				*Details = s.str();
+			}
+			TruncatedKnown = true;
+			Truncated = true;
+			return true;
+		}
+	}
+	else
+	// Otherwise we must seek the footer ourselves
+	{
+		// Easy method - if the file ends in a RIP, then it is not truncated
+		if(ReadRIP())
+		{
+			TruncatedKnown = true;
+			Truncated = false;
+			return false;
+		}
+
+
+		/* Scan the hard way */
+
+		Position ChunkPos = FileSize;
+
+		size_t ChunkSize = 32 * 1024;						// First check only the last 32K as a significant number of files have a small footer
+		const size_t BigChunkSize = 1024 * 1024;			// Then we check in 1M chunks
+		
+		// Buffer big enough to hold the biggest chunk + 15 bytes (to allow key to stradle chunks)
+		DataChunkPtr Buffer = new DataChunk(BigChunkSize + 15);
+
+		// This could be a small metadata-only file - in which case the first chunk will be the whole file
+		if(ChunkPos < ChunkSize) ChunkSize = static_cast<size_t>(ChunkPos);
+		
+		// Read the small first chunk
+		Buffer->Resize(ChunkSize);
+		ChunkPos -= ChunkSize;
+		Seek(ChunkPos);
+		Read(Buffer->Data, ChunkSize);
+
+		// Do a simple check to see if the file seems to end in padding bytes
+		if(Buffer->Data[ChunkSize - 1] == Buffer->Data[ChunkSize - 2])
+		{
+			// The last two bytes are the same, start scanning at the 3rd to last
+			SameByteCount = 2;
+			SameByte = Buffer->Data[ChunkSize - 2];
+			UInt8 *pSame = &Buffer->Data[ChunkSize - 3];
+			int Limit = SameByteLimit - 2;
+			while(Limit)
+			{
+				if(*(pSame--) == SameByte) 
+				{
+					SameByteCount++;
+					Limit--;
+				}
+				else
+					break;
+			}
+		}
+
+		size_t BytesToScan = ChunkSize;
+		UInt8 *pScan = &Buffer->Data[Buffer->Size - 1];
+		for(;;)
+		{
+			// Is this a 0x06 - if so it could be the start of one of teh keys we are scanning for
+			if(*pScan == 0x06)
+			{
+				// Only a possible key if the next bytes are 0x0e 0x2b 0x 34
+				if((pScan[1] == 0x0e) && (pScan[2] == 0x2b) && (pScan[3] == 0x34))
+				{
+					// Keys of interest:
+					//
+					// 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x05, 0x01, 0x??, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x04, 0x02, 0x00 = Footer
+					// 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x05, 0x01, 0x??, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x04, 0x04, 0x00 = CompleteFooter
+					// 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x??, 0x01, 0x??, 0x0d, 0x01, 0x03, 0x01, 0x04, 0x??, 0x??, 0x?? = CP System Data
+					// 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x??, 0x01, 0x??, 0x0d, 0x01, 0x03, 0x01, 0x14, 0x??, 0x??, 0x?? = GC System Data
+					// 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x01, 0x??, 0x0d, 0x01, 0x03, 0x01, 0x??, 0x??, 0x??, 0x?? = CP/GC Essence Data
+					// 0x06, 0x0e, 0x2b, 0x34, 0x01, 0x02, 0x??, 0x??, 0x??, 0x??, 0x??, 0x??, 0x??, 0x??, 0x??, 0x?? = Some Sort of Essence Data
+
+					// Groups (Sets and Packs)
+					if(pScan[4] == 0x02)
+					{
+						// DRAGONS: We will never actually use the first 5 bytes. The 2 or 4 (Footer or CompleteFooter) in byte 14 will be tested separately
+						static const UInt8 FooterKey[14] = { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x05, 0x01, 0xFF, 0x0d, 0x01, 0x02, 0x01, 0x01, 0x04 };
+
+						// DRAGONS: We will never actually use the first 5 bytes. The 0x04 or 0x14 (CP or GC) in byte 12 will be tested separately
+						static const UInt8 CPGPSystem[12] = { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0xFF, 0x01, 0xFF, 0x0d, 0x01, 0x03, 0x01 };
+
+						// Version-less compare for either Footer key
+						if((pScan[5] == FooterKey[5]) && (pScan[6] == FooterKey[6]) && (memcmp(&pScan[8], &FooterKey[8], 6) == 0))
+						{
+							if((pScan[14] == 0x02) || (pScan[14] == 0x04))
+							{
+								// Found a valid footer key - calculate the start location of this key
+								FooterPos = ChunkPos + BytesToScan;
+								break;
+							}
+						}
+						// Version-less compare for any CP or GC System key
+						else if((pScan[6] == CPGPSystem[6]) && (memcmp(&pScan[8], &CPGPSystem[8], 4) == 0))
+						{
+							if((pScan[12] == 0x04) || (pScan[12] == 0x14))
+							{
+								if(Details)
+								{
+									std::stringstream s;
+									s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize << std::endl;
+									s << "The last KLV before the end of the file is a System Item" << std::endl;
+									*Details = s.str();
+								}
+
+								// Found a valid CP or GC System Key - can't be valid, so the file must be truncated
+								TruncatedKnown = true;
+								Truncated = true;
+								LastKLV = ChunkPos + (pScan - Buffer->Data);
+								break;
+							}
+						}
+					}
+					// Essence
+					else if((pScan[4] == 0x01) && (pScan[5] == 0x02))
+					{
+						if(Details)
+						{
+							std::stringstream s;
+							s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize << std::endl;
+							s << "The last KLV before the end of the file is an Essence Item" << std::endl;
+							*Details = s.str();
+						}
+
+						// Essence means file must be truncated
+						TruncatedKnown = true;
+						Truncated = true;
+						LastKLV = ChunkPos + (pScan - Buffer->Data);
+						break;
+					}
+				}
+			}
+
+			/* Move on to next (i.e. previous) byte */
+
+			// Time to move back a chunk?
+			if((--BytesToScan) == 0)
+			{
+				// We hit the start of the file !?!
+				if(ChunkPos == 0) break;
+
+				// Check in case we hit the start of the file in this chunk!
+				if(ChunkPos < BigChunkSize)
+				{
+					ChunkSize = static_cast<size_t>(ChunkPos);
+					ChunkPos = 0;
+				} 
+				else
+				{
+					ChunkSize = BigChunkSize;
+					ChunkPos -= BigChunkSize;
+				}
+
+				// Copy the last 15 bytes tested so we can add them to the end of the test chunk (in case the last byte of the chunk is 0x06)
+				// DRAGONS: We use memmove in case the last chunk is < 30 bytes long!
+				Buffer->Resize(ChunkSize + 15, true);
+				memmove(&Buffer->Data[ChunkSize], Buffer->Data, 15);
+
+				// Read this chunk
+				Seek(ChunkPos);
+				Read(Buffer->Data, ChunkSize);
+				pScan = &Buffer->Data[ChunkSize - 1];
+
+				// Scan from here
+				BytesToScan = ChunkSize;
+				continue;
+			}
+
+			// Move back a byte
+			pScan--;
+		}
+	}
+
+	/* Did we just determine that the file is truncated? If so do a bit more digging */
+	if(Truncated && Details)
+	{
+		// Check if the file ends before the L of this KLV
+		if((LastKLV + 16) >= FileSize)
+		{
+			std::stringstream s;
+			s << "The file ends at the start of this KLV" << std::endl;
+			*Details += s.str();
+		}
+		else
+		{
+			Length LastKLVLength;
+
+			// Check if the file ends during the L of this KLV, if not, read the length
+			Seek(LastKLV + 16);
+			int LenLen = FileGetc(Handle);
+			if(LenLen <= 0x80) LastKLVLength = LenLen;
+			else
+			{
+				LenLen -= 0x80;
+				if((LastKLV + 16 + LenLen) > FileSize)
+				{
+					std::stringstream s;
+					s << "The file ends at the start of this KLV" << std::endl;
+					*Details += s.str();
+				}
+				else
+				{
+					Seek(LastKLV + 16);
+					LastKLVLength = ReadBER();
+					Position LastValuePos = Tell();
+
+					if((LastValuePos + LastKLVLength) == FileSize)
+					{
+						std::stringstream s;
+						s << "The file ends exactly at the end of this KLV" << std::endl;
+						*Details += s.str();
+					}
+					else if((LastValuePos + LastKLVLength) > FileSize)
+					{
+						std::stringstream s;
+						s << "The file ends during the value of this KLV" << std::endl;
+						*Details += s.str();
+					}
+
+					/* Now try and determine if the file seems to have ended with padding bytes of some kind */
+					if(SameByteCount > 16)
+					{
+						// Have we already determined that everything from the end of this KLV is the same value?
+						if((LastValuePos + LastKLVLength + SameByteCount) >= FileSize)
+						{
+							std::stringstream s;
+							s << "The truncated file ends with a sequence of " << SameByteCount << " bytes with the value 0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(SameByte) << std::endl;
+							*Details += s.str();
+						}
+						else if(SameByteCount == SameByteLimit)
+						{
+							// So we now have the last KLV, then an indeterminate amount of space, then the end of the file, which we know is topped of with repeats
+							// We could just scan every byte from here to there - but that could be billions, and may be a waste, so let's just check the start of this chunk
+							Seek(LastValuePos + LastKLVLength);
+							DataChunkPtr Chunk = Read(SameByteLimit);
+
+							if(Chunk && (Chunk->Size == SameByteLimit))
+							{
+								UInt8 *pData = Chunk->Data;
+								int Count = SameByteLimit;
+								while(Count && (*(pData++) == SameByte)) Count--;
+								if(Count == 0)
+								{
+									std::stringstream s;
+									s << "The truncated file appears to end with a sequence of " << (FileSize - (LastValuePos + LastKLVLength)) << " bytes with the value 0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(SameByte) << std::endl;
+									*Details += s.str();
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/* We have found a footer - but the file could still be truncated (in the footer partition pack or metadata or index) */
+
+	// Must be enough space for the key and length
+	if(FileSize - FooterPos < 17)
+	{
+		if(Details)
+		{
+			std::stringstream s;
+			s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize;
+			s << ", during the Footer Partition Pack key" << std::endl;
+			*Details = s.str();
+		}
+
+		TruncatedKnown = true;
+		Truncated = true;
+		return true;
+	}
+
+	// Manually read the footer KLV length, validating as we go
+	Seek(FooterPos + 16);
+	Length Len = FileGetc(Handle);
+	if(Len == 0x80)
+	{
+		// Treat invalid BER as truncated
+		error("Footer uses unsupported BER Length value of 0x80 meaning \"Unknown\"\n");
+
+		if(Details) *Details = "Footer uses unsupported BER Length value of 0x80 meaning \"Unknown\"\n";
+
+		TruncatedKnown = true;
+		Truncated = true;
+		return true;
+	}
+	if(Len > 0x80)
+	{
+		// Check that there is enough data for the remaining part of the BER length
+		if((FileSize - FooterPos) < (16 + 1 + (Len - 0x80)))
+		{
+			if(Details)
+			{
+				std::stringstream s;
+				s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize;
+				s << ", part way through the Footer Partition Pack length field" << std::endl;
+				*Details = s.str();
+			}
+
+			TruncatedKnown = true;
+			Truncated = true;
+			return true;
+		}
+
+		// Read the long-form BER using our normal method
+		Seek(FooterPos + 16);
+		Len = ReadBER();
+	}
+
+	// Do we have enough bytes to read the actual partition pack?
+	if(Len > (FileSize - Tell()))
+	{
+		if(Details)
+		{
+			std::stringstream s;
+			s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize;
+			s << ", part way through the Footer Partition Pack value" << std::endl;
+			*Details = s.str();
+		}
+
+		TruncatedKnown = true;
+		Truncated = true;
+		return true;
+	}
+
+	/* OK, we now know that there are enough bytes to read the footer partition pack - so we move back and read it the normal way */
+	Seek(FooterPos);
+	PartitionPtr Footer = ReadPartition();
+
+	/* Let's see if we have a filler to skip */
+	if((FileSize - Tell()) > 16)
+	{
+		Position TestPos = Tell();
+
+		ULPtr TestKey = ReadKey();
+		if(TestKey->Matches(KLVFill_UL))
+		{
+			// Manually read the filler length, validating as we go
+			Length Len = FileGetc(Handle);
+			if(Len == 0x80)
+			{
+				// Treat invalid BER as truncated
+				error("KLVFill in Footer uses unsupported BER Length value of 0x80 meaning \"Unknown\"\n");
+
+				if(Details) *Details = "KLVFill in Footer uses unsupported BER Length value of 0x80 meaning \"Unknown\"\n";
+
+				TruncatedKnown = true;
+				Truncated = true;
+				return true;
+			}
+			if(Len > 0x80)
+			{
+				// Check that there is enough data for the remaining part of the BER length
+				if((FileSize - Tell()) < (Len - 0x80))
+				{
+					if(Details)
+					{
+						std::stringstream s;
+						s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize;
+						s << ", part way through the length field of the KLVFill following the Footer Partition Pack" << std::endl;
+						*Details = s.str();
+					}
+
+					TruncatedKnown = true;
+					Truncated = true;
+					return true;
+				}
+
+				// Read the long-form BER using our normal method
+				Seek(Tell() - 1);
+				Len = ReadBER();
+			}
+
+			// Do we have enough bytes for the actual KLVFill value?
+			if(Len > (FileSize - Tell()))
+			{
+				if(Details)
+				{
+					std::stringstream s;
+					s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize;
+					s << ", part way through the value of the KLVFill following the Footer Partition Pack" << std::endl;
+					*Details = s.str();
+				}
+
+				TruncatedKnown = true;
+				Truncated = true;
+				return true;
+			}
+
+			// Skip over the value
+			Seek(Tell() + Len);
+		}
+		else
+		{
+			Seek(TestPos);
+		}
+	}
+
+	// Work out the size of the rest of the footer
+	Length HeaderBytes = Footer->GetInt64(HeaderByteCount_UL);
+	Length IndexBytes = Footer->GetInt64(IndexByteCount_UL);
+
+	// Determine if the file is truncated during the footer
+	TruncatedKnown = true;
+	if(FileSize - (Tell() + HeaderBytes + IndexBytes) >= 0)
+		Truncated = false;
+	else
+	{
+		if(FileSize - (Tell() + HeaderBytes) >= 0)
+		{
+			if(Details)
+			{
+				std::stringstream s;
+				s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize;
+				s << ", int the area expected to hold the Footer Index Table" << std::endl;
+				*Details = s.str();
+			}
+		}
+		else
+		{
+			if(Details)
+			{
+				std::stringstream s;
+				s << "The file ends unexpectedly at 0x" << std::hex << std::setw(8) << std::setfill('0') << FileSize;
+				s << ", int the area expected to hold the Footer copy of the Header Metadata" << std::endl;
+				*Details = s.str();
+			}
+		}
+
+		Truncated = true;
+	}
+
+	return Truncated;
+}
+
+
+//! Determine the wrapping type for a given Essence Container in this file
+/*! \param BodySID SID of the EssenceContainer to examine
+ *  \param ThisPartition A Partition with metadata to use for determining wrapping type
+ *  \retval ClipWrap - Wrapping is Clip Wrap or similar (Wrapping size > Edit Unit)
+ *  \retval FrameWrap - Wrapping is Frame Wrap or similar (Wrapping size <= Edit Unit)
+ *	\retval UnknownWrap - Unable to determine
+ */
+WrapType MXFFile::GetWrapType(UInt32 BodySID, PartitionPtr ThisPartition)
+{
+	// Default answer is 'unknown'
+	WrapType Ret = UnknownWrap;
+
+	// Record the current position so that this method does not move the pointer
+	Position Pos = Tell();
+
+	// Ensure that we have the metadata for this partition
+	if(ThisPartition->AllMetadata.empty()) ThisPartition->ReadMetadata();
+
+	// Parse the metadata (or retreive already parsed object)
+	MetadataPtr MData = ThisPartition->ParseMetadata();
+	if(!MData)
+	{
+		// Return to the original position and return 'unknown'
+		Seek(Pos);
+		return Ret;
+	}
+
+	// DataChunk that will hold the UMID of the desired package, once we find it
+	DataChunkPtr ECPackageID;
+
+	MDObjectPtr ContentStorage = MData->GetRef(ContentStorageObject_UL);
+	MDObjectPtr EssenceDataObjects = ContentStorage ? ContentStorage->Child(EssenceDataObjects_UL) : NULL;
+	UInt32 IndexSID = 0;
+	if(EssenceDataObjects)
+	{
+		MDObject::iterator it = EssenceDataObjects->begin();
+		while(it != EssenceDataObjects->end())
+		{
+			MDObjectPtr ECData = (*it).second->GetRef();
+			if(ECData && (ECData->GetUInt(BodySID_UL) == BodySID))
+			{
+				MDObjectPtr Ptr = ECData->Child(LinkedPackageUID_UL);
+				if(Ptr) ECPackageID = Ptr->PutData();
+
+				// Also record the IndexSID in case we need to do more detailed tests
+				IndexSID = ECData->GetUInt(IndexSID_UL);
+
+				break;
+			}
+
+			it++;
+		}
+	}
+
+	// Unable to find the PackageID - maybe the BodySID is not valid
+	if((!ECPackageID) || (ECPackageID->Size < 32))
+	{
+		// Return to the original position and return 'unknown'
+		Seek(Pos);
+		return Ret;
+	}
+
+	// Try and locate the source package with this UMID
+	PackageList::iterator Package_it = MData->Packages.begin();
+	while(Package_it != MData->Packages.end())
+	{
+		MDObjectPtr Ptr = (*Package_it)->Child(PackageUID_UL);
+		DataChunkPtr PackageID = Ptr ? Ptr->PutData() : NULL;
+		if(PackageID && (PackageID->Size == 32) && (memcmp(ECPackageID->Data, PackageID->Data, 32) == 0))
+		{
+			// Located matching package
+			break;
+		}
+		Package_it++;
+	}
+
+	// Failed to locate source package?
+	if(Package_it == MData->Packages.end())
+	{
+		// Return to the original position and return 'unknown'
+		Seek(Pos);
+		return Ret;
+	}
+
+	MDObjectPtr Descriptor = (*Package_it)->GetRef(Descriptor_UL);
+	if(Descriptor)
+	{
+		if(Descriptor->IsA(MultipleDescriptor_UL))
+		{
+			// Check for first known sub-descriptor wrapping type by ECLabel
+			MDObjectPtr Subs = Descriptor->Child(FileDescriptors_UL);
+			if(Subs)
+			{
+				MDObject::iterator it = Subs->begin();
+				while(it != Subs->end())
+				{
+					MDObjectPtr Ptr = (*it).second->GetLink();
+					if(Ptr) Ptr = Ptr->Child(EssenceContainer_UL);
+					if(Ptr)
+					{
+						DataChunkPtr ECLabel = Ptr->PutData();
+						if(ECLabel && (ECLabel->Size == 16)) Ret = mxflib::GetWrapType(ECLabel->Data);
+						if(Ret != UnknownWrap)
+						{
+							// Return to the original position and return newly determined wrapping type
+							Seek(Pos);
+							return Ret;
+						}
+					}
+					it++;
+				}
+			}
+		}
+		else
+		{
+			// See if the descriptor has a known wrapping type from the ECLabel
+			MDObjectPtr Ptr = Descriptor->GetLink();
+			if(Ptr) Ptr = Ptr->Child(EssenceContainer_UL);
+			if(Ptr)
+			{
+				DataChunkPtr ECLabel = Ptr->PutData();
+				if(ECLabel && (ECLabel->Size == 16)) Ret = mxflib::GetWrapType(ECLabel->Data);
+				if(Ret != UnknownWrap)
+				{
+					// Return to the original position and return newly determined wrapping type
+					Seek(Pos);
+					return Ret;
+				}
+			}
+		}
+	}
+
+
+	// Return to the original position
+	Seek(Pos);
+
 	return Ret;
 }
 

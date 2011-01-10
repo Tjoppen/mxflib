@@ -1,7 +1,7 @@
 /*! \file	vbi.cpp
  *	\brief	Implementation of classes that handle Vertical Inerval Blanking data
  *
- *	\version $Id: vbi.cpp,v 1.4 2007/10/10 15:21:07 matt-beard Exp $
+ *	\version $Id: vbi.cpp,v 1.5 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -31,16 +31,108 @@
 
 using namespace mxflib;
 
-// Add a line of data
-void VBISource::AddLine(int LineNumber, VBIWrappingType Wrapping, VBISampleCoding Coding, UInt16 SampleCount, DataChunkPtr &LineData)
+/*// Add a line of data
+void ANCVBISource::AddLine(int LineNumber, ANCWrappingType Wrapping, ANCSampleCoding Coding, UInt16 SampleCount, DataChunkPtr &LineData)
 {
-	Lines.insert(VBILineMap::value_type(LineNumber, new VBILine(LineNumber, Wrapping, Coding, SampleCount, LineData)));
+	Lines.insert(ANCLineMap::value_type(LineNumber, new ANCLine(LineNumber, Wrapping, Coding, SampleCount, LineData, GetDID(), GetSDID())));
+}*/
+
+//! Get the offset to add to lines in field 2
+int ANCVBISource::Field2Offset(void)
+{
+	if(F2Offset >= 0) return F2Offset;
+
+	MDObjectPtr Descriptor = MasterSource->GetDescriptor();
+	if(!Descriptor)
+	{
+		error("EssenceDescriptor not defined for master source of ANCVBISource before calling Field2Offset()\n");
+		F2Offset = 0;
+		return F2Offset;
+	}
+
+	// If this is a multpile descriptor, locate the video
+	// DRAGONS: If we can't find a picture descriptor we will drop through with the MultipleDescriptor and give a "does not have a VideoLineMap" error
+	if(Descriptor->IsA(MultipleDescriptor_UL))
+	{
+		MDObject::iterator it = Descriptor->begin();
+		while(it != Descriptor->end())
+		{
+			if((*it).second->IsA(GenericPictureEssenceDescriptor_UL))
+			{
+				Descriptor = (*it).second;
+				break;
+			}
+			it++;
+		}
+	}
+
+
+	/* Check if this is interlaced essence */
+
+	if(Descriptor->IsDValue(FrameLayout_UL))
+	{
+		warning("EssenceDescriptor for ANCVBISource does not have a valid FrameLayout\n");
+		F2Offset = 0;
+		return F2Offset;
+	}
+
+	if(Descriptor->GetInt(FrameLayout_UL) != 1)
+	{
+		F2Offset = 0;
+		return F2Offset;
+	}
+
+	
+	/* Calculate F1 to F2 distance from Video Line Map */
+
+	MDObjectPtr VideoLineMap = Descriptor->Child(VideoLineMap_UL);
+	if(!VideoLineMap)
+	{
+		error("EssenceDescriptor for ANCVBISource does not have a valid VideoLineMap\n");
+		F2Offset = 0;
+		return F2Offset;
+	}
+
+	MDObjectPtr F1Entry = VideoLineMap->Child(0);
+	MDObjectPtr F2Entry = VideoLineMap->Child(1);
+	if((!F1Entry) || (!F2Entry))
+	{
+		error("EssenceDescriptor for ANCVBISource does not have a valid VideoLineMap\n");
+		F2Offset = 0;
+		return F2Offset;
+	}
+
+	F2Offset = static_cast<int>(F2Entry->GetInt() - F1Entry->GetInt());
+	return F2Offset;
 }
 
 
-//! Build the VBI data for this frame in SMPTE-436M format
-DataChunkPtr VBISource::BuildChunk(void)
+//! Build the data for this frame in SMPTE-436M format
+DataChunkPtr ANCVBISource::BuildChunk(void)
 {
+	/* Fill lines from line sources */
+
+	ANCVBILineSourceList::iterator LS_it = Sources.begin();
+	while(LS_it != Sources.end())
+	{
+		int LineNumber = (*LS_it)->GetLineNumber();
+		if((*LS_it)->GetField() == 2) LineNumber += Field2Offset();
+
+		Lines.insert(ANCLineMap::value_type(
+				LineNumber, 
+				new ANCLine(LineNumber, 
+				(*LS_it)->GetWrappingType(), 
+				(*LS_it)->GetSampleCoding(), 
+				(*LS_it)->GetLineData(), 
+				(*LS_it)->GetDID(), 
+				(*LS_it)->GetSDID())));
+
+		LS_it++;
+	}
+
+
+	/* Now build the chunk from line data */
+
 	/* First we handle the special case of no lines this frame (should be quite common) */
 	if(Lines.empty())
 	{
@@ -54,7 +146,7 @@ DataChunkPtr VBISource::BuildChunk(void)
 	VBILineMap::iterator it = Lines.begin();
 
 	// Guess the buffer size by assuming that all the lines are the same size, then add 2 bytes for the line count
-	// DRAGONS: If thes line sizes do vary this is a bottle-neck
+	// DRAGONS: If the line sizes do vary this is a bottle-neck
 	// DRAGONS: We will use this as a remaining-bytes counter while writing the data
 	size_t BufferSize = ((*it).second->GetFullDataSize() * Lines.size()) + 2;
 
@@ -114,10 +206,10 @@ DataChunkPtr VBISource::BuildChunk(void)
 //! Write the line of data into a buffer, including the line number, wrapping type, sample coding and sample count bytes
 /*! \note It is the caller's responsibility to ensure that the buffer has enough space - the number of bytes written <b>will be</b> GetFullDataSize()
  */
-void VBILine::WriteData(UInt8 *Buffer)
+void ANCVBILine::WriteData(UInt8 *Buffer)
 {
-	// Write the line number (after removing any field indicator)
-	PutU16(static_cast<UInt16>(LineNumber & 0x3fff), Buffer);
+	// Write the line number
+	PutU16( LineNumber, Buffer);
 
 	// Add the wrapping type
 	Buffer[2] = static_cast<UInt8>(WrappingType);
@@ -145,7 +237,7 @@ void VBILine::WriteData(UInt8 *Buffer)
 
 //! Get the size of the essence data in bytes
 /*! \note There is intentionally no support for an "unknown" response */
-size_t VBISource::GetEssenceDataSize(void)
+size_t ANCVBISource::GetEssenceDataSize(void)
 {
 	// If we don't yet have any data prepared, prepare some (even if this will be an "empty" chunk)
 	if(BufferedData.empty())
@@ -171,7 +263,7 @@ size_t VBISource::GetEssenceDataSize(void)
  *	\note If Size = 0 the object will decide the size of the chunk to return
  *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
  */
-DataChunkPtr VBISource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/)
+DataChunkPtr ANCVBISource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/)
 {
 	// Once this read is done we will be in sync with the master stream position
 	CurrentPosition = MasterSource->GetCurrentPosition();
@@ -234,4 +326,100 @@ DataChunkPtr VBISource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/
 
 	// Return the data
 	return Ret;
+}
+
+
+//! Determine if this sub-source can slave from a source with the given wrapping configuration, if so build the sub-config
+/*! \return A smart pointer to the new WrappingConfig for this source as a sub-stream of the specified master, or NULL if not a valid combination
+ */
+EssenceParser::WrappingConfigPtr ANCVBISource::MakeWrappingConfig(WrappingConfigPtr MasterCfg)
+{
+	EssenceParser::WrappingConfigPtr SubCfg;
+
+	/* First we validate our requirements */
+
+	// Only valid for frame wrapping
+	if(MasterCfg->WrapOpt->ThisWrapType != WrappingOption::Frame) return SubCfg;
+
+	// Not valid if we have no line sources
+	if(Sources.empty()) return SubCfg;
+
+	/* Now check each line source is happy */
+	// TODO: Can we build a sub-set version where we only include those line sources that are happy?
+
+	std::string Description;
+	ANCVBILineSourceList::iterator it = Sources.begin();
+	while(it != Sources.end())
+	{
+		std::string ThisDesc = (*it)->ValidateConfig(MasterCfg);
+		if(ThisDesc.empty()) return SubCfg;
+
+		if(!Description.empty()) Description += ", plus ";
+		Description += ThisDesc;
+
+		it++;
+	}
+
+	/* Requested wrapping is valid, build the new config */
+
+	SubCfg = new EssenceParser::WrappingConfig();
+
+	SubCfg->Parser = MasterCfg->Parser;
+
+	SubCfg->WrapOpt = new WrappingOption();
+	SubCfg->WrapOpt->Handler = SubCfg->Parser;
+	SubCfg->WrapOpt->Name = "";
+	SubCfg->WrapOpt->Description = Description;
+	SubCfg->WrapOpt->GCEssenceType = GetGCEssenceType();
+	SubCfg->WrapOpt->GCElementType = GetGCElementType();
+	SubCfg->WrapOpt->ThisWrapType = MasterCfg->WrapOpt->ThisWrapType;
+	SubCfg->WrapOpt->CanSlave = false;
+	SubCfg->WrapOpt->CanIndex = false;
+	SubCfg->WrapOpt->CBRIndex = false;
+	SubCfg->WrapOpt->BERSize = 4;
+	SubCfg->WrapOpt->BytesPerEditUnit = 0;
+
+	SubCfg->WrapOpt->WrappingUL = GetWrappingUL();
+
+	SubCfg->EssenceDescriptor = new MDObject(ANCDataDescriptor_UL);
+	MDObjectPtr SampleRate = SubCfg->EssenceDescriptor->AddChild(SampleRate_UL);
+	SampleRate->SetInt("Numerator", MasterCfg->EditRate.Numerator);
+	SampleRate->SetInt("Denominator", MasterCfg->EditRate.Denominator);
+	SubCfg->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16,SubCfg->WrapOpt->WrappingUL->GetValue()));
+
+	SubCfg->Stream = 0;
+	SubCfg->EditRate = MasterCfg->EditRate;
+	SubCfg->StartTimecode = 0;
+
+	return SubCfg;
+}
+
+
+//! Determine if this line-source is able to be used when slaved from a master with the given wrapping configuration
+/*! \return Simple and short text description of the line being wrapped if OK (e.g. "Fixed AFD of 0x54") or empty string if not valid
+ */
+std::string SimpleAFDSource::ValidateConfig(WrappingConfigPtr MasterCfg)
+{
+	if(FieldNum == 1) return "Fixed F1 AFD of 0x" + Int64toHexString(CurrentAFD);
+	return "Fixed F2 AFD of 0x" + Int64toHexString(CurrentAFD);
+}
+
+
+//! Convert a binary AFD value string, with optional 'w' suffix for 16:9 image, to an AFD value as per SMPTE 2016-1-2007
+UInt8 SimpleAFDSource::TextToAFD(std::string Text)
+{
+	bool Wide = false;
+	UInt8 Ret = 0;
+
+	std::string::iterator it = Text.begin();
+	while(it != Text.end())
+	{
+		if(*it == '1') Ret = (Ret << 1) | 1;
+		else if(*it == '0') Ret = (Ret << 1);
+		else if(tolower(*it) == 'w') Wide = true;
+		it++;
+	}
+
+	// Format as per SMPTE 2016-1-2007, table 4
+	return Wide ? (Ret << 3) | 4 : (Ret << 3);
 }

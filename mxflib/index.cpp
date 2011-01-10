@@ -1,7 +1,7 @@
 /*! \file	index.cpp
  *	\brief	Implementation of classes that handle index tables
  *
- *	\version $Id: index.cpp,v 1.18 2008/10/22 12:04:49 matt-beard Exp $
+ *	\version $Id: index.cpp,v 1.19 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
@@ -170,6 +170,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->Location = Loc;
 		Ret->Offset = false;
 		Ret->KeyFrameOffset = 0;
+		Ret->TemporalOffset = 0;
 		Ret->KeyLocation = Ret->Location;
 		Ret->Flags = 0;
 
@@ -202,7 +203,9 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->Location = 0;
 		Ret->Exact = false;
 		Ret->Offset = false;
+		Ret->OtherPos = false;
 		Ret->KeyFrameOffset = 0;
+		Ret->TemporalOffset = 0;
 		Ret->KeyLocation = 0;
 		Ret->Flags = 0;
 
@@ -221,7 +224,9 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->Location = 0;
 		Ret->Exact = false;
 		Ret->Offset = false;
+		Ret->OtherPos = false;
 		Ret->KeyFrameOffset = 0;
+		Ret->TemporalOffset = 0;
 		Ret->KeyLocation = 0;
 		Ret->Flags = 0;
 
@@ -247,6 +252,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 		Ret->OtherPos = true;
 		Ret->Offset = false;
 		Ret->KeyFrameOffset = 0;
+		Ret->TemporalOffset = 0;
 		Ret->KeyLocation = Ret->Location;
 		Ret->Flags = 0;
 
@@ -261,34 +267,43 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	Ptr++;
 
 	// Apply temporal re-ordering if we should, but only if we have details of the exact sub-item
-	if(Reorder && (TemporalOffset != 0) && (SubItem < Segment->DeltaCount) && (Segment->DeltaArray[SubItem].PosTableIndex < 0))
+	if(Reorder && (TemporalOffset != 0) && (Segment->DeltaCount == 0 || (SubItem < Segment->DeltaCount) && (Segment->DeltaArray[SubItem].PosTableIndex < 0)))
 	{
-		return Lookup(EditUnit + TemporalOffset, SubItem, false);
+		Ret = Lookup(EditUnit + TemporalOffset, SubItem, false);
+		Ret->TemporalOffset = TemporalOffset;
+		return Ret;
 	}
 
 	// We are in the correct edit unit, so record the fact
 	Ret->ThisPos = EditUnit;
 
+	// Recorde the temporal offset
+	if (Segment->DeltaCount == 0 || (SubItem < Segment->DeltaCount) && (Segment->DeltaArray[SubItem].PosTableIndex < 0)) 
+		Ret->TemporalOffset = TemporalOffset;
+	else
+		Ret->TemporalOffset = 0;
+
 	// Read the offset to the previous key-frame
 	Ret->KeyFrameOffset = GetI8(Ptr);
 	Ptr++;
 
+	// Read the flags for this frame
+	Ret->Flags = GetU8(Ptr);
+	Ptr++;
+
 	// Index the start of the keyframe index entry
-	if( Ret->KeyFrameOffset > EditUnit - Segment->StartPosition )
+	// DRAGONS: Bit 3 int the flags means key-frame out of range
+	if( (Ret->Flags & 4) || ((-Ret->KeyFrameOffset) > (EditUnit - Segment->StartPosition) ))
 	{
-		// Key Frame is in a different Index Table Segment
+		// Key Frame is in a different Index Table Segment (or is out of range)
 		Ret->KeyLocation = ~0;
 	}
 	else
 	{
-		UInt8 *PKF = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition - Ret->KeyFrameOffset) * IndexEntrySize];
+		UInt8 *PKF = &Segment->IndexEntryArray.Data[(EditUnit - Segment->StartPosition - (-Ret->KeyFrameOffset)) * IndexEntrySize];
 		PKF += 3;
 		Ret->KeyLocation = GetI64(PKF);
 	}
-
-	// Read the flags for this frame
-	Ret->Flags = GetU8(Ptr);
-	Ptr++;
 
 	// Read the location of the start of the edit unit
 	Ret->Location = GetU64(Ptr);
@@ -297,7 +312,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	// Note: At this point Ptr indexes the start of the SliceOffset array
 
 	// If we don't have details of the exact sub-item return the start of the edit unit
-	if(SubItem >= Segment->DeltaCount)
+	if( SubItem >= Segment->DeltaCount)
 	{
 		Ret->Exact = false;
 		Ret->OtherPos = false;
@@ -326,7 +341,7 @@ IndexPosPtr IndexTable::Lookup(Position EditUnit, int SubItem /* =0 */, bool Reo
 	}
 
 	// Sort the PosOffset if one is required
-	int PosTableIndex = (int)Segment->DeltaArray[SubItem].PosTableIndex;
+	int PosTableIndex = (Segment->DeltaCount > 0) ? (int)Segment->DeltaArray[SubItem].PosTableIndex : 0;
 	if(PosTableIndex > 0)
 	{
 		// Index the correct PosTable entry for this sub-item
@@ -366,6 +381,9 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 
 	if( EditUnitByteCount ) // CBR
 	{
+		Length Duration = Segment->GetInt64(IndexDuration_UL, -1);
+		if(Duration > 0) IndexDuration = Duration;
+
 		MDObjectPtr	pEditRate = Segment[IndexEditRate_UL];
 		if(pEditRate)
 		{
@@ -377,32 +395,19 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		if(Ptr)
 		{
 			// Free any old delta array
-			if(BaseDeltaArray) 
-			{
-				delete[] BaseDeltaArray;
-				BaseDeltaArray = NULL;
-			}
+			if(BaseDeltaCount) delete[] BaseDeltaArray; 
 
-			BaseDeltaCount = static_cast<int>(Ptr->size() / 3);
-			if(BaseDeltaCount) BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
+			BaseDeltaCount = static_cast<int>(Ptr->size());
+			BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 
 			int Delta = 0;
 			MDObjectULList::iterator it = Ptr->begin();
 			while(it != Ptr->end())
 			{
-				if(Delta > BaseDeltaCount)
-				{
-					error("Malformed DeltaEntryArray in %s at %s\n", Segment->FullName().c_str(), Segment->GetSourceLocation().c_str());
-					break;
-				}
+				BaseDeltaArray[Delta].PosTableIndex = (*it).second[0]->GetInt();
+				BaseDeltaArray[Delta].Slice = (*it).second[1]->GetUInt();
+				PutU32((*it).second[2]->GetUInt(), BaseDeltaArray[Delta].ElementDelta);
 
-				BaseDeltaArray[Delta].PosTableIndex = (*it).second->GetInt();
-				if(++it == Ptr->end()) break;
-
-				BaseDeltaArray[Delta].Slice = (*it).second->GetUInt();
-				if(++it == Ptr->end()) break;
-
-				PutU32((*it).second->GetUInt(), BaseDeltaArray[Delta].ElementDelta);
 				it++;
 				Delta++;
 			}
@@ -416,7 +421,6 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 	{
 		Int64 StartPosition = Segment->GetInt64(IndexStartPosition_UL);
 		Ret = AddSegment(StartPosition);
-		SegmentMap.insert(IndexSegmentMap::value_type(StartPosition, Ret));
 
 		MDObjectPtr Ptr = Segment[DeltaEntryArray_UL];
 		if(!Ptr)
@@ -425,43 +429,22 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		}
 		else
 		{
-			int NewDeltaCount = static_cast<int>(Ptr->size() / 3);		// << There are 3 items in each DeltaCount entry
+			Ret->DeltaCount = static_cast<int>(Ptr->Value->size());
 
-			// If there is already a known BaseDeltaArray Ret will have been given a copy of it by AddSegment(StartPosition)
-			// If the sizes match there is no need to re-allocate the array
-			if(Ret->DeltaCount != NewDeltaCount)
-			{
-				Ret->DeltaCount = NewDeltaCount;
-
-				// Delete any old array
-				if(Ret->DeltaArray) delete[] Ret->DeltaArray;
-
-				// Build a new one (unless the size is zero, when we just flag it as not allocated)
-				if(NewDeltaCount) Ret->DeltaArray = new DeltaEntry[Ret->DeltaCount];
-				else Ret->DeltaArray = NULL;
-			}
-
+			Ret->DeltaArray = new DeltaEntry[Ret->DeltaCount];
+			
 			int Delta = 0;
 			MDObjectULList::iterator it = Ptr->begin();
 			while(it != Ptr->end())
 			{
-				if(Delta > NewDeltaCount)
-				{
-					error("Malformed DeltaEntryArray in %s at %s\n", Segment->FullName().c_str(), Segment->GetSourceLocation().c_str());
-					break;
-				}
+				Ret->DeltaArray[Delta].PosTableIndex = (*it).second[0]->GetInt();
+				Ret->DeltaArray[Delta].Slice = (*it).second[1]->GetUInt();
+				PutU32((*it).second[2]->GetUInt(), Ret->DeltaArray[Delta].ElementDelta);
 
-				Ret->DeltaArray[Delta].PosTableIndex = (*it).second->GetInt();
-				if(++it == Ptr->end()) break;
-
-				Ret->DeltaArray[Delta].Slice = (*it).second->GetUInt();
-				if(++it == Ptr->end()) break;
-
-				PutU32((*it).second->GetUInt(), Ret->DeltaArray[Delta].ElementDelta);
 				it++;
 				Delta++;
 			}
-			if(Delta != NewDeltaCount)
+			if(Delta != Ret->DeltaCount)
 			{
 				error("Malformed DeltaEntryArray in %s at %s\n", Segment->FullName().c_str(), Segment->GetSourceLocation().c_str());
 			}
@@ -477,10 +460,9 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 		if((BaseDeltaCount == 0) && (Ret->DeltaCount != 0))
 		{
 			BaseDeltaCount = Ret->DeltaCount;
+			BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 			if(BaseDeltaCount) 
 			{
-				if(BaseDeltaArray) delete[] BaseDeltaArray;
-				BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
 				memcpy(BaseDeltaArray, Ret->DeltaArray, BaseDeltaCount * sizeof(DeltaEntry));
 			}
 		}
@@ -517,6 +499,364 @@ IndexSegmentPtr IndexTable::AddSegment(MDObjectPtr Segment)
 	return Ret;
 }
 
+
+//! Add an index table segment from a raw DataChunk containing a section of un-parsed index table data
+/*! DRAGONS: This is far more efficient for loading the index table than using the general metadata functions */
+void IndexTable::AddSegments(DataChunkPtr &IndexChunk)
+{
+	UInt8 const *pData = IndexChunk->Data;
+	Length Size = IndexChunk->Size;
+
+//printf("0x%04x bytes at %p\n", (int)Size, pData);
+	while(Size > 17)
+	{
+		UL SetKey(pData);
+		pData += 16;
+		UInt8 const *pLen = pData;
+		Length SetLength = ReadBER(&pData, static_cast<int>(Size - 16));
+
+		// Calculate how many bytes ReadBER read
+		Size -= 16 + (pData - pLen);
+
+		if(SetLength > Size)
+		{
+			error("KLV group with key %s claims to have a value with size %s, but remaining bytes = %s, in IndexTable::AddSegments()\n", 
+				  SetKey.GetString().c_str(), Int64toString((Int64)SetLength).c_str(), Int64toString((Int64)Size).c_str());
+			SetLength = Size;
+		}
+
+		if(SetKey.Matches(IndexTableSegment_UL))
+		{
+//printf("%s is 0x%04x bytes at %p\n", SetKey.GetString().c_str(), (int)SetLength, pData);
+			AddSegment(pData, SetLength, 2);
+		}
+		else if(!SetKey.Matches(KLVFill_UL))
+		{
+			warning("Unexpected data with key %s found in bytes passed to IndexTable::AddSegments()\n", SetKey.GetString().c_str());
+		}
+
+		pData += SetLength;
+		Size -= SetLength;
+	}
+
+	if(Size != 0)
+	{
+		warning("%d extra byte%s found after parsing all index table data in IndexTable::AddSegments()\n", (int)Size, Size == 1 ? "" : "s" );
+	}
+}
+
+//! Add an index table segment from a raw DataChunk containing an un-parsed "IndexSegment"
+/*! DRAGONS: This is far more efficient for loading the index table than using the general metadata functions */
+IndexSegmentPtr IndexTable::AddSegment(UInt8 const *pSegment, Length Size, int LenSize /*=2*/)
+{
+	IndexSegmentPtr Ret;
+
+	// A walking pointer
+	UInt8 const *pData = pSegment;
+
+	// Location and size of the actual IndexEntryArray
+	UInt8 const *pIndexEntryArray = NULL;
+	Length IndexEntryArraySize = 0;
+
+	// Location and size of the DeltaEntryArray
+	UInt8 const *pDeltaEntryArray = NULL;
+	Length DeltaEntryArraySize = 0;
+
+	// Start position of the first edit unit in this segment (-1 flags not specified, which would be an error)
+	Position StartPosition = -1;
+
+	// Duration of the essence indexed by this segment (0 for whole-file CBE, -1 flags not specified, which would be an error)
+	Length Duration = -1;
+
+	// Number of slices, minus 1
+	UInt8 SliceCount = 0;
+
+	// Number of PosTable entries, minus one
+	UInt8 PosTableCount = 0;
+
+	// Loop through all set members
+	while(Size > (2 + LenSize))
+	{
+		UInt32 ItemSize;
+		UInt16 ItemTag = (static_cast<UInt16>(pData[0]) << 8) | pData[1];
+		if(LenSize == 2)
+		{
+			ItemSize = (static_cast<UInt16>(pData[2]) << 8) | pData[3];
+			pData += 4;
+			Size -= 4;
+		}
+		else if(LenSize == 4)
+		{
+			ItemSize = (static_cast<UInt32>(pData[2]) << 24) | (static_cast<UInt32>(pData[3]) << 16) | (static_cast<UInt32>(pData[4]) << 8) | pData[5];
+			pData += 6;
+			Size -= 6;
+		}
+		else
+		{
+			error("Invalid LenSize of %d in call to IndexTable::AddSegment()\n", LenSize);
+			break;
+		}
+
+//printf("Item 0x%04x, length 0x%04x\n", ItemTag, ItemSize);
+		if(Size < ItemSize)
+		{
+			error("Not enough bytes to read item 0x%04x in IndexSegment\n", ItemTag);
+			break;
+		}
+
+		switch(ItemTag)
+		{
+		// Ignore unknown properties
+		default: break;
+		
+		// IndexEditRate
+		case 0x3f0b:
+			if(ItemSize >= 8)
+			{
+				EditRate.Numerator = GetI32(pData);
+				EditRate.Denominator = GetI32(&pData[4]);
+			}
+			break;
+
+		// IndexStartPosition
+		case 0x3f0c:
+			if(ItemSize >= 8)
+			{
+				StartPosition = GetI64(pData);
+			}
+			break;
+
+		// IndexDuration
+		case 0x3f0d:
+			if(ItemSize >= 8)
+			{
+				Duration = GetI64(pData);
+			}
+			break;
+
+		// EditUnitByteCount
+		case 0x3f05:
+			if(ItemSize >= 4)
+			{
+				EditUnitByteCount = GetI32(pData);
+			}
+			break;
+
+		// IndexSID
+		case 0x3f06:
+			if(ItemSize >= 4)
+			{
+				if(IndexSID == 0) IndexSID = GetI32(pData);
+				else mxflib_assert(IndexSID == GetI32(pData));
+			}
+			break;
+
+		// BodySIDSID
+		case 0x3f07:
+			if(ItemSize >= 4)
+			{
+				if(BodySID == 0) BodySID = GetI32(pData);
+				else mxflib_assert(BodySID == GetI32(pData));
+			}
+			break;
+
+		// SliceCount
+		case 0x3f08:
+			if(ItemSize >= 1)
+			{
+				SliceCount = *pData;
+			}
+			break;
+
+		// PosTableCount
+		case 0x3f0e:
+			if(ItemSize >= 1)
+			{
+				PosTableCount = *pData;
+			}
+			break;
+
+		// DeltaEntryArray
+		case 0x3f09:
+			// Store for later processing
+			pDeltaEntryArray = pData;
+			DeltaEntryArraySize = ItemSize;
+			break;
+
+		// IndexEntryArray
+		case 0x3f0a:
+			// Store for later processing
+			pIndexEntryArray = pData;
+			IndexEntryArraySize = ItemSize;
+			break;
+		}
+
+		pData += ItemSize;
+		Size -= ItemSize;
+	}
+
+	if( EditUnitByteCount ) // CBR
+	{
+		this->EditUnitByteCount = EditUnitByteCount;
+		if(Duration > 0) IndexDuration = Duration;
+
+		if(DeltaEntryArraySize >= 8)
+		{
+			UInt32 ItemCount = GetU32(pDeltaEntryArray);
+			UInt32 ItemSize = GetU32(&pDeltaEntryArray[4]);
+			DeltaEntryArraySize -= 8;
+			pDeltaEntryArray += 8;
+
+			if(ItemSize < 6)
+			{
+				error("Malformed DeltaEntryArray, minimum size of each entry is 6 bytes, but this instance claims Length = %u\n", ItemSize);
+			}
+			else if(DeltaEntryArraySize < (ItemCount * ItemSize))
+			{
+				error("Malformed DeltaEntryArray, claimed size = %s, but also claimes NDE = %u and Entry Length = %u\n", Int64toString(DeltaEntryArraySize).c_str(), ItemCount, ItemSize);
+			}
+			else
+			{
+				if(DeltaEntryArraySize > (ItemCount * ItemSize))
+				{
+					warning("Malformed DeltaEntryArray, claimed size = %s, but also claimes NDE = %u and Entry Length = %u\n", Int64toString(DeltaEntryArraySize).c_str(), ItemCount, ItemSize);
+					DeltaEntryArraySize = (ItemCount * ItemSize);
+				}
+
+				// Free any old delta array
+				if(BaseDeltaCount) delete[] BaseDeltaArray; 
+
+				BaseDeltaCount = static_cast<int>(ItemCount);
+				BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
+
+				int Delta = 0;
+				while(DeltaEntryArraySize >= ItemSize)
+				{
+					BaseDeltaArray[Delta].PosTableIndex = static_cast<Int8>(*pDeltaEntryArray);
+					BaseDeltaArray[Delta].Slice = pDeltaEntryArray[1];
+					memcpy(BaseDeltaArray[Delta].ElementDelta, &pDeltaEntryArray[2], 4);
+
+					pDeltaEntryArray += ItemSize;
+					DeltaEntryArraySize -= ItemSize;
+
+					Delta++;
+				}
+			}
+		}
+	}
+	else // VBR
+	{
+		Ret = AddSegment(StartPosition);
+
+		if(DeltaEntryArraySize == 0)
+		{
+			Ret->DeltaCount = 0;
+		}
+		else
+		{
+			UInt32 ItemCount = GetU32(pDeltaEntryArray);
+			UInt32 ItemSize = GetU32(&pDeltaEntryArray[4]);
+			DeltaEntryArraySize -= 8;
+			pDeltaEntryArray += 8;
+
+			if(ItemSize < 6)
+			{
+				error("Malformed DeltaEntryArray, minimum size of each entry is 6 bytes, but this instance claims Length = %u\n", ItemSize);
+				Ret->DeltaCount = 0;
+			}
+			else if(DeltaEntryArraySize < (ItemCount * ItemSize))
+			{
+				error("Malformed DeltaEntryArray, claimed size = %s, but also claimes NDE = %u and Entry Length = %u\n", Int64toString(DeltaEntryArraySize).c_str(), ItemCount, ItemSize);
+				Ret->DeltaCount = 0;
+			}
+			else
+			{
+				if(DeltaEntryArraySize > (ItemCount * ItemSize))
+				{
+					warning("Malformed DeltaEntryArray, claimed size = %s, but also claimes NDE = %u and Entry Length = %u\n", Int64toString(DeltaEntryArraySize).c_str(), ItemCount, ItemSize);
+					DeltaEntryArraySize = (ItemCount * ItemSize);
+				}
+
+				// AddSegment() may have built a default delta array, if so we should either re-use it, or free it and start again
+				if(Ret->DeltaCount >= static_cast<int>(ItemCount))
+				{
+					// Enough room - re-use
+					Ret->DeltaCount = static_cast<int>(ItemCount);
+				}
+				else
+				{
+					/* Not enough room - create new */
+
+					if(Ret->DeltaCount) delete[] Ret->DeltaArray;
+
+					Ret->DeltaCount = static_cast<int>(ItemCount);
+					Ret->DeltaArray = new DeltaEntry[Ret->DeltaCount];
+				}
+
+				int Delta = 0;
+				while(DeltaEntryArraySize >= ItemSize)
+				{
+					Ret->DeltaArray[Delta].PosTableIndex = static_cast<Int8>(*pDeltaEntryArray);
+					Ret->DeltaArray[Delta].Slice = pDeltaEntryArray[1];
+					memcpy(Ret->DeltaArray[Delta].ElementDelta, &pDeltaEntryArray[2], 4);
+
+					pDeltaEntryArray += ItemSize;
+					DeltaEntryArraySize -= ItemSize;
+
+					Delta++;
+				}
+//printf("Loaded %d delta entries (Delta = %d)\n", ItemCount, Delta);
+			}
+		}
+
+		// Copy index entry bits...
+		NSL = SliceCount;
+		NPE = PosTableCount;
+		
+		// Calculate the size of each IndexEntry
+		IndexEntrySize = (11 + 4*NSL + 8*NPE);
+
+		// Copy the delta entries to the "base" is this is our first segment
+		if((BaseDeltaCount == 0) && (Ret->DeltaCount != 0))
+		{
+			BaseDeltaCount = Ret->DeltaCount;
+			BaseDeltaArray = new DeltaEntry[BaseDeltaCount];
+			if(BaseDeltaCount) 
+			{
+				memcpy(BaseDeltaArray, Ret->DeltaArray, BaseDeltaCount * sizeof(DeltaEntry));
+			}
+		}
+		else
+		{
+			// DRAGONS: We should validate this againts the current entries
+			//#############################################################
+		}
+
+		if(IndexEntryArraySize == 0)
+		{
+			Ret->EntryCount = 0;
+			error("No IndexEntryArray in VBR index segment - is this supposed to be a CBR index?\n");
+		}
+		else
+		{
+			if(IndexEntryArraySize >= 28)
+			{
+				UInt32 EntryCount = GetU32(pIndexEntryArray);
+				UInt32 EntrySize = GetU32(&pIndexEntryArray[4]);
+
+				if((Int32)EntrySize != IndexEntrySize)
+				{
+					error("IndexEntryArray items should be %d bytes, but are %d\n", IndexEntrySize, EntrySize);
+				}
+				else Ret->AddIndexEntries(EntryCount, IndexEntrySize, &pIndexEntryArray[8]);
+			}
+		}
+	} // CBR,VBR
+
+	return Ret;
+}
+
+
 //! Create a new empty index table segment
 IndexSegmentPtr IndexTable::AddSegment(Int64 StartPosition)
 {
@@ -535,7 +875,7 @@ bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8
 								 int SliceCount /*=0*/, UInt32 *SliceOffsets /*=NULL*/,
 								 int PosCount /*=0*/, Rational *PosTable /*=NULL*/)
 {
-	ASSERT(Parent);
+	mxflib_assert(Parent);
 
 	if(SliceCount != Parent->NSL)
 	{
@@ -551,7 +891,9 @@ bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8
 
 	// Calculate the new size to see if it is too big for a 2-byte local local set length
 	int NewSize = ((EntryCount+1) * Parent->IndexEntrySize + 8);
-	if(NewSize > 0xffff) return false;
+
+		if(NewSize > 0xffff) 
+			return false;
 
 	UInt8 *Buffer = new UInt8[Parent->IndexEntrySize];
 
@@ -594,9 +936,9 @@ bool IndexSegment::AddIndexEntry(Int8 TemporalOffset, Int8 KeyFrameOffset, UInt8
 
 
 //! Add multiple - pre-formed index entries
-bool IndexSegment::AddIndexEntries(int Count, int Size, UInt8 *Entries)
+bool IndexSegment::AddIndexEntries(int Count, int Size, UInt8 const *Entries)
 {
-	ASSERT(Parent);
+	mxflib_assert(Parent);
 
 	if(Size != (int)Parent->IndexEntrySize)
 	{
@@ -611,7 +953,7 @@ bool IndexSegment::AddIndexEntries(int Count, int Size, UInt8 *Entries)
 // diagnostics
 #ifdef MXFLIB_DEBUG
 	debug("\nAddIndexEntries() %d, %d:\n", Size, Count);
-	UInt8 *p = (UInt8*)Entries;
+	UInt8 const *p = (UInt8*)Entries;
 	int i, j, k;
 	for(i=0; i<Count && i<35; i++)
 	{
@@ -667,10 +1009,8 @@ size_t IndexTable::WriteIndex(DataChunk &Buffer)
 		error("IndexTable::WriteIndex() called with NSL = %d, but no delta array defined - Index table will be invalid\n", NSL);
 	}
 
-	// Force a bit of space into the buffer then clear the size
-	// TODO: Use allocation granularity
-	Buffer.ResizeBuffer(4096);
-	Buffer.Resize(0);
+	// Use a granular buffer for efficiency
+	Buffer.SetGranularity(8192);
 
 	if( EditUnitByteCount ) // CBR Index Table
 	{
@@ -685,7 +1025,7 @@ size_t IndexTable::WriteIndex(DataChunk &Buffer)
 		// as it is derived from InterchangeObject (A minor bug in the spec)
 		MDObjectPtr Instance = ThisSegment->AddChild(InstanceUID_UL);
 		UUIDPtr ThisInstance = new UUID;
-		if(Instance) Instance->ReadValue(DataChunk(16, ThisInstance->GetValue()));
+		if(Instance) Instance->SetValue(DataChunk(16, ThisInstance->GetValue()));
 
 		MDObjectPtr Ptr;
 		Ptr = ThisSegment->AddChild(IndexEditRate_UL);
@@ -696,34 +1036,38 @@ size_t IndexTable::WriteIndex(DataChunk &Buffer)
 		}
 
 		ThisSegment->SetInt64(IndexStartPosition_UL, 0);
-		ThisSegment->SetInt64(IndexDuration_UL, 0);
+		ThisSegment->SetInt64(IndexDuration_UL, IndexDuration);
 		ThisSegment->SetUInt(EditUnitByteCount_UL, EditUnitByteCount);
 		ThisSegment->SetUInt(IndexSID_UL, IndexSID);
 		ThisSegment->SetUInt(BodySID_UL, BodySID);
 
-		// Add a delta entry array if we have anything meaningful
-		if((BaseDeltaCount > 1) && (BaseDeltaArray != NULL))
 		{
-			// DRAGONS: A bit clunky!
-			// DRAGONS: What if on this platform sizeof(DeltaEntry) != 6 ?
-			ASSERT(sizeof(DeltaEntry) == 6);
-			UInt8 Buf[8];
-			DataChunk Deltas;
-			PutU32(BaseDeltaCount, Buf);
-			PutU32(sizeof(DeltaEntry), &Buf[4]);
-			Deltas.Set(8, Buf);
-			Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (UInt8*)BaseDeltaArray, 8);
+			// Add a delta entry array if we have anything meaningful
+			if((BaseDeltaCount > 1) && (BaseDeltaArray != NULL))
+			{
+				// DRAGONS: A bit clunky!
+				// DRAGONS: What if on this platform sizeof(DeltaEntry) != 6 ?
+				mxflib_assert(sizeof(DeltaEntry) == 6);
 
-			ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
-		}
-		else
-		{
-			UInt8 Buf[8];
-			DataChunk Deltas;
-			PutU32(0, Buf);
-			PutU32(sizeof(DeltaEntry), &Buf[4]);
-			Deltas.Set(8, Buf);
-			ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
+				UInt8 Buf[8];
+				DataChunk Deltas;
+				PutU32(BaseDeltaCount, Buf);
+				PutU32(sizeof(DeltaEntry), &Buf[4]);
+				Deltas.Set(8, Buf);
+				Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (UInt8*)BaseDeltaArray, 8);
+
+				ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
+			}
+			else
+			{
+				// add an empty array
+				UInt8 Buf[8];
+				DataChunk Deltas;
+				PutU32(0, Buf);
+				PutU32(sizeof(DeltaEntry), &Buf[4]);
+				Deltas.Set(8, Buf);
+				ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
+			}
 		}
 
 		// Add this segment to the buffer
@@ -735,6 +1079,8 @@ size_t IndexTable::WriteIndex(DataChunk &Buffer)
 	else // VBR Index Table
 	{
 		IndexSegmentMap::iterator it = SegmentMap.begin();
+		size_t sz=SegmentMap.size();
+
 		while(it != SegmentMap.end())
 		{
 			IndexSegmentPtr Segment = (*it).second;
@@ -750,7 +1096,7 @@ size_t IndexTable::WriteIndex(DataChunk &Buffer)
 			// as it is derived from InterchangeObject (A minor bug in the spec)
 			MDObjectPtr Instance = ThisSegment->AddChild(InstanceUID_UL);
 			UUIDPtr ThisInstance = new UUID;
-			if(Instance) Instance->ReadValue(DataChunk(16, ThisInstance->GetValue()));
+			if(Instance) Instance->SetValue(DataChunk(16, ThisInstance->GetValue()));
 
 			MDObjectPtr Ptr;
 			Ptr = ThisSegment->AddChild(IndexEditRate_UL);
@@ -761,28 +1107,51 @@ size_t IndexTable::WriteIndex(DataChunk &Buffer)
 			}
 
 			ThisSegment->SetInt64(IndexStartPosition_UL, Segment->StartPosition);
-			ThisSegment->SetInt64(IndexDuration_UL, Segment->EntryCount);
+
+				ThisSegment->SetInt64(IndexDuration_UL, Segment->EntryCount);
+
 			ThisSegment->SetUInt(EditUnitByteCount_UL, EditUnitByteCount);
 			ThisSegment->SetUInt(IndexSID_UL, IndexSID);
 			ThisSegment->SetUInt(BodySID_UL, BodySID);
 
-			// DRAGONS: This assumes constant NSL and NPE...
+			// DRAGONS: This assumes constant NSL
 			ThisSegment->SetUInt(SliceCount_UL, NSL);
-			ThisSegment->SetUInt(PosTableCount_UL, NPE);
+
+			{
+				// NPE is not written when FeatureNoDeltaIndex is set
+				// DRAGONS: This assumes constant NPE
+				ThisSegment->SetUInt(PosTableCount_UL, NPE);
+
+				// Add a delta entry array if we have anything meaningful
+				if((BaseDeltaCount > 0) && (BaseDeltaArray != NULL))
+				{
+					// DRAGONS: A bit clunky!
+					// DRAGONS: What if on this platform sizeof(DeltaEntry) != 6 ?
+					mxflib_assert(sizeof(DeltaEntry) == 6);
+					
+					UInt8 Buf[8];
+					DataChunk Deltas;
+					PutU32(BaseDeltaCount, Buf);
+					PutU32(sizeof(DeltaEntry), &Buf[4]);
+					Deltas.Set(8, Buf);
+					Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (UInt8*)Segment->DeltaArray, 8);
+
+					ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
+				}
+/*				else
+				{
+					// add an empty array
+					UInt8 Buf[8];
+					DataChunk Deltas;
+					PutU32(0, Buf);
+					PutU32(sizeof(DeltaEntry), &Buf[4]);
+					Deltas.Set(8, Buf);
+					ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
+				}
+*/			}
 
 			// DRAGONS: A bit clunky!
-			// DRAGONS: What if on this platform sizeof(DeltaEntry) != 6 ?
-			ASSERT(sizeof(DeltaEntry) == 6);
-			DataChunk Deltas;
 			UInt8 Buf[8];
-			PutU32(BaseDeltaCount, Buf);
-			PutU32(sizeof(DeltaEntry), &Buf[4]);
-			Deltas.Set(8, Buf);
-			Deltas.Set(BaseDeltaCount * sizeof(DeltaEntry), (UInt8*)Segment->DeltaArray, 8);
-
-			ThisSegment->SetValue(DeltaEntryArray_UL, Deltas);
-
-			// DRAGONS: A bit clunky!
 			DataChunk Entries;
 			PutU32(Segment->EntryCount, Buf);
 			PutU32(IndexEntrySize, &Buf[4]);
@@ -793,7 +1162,9 @@ size_t IndexTable::WriteIndex(DataChunk &Buffer)
 
 			// Add this segment to the buffer
 			{
-				DataChunkPtr Seg = ThisSegment->WriteObject(MDOType::GetStaticPrimer());
+				DataChunkPtr Seg;
+					Seg = ThisSegment->WriteObject(MDOType::GetStaticPrimer());
+
 				Buffer.Set(Seg->Size, Seg->Data, Buffer.Size);
 			}
 
@@ -1130,6 +1501,9 @@ IndexManager::IndexManager(int PosTableIndex, UInt32 ElementSize)
 	PosTableList[0] = PosTableIndex;
 	ElementSizeList[0] = ElementSize;
 	ManagedDataEntrySize = sizeof(IndexData);
+	
+	// Default to main stream being the master
+	MasterStream = 0;
 
 	// So far we have no completed entries, but initialise the base to something safe
 //	CompletedListBase = 0;
@@ -1157,8 +1531,12 @@ IndexManager::IndexManager(int PosTableIndex, UInt32 ElementSize)
 	// Clear the value-relative indexing flag
 	ValueRelativeIndexing = false;
 
+
 	// Start with no sub-range offset
 	SubRangeOffset = 0;
+
+	//normal CBR index will be zero
+	IndexDuration=0;
 }
 
 
@@ -1288,9 +1666,13 @@ void IndexManager::AddEditUnit(int SubStream, Position EditUnit, int KeyOffset /
 		}
 		else ThisEntry = (*it).second;
 	}
-	
-	if(KeyOffset) ThisEntry->KeyOffset = KeyOffset;
-	if(Flags != -1) ThisEntry->Flags = Flags;
+
+	// Only the master stream should be able to set per-entry values
+	if(SubStream == MasterStream)
+	{
+		if(KeyOffset) ThisEntry->KeyOffset = KeyOffset;
+		if(Flags != -1) ThisEntry->Flags = Flags;
+	}
 
 	Log(EditUnit);
 }
@@ -1379,8 +1761,12 @@ void IndexManager::SetOffset(int SubStream, Position EditUnit, UInt64 Offset, in
 	ThisEntry->Status |= 0x01;
 	ThisEntry->StreamOffset[SubStream] = Offset;
 
-	if(KeyOffset) ThisEntry->KeyOffset = KeyOffset;
-	if(Flags != -1) ThisEntry->Flags = Flags;
+	// Only the master stream should be able to set per-entry values
+	if(SubStream == MasterStream)
+	{
+		if(KeyOffset) ThisEntry->KeyOffset = KeyOffset;
+		if(Flags != -1) ThisEntry->Flags = Flags;
+	}
 
 	Log(EditUnit);
 }
@@ -1557,6 +1943,7 @@ IndexTablePtr IndexManager::MakeIndex(void)
 	// Build an empty index table
 	IndexTablePtr Ret = new IndexTable;
 
+
 	// Set the index table parameters
 	Ret->IndexSID = IndexSID;
 	Ret->BodySID = BodySID;
@@ -1581,6 +1968,7 @@ IndexTablePtr IndexManager::MakeIndex(void)
 			ByteCount += ElementSizeList[i];
 		}
 		Ret->EditUnitByteCount = ByteCount;
+		Ret->IndexDuration=IndexDuration;
 	}
 
 	// Return the newly built index table
@@ -1681,8 +2069,10 @@ int IndexManager::AddEntriesToIndex(bool UndoReorder, IndexTablePtr Index, Posit
 		Position ThisEditUnit = (*it).first;
 		if(UndoReorder) ThisEditUnit += ThisEntry->TemporalDiff;
 
-		// Add this new entry (carry FirstEditUnit up with us as we go)
-		Index->AddIndexEntry(ThisEditUnit, ThisEntry->TemporalOffset, ThisEntry->KeyOffset, ThisEntry->Flags, ThisEntry->StreamOffset[0], NSL, SliceOffsets, NPE, PosTable);
+		{
+			// Add this new entry (carry FirstEditUnit up with us as we go)
+			Index->AddIndexEntry(ThisEditUnit, ThisEntry->TemporalOffset, ThisEntry->KeyOffset, ThisEntry->Flags, ThisEntry->StreamOffset[0], NSL, SliceOffsets, NPE, PosTable);
+		}
 
 		// Maintain count of entries
 		Ret++;
@@ -1760,4 +2150,26 @@ int IndexManager::LogNext(void)
 
 	// Scanned all - none free!
 	return -1;
+}
+
+
+//! Calculate the duration of this index table (the highest indexed position + 1)
+/*! DRAGONS: Also updated public member IndexDuration */
+Length IndexTable::GetDuration(void)
+{
+	// Only actually calculate for VBR - else use value of IndexDuration
+	if(!EditUnitByteCount)
+	{
+		IndexDuration = 0;
+
+		if(!SegmentMap.empty())
+		{
+			IndexSegmentMap::iterator it = SegmentMap.end();
+			it--;
+			
+			IndexDuration = ((*it).first + (*it).second->EntryCount);
+		}
+	}
+
+	return IndexDuration;
 }

@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.cpp
  *	\brief	Implementation of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.cpp,v 1.14 2007/12/10 23:34:25 terabrit Exp $
+ *	\version $Id: esp_jp2k.cpp,v 1.15 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 #include <math.h>	// For "floor"
 
@@ -395,11 +395,13 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 
 	// Add the component data
 	MDObjectPtr Array = SubDescriptor->AddChild(PictureComponentSizing_UL);
+
 	int ComponentsRemaining = Components;
+	int Index = 0;
 	while(ComponentsRemaining)
 	{
 		MDObjectPtr Item = Array->AddChild();
-		if(Item) 
+		if(Item)
 		{
 			// If any component is signed we assume it is CDCI rather than RGB
 			if((*p) & 0x80) IsRGB = false;
@@ -416,6 +418,7 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 			Item->SetInt("YRsiz", *(p++));
 		}
 		ComponentsRemaining--;
+		Index++;
 	}
 
 	if(IsRGB)
@@ -504,8 +507,9 @@ MDObjectPtr mxflib::JP2K_EssenceSubParser::BuildDescriptorFromCodeStream(FileHan
 	MDObjectPtr VLMItem = Ret->AddChild(VideoLineMap_UL);
 	if(VLMItem)
 	{
-		MDObjectPtr VLMChild = VLMItem->AddChild();
-		if( VLMChild ) VLMChild->SetInt(1);
+		VLMItem->Resize(2);
+		VLMItem[0]->SetInt(1);
+		VLMItem[1]->SetInt(0);
 	}
 
 	// TODO: Add alpha transparency?
@@ -686,7 +690,7 @@ printf("  @ 0x%08x Read 0x%08x bytes\n", (int)Pos, (int)Bytes);
 
 			// Read the length
 			UInt16 SegmentLength = GetU16(p);
-			ASSERT(SegmentLength > 2);
+			mxflib_assert(SegmentLength > 2);
 printf("  Length = 0x%04x\n", SegmentLength);
 
 			// Add the segment length to the byte count
@@ -929,7 +933,7 @@ bool mxflib::JP2K_EssenceSubParser::ParseJP2KCodestreamHeader(FileHandle InFile,
 
 		// Determine if there is a marker segment
 		UInt16 SegmentLength = ReadU16(InFile);
-		ASSERT(SegmentLength > 2);
+		mxflib_assert(SegmentLength > 2);
 
 		// Looks like no segment (or it could be a long length)
 		if(SegmentLength >= 0xff00)

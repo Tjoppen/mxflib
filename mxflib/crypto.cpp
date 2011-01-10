@@ -1,7 +1,7 @@
 /*! \file	crypto.cpp
  *	\brief	Implementation of classes that hanldle basic encryption and decryption
  *
- *	\version $Id: crypto.cpp,v 1.14 2009/08/17 16:29:56 matt-beard Exp $
+ *	\version $Id: crypto.cpp,v 1.15 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -28,7 +28,7 @@
  */
 
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
@@ -931,7 +931,7 @@ size_t KLVEObject::WriteDataTo(const UInt8 *Buffer, Position Offset, size_t Size
 /*! \param Buffer Pointer to data to be written
  *  \param Offset The offset within the KLV value field of the first byte to write
  *  \param Size The number of bytes to write
- *  \return The number of bytes actually written - this may by greater than Size due to padding
+ *  \return Size if all OK, else != Size.  This may not equal the actual number of bytes written.
  *	The IV must have already been set.
  *  Only encrypted parts of the value may be written using this function (i.e. Offset >= PlaintextOffset)
  */
@@ -1048,8 +1048,8 @@ size_t KLVEObject::WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, size_
 		// There are no more bytes to encrypt
 		AwaitingEncryption = 0;
 
-		// Let the caller know the actual number of bytes returned
-		return Size + Pad;
+		// Lie and say we wrote the requested number of bytes (tells the caller all was fine)
+		return Size;
 	}
 
 	// Work out how many bytes have to be encrypted this time (an integer number of chunks)
@@ -1077,7 +1077,7 @@ size_t KLVEObject::WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, size_
 		memcpy(AwaitingEncryptionBuffer, &Buffer[BytesToEncrypt], AwaitingEncryption);
 	}
 
-	// Write the encrypted data (updating the size if there was a problem)
+	// Write the encrypted data
 	Size = Base_WriteDataTo(NewData->Data, DataOffset + Offset, static_cast<size_t>(BytesToEncrypt));
 
 	// Update the current hash if we are calculating one
@@ -1087,7 +1087,7 @@ size_t KLVEObject::WriteCryptoDataTo(const UInt8 *Buffer, Position Offset, size_
 	// Chain the IV for next time...
 	EncryptionIV = Encrypt->GetIV();
 
-	// Return the number of bytes written
+	// Lie and say we wrote the requested number of bytes (tells the caller all was fine)
 	return Size;
 }
 
@@ -1429,7 +1429,7 @@ bool KLVEObject::WriteFooter(void)
 	}
 
 	// Resize the buffer to exactly the amount of data we built
-	ASSERT((UInt32)(p - Buffer->Data) == FooterLength);
+	mxflib_assert((UInt32)(p - Buffer->Data) == FooterLength);
 	Buffer->Resize((int)(p - Buffer->Data));
 
 	// Write the footer

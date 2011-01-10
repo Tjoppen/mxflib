@@ -1,7 +1,7 @@
 /*! \file	dictconvert.cpp
  *	\brief	Convert an XML dictionary file to compile-time definitions
  *
- *	\version $Id: dictconvert.cpp,v 1.10 2007/03/31 14:23:00 matt-beard Exp $
+ *	\version $Id: dictconvert.cpp,v 1.11 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -32,7 +32,8 @@
 using namespace mxflib;
 
 #include <stdio.h>
-
+#include <sstream>
+#include <iomanip>
 
 //! MXFLib debug flag
 static bool DebugMode = false;
@@ -60,11 +61,11 @@ int ClassesCount = 0;
 //! Name of the file to be converted
 char *InputFile = "";
 
+//! Should we  output dict structs?
+bool DictStructs = true;
+
 //! Should we output UL consts?
 bool ULConsts = true;
-
-//! Should we only output UL consts?
-bool OnlyConsts = false;
 
 //! Should UL consts always be long-form?
 bool LongFormConsts = false;
@@ -148,6 +149,8 @@ struct ConvertState
 	std::list<std::string> EndTagText;			//!< Text to be output at the next class end tag
 	std::map<std::string, std::string> TypeMap;	//!< Map of type for each class - to allow types to be inherited
 	std::list<bool> ExtendSubsList;				//!< List of extendSubs flags (explicit and inherited) for each level
+	std::string ProvisionalItem;				//!< The line to send for this class if it turns out to be an item
+	std::string ProvisionalExtend;				//!< The line to send for this class if it turns out to be an extension of a set or pack
 	bool FoundType;								//!< Set true once we have determined the dictionary type (old or new)
 	bool FoundMulti;							//!< Found new multi-style dictionary
 	bool LabelsOnly;							//!< True if this is a labels section rather than a full types section
@@ -177,11 +180,18 @@ int main_process(int argc, char *argv[])
 		if(argv[i][0] == '-')
 		{
 			num_options++;
-			if((argv[i][1] == 'v') || (argv[i][1] == 'V'))
+			if((argv[i][1] == 'z') || (argv[i][1] == 'Z'))
+				PauseBeforeExit = true;
+			else if((argv[i][1] == 'v') || (argv[i][1] == 'V'))
 				DebugMode = true;
-			if((argv[i][1] == 'c') || (argv[i][1] == 'C'))
-				OnlyConsts = true;
-			if((argv[i][1] == 'l') || (argv[i][1] == 'L'))
+			else if((argv[i][1] == 'b') || (argv[i][1] == 'B'))
+				{ DictStructs = true; ULConsts = true; }
+			else if((argv[i][1] == 'c') || (argv[i][1] == 'C'))
+				DictStructs = true;
+			else if( (argv[i][1] == 'd') || (argv[i][1] == 'D')
+				   || (argv[i][1] == 'x') || (argv[i][1] == 'X') )
+				ULConsts = false;
+			else if((argv[i][1] == 'l') || (argv[i][1] == 'L'))
 				LongFormConsts = true;
 			else if((argv[i][1] == 'n') || (argv[i][1] == 'N'))
 			{
@@ -195,7 +205,7 @@ int main_process(int argc, char *argv[])
 			}
 			else if((argv[i][1] == 's') || (argv[i][1] == 'S'))
 			{
-				if((argv[i][2] == ':') || (argv[i][2] == '=')) UseName = &argv[i][3];
+				if((argv[i][2] == ':') || (argv[i][2] == '=')) ULNamespace = &argv[i][3];
 				else if(argv[i][2]) ULNamespace = &argv[i][2];
 				else if(argc > (i+1))
 				{
@@ -203,39 +213,41 @@ int main_process(int argc, char *argv[])
 					num_options++;
 				}
 			}
-			if((argv[i][1] == 'x') || (argv[i][1] == 'X'))
-				ULConsts = false;
-			else if((argv[i][1] == 'z') || (argv[i][1] == 'Z'))
-				PauseBeforeExit = true;
 		}
 		else FileArg[FileCount++] = i;
 	}
 
-	if (FileCount != 2)
+	// Usage - print if less than one or more than two output files given
+	if( FileCount<2 || FileCount>3 )
 	{
-		printf("\nUsage:   %s [options] <inputfile> <outputfile>\n\n", argv[0]);
+		printf("\nUsage:   %s [options] <inputfile> <outputfile> [<constsfile>]\n\n", argv[0]);
 		printf("Converts input XML dictionary file to a C++ source file containing the same\n");
-		printf("items as a compile-time structure for passeing to function LoadDictionary\n\n");
-		printf("Options: -c         Only output UL consts\n");
+		printf("items as a compile-time structure for passing to function LoadDictionary\n");
+		printf("and also to a C++ header file defining the ULs as consts\n\n");
+
+		printf("Options: -b         BOTH dict struct and UL consts (default)\n");
+		printf("         -c         CONSTS only\n");
+		printf("         -d         DICT only\n");
+		printf("         -x         (same as -d)\n");
 		printf("         -n=name    Use \"name\" as the name of the structure built\n");
 		printf("         -l         Always use long-form names for UL consts\n");
 		printf("         -s=name    Use \"name\" as the namespace for UL consts\n");
 		printf("         -v         Verbose mode - shows lots of debug info\n");
-		printf("         -x         Don't output UL consts\n");
 		printf("         -z         Pause for input before final exit\n");
+		printf("If <constsfile> is not specified, UL consts will be appended to dict struct file\n");
 		printf("\nNote: It is recommended that supplementary dictionaries either use long-form\n");
 		printf("      const names, or define them in a different namespace than \"mxflib\"\n");
 
 		return 1;
 	}
 
+	// Set up the input file
 	InputFile = argv[FileArg[0]];
 
-	FILE *outfile = fopen(argv[FileArg[1]],"w");
-	if(!outfile)
+	// If only one output file given, duplicate it
+	if( ULConsts && FileCount==2 )
 	{
-		error("Can't open output file\n");
-		return 1;
+		FileArg[2]=FileArg[1];
 	}
 
 	// Set up the XML handler
@@ -248,6 +260,22 @@ int main_process(int argc, char *argv[])
 		(fatalErrorXMLFunc) Convert_fatalError,				/* fatalError */
 	};
 
+	// Set up the DictStructs file (see below)
+	// outfile is used for both DictStructs and ULConsts
+	FILE *outfile;
+		
+	// parsing always writes to outfile; so if DictStructs not required, open the file as temporary
+	if( !DictStructs )
+		outfile = fopen(argv[FileArg[1]],"wD");
+	else
+		outfile = fopen(argv[FileArg[1]],"w");
+
+	if(!outfile)
+	{
+		error("Can't open output file\n");
+		return 1;
+	}
+
 	// Initialize the state
 	ConvertState State;
 	State.State = StateIdle;
@@ -256,7 +284,8 @@ int main_process(int argc, char *argv[])
 	State.FoundType = false;
 	State.FoundMulti = false;
 
-	// Parse the file
+	// Parse the input file
+	// DRAGONS writes to outfile
 	bool result = false;
 	result = XMLParserParseFile(&XMLHandler, &State, InputFile);
 
@@ -283,22 +312,26 @@ int main_process(int argc, char *argv[])
 		fprintf(outfile, "\tMXFLIB_DICTIONARY_END\n", UseName.c_str());
 	}
 
-	// DRAGONS: We currently cheat with "OnlyConsts" and output everything, but close and reopen the file
-	//          before writing the UL consts, which causes the dictionary definitions to be lost!
-	if(OnlyConsts)
+	fclose(outfile);
+	State.OutFile = NULL;
+
+	// ULConsts
+	if( ULConsts && (ULMap.size() > 0) )
 	{
-		fclose(outfile);
-		outfile = fopen(argv[FileArg[1]],"w");
+		// Set up the ULConsts file
+		if( DictStructs && argv[FileArg[1]]==argv[FileArg[2]] )
+			outfile = fopen(argv[FileArg[2]],"a+");
+		else
+			outfile = fopen(argv[FileArg[2]],"w");
+
 		if(!outfile)
 		{
-			error("Can't open re-output file\n");
+			error("Can't open ULConsts file\n");
 			return 1;
 		}
-	}
+		State.OutFile = outfile;
 
-	/* Resolve any duplicate names in the UL list */
-	if(ULConsts && (ULMap.size() > 0))
-	{
+		/* Resolve any duplicate names in the UL list */
 		ULDataList::iterator ListIt = ULFixupList.begin();
 		while(ListIt != ULFixupList.end())
 		{
@@ -360,7 +393,7 @@ int main_process(int argc, char *argv[])
 				}
 			}
 
-			/* First try to de-dulicate by appending Set, Pack, Array etc. */
+			/* First try to de-duplicate by appending Set, Pack, Array etc. */
 			int SetCount = 0;
 			int PackCount = 0;
 			int ArrayCount = 0;
@@ -468,7 +501,7 @@ int main_process(int argc, char *argv[])
 
 		/* Issue the list of ULs */
 
-		if(OnlyConsts)
+		if( argv[FileArg[1]]!=argv[FileArg[2]] )
 		{
 			fprintf(outfile, "\t// Define ULs for the global keys in %s\n", InputFile);
 			fprintf(outfile, "\tnamespace %s\n\t{\n", ULNamespace.c_str());
@@ -498,6 +531,12 @@ int main_process(int argc, char *argv[])
 		fprintf(outfile, "\t} // namespace %s\n", ULNamespace.c_str());
 	}
 
+
+	if( outfile )
+	{
+		fclose( outfile );
+		State.OutFile = NULL;
+	}
 	return result ? 0 : 1;
 }
 
@@ -531,7 +570,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 		{
 			bool FoundMXFTypes = false;
 
-			if(strcmp(name, "MXFTypes") == 0) 
+			if(strcmp(name, "MXFTypes") == 0)
 			{
 				FoundMXFTypes = true;
 				State->LabelsOnly = false;
@@ -580,7 +619,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				if(State->LabelsOnly)
 					fprintf(State->OutFile, "\t// Label definitions converted from file %s\n", InputFile);
 				else
-					fprintf(State->OutFile, "\t// Types definitions converted from file %s\n", InputFile);
+				fprintf(State->OutFile, "\t// Types definitions converted from file %s\n", InputFile);
 
 				if(!State->FoundMulti)
 				{
@@ -672,7 +711,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			else
 			{
 				// Allow MXF dictionaries to be wrapped inside other XML files
-				debug("Stepping into outer level <%s>\n", name);
+				debug("\nStepping into outer level <%s>\n", name);
 
 //				Convert_fatalError(user_data, "Outer tag <MXFTypes> or <MXFDictionary> expected - <%s> found\n", name);
 //				return;
@@ -709,6 +748,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 			int Size = 1;
 			bool Endian = false;
+			bool Character = false;
+			bool Baseline = false;
 
 			/* Process attributes */
 			if(attrs != NULL)
@@ -731,6 +772,10 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						if(strcasecmp(val,"yes") == 0) Endian = true;
 					}
+					else if(strcmp(attr, "character") == 0)
+					{
+						if(strcasecmp(val,"yes") == 0) Character = true;
+					}
 					else if(strcmp(attr, "ul") == 0)
 					{
 						TypeUL = CConvert(val);
@@ -739,11 +784,20 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						SymSpace = val;
 					}
+					else if(strcmp(attr, "baseline") == 0)
+					{
+						if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0)) Baseline = true;
+						else Baseline = false;
+					}
 					else if(strcmp(attr, "ref") == 0)
 					{
+						Convert_warning("Unexpected ref type %s on basic type %s\n", val, name);
+
 						if(strcasecmp(val,"strong") == 0) RefType = "ClassRefStrong";
 						else if(strcasecmp(val,"target") == 0) RefType = "ClassRefTarget";
 						else if(strcasecmp(val,"weak") == 0) RefType = "ClassRefWeak";
+						else if(strcasecmp(val,"meta") == 0) RefType = "ClassRefMeta";
+						else if(strcasecmp(val,"dict") == 0) RefType = "ClassRefDict";
 						else if(strcasecmp(val,"global") == 0) RefType = "ClassRefGlobal";
 						else
 						{
@@ -753,6 +807,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					}
 					else if(strcmp(attr, "target") == 0)
 					{
+						Convert_warning("Unexpected ref target %s on basic type %s\n", val, name);
 						RefTargetName = val;
 					}
 					else if(strcmp(attr, "doc") == 0)
@@ -772,19 +827,26 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Allow only the target type to be set
 			if((!RefType) && (RefTargetName.length() > 0)) RefType = "ClassRefUndefined";
 
-			if(!SymSpace)
+			// #define MXFLIB_TYPE_BASIC_EX(Name, Detail, UL, Size, IsCharacter, Sym, Flags)
+			if(Baseline)
+			{
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_EX(\"%s\", \"%s\", \"%s\", %d, %s, ", name, Detail.c_str(), TypeUL.c_str(), Size, Character ? "true" : "false");
+				if(SymSpace) fprintf(State->OutFile, "\"%s\", ", SymSpace); else fprintf(State->OutFile, "NULL, ");
+				fprintf(State->OutFile, Endian ? "TypeFlags_Endian + TypeFlags_Baseline)\n" : "TypeFlags_Baseline)\n");
+			}
+			else if(!SymSpace)
 			{
 				if(!RefType)
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC(\"%s\", \"%s\", \"%s\", %d, %s)\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false");
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC(\"%s\", \"%s\", \"%s\", %d, %s, %s)\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", Character ? "true" : "false");
 				else
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_REF(\"%s\", \"%s\", \"%s\", %d, %s, %s, \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", RefType, RefTargetName.c_str());
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_REF(\"%s\", \"%s\", \"%s\", %d, %s, %s, %s, \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", Character ? "true" : "false", RefType, RefTargetName.c_str());
 			}
 			else
 			{
 				if(!RefType)
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_SYM(\"%s\", \"%s\", \"%s\", %d, %s, \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", SymSpace);
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_SYM(\"%s\", \"%s\", \"%s\", %d, %s, %s, \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", Character ? "true" : "false", SymSpace);
 				else
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_REF_SYM(\"%s\", \"%s\", \"%s\", %d, %s, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", RefType, RefTargetName.c_str(), SymSpace);
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_BASIC_REF_SYM(\"%s\", \"%s\", \"%s\", %d, %s, %s, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), Size, Endian ? "true" : "false", Character ? "true" : "false", RefType, RefTargetName.c_str(), SymSpace);
 			}
 			break;
 		}
@@ -798,7 +860,9 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			int Size = 0;
 			char *RefType = NULL;
 			std::string RefTargetName;
-
+			bool Character = false;
+			bool Baseline = false;
+			
 			/* Process attributes */
 			if(attrs != NULL)
 			{
@@ -816,6 +880,10 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						Base = val;
 					}
+					else if(strcmp(attr, "character") == 0)
+					{
+						if(strcasecmp(val,"yes") == 0) Character = true;
+					}
 					else if(strcmp(attr, "size") == 0)
 					{
 						Size = atoi(val);
@@ -828,11 +896,18 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						SymSpace = val;
 					}
+					else if(strcmp(attr, "baseline") == 0)
+					{
+						if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0)) Baseline = true;
+						else Baseline = false;
+					}
 					else if(strcmp(attr, "ref") == 0)
 					{
 						if(strcasecmp(val,"strong") == 0) RefType = "ClassRefStrong";
 						else if(strcasecmp(val,"target") == 0) RefType = "ClassRefTarget";
 						else if(strcasecmp(val,"weak") == 0) RefType = "ClassRefWeak";
+						else if(strcasecmp(val,"meta") == 0) RefType = "ClassRefMeta";
+						else if(strcasecmp(val,"dict") == 0) RefType = "ClassRefDict";
 						else if(strcasecmp(val,"global") == 0) RefType = "ClassRefGlobal";
 						else
 						{
@@ -850,7 +925,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					}
 					else
 					{
-						Convert_error(user_data, "Unexpected attribute \"%s\" in basic type \"%s\"\n", attr, name);
+						Convert_error(user_data, "Unexpected attribute \"%s\" in interpretation \"%s\"\n", attr, name);
 					}
 				}
 			}
@@ -861,19 +936,27 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Allow only the target type to be set
 			if((!RefType) && (RefTargetName.length() > 0)) RefType = "ClassRefUndefined";
 
-			if(!SymSpace)
+			// #define MXFLIB_TYPE_INTERPRETATION_EX(Name, Detail, Base, UL, Size, IsCharacter, RefType, RefTarget, Sym, Flags)
+			if(Baseline)
+			{
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_EX(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s, ", name, Detail.c_str(), Base, TypeUL.c_str(), Size, Character ? "true" : "false");
+				if(RefType) fprintf(State->OutFile, "%s, \"%s\", ", RefType, RefTargetName.c_str()); else fprintf(State->OutFile, "ClassRefUndefined, NULL, ");
+				if(SymSpace) fprintf(State->OutFile, "\"%s\", ", SymSpace); else fprintf(State->OutFile, "NULL, ");
+				fprintf(State->OutFile, "TypeFlags_Baseline)\n");
+			}
+			else if(!SymSpace)
 			{
 				if(!RefType)
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION(\"%s\", \"%s\", \"%s\", \"%s\", %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size);
-				else
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_REF(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, RefType, RefTargetName.c_str());
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s)\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, Character ? "true" : "false");
+			else
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_REF(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s, %s, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, Character ? "true" : "false", RefType, RefTargetName.c_str());
 			}
 			else
 			{
 				if(!RefType)
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, SymSpace);
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, Character ? "true" : "false", SymSpace);
 				else
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_REF_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, RefType, RefTargetName.c_str(), SymSpace);
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_INTERPRETATION_REF_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %d, %s, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Size, Character ? "true" : "false", RefType, RefTargetName.c_str(), SymSpace);
 			}
 
 			break;
@@ -885,10 +968,11 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			std::string TypeUL;
 			const char *Base = "";
 			const char *SymSpace = NULL;
-			bool IsBatch = false;
+			std::string Type = "ARRAYIMPLICIT";
 			int Size = 0;
 			char *RefType = NULL;
 			std::string RefTargetName;
+			bool Baseline = false;
 
 			/* Process attributes */
 			if(attrs != NULL)
@@ -913,7 +997,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					}
 					else if(strcmp(attr, "type") == 0)
 					{
-						if(strcasecmp(val, "Batch") == 0) IsBatch = true;
+						if((strcasecmp(val, "Batch") == 0) || (strcasecmp(val, "Explicit") == 0)) Type = "ARRAYEXPLICIT";
+						else if(strcasecmp(val, "String") == 0) Type = "ARRAYSTRING";
 					}
 					else if(strcmp(attr, "ul") == 0)
 					{
@@ -923,11 +1008,18 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						SymSpace = val;
 					}
+					else if(strcmp(attr, "baseline") == 0)
+					{
+						if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0)) Baseline = true;
+						else Baseline = false;
+					}
 					else if(strcmp(attr, "ref") == 0)
 					{
 						if(strcasecmp(val,"strong") == 0) RefType = "ClassRefStrong";
 						else if(strcasecmp(val,"target") == 0) RefType = "ClassRefTarget";
 						else if(strcasecmp(val,"weak") == 0) RefType = "ClassRefWeak";
+						else if(strcasecmp(val,"meta") == 0) RefType = "ClassRefMeta";
+						else if(strcasecmp(val,"dict") == 0) RefType = "ClassRefDict";
 						else if(strcasecmp(val,"global") == 0) RefType = "ClassRefGlobal";
 						else
 						{
@@ -956,19 +1048,27 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Allow only the target type to be set
 			if((!RefType) && (RefTargetName.length() > 0)) RefType = "ClassRefUndefined";
 
-			if(!SymSpace)
+			// #define MXFLIB_TYPE_MULTIPLE_EX(Name, Detail, Base, UL, ArrayClass, Size, RefType, RefTarget, Sym, Flags)
+			if(Baseline)
+			{
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_EX(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, ", name, Detail.c_str(), Base, TypeUL.c_str(), Type.c_str(), Size);
+				if(RefType) fprintf(State->OutFile, "%s, \"%s\", ", RefType, RefTargetName.c_str()); else fprintf(State->OutFile, "ClassRefUndefined, NULL, ");
+				if(SymSpace) fprintf(State->OutFile, "\"%s\", ", SymSpace); else fprintf(State->OutFile, "NULL, ");
+				fprintf(State->OutFile, "TypeFlags_Baseline)\n");
+			}
+			else if(!SymSpace)
  			{
 				if(!RefType)
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size);
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d)\n", name, Detail.c_str(), Base, TypeUL.c_str(), Type.c_str(), Size);
 				else
-					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_REF(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, %s, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size, RefType, RefTargetName.c_str());
+					fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_REF(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, %s, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Type.c_str(), Size, RefType, RefTargetName.c_str());
 			}
 			else
  			{
 				if(!RefType)
-                    fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size, SymSpace);
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Type.c_str(), Size, SymSpace);
 				else
-                    fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_REF_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), IsBatch ? "true" : "false", Size, RefType, RefTargetName.c_str(), SymSpace);
+                    fprintf(State->OutFile, "\t\tMXFLIB_TYPE_MULTIPLE_REF_SYM(\"%s\", \"%s\", \"%s\", \"%s\", %s, %d, %s, \"%s\", \"%s\")\n", name, Detail.c_str(), Base, TypeUL.c_str(), Type.c_str(), Size, RefType, RefTargetName.c_str(), SymSpace);
 			}
 			break;
 		}
@@ -978,6 +1078,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			std::string Detail;
 			std::string TypeUL;
 			const char *SymSpace = NULL;
+			bool Baseline = false;
 
 			/* Process attributes */
 			if(attrs != NULL)
@@ -1000,6 +1101,11 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						SymSpace = val;
 					}
+					else if(strcmp(attr, "baseline") == 0)
+					{
+						if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0)) Baseline = true;
+						else Baseline = false;
+					}
 					else if(strcmp(attr, "doc") == 0)
 					{
 						// Ignore
@@ -1014,7 +1120,14 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Add this type to the ULData map (if it has a UL)
 			if(TypeUL != "") AddType(State, name, Detail, TypeUL);
 
-			if(!SymSpace)
+			// #define MXFLIB_TYPE_COMPOUND_EX(Name, Detail, UL, Sym, Flags)
+			if(Baseline)
+			{
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND_EX(\"%s\", \"%s\", \"%s\", ", name, Detail.c_str(), TypeUL.c_str());
+				if(SymSpace) fprintf(State->OutFile, "\"%s\", ", SymSpace); else fprintf(State->OutFile, "NULL, ");
+				fprintf(State->OutFile, "TypeFlags_Baseline)\n");
+			}
+			else if(!SymSpace)
 				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND(\"%s\", \"%s\", \"%s\")\n", name, Detail.c_str(), TypeUL.c_str());
 			else
 				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_COMPOUND_SYM(\"%s\", \"%s\", \"%s\", \"%s\")\n", name, Detail.c_str(), TypeUL.c_str(), SymSpace);
@@ -1083,6 +1196,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			std::string Base;
 			std::string TypeUL;
 			const char *SymSpace = NULL;
+			bool Baseline = false;
 
 			/* Process attributes */
 			if(attrs != NULL)
@@ -1113,6 +1227,11 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					{
 						SymSpace = val;
 					}
+					else if(strcmp(attr, "baseline") == 0)
+					{
+						if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0)) Baseline = true;
+						else Baseline = false;
+					}
 					else if(strcmp(attr, "doc") == 0)
 					{
 						// Ignore
@@ -1127,7 +1246,14 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Add this type to the ULData map (if it has a UL)
 			if(TypeUL != "") AddType(State, ValueName, Detail, TypeUL);
 
-			if(!SymSpace)
+			// #define MXFLIB_TYPE_ENUM_EX(Name, Detail, Type, UL, Sym, Flags)
+			if(Baseline)
+			{
+				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_ENUM_EX(\"%s\", \"%s\", \"%s\", \"%s\", ", name, Detail.c_str(), Base.c_str(), TypeUL.c_str());
+				if(SymSpace) fprintf(State->OutFile, "\"%s\", ", SymSpace); else fprintf(State->OutFile, "NULL, ");
+				fprintf(State->OutFile, "TypeFlags_Baseline)\n");
+			}
+			else if(!SymSpace)
 				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_ENUM(\"%s\", \"%s\", \"%s\", \"%s\")\n", ValueName.c_str(), Detail.c_str(), Base.c_str(), TypeUL.c_str());
 			else
 				fprintf(State->OutFile, "\t\tMXFLIB_TYPE_ENUM_SYM(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\")\n", ValueName.c_str(), Detail.c_str(), Base.c_str(), TypeUL.c_str(), SymSpace);
@@ -1234,7 +1360,53 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				}
 			}
 
-			// DRAGONS: We don't add labels to the UL map
+			// DRAGONS: We don't add masks to the UL map
+
+			ULDataPtr ThisItem;
+			if( ULConsts && strlen(TypeUL) )
+			{
+				UInt8 KeyBuff[16];
+
+				int Count = ReadHexStringOrUL(TypeUL, 16, KeyBuff, " \t.");
+				if(Count == 16)
+				{
+					// Build a ULData item for this entry
+					ThisItem = new ULData;
+					ThisItem->Name = name;
+					ThisItem->Detail = Detail;
+
+						ThisItem->IsSet = false;
+						ThisItem->IsPack = false;
+						ThisItem->IsMulti = false;
+
+					ThisItem->UL = new UL(KeyBuff);
+					ThisItem->LocalTag = 0;
+
+					// Build the name to use for the const
+					std::string ItemName = ThisItem->Name;
+					// if(LongFormConsts && (ThisItem->Parent)) ItemName = ThisItem->Parent->Name + "_" + ItemName;
+
+					// See if this is a duplicate entry
+					ULDataMap::iterator it = ULMap.find(ItemName);
+					if(it != ULMap.end())
+					{
+						if(*(ThisItem->UL) == *((*it).second->UL))
+						{
+							debug("Multiple entries for %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem->UL->GetString().c_str());
+						}
+						else
+						{
+							printf("Duplicate name %s - will attempt to resolve later\n", ItemName.c_str());
+
+							ULFixupList.push_back(ThisItem);
+						}
+					}
+					else
+					{
+						ULMap.insert(ULDataMap::value_type(ItemName, ThisItem));
+					}
+				}
+			}
 
 			// Work out the correct indentation level
 			char *Indent = "\t\t\t";
@@ -1290,6 +1462,25 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					fprintf(State->OutFile, "\tMXFLIB_CLASS_START_SYM(%s, \"%s\")\n", UseName.c_str(), State->SymSpace.c_str());
 			}
 
+			/* Before we start writing this entry we must handle any left-over provisional entry */
+			/* If we started another entry without ending the provisional one then it must be a container, so we must be extending */
+			if(State->ProvisionalExtend.length())
+			{
+				fprintf(State->OutFile, "%s\n", State->ProvisionalExtend.c_str());
+				State->ProvisionalExtend = "";
+				State->ProvisionalItem = "";
+				
+				// Calculate the indent depth for the previous level to use for the closing clause
+				int i;
+				std::string Indent = "\t";
+				for(i=0; i<State->Depth; i++)
+				{
+					Indent += "\t";
+				}
+
+				State->EndTagText.push_back(Indent + "MXFLIB_CLASS_EXTEND_END");
+			}
+
 			bool HasGlobalKey = false;
 			bool HasDValue = false;
 			bool HasDefault = false;
@@ -1306,8 +1497,10 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			std::string default_text;
 			std::string dvalue_text;
 			std::string SymSpace;
+			unsigned int LenFormat = 2;
 			bool HasExtendSubs = false;
 			bool ExtendSubs = true;
+			bool Baseline = false;
 
 			/* Scan attributes */
 			int this_attr = 0;
@@ -1351,6 +1544,8 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 						if(strcasecmp(val,"strong") == 0) RefType = "ClassRefStrong";
 						else if(strcasecmp(val,"target") == 0) RefType = "ClassRefTarget";
 						else if(strcasecmp(val,"weak") == 0) RefType = "ClassRefWeak";
+						else if(strcasecmp(val,"meta") == 0) RefType = "ClassRefMeta";
+						else if(strcasecmp(val,"dict") == 0) RefType = "ClassRefDict";
 						else if(strcasecmp(val,"global") == 0) RefType = "ClassRefGlobal";
 						else
 						{
@@ -1384,9 +1579,13 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 					}
 					else if(strcmp(attr, "lengthFormat") == 0)
 					{
-						if(atoi(val) != 2)
+						if(strcasecmp(val, "BER")==0)
 						{
-							Convert_error(State, "Class %s uses length format %s which is not supported\n", name, val);
+							LenFormat = (unsigned int)DICT_LEN_BER;
+						}
+						else
+						{
+							LenFormat = (unsigned int)atoi(val);
 						}
 					}
 					else if(strcmp(attr, "default") == 0)
@@ -1417,6 +1616,11 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 						if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0)) ExtendSubs = true;
 						else ExtendSubs = false;
 					}
+					else if(strcmp(attr, "baseline") == 0)
+					{
+						if((strcasecmp(val, "true") == 0) || (strcasecmp(val, "yes") == 0)) Baseline = true;
+						else Baseline = false;
+					}
 					else
 					{
 						Convert_warning(State, "Unexpected attribute '%s' in <%s/>", attr, name);
@@ -1430,7 +1634,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			// Calculate the local tag (if that is what the key is)
 			UInt16 Tag = 0;
 			UInt8 KeyBuff[16];
-			int Count = ReadHexString(Key.c_str(), 16, KeyBuff, " \t.");
+			int Count = ReadHexStringOrUL(Key.c_str(), 16, KeyBuff, " \t.");
 			if(Count == 2) Tag = GetU16(KeyBuff);
 
 			ULDataPtr ThisItem;
@@ -1438,7 +1642,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			{
 				UInt8 KeyBuff[16];
 
-				int Count = ReadHexString(GlobalKey.c_str(), 16, KeyBuff, " \t.");
+				int Count = ReadHexStringOrUL(GlobalKey.c_str(), 16, KeyBuff, " \t.");
 				if(Count == 16)
 				{
 					// Build a ULData item for this entry
@@ -1508,7 +1712,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 							}
 							else
 							{
-								printf("Multiple entries for %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem->UL->GetString().c_str());
+								debug("Multiple entries for %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem->UL->GetString().c_str());
 							}
 						}
 						else
@@ -1557,11 +1761,9 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			strncpy(TypeBuff, Type.c_str(), 32);
 			TypeBuff[31] = '\0';
 
-			if(   (strcasecmp(TypeBuff,"universalSet") == 0) 
-			   || (strcasecmp(TypeBuff,"variablePack") == 0)
-			   || (strcasecmp(TypeBuff,"subVariablePack") == 0) )
+			if(strcasecmp(TypeBuff,"universalSet") == 0)
 			{
-				if(!OnlyConsts)
+				if(DictStructs)
 				{
 					Convert_error(State, "Class %s is unsupported type %s\n", name, Type.c_str());
 					fprintf(State->OutFile, "%sERROR: Class %s is unsupported type %s\n", Indent.c_str(), name, Type.c_str());
@@ -1572,10 +1774,30 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 			else if(   (strcasecmp(TypeBuff,"localSet") == 0)
 				    || (strcasecmp(TypeBuff,"subLocalSet") == 0) )
 			{
+				if((LenFormat != DICT_LEN_BER) && (LenFormat != 2))
+				{
+					Convert_error(State, "Class %u uses length format %s which is not supported\n", name, LenFormat);
+				}
+
 				State->Parent = name;
 				State->ParentData = ThisItem;
 
-				if(SymSpace.size() == 0)
+				if(Baseline)
+				{
+					if(SymSpace.size() == 0)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_SET_EX(\"%s\", \"%s\", \"%s\", 2, %d, \"%s\", NULL, %s)\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), LenFormat, GlobalKey.c_str(),
+								ExtendSubs ? "ClassFlags_ExtendSubs + ClassFlags_Baseline" : "ClassFlags_Baseline"
+							   );
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_SET_EX(\"%s\", \"%s\", \"%s\", 2, %d, \"%s\", \"%s\", %s)\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), LenFormat, GlobalKey.c_str(), SymSpace.c_str(), 
+								ExtendSubs ? "ClassFlags_ExtendSubs + ClassFlags_Baseline" : "ClassFlags_Baseline"
+							   );
+					}
+				}
+				else if(SymSpace.size() == 0)
 				{
 					if(ExtendSubs)
 					{
@@ -1606,8 +1828,22 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				State->Parent = name;
 				State->ParentData = ThisItem;
 
-
-				if(SymSpace.size() == 0)
+				if(Baseline)
+				{
+					if(SymSpace.size() == 0)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK_EX(\"%s\", \"%s\", \"%s\", \"%s\", NULL, %s)\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(),
+								ExtendSubs ? "ClassFlags_ExtendSubs + ClassFlags_Baseline" : "ClassFlags_Baseline"
+							   );
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_FIXEDPACK_EX(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s)\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str(), 
+								ExtendSubs ? "ClassFlags_ExtendSubs + ClassFlags_Baseline" : "ClassFlags_Baseline"
+							   );
+					}
+				}
+				else if(SymSpace.size() == 0)
 				{
 					if(ExtendSubs)
 					{
@@ -1631,6 +1867,56 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				}
 
 				State->EndTagText.push_back(Indent + "MXFLIB_CLASS_FIXEDPACK_END");
+			}
+			else if(   (strcasecmp(TypeBuff,"variablePack") == 0)
+			   || (strcasecmp(TypeBuff,"subVariablePack") == 0) )
+			{
+				State->Parent = name;
+				State->ParentData = ThisItem;
+
+				char LenBuff[32];
+				if(LenFormat == (unsigned int)DICT_LEN_BER) strcpy(LenBuff, "(unsigned int)DICT_LEN_BER");
+				else sprintf(LenBuff, "%u", LenFormat);
+
+				if(Baseline)
+				{
+					if(SymSpace.size() == 0)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_VARIABLEPACK_EX(\"%s\", \"%s\", \"%s\", \"%s\", NULL, %s)\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), 
+								ExtendSubs ? "ClassFlags_ExtendSubs + ClassFlags_Baseline" : "ClassFlags_Baseline"
+							   );
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_VARIABLEPACK_EX(\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s)\n", Indent.c_str(), name, Detail.c_str(), Base.c_str(), GlobalKey.c_str(), SymSpace.c_str(), 
+								ExtendSubs ? "ClassFlags_ExtendSubs + ClassFlags_Baseline" : "ClassFlags_Baseline"
+							   );
+					}
+				}
+				else if(SymSpace.size() == 0)
+				{
+					if(ExtendSubs)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_VARIABLEPACK(\"%s\", \"%s\", %s, \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), LenBuff, Base.c_str(), GlobalKey.c_str());
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_VARIABLEPACK_NOSUB(\"%s\", \"%s\", %s, \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), LenBuff, Base.c_str(), GlobalKey.c_str());
+					}
+				}
+				else
+				{
+					if(ExtendSubs)
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_VARIABLEPACK_SYM(\"%s\", \"%s\", %s, \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), LenBuff, Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+					}
+					else
+					{
+						fprintf(State->OutFile, "%sMXFLIB_CLASS_VARIABLEPACK_NOSUB_SYM(\"%s\", \"%s\", %s, \"%s\", \"%s\", \"%s\")\n", Indent.c_str(), name, Detail.c_str(), LenBuff, Base.c_str(), GlobalKey.c_str(), SymSpace.c_str());
+					}
+				}
+
+				State->EndTagText.push_back(Indent + "MXFLIB_CLASS_VARIABLEPACK_END");
 			}
 			else if(   (strcasecmp(TypeBuff,"vector") == 0)
 				    || (strcasecmp(TypeBuff,"subVector") == 0) )
@@ -1668,28 +1954,81 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 
 				State->EndTagText.push_back(Indent + "MXFLIB_CLASS_ARRAY_END");
 			}
-			// Must be an item
+			// Must be an item or an extension
 			else
 			{
-				if(Type == "") 
+/*				if(Type == "") 
 				{
 					// Check if this is a redefinition (which is safe)
 					std::map<std::string, std::string>::iterator it = State->TypeMap.find(name);
 					if(it == State->TypeMap.end())
 					{
-					if(Base == "")
+						if(Base == "")
 						{
-						error("Class %s does not have a type specified\n", name);
+							error("Class %s does not have a type specified\n", name);
 						}
-					else
-						warning("Type %s is derived from type %s which is not known at this point - output file may need manual edit\n", name, Base.c_str());
+						else
+							warning("Item %s is derived from type %s which is not known at this point - output file may need manual edit\n", name, Base.c_str());
 					}
 				}
-
+*/
 				std::string Ref;
 				if(RefType != "ClassRefNone") Ref = "_REF";
 
-				if(SymSpace.size() == 0)
+				const std::string Qt = "\"";
+				std::ostringstream Builder;
+				
+				Builder << Indent << "MXFLIB_CLASS_ITEM" << Ref;
+				
+				if(SymSpace.size()) Builder << "_SYM";
+				
+				Builder << "(";
+				Builder << Qt << name << Qt << ", ";
+				Builder << Qt << Detail << Qt << ", ";
+				Builder << Use << ", ";
+				Builder << Qt << Type << Qt << ", ";
+				Builder << minLength << ", ";
+				Builder << maxLength << ", ";
+				Builder << "0x" << std::setw(4) << std::setfill('0') << std::hex << Tag << ", ";
+				Builder << Qt << GlobalKey << Qt;
+
+				if(RefType != "ClassRefNone") Builder << ", " << RefType << ", " << Qt << RefTargetName << Qt;
+				
+				Builder << ", " << (HasDefault ? Qt + default_text  + Qt: "NULL");
+				Builder << ", " << (HasDValue ? Qt + dvalue_text + Qt: "NULL");
+
+				if(SymSpace.size() != 0) Builder << ", " << Qt << SymSpace;
+
+				Builder << ")";
+
+//printf("%s\n", Builder.str().c_str());
+				State->ProvisionalItem = Builder.str();
+
+				// Clear the buffer ready for building the extend version
+				Builder.str("");
+
+				Builder << Indent << "MXFLIB_CLASS_EXTEND";
+				
+				if(SymSpace.size()) Builder << "_EX";
+				
+				Builder << "(";
+				Builder << Qt << name << Qt << ", ";
+				Builder << Qt << Detail << Qt << ", ";
+				Builder << Qt << Base << Qt << ", ";
+				Builder << Qt << GlobalKey << Qt;
+
+				if(SymSpace.size() != 0)
+				{
+					Builder << ", " << Qt << SymSpace;
+					if(ExtendSubs) Builder << ", ClassFlags_ExtendSubs"; else Builder << ", 0";
+				}
+
+				Builder << ")";
+
+//printf("%s\n", Builder.str().c_str());
+				State->ProvisionalExtend = Builder.str();
+
+/*				if(SymSpace.size() == 0)
 					fprintf(State->OutFile, "%sMXFLIB_CLASS_ITEM%s(\"%s\", \"%s\", %s, \"%s\", %d, %d, 0x%04x, \"%s\", ", Indent.c_str(), Ref.c_str(), name, Detail.c_str(), Use.c_str(), Type.c_str(), minLength, maxLength, Tag, GlobalKey.c_str());
 				else
 					fprintf(State->OutFile, "%sMXFLIB_CLASS_ITEM%s_SYM(\"%s\", \"%s\", %s, \"%s\", %d, %d, 0x%04x, \"%s\", ", Indent.c_str(), Ref.c_str(), name, Detail.c_str(), Use.c_str(), Type.c_str(), minLength, maxLength, Tag, GlobalKey.c_str());
@@ -1703,7 +2042,7 @@ void Convert_startElement(void *user_data, const char *name, const char **attrs)
 				fprintf(State->OutFile, ")\n");
 
 				State->EndTagText.push_back("");
-			}
+*/			}
 
 			State->Depth++;
 
@@ -1740,7 +2079,7 @@ void Convert_endElement(void *user_data, const char *name)
 		case StateIdle:
 		{
 			// Allow MXF dictionaries to be wrapped inside other XML files
-			debug("Stepping out of outer level <%s>\n", name);
+			debug("\nStepping out of outer level <%s>\n", name);
 			break;
 
 //			Convert_error(user_data, "Closing tag </%s> found when not unexpected\n", name);
@@ -1820,6 +2159,15 @@ void Convert_endElement(void *user_data, const char *name)
 
 		case StateClasses:
 		{
+			/* If we have rovisional entries this is an item (we just closed it without adding anything new) */
+			if(State->ProvisionalItem.length())
+			{
+				fprintf(State->OutFile, "%s\n", State->ProvisionalItem.c_str());
+				State->ProvisionalItem = "";
+				State->ProvisionalExtend = "";
+				State->EndTagText.push_back("");
+			}
+
 			if(State->Depth == 0)
 			{
 				fprintf(State->OutFile, "\tMXFLIB_CLASS_END\n");
@@ -1845,7 +2193,7 @@ void Convert_endElement(void *user_data, const char *name)
 			std::list<std::string>::iterator it = State->EndTagText.end();
 			it--;
 
-			ASSERT(it != State->EndTagText.end());
+			mxflib_assert(it != State->EndTagText.end());
 
 			if((*it).size()) fprintf(State->OutFile, "%s\n", (*it).c_str());
 			
@@ -1892,7 +2240,7 @@ void AddType(ConvertState *State, std::string Name, std::string Detail, std::str
 				if(*(ThisItem->UL) == *((*it).second->UL))
 				{
 					{
-						printf("Multiple entries for type %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem->UL->GetString().c_str());
+						debug("Multiple entries for type %s with UL %s - this is probably not an error\n", ItemName.c_str(), ThisItem->UL->GetString().c_str());
 					}
 				}
 				else

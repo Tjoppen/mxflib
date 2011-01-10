@@ -1,7 +1,7 @@
 /*! \file	essence.h
  *	\brief	Definition of classes that handle essence reading and writing
  *
- *	\version $Id: essence.h,v 1.29 2008/03/14 14:46:45 matt-beard Exp $
+ *	\version $Id: essence.h,v 1.30 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -46,6 +46,24 @@ namespace mxflib
 
 	// Type used to identify stream
 	typedef int GCStreamID;
+
+	// Forward declare
+	class BodyStream;
+
+	//! Smart pointer to a BodyStream
+	typedef SmartPtr<BodyStream> BodyStreamPtr;
+
+	//! List of smart pointers to BodyStreams
+	typedef std::list<BodyStreamPtr> BodyStreamList;
+
+	// Forward declare
+	class EssenceSubParser;
+
+	//! Smart pointer to an EssenceSubParser
+	typedef SmartPtr<EssenceSubParser> EssenceSubParserPtr;
+
+	//! PArent pointer to an EssenceSubParser
+	typedef ParentPtr<EssenceSubParser> EssenceSubParserParent;
 }
 
 
@@ -80,6 +98,34 @@ namespace mxflib
 
 namespace mxflib
 {
+	//! Wrapping options for an EssenceSubParser or an EssenceSubStream
+	class WrappingOption : public RefCount<WrappingOption>
+	{
+	public:
+		//! Wrapping type
+		/*! \note "None" is only for use as a default condition */
+		enum WrapType { None, Frame, Clip, Line, Other } ;
+		EssenceSubParserParent Handler;			//!< Pointer to the object that can parse this wrapping option - parent pointer because the parser holds a copy of this!
+		std::string Name;						//!< A short name, unique for this sub-parser, for this wrapping option (or "" if not supported by this handler)
+		std::string Description;				//!< Human readable description of this wrapping option (to allow user selection)
+		ULPtr	WrappingID;						//!< A UL (or endian swapped UUID) that uniquely identifies this sub-parser/wrapping option combination (or NULL if not suppoered by this handler)
+												/*!< This allows an application to specify a desired wrapping, or list of wrappings, for automated selection */
+		ULPtr	WrappingUL;						//!< UL for this wrapping
+		ULList	RequiredPartners;				//!< List of other items that *MUST* accompany this item to use this wrapping
+		UInt8	GCEssenceType;					//!< The Generic Container essence type, or 0 if not a GC wrapping
+		UInt8	GCElementType;					//!< The Generic Container element value, or 0 if not a GC wrapping
+		WrapType ThisWrapType;					//!< The type of this wrapping (frame, clip etc.)
+		bool	CanSlave;						//!< True if this wrapping can be a "slave" which allows it to be used at a different edit rate than its own
+		bool	CanIndex;						//!< True if this wrapping can be VBR indexed by the handler (CBR essence may need VBR indexing when interleaved)
+		bool	CBRIndex;						//!< True if this wrapping may use a CBR index table (and therefore have a non-zero return value from GetBytesPerEditUnit() )
+		UInt8	BERSize;						//!< The BER length size to use for this wrapping (or 0 for any)
+		UInt32 BytesPerEditUnit;				//!< set non zero for ConstSamples
+	};
+
+	typedef SmartPtr<WrappingOption> WrappingOptionPtr;
+	typedef std::list<WrappingOptionPtr> WrappingOptionList;
+
+
 	//! Abstract super-class for objects that supply large quantities of essence data
 	/*! This is used when clip-wrapping to prevent large quantities of data being loaded into memory 
 	 *! \note Classes derived from this class <b>must not</b> include their own RefCount<> derivation
@@ -105,9 +151,19 @@ namespace mxflib
 		//! True if the default essence key has been overridden with a key that does not use GC track number mechanism
 		bool NonGC;
 
+		//! Number of frames that should be sent, used to match lengths of streams where appropriate, or -1 for undefined
+		Length LenToSend;  
+
+		//! The essence descriptor describing this essence (if known) else NULL
+		/*! The essence descriptor will be set by the wrapping application once the source has been selected and configured.
+		 *  This means that the essence source has access to the full metadata that will be written into the file in case iit is required.
+		 *  /note This descriptor may be the same one supplied by EssenceSubParser::IdentifyEssence() or a modified copy of it, or a completely new object
+		 */
+		MDObjectPtr EssenceDescriptor;
+
 	public:
-		// Base constructor
-		EssenceSource() : StreamID(-1) {};
+		//! Base constructor
+		EssenceSource() : StreamID(-1), LenToSend(-1) {};
 
 		//! Virtual destructor to allow polymorphism
 		virtual ~EssenceSource() { };
@@ -143,6 +199,17 @@ namespace mxflib
 		 */
 		virtual bool EndOfData(void) = 0;
 
+		//! Get data to write as padding after all real essence data has been processed
+		/*! If more than one stream is being wrapped, they may not all end at the same wrapping-unit.
+		 *	When this happens each source that has ended will produce NULL is response to GetEssenceData().
+		 *	The default action of the caller would be to write zero-length KLVs in each wrapping unit for each source that has ended.
+		 *	If a source supplies an overload for this method, the supplied padding data will be written in wrapping units following the end of essence instead of a zero-length KLV
+		 *	DRAGONS: Note that as the returned value is a non-smart pointer, ownership of the buffer stays with the EssenceSource object.
+		 *			 The recommended method of operation is to have a member DataChunk (or DataChunkPtr) allocated the first time padding is required, and return the address each call.
+		 *			 The destructor must then free the DataChunk, or allow the smart DataChunkPtr to do it automatically
+		 */
+		virtual DataChunk *GetPadding(void) { return NULL; }
+
 		//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
 		virtual UInt8 GetGCEssenceType(void) = 0;
 
@@ -173,6 +240,22 @@ namespace mxflib
 
 		//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
 		virtual int GetBERSize(void) { return 0; }
+
+		//! Set a wrapping option for future Read and Write calls
+		/*! \return true if this wrapping option is suitable for use, else false
+		 */
+		virtual bool Use(WrappingOptionPtr &UseWrapping)
+		{
+			return true;
+		}
+
+		//! Set a non-native edit rate
+		/*! \return true if this rate is acceptable */
+		virtual bool SetEditRate(Rational EditRate)
+		{
+			// Default action is to not allow the edit rate to be changed
+			return (EditRate == GetEditRate());
+		}
 
 		//! Set a source type or parser specific option
 		/*! \return true if the option was successfully set */
@@ -206,7 +289,7 @@ namespace mxflib
 		//! Override the default essence key
 		virtual void SetKey(DataChunkPtr &Key, bool NonGC = false)
 		{
-			ASSERT(Key->Size == 16);
+			mxflib_assert(Key->Size == 16);
 
 			SpecifiedKey = Key;
 			this->NonGC = NonGC;
@@ -227,6 +310,9 @@ namespace mxflib
 
 		/* Essence type identification */
 		/* These functions can be overwridden, or use the base versions to parse GetGCEssenceType() */
+
+		//! Is this source a system item rather than an essence source?
+		virtual bool IsSystemItem(void) { return false; }
 
 		//! Is this picture essence?
 		virtual bool IsPictureEssence(void)
@@ -308,6 +394,54 @@ namespace mxflib
 		/*! \return -1 if not applicable for this source
 		 */
 		virtual Length GetRangeDuration(void) { return 0; }
+
+		//! Get the name of this essence source (used for error messeges)
+		virtual std::string Name(void) { return "Unnamed EssenceSource object"; }
+
+		//! Enable VBR indexing, even in clip-wrap mode, by allowing each edit unit to be returned individually
+		/*! As the byte offset part of a VBR index table is constructed at write-time each indexed chunk must be written separately.
+		 *  When clip-wrapping, this is not normally the case as larger chunks may be returned for efficiency. Setting this mode
+		 *  forces each indexable edit unit to be returned by a fresh GetEssenceData call as if it were being frame-wrapped.
+		 *  \return true if this mode is supported by the source, and the mode was set, else false
+		 */
+		virtual bool EnableVBRIndexMode(void) { return false; }
+
+		//! Set a length-to-send value
+		void SetLenToSend( Length newVal ) { LenToSend=newVal; }
+
+		//! Read the current length-to-send
+		Length GetLenToSend( void ) const  { return LenToSend; }
+
+		//! Attach a related System Item source to the owning BodyStream if required
+		/*! DRAGONS: This is currently a non-ideal fudge - do not assume this method will last long!!! */
+		virtual void AttachSystem(BodyStream *Stream)  { return; }
+
+
+		/* Methods that apply to system item sources */
+
+		//! Initialize this system item
+		virtual void InitSystem(BodyStream *Stream) { return; }
+
+		//! Get the number of KLVs in this system item
+		virtual int GetSystemItemCount(void) { return 0; }
+
+		//! Get the stream ID for the given system item KLV for this content package
+		/*! \return The stream ID allocated to the item specified, or -1 if invalid 
+		 *  \param Item The 0-based item number
+		 */
+		virtual GCStreamID GetSystemItemID(int Item) { return -1; }
+
+		//! Get the value for the given system item KLV for this content package
+		/*! \return The value of the item specified, or NULL if invalid
+		 *  \param Item The 0-based item number
+		 */
+		virtual DataChunkPtr GetSystemItemValue(int Item) { return NULL; }
+
+		//! Set the essence descriptor
+		virtual void SetDescriptor(MDObjectPtr Descriptor) { EssenceDescriptor = Descriptor; }
+
+		//! Get a pointer to the essence descriptor for this source (if known) otherwise NULL
+		virtual MDObjectPtr GetDescriptor(void) { return EssenceDescriptor; }
 	};
 
 	// Smart pointer to an EssenceSource object
@@ -347,7 +481,7 @@ namespace mxflib
 		 *  \note The first call may well fail if the sink has not been fully configured.
 		 *	\note If false is returned the caller should make no more calls to this function, but the function should be implemented such that it is safe to do so
 		 */
-		virtual bool PutEssenceData(UInt8 *const Buffer, size_t BufferSize, bool EndOfItem = true) = 0;
+		virtual bool PutEssenceData(UInt8 const *Buffer, size_t BufferSize, bool EndOfItem = true) = 0;
 
 		//! Receive the next "installment" of essence data from a smart pointer to a DataChunk
 		bool PutEssenceData(DataChunkPtr &Buffer, bool EndOfItem = true) { return PutEssenceData(Buffer->Data, Buffer->Size, EndOfItem); }
@@ -360,6 +494,23 @@ namespace mxflib
 		 *  \note This function must also be called from the derived class' destructor in case it is never explicitly called
 		 */
 		virtual bool EndOfData(void) = 0;
+
+		//! Get the name of this essence sink (used for error messeges)
+		virtual std::string Name(void) { return "Unnamed EssenceSink object"; }
+
+		//! Query the sink for an Int32 value
+		virtual Int32 GetInt(std::string Query) { return 0; }
+
+		//! Query the sink for a string value
+		virtual std::string GetString(std::string Query) { return ""; }
+
+		//! Set an Int32 value for this sink
+		/*! /return true if the value was accepted, else false */
+		virtual bool SetInt(std::string Text, Int32 Value) { return false; }
+
+		//! Set a string value for this sink
+		/*! /return true if the value was accepted, else false */
+		virtual bool SetString(std::string Text, std::string Value) { return false; }
 	};
 
 	// Smart pointer to an EssenceSink object
@@ -435,6 +586,7 @@ namespace mxflib
 
 		//! Map of all used write orders to stream ID - used to ensure no duplicates
 		std::map<UInt32, GCStreamID> WriteOrderMap;
+
 
 	public:
 		//! Constructor
@@ -541,13 +693,13 @@ namespace mxflib
 		void AddSystemData(GCStreamID ID, DataChunkPtr Chunk, UUIDPtr ContextID, Length PlaintextOffset = 0) { AddSystemData(ID, Chunk->Size, Chunk->Data, ContextID, PlaintextOffset); }
 
 		//! Add essence data to the current CP
-		void AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data);
+		void AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data, BodyStreamPtr BStream = NULL);
 
 		//! Add essence data to the current CP
-		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk) { AddEssenceData(ID, Chunk->Size, Chunk->Data); }
+		void AddEssenceData(GCStreamID ID, DataChunkPtr Chunk, BodyStreamPtr BStream = NULL) { AddEssenceData(ID, Chunk->Size, Chunk->Data, BStream); }
 
 		//! Add essence data to the current CP
-		void AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastClipWrap = false);
+		void AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastClipWrap = false, BodyStreamPtr BStream = NULL);
 
 /*		//! Add encrypted essence data to the current CP
 		void AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data, UUIDPtr ContextID, Length PlaintextOffset = 0);
@@ -559,7 +711,7 @@ namespace mxflib
 		void AddEssenceData(GCStreamID ID, EssenceSource* Source, UUIDPtr ContextID, Length PlaintextOffset = 0, bool FastClipWrap = false);
 */
 		//! Add an essence item to the current CP with the essence to be read from a KLVObject
-		void AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipWrap = false);
+		void AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipWrap = false, BodyStreamPtr BStream = NULL);
 
 
 		//! Calculate how many bytes would be written if the specified object were written with WriteRaw()
@@ -578,6 +730,7 @@ namespace mxflib
 			KLVObjectPtr KLVSource;		//!< Pointer to a KLVObject as source - or NULL
 			int LenSize;				//!< The KLV length size to use for this item (0 for auto)
 			IndexManagerPtr IndexMan;	//!< Index manager that wants to know about this data
+			BodyStreamPtr Stream;		//!< The calling BodyStream object - or NULL
 			int IndexSubStream;			//!< Sub-stream ID of data for indexing
 			bool IndexFiller;			//!< If true filler will also be indexed with SubStream -1
 			bool IndexClip;				//!< True if indexing clip-wrapped essence
@@ -609,37 +762,6 @@ namespace mxflib
 
 namespace mxflib
 {
-	class EssenceSubParser;
-	typedef SmartPtr<EssenceSubParser> EssenceSubParserPtr;
-	typedef ParentPtr<EssenceSubParser> EssenceSubParserParent;
-
-	class WrappingOption : public RefCount<WrappingOption>
-	{
-	public:
-		//! Wrapping type
-		/*! \note "None" is only for use as a default condition */
-		enum WrapType { None, Frame, Clip, Line, Other } ;
-
-		EssenceSubParserParent Handler;			//!< Pointer to the object that can parse this wrapping option - parent pointer because the parser holds a copy of this!
-		std::string Name;						//!< A short name, unique for this sub-parser, for this wrapping option (or "" if not supported by this handler)
-		std::string Description;				//!< Human readable description of this wrapping option (to allow user selection)
-		ULPtr	WrappingID;						//!< A UL (or endian swapped UUID) that uniquely identifies this sub-parser/wrapping option combination (or NULL if not suppoered by this handler)
-												/*!< This allows an application to specify a desired wrapping, or list of wrappings, for automated selection */
-		ULPtr	WrappingUL;						//!< UL for this wrapping
-		ULList	RequiredPartners;				//!< List of other items that *MUST* accompany this item to use this wrapping
-		UInt8	GCEssenceType;					//!< The Generic Container essence type, or 0 if not a GC wrapping
-		UInt8	GCElementType;					//!< The Generic Container element value, or 0 if not a GC wrapping
-		WrapType ThisWrapType;					//!< The type of this wrapping (frame, clip etc.)
-		bool	CanSlave;						//!< True if this wrapping can be a "slave" which allows it to be used at a different edit rate than its own
-		bool	CanIndex;						//!< True if this wrapping can be VBR indexed by the handler (CBR essence may need VBR indexing when interleaved)
-		bool	CBRIndex;						//!< True if this wrapping will use a CBR index table (and therefore has a non-zero return value from GetBytesPerEditUnit() )
-		UInt8	BERSize;						//!< The BER length size to use for this wrapping (or 0 for any)
-		UInt32 BytesPerEditUnit;				//!< set non zero for ConstSamples
-	};
-
-	typedef SmartPtr<WrappingOption> WrappingOptionPtr;
-	typedef std::list<WrappingOptionPtr> WrappingOptionList;
-
 	//! Class for holding a description of an essence stream 
 	class EssenceStreamDescriptor;
 
@@ -685,11 +807,16 @@ namespace mxflib
 	class EssenceStreamDescriptor : public RefCount<EssenceStreamDescriptor>
 	{
 	public:
+		//! Construct with any optional items cleared
+		EssenceStreamDescriptor() : StartTimecode(0) {}
+
+	public:
 		UInt32 ID;								//!< ID for this essence stream
 		std::string Description;				//!< Description of this essence stream
 		UUID SourceFormat;						//!< A UUID (or byte-swapped UL) identifying the source format
 		MDObjectPtr Descriptor;					//!< Pointer to an actual essence descriptor for this stream
 		EssenceStreamDescriptorList SubStreams;	//!< A list of sub-streams that can be derived from this stream. See \ref SubStreamNotes
+		Position StartTimecode;					//!< The starting timecode of this essence, if known, or zero
 	};
 
 
@@ -718,6 +845,9 @@ namespace mxflib
 
 		//! This essence stream's stream ID in the index manager
 		int	ManagedStreamID;
+
+		//! The essence descriptor describing this essence (if known) else NULL
+		MDObjectPtr EssenceDescriptor;
 
 	public:
 
@@ -819,6 +949,17 @@ namespace mxflib
 			 */
 			virtual bool EndOfData(void) { return AtEndOfData; }
 
+			//! Get data to write as padding after all real essence data has been processed
+			/*! If more than one stream is being wrapped, they may not all end at the same wrapping-unit.
+			 *	When this happens each source that has ended will produce NULL is response to GetEssenceData().
+			 *	The default action of the caller would be to write zero-length KLVs in each wrapping unit for each source that has ended.
+			 *	If a source supplies an overload for this method, the supplied padding data will be written in wrapping units following the end of essence instead of a zero-length KLV
+			 *	DRAGONS: Note that as the returned value is a non-smart pointer, ownership of the buffer stays with the EssenceSource object.
+			 *			 The recommended method of operation is to have a member DataChunk (or DataChunkPtr) allocated the first time padding is required, and return the address each call.
+			 *			 The destructor must then free the DataChunk, or allow the smart DataChunkPtr to do it automatically
+			 */
+			virtual DataChunk *GetPadding(void) { return NULL; }
+
 			//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
 			virtual UInt8 GetGCEssenceType(void) { return Caller->GetGCEssenceType(); }
 
@@ -865,9 +1006,28 @@ namespace mxflib
 			//! Get the IndexManager StreamID for this essence stream
 			virtual int GetIndexStreamID(void)
 			{
-				// Get from our containing parser
-				return Caller->GetIndexStreamID();
+				if(Caller)
+				{
+					// Get from our containing parser
+					return Caller->GetIndexStreamID();
+				}
+					return IndexStreamID;
 			}
+
+			//! Get the name of this essence source (used for error messeges)
+			virtual std::string Name(void) 
+			{
+				if(Caller)
+					 return Caller->GetParserName() +" sub-parser";
+				else
+					return " Parser";
+			}
+
+			//! Set the essence descriptor
+			virtual void SetDescriptor(MDObjectPtr Descriptor) { Caller->EssenceDescriptor = Descriptor; }
+
+			//! Get a pointer to the essence descriptor for this source (if known) otherwise NULL
+			virtual MDObjectPtr GetDescriptor(void) { return Caller->EssenceDescriptor; }
 		};
 
 		// Allow embedded essence source to access our protected properties
@@ -1058,8 +1218,9 @@ namespace mxflib
 		 *	determine how many items are read. In frame wrapping it is in
 		 *	units of EditRate, as specified in the call to Use(), which may
 		 *  not be the frame rate of this essence stream
-		 *	\note This is the only safe option for clip wrapping
+		 *	\note This used to be the only safe option for clip wrapping
 		 *	\return Count of bytes transferred
+		 *  DRAGONS: ** DEPRECATED **
 		 */
 		virtual Length Write(FileHandle InFile, UInt32 Stream, MXFFilePtr OutFile, UInt64 Count = 1) = 0;
 
@@ -1074,12 +1235,17 @@ namespace mxflib
 		 */
 		virtual std::string GetParserName(void) const { return ""; }
 
-
 		//! Build a new sub-parser of the appropriate type
-		/*! \note You must redifine this function in a sub-parser even if it is not going to be its own factory (EssenceSubParserFactory used).
+		/*! \note You must redefine this function in a sub-parser even if it is not going to be its own factory (EssenceSubParserFactory used).
 		 *        In this case it is best to call the factory's NewParser() method.
 		 */
 		virtual EssenceSubParserPtr NewParser(void) const = 0;
+
+		//! Set the essence descriptor
+		virtual void SetDescriptor(MDObjectPtr Descriptor) { EssenceDescriptor = Descriptor; }
+
+		//! Get a pointer to the essence descriptor for this source (if known) otherwise NULL
+		virtual MDObjectPtr GetDescriptor(void) { return EssenceDescriptor; }
 	};
 
 	//! Rename of EssenceSubParser for legacy compatibility
@@ -1181,12 +1347,19 @@ namespace mxflib
 		class WrappingConfig : public RefCount<WrappingConfig>
 		{
 		public:
+			//! Construct with any optional items cleared
+			WrappingConfig() : StartTimecode(0), IsExternal(false), KAGSize(1) {}
+
+		public:
 			EssenceSubParserPtr Parser;					//!< The parser that parses this essence - true smart pointer not a parent pointer to keep parser alive
 			WrappingOptionPtr WrapOpt;					//!< The wrapping options
 			MDObjectPtr EssenceDescriptor;				//!< The essence descriptior for the essence as parsed
 			UInt32 Stream;								//!< The stream ID of this stream from the parser
 			Rational EditRate;							//!< The selected edit rate for this wrapping
 			WrappingConfigList SubStreams;				//!< A list of wrapping options available for sub-streams extracted from the same essence source. See \ref SubStreamNotes
+			Position StartTimecode;						//!< The starting timecode of this essence, if known, or zero
+			bool IsExternal;							//!< True if this is actually going to become an external raw-essence stream
+			UInt32 KAGSize;								//!< The selected KAGSize for this wrapping
 		};
 
 		//! Produce a list of available wrapping options
@@ -1338,6 +1511,75 @@ namespace mxflib
 
 	//! List of smart pointers to WrappingConfig objects
 	typedef EssenceParser::WrappingConfigList WrappingConfigList;
+
+
+	//! An essence source for sub-streams that slave from a master stream
+	class EssenceSubSource : public EssenceSource
+	{
+	protected:
+		EssenceSourceParent MasterSource;		//!< The EssenceSource for the master source
+		WrappingOptionPtr SelectedWrapping;		//!< The selected wrapping options
+
+	public:
+		//! Base constructor
+		EssenceSubSource(EssenceSource *Master = NULL) : MasterSource(Master) {};
+
+		//! Virtual destructor to allow polymorphism
+		virtual ~EssenceSubSource() {};
+
+		//! Set a new master after construction (useful if the master source is not known at construction time) 
+		void SetMaster(EssenceSource *Master)
+		{
+			MasterSource = Master;
+		}
+
+		//! Get a pointer to the current master source, this may be NULL if it is not yet defined
+		EssenceSource *GetMaster(void)
+		{
+			return MasterSource;
+		}
+
+		//! Is all data exhasted?
+		/*! \return true if a call to GetEssenceData() will return some valid essence data
+		 */
+		virtual bool EndOfData(void) 
+		{ 
+			if(!MasterSource) return true;
+			return MasterSource->EndOfData();
+		}
+
+		//! Get data to write as padding after all real essence data has been processed
+		/*! If more than one stream is being wrapped, they may not all end at the same wrapping-unit.
+		 *	When this happens each source that has ended will produce NULL is response to GetEssenceData().
+		 *	The default action of the caller would be to write zero-length KLVs in each wrapping unit for each source that has ended.
+		 *	If a source supplies an overload for this method, the supplied padding data will be written in wrapping units following the end of essence instead of a zero-length KLV
+		 *	DRAGONS: Note that as the returned value is a non-smart pointer, ownership of the buffer stays with the EssenceSource object.
+		 *			 The recommended method of operation is to have a member DataChunk (or DataChunkPtr) allocated the first time padding is required, and return the address each call.
+		 *			 The destructor must then free the DataChunk, or allow the smart DataChunkPtr to do it automatically
+		 */
+		virtual DataChunk *GetPadding(void) { return NULL; }
+
+		//! Get the edit rate of this wrapping of the essence
+		/*! \note This may not be the same as the original "native" edit rate of the
+		 *        essence if this EssenceSource is wrapping to a different edit rate 
+		 */
+		virtual Rational GetEditRate(void)
+		{ 
+			if(!MasterSource) return Rational(1,1);
+			return MasterSource->GetEditRate();
+		}
+
+		//! Determine if this sub-source can slave from a source with the given wrapping configuration, if so build the sub-config
+		/*! \return A smart pointer to the new WrappingConfig for this source as a sub-stream of the specified master, or NULL if not a valid combination
+		 */
+		virtual EssenceParser::WrappingConfigPtr MakeWrappingConfig(WrappingConfigPtr MasterCfg) = 0;
+
+		//! Configure this sub-source to use the specified wrapping options
+		virtual void Use(WrappingOptionPtr WrapOpt)
+		{
+			SelectedWrapping = WrapOpt;
+		}
+	};
 }
 
 
@@ -1370,6 +1612,7 @@ namespace mxflib
 	{
 	protected:
 		NewFileHandlerPtr Handler;				//!< Handler to be informed of new filenames
+		std::string RawFileName;				//!< The raw filename given to start the list (excluding any prepended ! or anything from the first & onwards)
 		std::string BaseFileName;				//!< Base filename as a printf string
 		std::list<std::string> FollowingNames;	//!< Names to be processed next
 		bool FileList;							//!< True if this is a multi-file set rather than a single file (or if a range is in use)
@@ -1381,6 +1624,8 @@ namespace mxflib
 		int FilesRemaining;						//!< The number of files remaining in the list or -1 for "end when no more files"
 		bool AtEOF;								//!< True once the last file has hit it's end of file
 		std::string CurrentFileName;			//!< The name of the current file (if open)
+		bool ExternalEssence;					//!< True if this essence has been flagged to remain external (filename prepended with "!")
+		std::string Options;					//!< A list of options to send to the parser
 
 		Position RangeStart;					//!< The requested first edit unit, or -1 if none specified
 		Position RangeEnd;						//!< The requested last edit unit, or -1 if using RequestedDuration
@@ -1388,7 +1633,7 @@ namespace mxflib
 
 	public:
 		//! Construct a ListOfFiles and optionally set a single source filename pattern
-		ListOfFiles(std::string FileName = "") : RangeStart(-1), RangeEnd(-1), RangeDuration(-1)
+		ListOfFiles(std::string FileName = "") : ExternalEssence(false), RangeStart(-1), RangeEnd(-1), RangeDuration(-1)
 		{
 			AtEOF = false;
 
@@ -1412,6 +1657,19 @@ namespace mxflib
 		{ 
 			FollowingNames.clear();
 			ParseFileName(FileName); 
+		}
+
+		//! Get the raw filename as used by SetFileName (excluding any prepended ! or anything from the first & onwards)
+		/*! DRAGONS: This is not a full description of all files in the list */
+		std::string GetRawFileName(void) const
+		{
+			return RawFileName;
+		}
+
+		//! Get a copy of the parser options string
+		std::string GetOptions(void) const
+		{
+			return Options;
 		}
 
 		//! Add a source filename pattern
@@ -1467,10 +1725,486 @@ namespace mxflib
 		 */
 		bool GetNextFile(void);
 
+		//! Has this essence been flagged to remain external (filename prepended with "!")
+		bool IsExternal(void) { return ExternalEssence; }
+
 	protected:
 		//! Parse a given multi-file name
 		void ParseFileName(std::string FileName);
 
+		//! Process an ampersand separated list of sub-file names
+		virtual void ProcessSubNames(std::string SubNames) {};
+	};
+
+	
+	//! Filter-style source that extracts a range from another EssenceSource
+	/*! DRAGONS: This source owns its source, so will keep it alive while we exist
+	 *  \note This filter will only work if the original source is configured to produce an edit unit at a time
+	 */
+	class RangedEssenceSource : public EssenceSource
+	{
+	protected:
+		EssenceSourcePtr Base;								//!< The source being filtered
+		Position CurrentPosition;							//!< The current position, stream relative not range relative
+		Position RequestedStart;							//!< The requested first edit unit
+		Position RequestedEnd;								//!< The requested last edit unit, or -1 if using RequestedDuration
+		Length RequestedDuration;							//!< The requested duration, or -1 if using RequestedEnd
+
+		bool Started;										//!< Set true once we have skipped the edit units before any pre-charge
+		bool Ending;										//!< Set true once beyond the end of the range, but not necessarily done with the overrun
+		bool Ended;											//!< Set true once the overrun is done
+
+		Position PreChargeStart;							//!< The first edit unit in any pre-charge
+		DataChunkList PreCharge;							//!< Buffers of pre-charge essence
+
+		DataChunkPtr FirstData;								//!< The first edit unit following any pre-charge (as we will need to read it to check the pre-charge size)
+
+	private:
+		//! Prevent a default constructor
+		RangedEssenceSource();
+
+		//! Prevent copy construction
+		RangedEssenceSource(const RangedEssenceSource &);
+
+	public:
+		// Base constructor
+		RangedEssenceSource(EssenceSourcePtr Base, Position Start, Position End, Length Duration) 
+			: EssenceSource(), Base(Base), CurrentPosition(0), RequestedStart(Start), RequestedEnd(End), RequestedDuration(Duration),
+		      Started(false), Ending(false), Ended(false), PreChargeStart(-1) {};
+
+		//! Virtual destructor to allow polymorphism
+		virtual ~RangedEssenceSource() { };
+
+		//! Get the size of the essence data in bytes
+		/*! \note There is intentionally no support for an "unknown" response */
+		virtual size_t GetEssenceDataSize(void);
+
+		//! Get the next "installment" of essence data
+		/*! This will attempt to return an entire wrapping unit (e.g. a full frame for frame-wrapping) but will return it in
+		 *  smaller chunks if this would break the MaxSize limit. If a Size is specified then the chunk returned will end at
+		 *  the first wrapping unit end encountered before Size. On no account will portions of two or more different wrapping
+		 *  units be returned together. The mechanism for selecting a type of wrapping (e.g. frame, line or clip) is not 
+		 *  (currently) part of the common EssenceSource interface.
+		 *  \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+		 *	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
+		 *	\note If Size = 0 the object will decide the size of the chunk to return
+		 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
+		 */
+		virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0);
+
+		//! Did the last call to GetEssenceData() return the end of a wrapping item
+		/*! \return true if the last call to GetEssenceData() returned an entire wrapping unit.
+		 *  \return true if the last call to GetEssenceData() returned the last chunk of a wrapping unit.
+		 *  \return true if the last call to GetEssenceData() returned the end of a clip-wrapped clip.
+		 *  \return false if there is more data pending for the current wrapping unit.
+		 *  \return false if the source is to be clip-wrapped and there is more data pending for the clip
+		 */
+		virtual bool EndOfItem(void) { return Base->EndOfItem(); }
+
+		//! Is all data exhasted?
+		/*! \return true if a call to GetEssenceData() will return some valid essence data
+		 */
+		virtual bool EndOfData(void)
+		{
+			if(Ended) return true;
+			return Base->EndOfData();
+		}
+
+		//! Get data to write as padding after all real essence data has been processed
+		/*! If more than one stream is being wrapped, they may not all end at the same wrapping-unit.
+		 *	When this happens each source that has ended will produce NULL is response to GetEssenceData().
+		 *	The default action of the caller would be to write zero-length KLVs in each wrapping unit for each source that has ended.
+		 *	If a source supplies an overload for this method, the supplied padding data will be written in wrapping units following the end of essence instead of a zero-length KLV
+		 *	DRAGONS: Note that as the returned value is a non-smart pointer, ownership of the buffer stays with the EssenceSource object.
+		 *			 The recommended method of operation is to have a member DataChunk (or DataChunkPtr) allocated the first time padding is required, and return the address each call.
+		 *			 The destructor must then free the DataChunk, or allow the smart DataChunkPtr to do it automatically
+		 */
+		virtual DataChunk *GetPadding(void) { return Base->GetPadding(); }
+
+		//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
+		virtual UInt8 GetGCEssenceType(void) { return Base->GetGCEssenceType(); }
+
+		//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
+		virtual UInt8 GetGCElementType(void) { return Base->GetGCElementType(); }
+
+		//! Is the last data read the start of an edit point?
+		virtual bool IsEditPoint(void) { return Base->IsEditPoint(); }
+
+		//! Get the edit rate of this wrapping of the essence
+		/*! \note This may not be the same as the original "native" edit rate of the
+		 *        essence if this EssenceSource is wrapping to a different edit rate 
+		 */
+		virtual Rational GetEditRate(void) { return Base->GetEditRate(); }
+
+		//! Get the current position in GetEditRate() sized edit units
+		/*! This is relative to the start of the stream, so the first edit unit is always 0.
+		 *  This is the same as the number of edit units read so far, so when the essence is 
+		 *  exhausted the value returned shall be the size of the essence
+		 */
+		virtual Position GetCurrentPosition(void) { return CurrentPosition - RequestedStart; }
+
+		//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
+		virtual int GetBERSize(void) { return Base->GetBERSize(); }
+
+		//! Set a source type or parser specific option
+		/*! \return true if the option was successfully set */
+		virtual bool SetOption(std::string Option, Int64 Param = 0) { return Base->SetOption(Option, Param); } ;
+
+		//! Get BytesPerEditUnit if Constant, else 0
+		/*! \note This value may be useful even if CanIndex() returns false
+		 */
+		virtual UInt32 GetBytesPerEditUnit(UInt32 KAGSize = 1) { return Base->GetBytesPerEditUnit(KAGSize); }
+
+		//! Can this stream provide indexing
+		/*! If true then SetIndex Manager can be used to set the index manager that will receive indexing data
+		 */
+		virtual bool CanIndex() { return Base->CanIndex(); }
+
+		//! Set the index manager to use for building index tables for this essence
+		virtual void SetIndexManager(IndexManagerPtr &Manager, int StreamID) 
+		{ 
+			Base->SetIndexManager(Manager, StreamID); 
+		}
+
+		//! Get the index manager
+		virtual IndexManagerPtr &GetIndexManager(void) { return Base->GetIndexManager(); }
+
+		//! Get the index manager sub-stream ID
+		virtual int GetIndexStreamID(void) { return Base->GetIndexStreamID(); }
+
+		//! Override the default essence key
+		virtual void SetKey(DataChunkPtr &Key, bool NonGC = false)
+		{
+			Base->SetKey(Key, NonGC);
+		}
+
+		//! Get the current overridden essence key
+		/*! DRAGONS: If the key has not been overridden NULL will be returned - not the default key
+			*  \note Defined EssenceSource sub-classes may always use a non-standard key, in which case
+			*        they will always return a non-NULL value from this function
+			*/
+		virtual DataChunkPtr &GetKey(void) { return Base->GetKey(); }
+
+		//! Get true if the default essence key has been overriden with  a key that does not use GC track number mechanism
+		/*  \note Defined EssenceSource sub-classes may always use a non-GC-type key, in which case
+			*        they will always return true from this function
+			*/
+		virtual bool GetNonGC(void) { return Base->GetNonGC(); }
+
+		/* Essence type identification */
+		/* These functions can be overwridden, or use the base versions to parse GetGCEssenceType() */
+
+		//! Is this picture essence?
+		virtual bool IsPictureEssence(void) { return Base->IsPictureEssence(); }
+
+		//! Is this sound essence?
+		virtual bool IsSoundEssence(void) { return Base->IsSoundEssence(); }
+
+		//! Is this data essence?
+		virtual bool IsDataEssence(void) { return Base->IsDataEssence(); }
+
+		//! Is this compound essence?
+		virtual bool IsCompoundEssence(void) { return Base->IsCompoundEssence(); }
+
+		//! An indication of the relative write order to use for this stream
+		/*! Normally streams in a GC are ordered as follows:
+		 *  - All the CP system items (in Scheme ID then Element ID order)
+		 *  - All the GC system items (in Scheme ID then Element ID order)
+		 *  - All the CP picture items (in Element ID then Element Number order)
+		 *  - All the GC picture items (in Element ID then Element Number order)
+		 *  - All the CP sound items (in Element ID then Element Number order)
+		 *  - All the GC sound items (in Element ID then Element Number order)
+		 *  - All the CP data items (in Element ID then Element Number order)
+		 *  - All the GC data items (in Element ID then Element Number order)
+		 *  - All the GC compound items (in Element ID then Element Number order) (no GC compound)
+		 *
+		 *  However, sometimes this order needs to be overridden - such as for VBI data preceding picture items.
+		 *
+		 *  The normal case for ordering of an essence stream is for RelativeWriteOrder to return 0,
+		 *  indicating that the default ordering is to be used. Any other value indicates that relative
+		 *  ordering is required, and this is used as the Position value for a SetRelativeWriteOrder()
+		 *  call. The value of Type for that call is acquired from RelativeWriteOrderType()
+		 *
+		 * For example: to force a source to be written between the last GC sound item and the first CP data
+		 *              item, RelativeWriteOrder() can return any -ve number, with RelativeWriteOrderType()
+		 *				returning 0x07 (meaning before CP data). Alternatively RelativeWriteOrder() could
+		 *				return a +ve number and RelativeWriteOrderType() return 0x16 (meaning after GC sound)
+		 */
+		virtual Int32 RelativeWriteOrder(void) { return Base->RelativeWriteOrder(); }
+
+		//! The type for relative write-order positioning if RelativeWriteOrder() != 0
+		/*! This method indicates the essence type to order this data before or after if reletive write-ordering is used 
+		 */
+		virtual int RelativeWriteOrderType(void) { return Base->RelativeWriteOrderType(); }
+
+		//! Get the origin value to use for this essence specifically to take account of pre-charge
+		/*! \return Zero if not applicable for this source
+		 */
+		virtual Length GetPrechargeSize(void) 
+		{ 
+			if(!Started) LocateStart();
+			return static_cast<Length>(RequestedStart - PreChargeStart);
+		}
+
+		//! Get the range start position
+		virtual Position GetRangeStart(void) { return RequestedStart; }
+
+		//! Get the range end position
+		virtual Position GetRangeEnd(void) { return RequestedEnd; }
+
+		//! Get the range duration
+		virtual Length GetRangeDuration(void) { return RequestedDuration; }
+
+		//! Get the name of this essence source (used for error messeges)
+		virtual std::string Name(void) { return "RangedEssenceSource based on " + Base->Name(); }
+
+		//! Enable VBR indexing, even in clip-wrap mode, by allowing each edit unit to be returned individually
+		/*! As the byte offset part of a VBR index table is constructed at write-time each indexed chunk must be written separately.
+		 *  When clip-wrapping, this is not normally the case as larger chunks may be returned for efficiency. Setting this mode
+		 *  forces each indexable edit unit to be returned by a fresh GetEssenceData call as if it were being frame-wrapped.
+		 *  \return true if this mode is supported by the source, and the mode was set, else false
+		 */
+		virtual bool EnableVBRIndexMode(void) { return Base->EnableVBRIndexMode(); }
+
+	protected:
+		//! Locate the first usable edit unit, and if required set the end edit unit
+		virtual void LocateStart(void);
+
+		// Allow our very close relation to get even closer
+		friend class RangedEssenceSubSource;
+	};
+
+
+	//! Filter-style source that slaves to a RangedEssenceSource to stop parsing when the range is done
+	/*! DRAGONS: This source owns its source, so will keep it alive while we exist
+	 *  \note This filter will only work if the original source is configured to produce an edit unit at a time
+	 */
+	class RangedEssenceSubSource : public EssenceSubSource
+	{
+	protected:
+		EssenceSourcePtr Base;								//!< The source being filtered
+		Position RequestedStart;							//!< The requested first edit unit
+		Position RequestedEnd;								//!< The requested last edit unit, or -1 if using RequestedDuration
+		Length RequestedDuration;							//!< The requested duration, or -1 if using RequestedEnd
+
+		bool Started;										//!< Set true once we are ready to start reading
+		bool Ended;											//!< Set true once the range is done
+
+	private:
+		//! Prevent a default constructor
+		RangedEssenceSubSource();
+
+		//! Prevent copy construction
+		RangedEssenceSubSource(const RangedEssenceSource &);
+
+	public:
+		// Base constructor
+		RangedEssenceSubSource(EssenceSourcePtr Base, Position Start, Position End, Length Duration) 
+			: Base(Base), RequestedStart(Start), RequestedEnd(End), RequestedDuration(Duration), Started(false), Ended(false) {};
+
+		//! Virtual destructor to allow polymorphism
+		virtual ~RangedEssenceSubSource() { };
+
+		//! Get the size of the essence data in bytes
+		/*! \note There is intentionally no support for an "unknown" response */
+		virtual size_t GetEssenceDataSize(void);
+
+		//! Get the next "installment" of essence data
+		/*! This will attempt to return an entire wrapping unit (e.g. a full frame for frame-wrapping) but will return it in
+		 *  smaller chunks if this would break the MaxSize limit. If a Size is specified then the chunk returned will end at
+		 *  the first wrapping unit end encountered before Size. On no account will portions of two or more different wrapping
+		 *  units be returned together. The mechanism for selecting a type of wrapping (e.g. frame, line or clip) is not 
+		 *  (currently) part of the common EssenceSource interface.
+		 *  \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+		 *	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
+		 *	\note If Size = 0 the object will decide the size of the chunk to return
+		 *	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
+		 */
+		virtual DataChunkPtr GetEssenceData(size_t Size = 0, size_t MaxSize = 0);
+
+		//! Did the last call to GetEssenceData() return the end of a wrapping item
+		/*! \return true if the last call to GetEssenceData() returned an entire wrapping unit.
+		 *  \return true if the last call to GetEssenceData() returned the last chunk of a wrapping unit.
+		 *  \return true if the last call to GetEssenceData() returned the end of a clip-wrapped clip.
+		 *  \return false if there is more data pending for the current wrapping unit.
+		 *  \return false if the source is to be clip-wrapped and there is more data pending for the clip
+		 */
+		virtual bool EndOfItem(void) { return Base->EndOfItem(); }
+
+		//! Is all data exhasted?
+		/*! \return true if a call to GetEssenceData() will return some valid essence data
+		 */
+		virtual bool EndOfData(void)
+		{
+			if(Ended) return true;
+			return Base->EndOfData();
+		}
+
+		//! Get data to write as padding after all real essence data has been processed
+		/*! If more than one stream is being wrapped, they may not all end at the same wrapping-unit.
+		 *	When this happens each source that has ended will produce NULL is response to GetEssenceData().
+		 *	The default action of the caller would be to write zero-length KLVs in each wrapping unit for each source that has ended.
+		 *	If a source supplies an overload for this method, the supplied padding data will be written in wrapping units following the end of essence instead of a zero-length KLV
+		 *	DRAGONS: Note that as the returned value is a non-smart pointer, ownership of the buffer stays with the EssenceSource object.
+		 *			 The recommended method of operation is to have a member DataChunk (or DataChunkPtr) allocated the first time padding is required, and return the address each call.
+		 *			 The destructor must then free the DataChunk, or allow the smart DataChunkPtr to do it automatically
+		 */
+		virtual DataChunk *GetPadding(void) { return Base->GetPadding(); }
+
+		//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
+		virtual UInt8 GetGCEssenceType(void) { return Base->GetGCEssenceType(); }
+
+		//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
+		virtual UInt8 GetGCElementType(void) { return Base->GetGCElementType(); }
+
+		//! Is the last data read the start of an edit point?
+		virtual bool IsEditPoint(void) { return Base->IsEditPoint(); }
+
+		//! Get the edit rate of this wrapping of the essence
+		/*! \note This may not be the same as the original "native" edit rate of the
+		 *        essence if this EssenceSource is wrapping to a different edit rate 
+		 */
+		virtual Rational GetEditRate(void) { return Base->GetEditRate(); }
+
+		//! Get the current position in GetEditRate() sized edit units
+		/*! This is relative to the start of the stream, so the first edit unit is always 0.
+		 *  This is the same as the number of edit units read so far, so when the essence is 
+		 *  exhausted the value returned shall be the size of the essence
+		 */
+		virtual Position GetCurrentPosition(void) { return Base->GetCurrentPosition() - RequestedStart; }
+
+		//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
+		virtual int GetBERSize(void) { return Base->GetBERSize(); }
+
+		//! Set a source type or parser specific option
+		/*! \return true if the option was successfully set */
+		virtual bool SetOption(std::string Option, Int64 Param = 0) { return Base->SetOption(Option, Param); } ;
+
+		//! Get BytesPerEditUnit if Constant, else 0
+		/*! \note This value may be useful even if CanIndex() returns false
+		 */
+		virtual UInt32 GetBytesPerEditUnit(UInt32 KAGSize = 1) { return Base->GetBytesPerEditUnit(KAGSize); }
+
+		//! Can this stream provide indexing
+		/*! If true then SetIndex Manager can be used to set the index manager that will receive indexing data
+		 */
+		virtual bool CanIndex() { return Base->CanIndex(); }
+
+		//! Set the index manager to use for building index tables for this essence
+		virtual void SetIndexManager(IndexManagerPtr &Manager, int StreamID) 
+		{ 
+			Base->SetIndexManager(Manager, StreamID); 
+		}
+
+		//! Get the index manager
+		virtual IndexManagerPtr &GetIndexManager(void) { return Base->GetIndexManager(); }
+
+		//! Get the index manager sub-stream ID
+		virtual int GetIndexStreamID(void) { return Base->GetIndexStreamID(); }
+
+		//! Override the default essence key
+		virtual void SetKey(DataChunkPtr &Key, bool NonGC = false)
+		{
+			Base->SetKey(Key, NonGC);
+		}
+
+		//! Get the current overridden essence key
+		/*! DRAGONS: If the key has not been overridden NULL will be returned - not the default key
+			*  \note Defined EssenceSource sub-classes may always use a non-standard key, in which case
+			*        they will always return a non-NULL value from this function
+			*/
+		virtual DataChunkPtr &GetKey(void) { return Base->GetKey(); }
+
+		//! Get true if the default essence key has been overriden with  a key that does not use GC track number mechanism
+		/*  \note Defined EssenceSource sub-classes may always use a non-GC-type key, in which case
+			*        they will always return true from this function
+			*/
+		virtual bool GetNonGC(void) { return Base->GetNonGC(); }
+
+		/* Essence type identification */
+		/* These functions can be overwridden, or use the base versions to parse GetGCEssenceType() */
+
+		//! Is this picture essence?
+		virtual bool IsPictureEssence(void) { return Base->IsPictureEssence(); }
+
+		//! Is this sound essence?
+		virtual bool IsSoundEssence(void) { return Base->IsSoundEssence(); }
+
+		//! Is this data essence?
+		virtual bool IsDataEssence(void) { return Base->IsDataEssence(); }
+
+		//! Is this compound essence?
+		virtual bool IsCompoundEssence(void) { return Base->IsCompoundEssence(); }
+
+		//! An indication of the relative write order to use for this stream
+		/*! Normally streams in a GC are ordered as follows:
+		 *  - All the CP system items (in Scheme ID then Element ID order)
+		 *  - All the GC system items (in Scheme ID then Element ID order)
+		 *  - All the CP picture items (in Element ID then Element Number order)
+		 *  - All the GC picture items (in Element ID then Element Number order)
+		 *  - All the CP sound items (in Element ID then Element Number order)
+		 *  - All the GC sound items (in Element ID then Element Number order)
+		 *  - All the CP data items (in Element ID then Element Number order)
+		 *  - All the GC data items (in Element ID then Element Number order)
+		 *  - All the GC compound items (in Element ID then Element Number order) (no GC compound)
+		 *
+		 *  However, sometimes this order needs to be overridden - such as for VBI data preceding picture items.
+		 *
+		 *  The normal case for ordering of an essence stream is for RelativeWriteOrder to return 0,
+		 *  indicating that the default ordering is to be used. Any other value indicates that relative
+		 *  ordering is required, and this is used as the Position value for a SetRelativeWriteOrder()
+		 *  call. The value of Type for that call is acquired from RelativeWriteOrderType()
+		 *
+		 * For example: to force a source to be written between the last GC sound item and the first CP data
+		 *              item, RelativeWriteOrder() can return any -ve number, with RelativeWriteOrderType()
+		 *				returning 0x07 (meaning before CP data). Alternatively RelativeWriteOrder() could
+		 *				return a +ve number and RelativeWriteOrderType() return 0x16 (meaning after GC sound)
+		 */
+		virtual Int32 RelativeWriteOrder(void) { return Base->RelativeWriteOrder(); }
+
+		//! The type for relative write-order positioning if RelativeWriteOrder() != 0
+		/*! This method indicates the essence type to order this data before or after if reletive write-ordering is used 
+		 */
+		virtual int RelativeWriteOrderType(void) { return Base->RelativeWriteOrderType(); }
+
+		//! Get the origin value to use for this essence specifically to take account of pre-charge
+		/*! \return Zero if not applicable for this source
+		 */
+		virtual Length GetPrechargeSize(void) { return 0; }
+
+		//! Get the range start position
+		virtual Position GetRangeStart(void) { return RequestedStart; }
+
+		//! Get the range end position
+		virtual Position GetRangeEnd(void) { return RequestedEnd; }
+
+		//! Get the range duration
+		virtual Length GetRangeDuration(void) { return RequestedDuration; }
+
+		//! Get the name of this essence source (used for error messeges)
+		virtual std::string Name(void) { return "RangedEssenceSubSource based on " + Base->Name(); }
+
+		//! Enable VBR indexing, even in clip-wrap mode, by allowing each edit unit to be returned individually
+		/*! As the byte offset part of a VBR index table is constructed at write-time each indexed chunk must be written separately.
+		 *  When clip-wrapping, this is not normally the case as larger chunks may be returned for efficiency. Setting this mode
+		 *  forces each indexable edit unit to be returned by a fresh GetEssenceData call as if it were being frame-wrapped.
+		 *  \return true if this mode is supported by the source, and the mode was set, else false
+		 */
+		virtual bool EnableVBRIndexMode(void) { return Base->EnableVBRIndexMode(); }
+
+		//! Determine if this sub-source can slave from a source with the given wrapping configuration, if so build the sub-config
+		/*! \return A smart pointer to the new WrappingConfig for this source as a sub-stream of the specified master, or NULL if not a valid combination
+		 */
+		virtual EssenceParser::WrappingConfigPtr MakeWrappingConfig(WrappingConfigPtr MasterCfg)
+		{
+			EssenceSubSource *SubSource = SmartPtr_Cast(Base, EssenceSubSource);
+			if(SubSource) return SubSource->MakeWrappingConfig(MasterCfg);
+			return NULL;
+		}
+
+	protected:
+		//! Locate the first usable edit unit, and if required set the end edit unit
+		virtual void LocateStart(void);
 	};
 
 
@@ -1486,12 +2220,16 @@ namespace mxflib
 		WrappingOptionPtr CurrentWrapping;		//!< The currently selected wrapping options
 		EssenceSourceParent SeqSource;			//!< This parser's sequential source - which perversely owns the parser!
 
-		DataChunkPtr PendingData;				//!< Any pending data from the main stream held over from a previous file is a sub-stream read caused a change of file
+		//! The essence descriptor describing this essence (if known) else NULL
+		MDObjectPtr EssenceDescriptor;
+
+		DataChunkPtr PendingData;				//!< Any pending data from the main stream held over from a previous file if a sub-stream read caused a change of file
 
 		//! Information about a substream
 		struct SubStreamInfo
 		{
 			UInt32 StreamID;					//!< The ID of this sub-stream
+			bool Attached;						//!< True for independant sub-streams attached via AddSubStream(), false for sub-streams extracted by the underlying essence parser
 			EssenceSourcePtr Source;			//!< The source for the sub-stream data
 		};
 
@@ -1503,12 +2241,23 @@ namespace mxflib
 
 	public:
 		//! Construct a FileParser and optionally set a single source filename pattern
-		FileParser(std::string FileName = "") : ListOfFiles(FileName)
+		FileParser(std::string FileName = "") : ListOfFiles()
 		{
 			// Let our sequential source know who we are
 			SeqSource = new SequentialEssenceSource(this);
 
 			CurrentFileOpen = false;
+
+			// DRAGONS: We have to get our base class to parse the filename here as doing this in the
+			//			initializer list prevents polymorphism so the wrong ProcessSubName() is called
+			// DRAGONS: Note also that we must do this after SeqSource is added as it is required to add sub-sources
+			ParseFileName(FileName);
+		}
+
+		//! Clean up when we are destroyed
+		~FileParser()
+		{
+			if(CurrentFileOpen) FileClose(CurrentFile);
 		}
 
 		//! Identify the essence type in the first file in the set of possible files
@@ -1538,27 +2287,33 @@ namespace mxflib
 		}
 
 		//! Select the best wrapping option without a forced edit rate
-		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, UInt32 KAGSize, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
 			Rational Zero(0,0);
-			return SelectWrappingOption(false, PDList, Zero, ForceWrap);
+			return SelectWrappingOption(false, PDList, Zero, KAGSize, ForceWrap);
 		}
 
 		//! Select the best wrapping option with a forced edit rate
-		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(ParserDescriptorListPtr PDList, Rational ForceEditRate, UInt32 KAGSize = 1, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
-			return SelectWrappingOption(false, PDList, ForceEditRate, ForceWrap);
+			return SelectWrappingOption(false, PDList, ForceEditRate, KAGSize, ForceWrap);
 		}
 
 		//! Select the best wrapping option without a forced edit rate
-		EssenceParser::WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, UInt32 KAGSize, WrappingOption::WrapType ForceWrap = WrappingOption::None)
 		{
 			Rational Zero(0,0);
-			return SelectWrappingOption(AllowMultiples, PDList, Zero, ForceWrap);
+			return SelectWrappingOption(AllowMultiples, PDList, Zero, KAGSize, ForceWrap);
 		}
 
 		//! Select the best wrapping option with a forced edit rate
-		EssenceParser::WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None);
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap = WrappingOption::None)
+		{
+			return SelectWrappingOption(AllowMultiples, PDList, ForceEditRate, 1, ForceWrap);
+		}
+
+		//! Select the best wrapping option with a forced edit rate
+		EssenceParser::WrappingConfigPtr SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, UInt32 KAGSize, WrappingOption::WrapType ForceWrap = WrappingOption::None);
 
 		//! Select the specified wrapping options
 		void SelectWrappingOption(EssenceParser::WrappingConfigPtr Config);
@@ -1597,6 +2352,19 @@ namespace mxflib
 		/*! Required for ListOfFiles */
 		bool IsFileOpen(void) { return CurrentFileOpen; }
 
+		//! Add a sub-source that will be processed as if it contains data extracted from the primary source
+		UInt32 AddSubSource(EssenceSubSource *SubSource);
+
+		//! Set the essence descriptor
+		virtual void SetDescriptor(MDObjectPtr Descriptor) 
+		{
+			EssenceDescriptor = Descriptor; 
+			if(SeqSource) SeqSource->SetDescriptor(Descriptor);
+		}
+
+		//! Get a pointer to the essence descriptor for this source (if known) otherwise NULL
+		virtual MDObjectPtr GetDescriptor(void) { return EssenceDescriptor; }
+
 	protected:
 		//! Set the sequential source to use the EssenceSource from the currently open and identified source file
 		/*! \return true if all OK, false if no EssenceSource available
@@ -1615,6 +2383,7 @@ namespace mxflib
 			EssenceSourcePtr CurrentSource;				//!< An EssenceSource for the current source file
 			FileParserPtr Outer;						//!< The outer file parser which is owned by us to prevent it being released until be are done
 			Length PreviousLength;						//!< The total size of all previously read essence sources for this set
+			bool VBRIndexMode;							//!< Are we needing to use VBRIndexMode for this essence?
 			
 			//! Option pair for OptionList
 			typedef std::pair<std::string, Int64> OptionPair;
@@ -1627,12 +2396,20 @@ namespace mxflib
 
 		public:
 			//! Construct a SequentialEssenceSource
-			SequentialEssenceSource(FileParser *Outer) : Outer(Outer), PreviousLength(0) {}
+			SequentialEssenceSource(FileParser *Outer) : Outer(Outer), PreviousLength(0), VBRIndexMode(false) {}
 
 			//! Set the new source to use
 			void SetSource(EssenceSourcePtr NewSource) 
-			{ 
-				CurrentSource = NewSource;
+			{
+				if(Outer->GetRangeStart() == -1)
+				{
+					CurrentSource = NewSource;
+				}
+				else
+				{
+					/* Process ranged source */
+					CurrentSource = new RangedEssenceSource(NewSource, Outer->GetRangeStart(), Outer->GetRangeEnd(), Outer->GetRangeDuration());
+				}
 
 				// Set all options
 				std::list<OptionPair>::iterator it = OptionList.begin();
@@ -1682,7 +2459,21 @@ namespace mxflib
 			virtual bool EndOfItem(void) { if(ValidSource()) return CurrentSource->EndOfItem(); else return true; }
 
 			//! Is all data exhasted?
-			virtual bool EndOfData(void) { if(ValidSource()) return CurrentSource->EndOfItem(); else return true; }
+			virtual bool EndOfData(void) { if(ValidSource()) return CurrentSource->EndOfData(); else return true; }
+
+			//! Get data to write as padding after all real essence data has been processed
+			/*! If more than one stream is being wrapped, they may not all end at the same wrapping-unit.
+			 *	When this happens each source that has ended will produce NULL is response to GetEssenceData().
+			 *	The default action of the caller would be to write zero-length KLVs in each wrapping unit for each source that has ended.
+			 *	If a source supplies an overload for this method, the supplied padding data will be written in wrapping units following the end of essence instead of a zero-length KLV
+			 *	DRAGONS: Note that as the returned value is a non-smart pointer, ownership of the buffer stays with the EssenceSource object.
+			 *			 The recommended method of operation is to have a member DataChunk (or DataChunkPtr) allocated the first time padding is required, and return the address each call.
+			 *			 The destructor must then free the DataChunk, or allow the smart DataChunkPtr to do it automatically
+			 */
+			virtual DataChunk *GetPadding(void) 
+			{ 
+				if(ValidSource()) return CurrentSource->GetPadding(); else return NULL; 
+			}
 
 			//! Get the GCEssenceType to use when wrapping this essence in a Generic Container
 			virtual UInt8 GetGCEssenceType(void) { if(ValidSource()) return CurrentSource->GetGCEssenceType(); else return 0; }
@@ -1763,27 +2554,46 @@ namespace mxflib
 			//! Get the range duration
 			virtual Length GetRangeDuration(void) { return Outer->GetRangeDuration(); }
 
+			//! Get the name of this essence source (used for error messeges)
+			virtual std::string Name(void) { if(ValidSource()) return "SequentialEssenceSource based on " + CurrentSource->Name(); else return "SequentialEssenceSource"; }
+
+			//! Enable VBR indexing, even in clip-wrap mode, by allowing each edit unit to be returned individually
+			/*! As the byte offset part of a VBR index table is constructed at write-time each indexed chunk must be written separately.
+			*  When clip-wrapping, this is not normally the case as larger chunks may be returned for efficiency. Setting this mode
+			*  forces each indexable edit unit to be returned by a fresh GetEssenceData call as if it were being frame-wrapped.
+			*  \return true if this mode is supported by the source, and the mode was set, else false
+			*/
+			virtual bool EnableVBRIndexMode(void) 
+			{ 
+				// Set the mode and record a flag to redo this each new file (if it succeeded)
+				if(ValidSource()) return VBRIndexMode = CurrentSource->EnableVBRIndexMode(); else return false; 
+			}
+
+			//! Attach a related System Item source to the owning BodyStream if required
+			/*! DRAGONS: This is currently a non-ideal fudge - do not assume this method will last long!!! */
+			virtual void AttachSystem(BodyStream *Stream)  { if(ValidSource()) CurrentSource->AttachSystem(Stream); }
 
 		protected:
 			//! Ensure that CurrentSource is valid and ready for reading - if not select the next source file
 			/*! \return true if all OK, false if no EssenceSource available
 			 */
-			bool ValidSource(void)
-			{
-				if(CurrentSource) return true;
-
-				// If this is the first time through when we will have a file open but no source set to get current not text source
-				if(Outer->CurrentFileOpen) return Outer->GetFirstSource(); 
-				
-				return Outer->GetNextSource();
-			}
+			bool ValidSource(void);
 
 			// Allow the parser to access our internals
 			friend class FileParser;
 		};
-		
+
 		// Allow our protected member to access our internals
 		friend class SequentialEssenceSource;
+
+		//! Send options to a sub-parser based on a formatted string
+		/*! Each option is a string with an optional equals and Int64 number. Options are semi-colon separated.
+		 *  The option string may be within quotes, if not it will be left and right trimmed to remove spaces
+		 */
+		void SendParserOptions(EssenceSubParserPtr &SubParser, const std::string Options);
+
+		//! Process an ampersand separated list of sub-file names
+		virtual void ProcessSubNames(std::string SubNames);
 	};
 }
 
@@ -1899,6 +2709,16 @@ namespace mxflib
 		 *  \return true if all went well, false end-of-file, an error occured or StopReading() was called
 		 */
 		bool ReadFromFile(bool SingleKLV = false);
+
+		//! Set the offset of the start of the next KLV in the file
+		/*! Generally this will only be called as a result of parsing a partition pack
+		 *  \note The offset will increment automatically as data is read.
+		 *        If a seek is performed the offset will need to be adjusted.
+		 */
+		void SetFileOffset(Position NewOffset) 
+		{ 
+			FileOffset = NewOffset; 
+		};
 
 		//! Set the offset of the start of the next KLV within this GC stream
 		/*! Generally this will only be called as a result of parsing a partition pack
@@ -2192,6 +3012,10 @@ namespace mxflib
 																	 *            important to wait for all sub-streams to be set up first
 																	 */
 
+		Length OverallEssenceSize;									//!< The number of raw essence bytes written from this stream so far
+																	/*!< DRAGONS: This is only the raw bytes, not including keys, lengths or any filler
+																	 */
+
 		//! KLV Alignment Grid to use for this stream (of zero if default for this body is to be used)
 		UInt32 KAG;
 
@@ -2201,6 +3025,7 @@ namespace mxflib
 		//! Flag set if partitioning is to be done only on edit boundaries
 		/*! \note Only the master stream is (currently) edit aligned, not all sub-streams */
 		bool EditAlign;
+
 
 		//! Prevent NULL construction
 		BodyStream();
@@ -2213,8 +3038,8 @@ namespace mxflib
 		std::list<Position> SparseList;								//!< List of edit units to include in sparse index tables
 
 	public:
-		//! Construct an body stream object with a given essence source
-		BodyStream(UInt32 SID, EssenceSourcePtr &EssSource, DataChunkPtr Key = NULL, bool NonGC = false)
+		//! Construct a body stream object with a given essence source
+		BodyStream(UInt32 SID, EssenceSourcePtr &EssSource, DataChunkPtr Key = NULL, bool NonGC = false) 
 		{
 			BodySID = SID;
 			IndexSID = 0;
@@ -2230,6 +3055,7 @@ namespace mxflib
 			FreeSpaceIndex = false;
 			ValueRelativeIndexing = false;
 			PrechargeSize = 0;
+			OverallEssenceSize = 0;
 
 			KAG = 0;
 			ForceBER4 = false;
@@ -2240,6 +3066,9 @@ namespace mxflib
 
 			// Set the master stream as one of the essence streams
 			push_back(Source);
+
+			// Allow the master stream to attach a system item if required
+			EssSource->AttachSystem(this);
 		}
 
 		//! Get the essence source for this stream
@@ -2404,13 +3233,17 @@ namespace mxflib
 
 		//! Initialize an index manager if required
 		void InitIndexManager(void);
+
+		//! Increment the count of essence bytes written so far from this stream
+		/*! DRAGONS: This is intended only for internal library use 
+		 */
+		void IncrementOverallEssenceSize(Length Delta) { OverallEssenceSize += Delta; };
+
+		//! Get the count of essence bytes written so far from this stream
+		/*! DRAGONS: This is only the raw bytes, not including keys, lengths or any filler */
+		Length GetOverallEssenceSize(void) { return OverallEssenceSize; };
+
 	};
-
-	//! Smart pointer to a BodyStream
-	typedef SmartPtr<BodyStream> BodyStreamPtr;
-
-	//! List of smart pointers to BodyStreams
-	typedef std::list<BodyStreamPtr> BodyStreamList;
 
 	// Forward declare BodyWriterPtr to allow it to be used in BodyWriterHandler
 	class BodyWriter;
@@ -2656,7 +3489,7 @@ namespace mxflib
 		//! Write the next partition or continue the current one (if not complete)
 		/*! Will stop at the point where the next partition will start, or (if Duration > 0) at the earliest opportunity after (at least) Duration edit units have been written
 		 */
-		Length WritePartition(Length Duration = 0, Length MaxPartitionSize = 0);
+		Length WritePartition(Length Duration = 0, Length MaxPartitionSize = 0, bool ClosePartition = true);
 
 		//! Determine if all body partitions have been written
 		/*! Will be false until after the last required WritePartition() call
@@ -2711,11 +3544,46 @@ namespace mxflib
 		 *    Frame or "other" wrapping and the "StopAfter" reaches zero or "Duration" reaches zero
 		 *    Clip wrapping and the entire clip is wrapped
 		 */
-		Length WriteEssence(StreamInfoPtr &Info, Length Duration = 0, Length MaxPartitionSize = 0);
+		Length WriteEssence(StreamInfoPtr &Info, Length Duration = 0, Length MaxPartitionSize = 0, bool ClosePartition = true);
+
+		//! Write a partition pack for the current partition - but do not flag it as "ended"
+		void WritePartitionPack(void);
 	};
 
 	//! Smart pointer to a BodyWriter
 	typedef SmartPtr<BodyWriter> BodyWriterPtr;
+}
+
+
+/* Various functions used to determine if an Essence Container is Frame or Clip Wrapped */
+namespace mxflib
+{
+	//! Determine the wrapping type frame/clip from the Essence Container Label
+	/*! \retval ClipWrap - Wrapping is Clip Wrap or similar (Wrapping size > Edit Unit)
+	 *  \retval FrameWrap - Wrapping is Frame Wrap or similar (Wrapping size <= Edit Unit)
+	 *	\retval UnknownWrap - Unable to determine
+	 */
+	WrapType GetWrapType(UInt8 const *ECLabel);
+
+	//! Determine the wrapping type frame/clip from the Essence Container Label
+	/*! \retval ClipWrap - Wrapping is Clip Wrap or similar (Wrapping size > Edit Unit)
+	 *  \retval FrameWrap - Wrapping is Frame Wrap or similar (Wrapping size <= Edit Unit)
+	 *	\retval UnknownWrap - Unable to determine
+	 */
+	inline WrapType GetWrapType(ULPtr const &ECLabel)
+	{
+		return GetWrapType(ECLabel->GetValue());
+	}
+
+	//! Determine the wrapping type frame/clip from the Essence Container Label
+	/*! \retval ClipWrap - Wrapping is Clip Wrap or similar (Wrapping size > Edit Unit)
+	 *  \retval FrameWrap - Wrapping is Frame Wrap or similar (Wrapping size <= Edit Unit)
+	 *	\retval UnknownWrap - Unable to determine
+	 */
+	inline WrapType GetWrapType(UL const &ECLabel)
+	{
+		return GetWrapType(ECLabel.GetValue());
+	}
 }
 
 #endif // MXFLIB__ESSENCE_H

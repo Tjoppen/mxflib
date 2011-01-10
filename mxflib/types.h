@@ -1,7 +1,7 @@
 /*! \file	types.h
  *	\brief	The main MXF data types
  *
- *	\version $Id: types.h,v 1.9 2008/08/20 15:08:48 matt-beard Exp $
+ *	\version $Id: types.h,v 1.10 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -34,9 +34,11 @@
 #include <stdlib.h>
 
 // Standard library includes
-#include <cstring>
 #include <list>
 
+#ifdef _WIN32
+#pragma warning(disable : 4995) //turn off warnings about sprintf deprecated
+#endif
 
 /*                        */
 /* Basic type definitions */
@@ -69,13 +71,22 @@ namespace mxflib
 
 namespace mxflib
 {
+	//! Dynamic enumeration type to be used to select output formats for GetString()
+	/*! DRAGONS: Value -1 is never allocated and can be safely used for "not known" or other special purposes */
+	typedef int OutputFormatEnum;
+}
+
+
+namespace mxflib
+{
 	template <int SIZE> class Identifier /*: public RefCount<Identifier<SIZE> >*/
 	{
 	protected:
 		UInt8 Ident[SIZE];
 	public:
 		Identifier(const UInt8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
-		Identifier(const SmartPtr<Identifier> ID) { ASSERT(SIZE == ID->Size()); if(!ID) memset(Ident,0,SIZE); else memcpy(Ident,ID->Ident, SIZE); };
+		
+		Identifier(const SmartPtr<Identifier> ID) { mxflib_assert(SIZE == ID->Size()); if(!ID) memset(Ident,0,SIZE); else memcpy(Ident,ID->Ident, SIZE); };
 		
 		//! Set the value of the Identifier
 		void Set(const UInt8 *ID = NULL) { if(ID == NULL) memset(Ident,0,SIZE); else memcpy(Ident,ID, SIZE); };
@@ -108,6 +119,8 @@ namespace mxflib
 								 else return (memcmp(Ident, Other.Ident, SIZE) == 0);
 		}
 
+		bool operator!=(const Identifier& Other) const { return !operator==(Other); }
+
 		std::string GetString(void) const
 		{
 			std::string Ret;
@@ -123,6 +136,16 @@ namespace mxflib
 
 			return Ret;
 		}
+
+		bool IsSMPTEKey() const 
+		{
+			if( SIZE==16 &&
+				(Ident[0]==0x06) 
+				&& ((Ident[1]==0x0E || Ident[1]==0x0A))  )	
+				return true; 
+			else  return false;
+		};
+
 	};
 
 }
@@ -131,7 +154,7 @@ namespace mxflib
 {
 	// Forward declare UUID
 	class UUID;
-	
+
 	//! A smart pointer to a UUID object
 	typedef SmartPtr<UUID> UUIDPtr;
 	
@@ -142,14 +165,35 @@ namespace mxflib
 	class UL : public RefCount<UL>, public Identifier16
 	{
 	private:
-		//! Prevent default construction
-		UL();
+//		//! Prevent default construction
+//		UL();
+
+	protected:
+		//! Helper for string constructors - sets Ident from a string
+		void SetIdentifier(std::string const & strID);
+
+		static OutputFormatEnum DefaultFormat;			//!< Current default output format
+
+		static OutputFormatEnum OutputFormatBraced;		//!< Dynamic enum value allocated to {00112233-4455-6677-8899-aabbccddeeff} or [8899aabb.ccdd.eeff.00112233.44556677] format
+		static OutputFormatEnum OutputFormatHex;		//!< Dynamic enum value allocated to 00112233-4455-6677-8899-aabbccddeeff format
+		static OutputFormatEnum OutputFormat0xHex;		//!< Dynamic enum value allocated to 0x00112233445566778899aabbccddeeff format
+		static OutputFormatEnum OutputFormatDottedHex;	//!< Dynamic enum value allocated to 00.11.22.33.44.55.66.77.88.99.aa.bb.cc.dd.ee.ff format
+		static OutputFormatEnum OutputFormatURN;		//!< Dynamic enum value allocated to urn:uuid or urn:smpte:ul format
+		static OutputFormatEnum OutputFormatx_ul;		//!< Dynamic enum value allocated to urn:uuid or urn:x-ul format
+		static OutputFormatEnum OutputFormatOID;		//!< Dynamic enum value allocated to BER OID format
+		static OutputFormatEnum OutputFormatAAF;		//!< Dynamic enum value allocated to AAF aafUID_t format
 
 	public:
+		//! Empty constructor - avoid using!
+		/*! DRAGONS: For some reason it is not possible to build an MDObjectULList::value_type without this, even though both arguments are supplied to its constructor!
+		 */
+		UL() { memset(Ident, 0, 16); }
+
 		//! Construct a UL from a sequence of bytes
 		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
 		 */
 		UL(const UInt8 *ID) : Identifier16(ID) {};
+		UL( std::string const & ID);
 
 		//! Construct a UL as a copy of another UL
 		UL(const SmartPtr<UL> ID) { if(!ID) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
@@ -161,122 +205,48 @@ namespace mxflib
 		UL(const UUID &RHS) { operator=(RHS); }
 
 		//! Construct a UL from an end-swapped UUID
-		UL(const UUIDPtr &RHS) { operator=(*RHS); }
+
+		UL(const UUIDPtr &RHS) { operator=(*((UUID*)RHS)); }
 
 		//! Construct a UL from an end-swapped UUID
 		UL(const UUID *RHS) { operator=(*RHS); }
 
 		//! Fast compare a UL based on testing most-likely to fail bytes first
-		/*! We use an unrolled loop with modified order for best efficiency
-		 *  DRAGONS: There may be a slightly faster way that will prevent pipeline stalling, but this is fast enough!
-		 */
-		bool operator==(const UL &RHS) const
-		{
-			// Most differences are in the second 8 bytes so we check those first
-			UInt8 const *pLHS = &Ident[8];
-			UInt8 const *pRHS = &RHS.Ident[8];
-			
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 8
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 9
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 10
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 11
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 12
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 13
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 14
-			if(*pLHS != *pRHS) return false;			// Test byte 15
+		bool operator==(const UL &RHS) const;
 
-			// Now we test the first 8 bytes, but in reverse as the first 4 are almost certainly "06 0e 2b 34"
-			// We use predecrement from the original start values so that the compiler will optimize the address calculation if possible
-			pLHS = &Ident[8];
-			pRHS = &RHS.Ident[8];
+		//! Simple != implementation
+		bool operator!=(const UL& Other) const { return !operator==(Other); }
 
-			if(*--pLHS != *--pRHS) return false;		// Test byte 7
-			if(*--pLHS != *--pRHS) return false;		// Test byte 6
-			if(*--pLHS != *--pRHS) return false;		// Test byte 5
-			if(*--pLHS != *--pRHS) return false;		// Test byte 4
-			if(*--pLHS != *--pRHS) return false;		// Test byte 3
-			if(*--pLHS != *--pRHS) return false;		// Test byte 2
-			if(*--pLHS != *--pRHS) return false;		// Test byte 1
-			
-			return (*--pLHS == *--pRHS);				// Test byte 0
-		}
-
-		//! Fast compare a UL based on testing most-likely to fail bytes first *IGNORING THE VERSION NUMBER*
-		/*! We use an unrolled loop with modified order for best efficiency
-		 *  DRAGONS: There may be a slightly faster way that will prevent pipeline stalling, but this is fast enough!
-		 */
-		bool Matches(const UL &RHS) const
-		{
-			// Most differences are in the second 8 bytes so we check those first
-			UInt8 const *pLHS = &Ident[8];
-			UInt8 const *pRHS = &RHS.Ident[8];
-			
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 8
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 9
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 10
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 11
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 12
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 13
-			if(*pLHS++ != *pRHS++) return false;		// Test byte 14
-			if(*pLHS != *pRHS) return false;			// Test byte 15
-
-			// Now we test the first 8 bytes, but in reverse as the first 4 are almost certainly "06 0e 2b 34"
-			// We use predecrement from the original start values so that the compiler will optimize the address calculation if possible
-			pLHS = &Ident[8];
-			pRHS = &RHS.Ident[8];
-
-			// Skip the UL version number
-			--pLHS;
-			--pRHS;
-
-			if(*--pLHS != *--pRHS) return false;		// Test byte 6
-			if(*--pLHS != *--pRHS) return false;		// Test byte 5
-			if(*--pLHS != *--pRHS) return false;		// Test byte 4
-			if(*--pLHS != *--pRHS) return false;		// Test byte 3
-			if(*--pLHS != *--pRHS) return false;		// Test byte 2
-			if(*--pLHS != *--pRHS) return false;		// Test byte 1
-			
-			return (*--pLHS == *--pRHS);				// Test byte 0
-		}
+		//! Fast compare of effective values of UL based on testing most-likely to fail bytes first
+		/*! DRAGONS: This comparison ignores the UL version number and group coding */
+		bool Matches(const UL &RHS) const;
 
 		//! Set a UL from a UUID, does end swapping
 		UL &operator=(const UUID &RHS);
 
 		//! Set a UL from a UUID, does end swapping
-		UL &operator=(const UUIDPtr &RHS) { return operator=(*RHS); }
+		UL &operator=(const UUIDPtr &RHS) { return operator=(*((UUID*)RHS)); }
 
 		//! Set a UL from a UUID, does end swapping
 		UL &operator=(const UUID *RHS) { return operator=(*RHS); }
 
+		//! Set the default output format from a string and return an OutputFormatEnum value to use in future
+		static OutputFormatEnum SetOutputFormat(std::string Format);
+
+		//! Set the default output format
+		static void SetOutputFormat(OutputFormatEnum Format) { DefaultFormat = Format; }
+
+		//! Get the current default output format
+		static OutputFormatEnum GetOutputFormat(void) { return DefaultFormat; }
+
 		//! Produce a human-readable string in one of the "standard" formats
-		std::string GetString(void) const
+		std::string GetString(OutputFormatEnum Format = -1) const
 		{
-			char Buffer[100];
-
-			// Check which format should be used
-			if( !(0x80&Ident[0]) )
-			{	
-				// This is a UL rather than a UUID packed into a UL datatype
-				// Print as compact SMPTE format [060e2b34.rrss.mmvv.ccs1s2s3.s4s5s6s7]
-				// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
-				// (i.e. network byte order)
-				sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
-							       Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7],
-							       Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15]
-						);
-			}
-			else
-			{	
-				// Half-swapped UUID
-				// Print as compact GUID format {8899aabb-ccdd-eeff-0011-223344556677}
-				sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-							       Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15],
-							       Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7]
-						);
-			}
-
-			return std::string(Buffer);
+			return FormatString(Ident, Format);
 		}
+
+		//! Format using one of the "standard" formats
+		static std::string FormatString(UInt8 const *Ident, OutputFormatEnum Format = -1);
 	};
 
 	//! A smart pointer to a UL object
@@ -292,29 +262,59 @@ namespace mxflib
 	//! Universally Unique Identifier class with string formatting
 	class UUID : public Identifier16, public RefCount<UUID>
 	{
+	protected:
+		static OutputFormatEnum DefaultFormat;			//!< Current default output format
+
+		static OutputFormatEnum OutputFormatBraced;		//!< Dynamic enum value allocated to {00112233-4455-6677-8899-aabbccddeeff} or [8899aabb.ccdd.eeff.00112233.44556677] format
+		static OutputFormatEnum OutputFormatHex;		//!< Dynamic enum value allocated to 00112233-4455-6677-8899-aabbccddeeff format
+		static OutputFormatEnum OutputFormat0xHex;		//!< Dynamic enum value allocated to 0x00112233445566778899aabbccddeeff format
+		static OutputFormatEnum OutputFormatDottedHex;	//!< Dynamic enum value allocated to 00.11.22.33.44.55.66.77.88.99.aa.bb.cc.dd.ee.ff format
+		static OutputFormatEnum OutputFormatURN;		//!< Dynamic enum value allocated to urn:uuid or urn:smpte:ul format
+		static OutputFormatEnum OutputFormatx_ul;		//!< Dynamic enum value allocated to urn:uuid or urn:x-ul format
+		static OutputFormatEnum OutputFormatOID;		//!< Dynamic enum value allocated to BER OID format
+		static OutputFormatEnum OutputFormatAAF;		//!< Dynamic enum value allocated to AAF aafUID_t format
+
 	public:
 		//! Construct a new UUID with a new unique value
-		UUID() { MakeUUID(Ident); };
+		UUID() 
+		{ 
+			MakeUUID(Ident); 
+		}
 
 		//! Construct a UUID from a sequence of bytes
 		/*! \note The byte string must contain at least 16 bytes or errors will be produced when it is used
 		 */
-		UUID(const UInt8 *ID) : Identifier16(ID) {};
+		UUID(const UInt8 *ID) : Identifier16(ID) {}
 
 		//! Construct a UUID as a copy of another UUID
-		UUID(const SmartPtr<UUID> ID) { if(!ID) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); };
+		UUID(const SmartPtr<UUID> ID) 
+		{ 
+			if(!ID) memset(Ident,0,16); else memcpy(Ident,ID->Ident, 16); 
+		}
 
 		//! Copy constructor
-		UUID(const UUID &RHS) { memcpy(Ident,RHS.Ident, 16); };
+		UUID(const UUID &RHS)
+		{ 
+			memcpy(Ident,RHS.Ident, 16);
+		}
 
 		//! Construct a UUID from an end-swapped UL
-		UUID(const UL &RHS) { operator=(RHS); }
+		UUID(const UL &RHS)
+		{ 
+			operator=(RHS);
+		}
 
 		//! Construct a UUID from an end-swapped UL
-		UUID(const ULPtr &RHS) { operator=(*RHS); }
+		UUID(const ULPtr &RHS) 
+		{ 
+			operator=(*RHS); 
+		}
 
 		//! Construct a UUID from an end-swapped UL
-		UUID(const UL *RHS) { operator=(*RHS); }
+		UUID(const UL *RHS) 
+		{ 
+			operator=(*RHS); 
+		}
 
 		//! Set a UUID from a UL, does end swapping
 		UUID &operator=(const UL &RHS)
@@ -330,35 +330,23 @@ namespace mxflib
 		//! Set a UUID from a UL, does end swapping
 		UUID &operator=(const UL *RHS) { return operator=(*RHS); }
 
+		//! Set the default output format from a string and return an OutputFormatEnum value to use in future
+		static OutputFormatEnum SetOutputFormat(std::string Format);
+
+		//! Set the default output format
+		static void SetOutputFormat(OutputFormatEnum Format) { DefaultFormat = Format; }
+
+		//! Get the current default output format
+		static OutputFormatEnum GetOutputFormat(void) { return DefaultFormat; }
+
 		//! Produce a human-readable string in one of the "standard" formats
-		std::string GetString(void) const
+		std::string GetString(OutputFormatEnum Format = -1) const
 		{
-			char Buffer[100];
-
-			// Check which format should be used
-			if( !(0x80&Ident[8]) )
-			{	// Half-swapped UL packed into a UUID datatype
-				// Print as compact SMPTE format [bbaa9988.ddcc.ffee.00010203.04050607]
-				// Stored with upper/lower 8 bytes exchanged
-				// Stored in the following 0-based index order: 88 99 aa bb cc dd ee ff 00 01 02 03 04 05 06 07
-				sprintf (Buffer, "[%02x%02x%02x%02x.%02x%02x.%02x%02x.%02x%02x%02x%02x.%02x%02x%02x%02x]",
-							       Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15],
-							       Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7]
-						);
-			}
-			else
-			{	// UUID
-				// Stored in the following 0-based index order: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
-				// (i.e. network byte order)
-				// Print as compact GUID format {00112233-4455-6677-8899-aabbccddeeff}
-				sprintf (Buffer, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-							       Ident[0], Ident[1], Ident[2], Ident[3], Ident[4], Ident[5], Ident[6], Ident[7],
-							       Ident[8], Ident[9], Ident[10], Ident[11], Ident[12], Ident[13], Ident[14], Ident[15]
-						);
-			}
-
-			return std::string(Buffer);
+			return FormatString(Ident, Format);
 		}
+
+		//! Format using one of the "standard" UUID formats
+		static std::string FormatString(UInt8 const *Ident, OutputFormatEnum Format = -1);
 	};
 }
 
@@ -375,6 +363,43 @@ namespace mxflib
 	}
 }
 
+namespace mxflib
+{
+	//! Represent an AUID as an endian-sensitive struct as in AAFSDK API (i.e. half-swapped again)
+	class IDAUstruct
+	{
+	private:
+		UInt8 reordered[16];
+
+	public:
+		IDAUstruct( const UInt8* UL_Data, bool AsLittle = true )
+		{
+			memcpy( reordered+8, UL_Data, 8 );
+
+			if( AsLittle )
+			{
+				reordered[3] = UL_Data[8];
+				reordered[2] = UL_Data[9];
+				reordered[1] = UL_Data[10];
+				reordered[0] = UL_Data[11];
+
+				reordered[5] = UL_Data[12];
+				reordered[4] = UL_Data[13];
+
+				reordered[7] = UL_Data[14];
+				reordered[6] = UL_Data[15];
+			}
+			else
+			{
+				memcpy( reordered, UL_Data+8, 4 );
+				memcpy( reordered+4, UL_Data+12, 2 );
+				memcpy( reordered+6, UL_Data+14, 2 );
+			}
+		};
+
+		const UInt8* Data(){ return reordered; }
+	};
+}
 
 namespace mxflib
 {
@@ -484,9 +509,12 @@ namespace mxflib
 		//! Reduce a rational to its lowest integer form
 		void Reduce(void)
 		{
-			Int32 GCD = GreatestCommonDivisor();
-			Numerator /= GCD;
-			Denominator /= GCD;
+			if((Numerator != 0) && (Denominator != 0))
+			{
+				Int32 GCD = GreatestCommonDivisor();
+				Numerator /= GCD;
+				Denominator /= GCD;
+			}
 		}
 		
 		//! Check for exact equality (not just the same ratio)
@@ -494,6 +522,16 @@ namespace mxflib
 		{
 			return (Numerator == RHS.Numerator) && (Denominator == RHS.Denominator);
 		}
+		inline bool operator!=(const Rational &RHS)
+		{
+			return !operator==(RHS);
+		}
+
+		//! Set the value of the rational from a string
+		void SetString(std::string Value);
+
+		//! Get the value of this rational as a string
+		std::string GetString(void) const;
 	};
 
 	//! Determine the greatest common divisor of a 64-bit / 64-bit pair using the Euclidean algorithm
@@ -592,11 +630,168 @@ namespace mxflib
         Ret = Ret / Multiplier.Denominator;
 
 		// Round up any result that is nearer to the next position
-		if(Remainder >= (Multiplier.Denominator/2)) Ret++;
+		if( Remainder >= ((Multiplier.Denominator+1)/2)) Ret++;
 
 		return Ret;
 	}
 }
+
+
+namespace mxflib
+{
+	class Label;
+
+	// A Smart pointer to a Label
+	typedef SmartPtr<Label> LabelPtr;
+
+	//! A UL or end-swapped UUID label 
+	class Label : public RefCount<Label>
+	{
+	protected:
+		UL Value;										//!< The value of this label
+		UInt8 Mask[16];									//!< Mask of ignore bits, each set bit flags a bit to be ignored when comparing
+		bool NonZeroMask;								//!< True if there is a non-zero mask
+		std::string Name;								//!< The XML-Tag-valid name for this label
+		std::string Detail; 							//!< The human-readable description for this label
+
+	protected:
+		//! Type of the Label map (map of UL to LabelPtr)
+		typedef std::map<UL, LabelPtr> LabelULMap;
+
+		//! Type of the Label multi-map (map of UL to LabelPtr)
+		typedef std::multimap<UL, LabelPtr> LabelULMultiMap;
+
+		//! Map of all existing labels that don't use masking
+		static LabelULMap LabelMap;
+
+		//! Map of all existing labels that use masking - this is a multimap to allow the same base with different masks
+		static LabelULMultiMap LabelMultiMap;
+
+	protected:
+		// Private constructor - to build a new label one of the Insert() functions must be called
+		Label(std::string LabelName, std::string Detail, const UInt8 *LabelUL, const UInt8 *LabelMask) 
+			: Value(LabelUL), Detail(Detail)
+		{
+			Init(LabelName, LabelMask);
+		}
+
+		// Private constructor - to build a new label one of the Insert() functions must be called
+		Label(std::string LabelName, std::string Detail, const UUID &LabelULasUUID, const UInt8 *LabelMask) 
+			: Value(LabelULasUUID), Detail(Detail)
+		{
+			Init(LabelName, LabelMask);
+		}
+
+		// Constructor common part - called by constructors
+		void Init(std::string LabelName, const UInt8 *LabelMask)
+		{
+			Name = LabelName;
+
+			if(LabelMask)
+			{
+				memcpy(Mask, LabelMask, 16);
+				NonZeroMask = true;
+			}
+			else
+			{
+				memset(Mask, 0, 16);
+				NonZeroMask = false;
+			}
+		}
+
+	public:
+		//! Get the value of this Label as a UL
+		const ULPtr GetValue(void) { ULPtr Ret = new UL( Value ); return Ret; }
+
+		//! Get the name of this label
+		std::string GetName(void) { return Name; };
+
+		//! Get the detail for this label - if no detail, get the name
+		std::string GetDetail(void) { return Name + " - " + Detail; };
+
+		//! Return true if this label uses a (non-zero) mask
+		bool HasMask(void) { return NonZeroMask; }
+
+	public:
+		//! Construct and add a label from a byte array
+		/*! \return true if succeeded, else false
+		 */
+		static bool Insert(std::string Name, std::string Detail, const UInt8 *LabelValue, const UInt8 *LabelMask = NULL);
+
+		//! Construct and add a label from a UL smart pointer
+		/*! \return true if succeeded, else false
+		 */
+		static bool Insert(std::string Name, std::string Detail, const ULPtr &LabelValue, const UInt8 *LabelMask = NULL);
+
+		//! Construct and add a label from a UL reference
+		/*! \return true if succeeded, else false
+		 */
+		static bool Insert(std::string Name, std::string Detail, const UL &LabelValue, const UInt8 *LabelMask = NULL);
+
+		//! Construct and add a label from a UUID smart pointer
+		/*! \return true if succeeded, else false
+		 */
+		static bool Insert(std::string Name, std::string Detail, const UUIDPtr &LabelValue, const UInt8 *LabelMask = NULL);
+
+		//! Construct and add a label from a UUID reference
+		/*! \return true if succeeded, else false
+		 */
+		static bool Insert(std::string Name, std::string Detail, const mxflib::UUID &LabelValue, const UInt8 *LabelMask = NULL);
+
+	public:
+		//! Find a label with a given value, from a UL reference
+		static LabelPtr Find(const UL &LabelValue);
+
+		//! Find a label with a given value, from a ULPtr
+		static LabelPtr Find(const ULPtr &LabelValue)
+		{
+			return Find(*LabelValue);
+		}
+
+		//! Find a label with a given value, from the label bytes
+		static LabelPtr Find(const UInt8 *LabelValue)
+		{
+			/* Make a value UL and use that in the main search */
+			UL ValueUL(LabelValue);
+			return Find(ValueUL);
+		}
+
+		//! Find a label with a given value, from a text Name
+		/*! \param Name the name to find - linear search - don't use this if performance matters
+		 */
+		static LabelPtr Find(const std::string Name);
+
+	};
+
+
+	//types for Edgecode components
+
+	enum _EdgeType_t
+	{	
+		kEtInvalid		= -1,
+		kEtNull			= 0,
+		kEtKeycode		= 1,
+		kEtEdgenum4		= 2,
+		kEtEdgenum5		= 3,
+		kEtHeaderSize	= 8
+	} 	;
+
+	typedef enum _EdgeType_t EdgeType_t;
+
+
+	enum _FilmType_t
+	{
+		kFtInvalid	= -1,
+		kFtNull		= 0,
+		ktFt35MM	= 1,
+		ktFt16MM	= 2,
+		kFt8MM		= 3,
+		kFt65MM		= 4
+	} ;
+
+	typedef enum _FilmType_t FilmType_t;
+}
+
 
 
 #endif // MXFLIB__TYPES_H

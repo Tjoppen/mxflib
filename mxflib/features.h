@@ -1,7 +1,7 @@
 /*! \file	features.h
  *	\brief	Control compile-time and run-time selectable library features
  *
- *	\version $Id: features.h,v 1.8 2007/10/10 15:41:58 matt-beard Exp $
+ *	\version $Id: features.h,v 1.9 2011/01/10 10:42:09 matt-beard Exp $
  *
  *  \detail 
  *  Library feature selection allows the behaviour of the library to be modified at run-time or compile-time.
@@ -13,33 +13,15 @@
  *  but implement it differently, and "non-standard features" that do not strictly comply with the MXF
  *  specification, yet may be useful in controlled application areas.
  */
-/*
- *	Copyright (c) 2005, Matt Beard
- *
- *	This software is provided 'as-is', without any express or implied warranty.
- *	In no event will the authors be held liable for any damages arising from
- *	the use of this software.
- *
- *	Permission is granted to anyone to use this software for any purpose,
- *	including commercial applications, and to alter it and redistribute it
- *	freely, subject to the following restrictions:
- *
- *	  1. The origin of this software must not be misrepresented; you must
- *	     not claim that you wrote the original software. If you use this
- *	     software in a product, an acknowledgment in the product
- *	     documentation would be appreciated but is not required.
- *	
- *	  2. Altered source versions must be plainly marked as such, and must
- *	     not be misrepresented as being the original software.
- *	
- *	  3. This notice may not be removed or altered from any source
- *	     distribution.
- */
 
 
-/************************/
-/* Comile-time settings */
-/************************/
+
+
+
+
+/*************************/
+/* Compile-time settings */
+/*************************/
 /*
  * The following macros may be defined on the compiler command-line:
  *
@@ -77,18 +59,26 @@ namespace mxflib
 	/* Standard library features (bits 0 to 30) */
 
 	const UInt64 FeatureVersion1KLVFill = UINT64_C(1) << 0;		//!< MXFLib feature: Write KLVFill items with the version 1 key
+	const UInt64 FeatureUnknownsByUL2Name = UINT64_C(1) << 1;	//!< MXFLib feature: If an unknown UL is converted to a name during MDObject construction, using UL2NameFunc, check if this name is a known type
 
 	/* This sub-range is currently used by temporary fixes (bits 16 to 30) */
 
 	const UInt64 FeatureNegPrechargeIndex = UINT64_C(1) << 16;	//!< MXFLib feature: Use -ve indexing for precharge
 
-	// Reserve a bit for user-extensions
-	const UInt64 UserExtension = UINT64_C(1) << 31;				//!< MXFLib feature: Reserved to allow user extensions
+	/* Reserve a sub-range for user-extensions */
+
+	const UInt64 UserExtension = UINT64_C(1) << 31;		//!< MXFLib feature: Reserved to allow user extensions
+
+	/* Non-Standard library functions - may cause non-compliant behaviour (bits 32 to 63) */
+
+	const UInt64 FeatureLoadMetadict =		UINT64_C(1) << 48;	//!< Load any metadict when reading metadata
+	const UInt64 FeatureSaveMetadict =		UINT64_C(1) << 49;	//!< Add a KLV metadict when writing metadata (Only contains extension data)
+	const UInt64 FeatureUsedMetadict =		UINT64_C(1) << 50;	//!< Write any metadict as a complete version holding all types and sets used in the file along with all known properties of those sets
+	const UInt64 FeatureFullMetadict =		UINT64_C(1) << 51;	//!< Write any metadict as a full version holding all known types, sets and properties
+	const UInt64 FeatureKXSMetadict =		UINT64_C(1) << 52;	//!< Use version 1b of KLV Encoded Extension Syntax for any metadict
 
 
-	/* Non-Standard library functions - may cause non-complient behaviour (bits 32 to 63) */
-
-	const UInt64 Feature32 = UINT64_C(1) << 32;
+	const UInt64 FeatureNoHeaderIndex     = UINT64_C(1) << 58;	//!< Do not write index in header, mimic avid files
 
 	// Declare the features bitmap
 	extern UInt64 Features;

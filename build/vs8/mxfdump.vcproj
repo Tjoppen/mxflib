@@ -3,7 +3,8 @@
 	ProjectType="Visual C++"
 	Version="8.00"
 	Name="mxfdump"
-	ProjectGUID="{C1882AA6-8310-40FD-A6A3-B238CA985A27}"
+	ProjectGUID="{2B72527F-F242-46D0-972B-47AFE8799EA2}"
+	RootNamespace="mxfdump"
 	>
 	<Platforms>
 		<Platform
@@ -15,11 +16,12 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
+			UseOfATL="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
 			>
@@ -42,17 +44,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
 				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;NO_COMPILED_DICT"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE; _CRT_SECURE_NO_DEPRECATE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Debug/mxfdump.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				CompileAs="0"
 			/>
@@ -69,8 +69,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
+				OutputFile="$(OutDir)/mxfdump.exe"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
+				AdditionalLibraryDirectories=""
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -98,16 +100,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -131,14 +133,12 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="4"
 				AdditionalIncludeDirectories="..\.."
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxfdump.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				CompileAs="0"
@@ -156,6 +156,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/mxfdump.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				SubSystem="1"
@@ -184,17 +185,18 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="DebugStatic|Win32"
-			OutputDirectory="$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
+			UseOfATL="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
 			>
@@ -217,17 +219,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
 				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;NO_COMPILED_DICT"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE; _CRT_SECURE_NO_DEPRECATE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Debug/mxfdump.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				CompileAs="0"
 			/>
@@ -244,8 +244,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
+				OutputFile="$(OutDir)/mxfdump.exe"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
+				AdditionalLibraryDirectories=""
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -273,16 +275,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="ReleaseStatic|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -306,14 +308,12 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="4"
 				AdditionalIncludeDirectories="..\.."
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="0"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxfdump.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				CompileAs="0"
@@ -331,6 +331,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/mxfdump.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				SubSystem="1"
@@ -359,8 +360,8 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 	</Configurations>
@@ -420,12 +421,20 @@
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl"
 			>
+			<File
+				RelativePath="..\..\mxfdump\bootdict.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
 			>
 		</Filter>
+		<File
+			RelativePath="..\..\mxfdump\bootdict.xml"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

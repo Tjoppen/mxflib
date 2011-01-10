@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.h,v 1.13 2007/03/31 16:01:39 matt-beard Exp $
+ *	\version $Id: mdtype.h,v 1.14 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -47,31 +47,6 @@ namespace mxflib
 	typedef std::list<std::string> StringList;
 }
 
-namespace mxflib
-{
-	enum MDContainerType				//!< Container types
-	{ 
-		NONE,							//!< Not a container - a simple metadata item
-		SET,							//!< A SMPTE-336M Set
-		PACK,							//!< A SMPTE-336M Pack
-		BATCH,							//!< A Batch (ordered or unordered)
-		ARRAY							//!< An array
-	};
-	enum MDTypeClass					//!< Class of this type
-	{ 
-		BASIC,							//!< A basic, indivisible, type
-		INTERPRETATION,					//!< An interpretation of another class
-		TYPEARRAY,						//!< An array of another class
-		COMPOUND,						//!< A compound type
-		ENUM							//!< An enumerated value
-	};
-	enum MDArrayClass					//!< Sub-classes of arrays
-	{
-		ARRAYARRAY,						//!< Just a normal array
-		ARRAYBATCH						//!< A batch with count and size
-	};
-}
-
 
 namespace mxflib
 {
@@ -85,8 +60,10 @@ namespace mxflib
 		UInt32 Number;
 		std::string String;
 
+	protected:
+		MapIndex();
+
 	public:
-//		MapIndex() { ASSERT(0); };
 		MapIndex(UInt32 Num) { IsNum = true; Number = Num; String = Int2String(Num); };
 		MapIndex(std::string Str) { IsNum = false; String = Str; };
 		MapIndex(const MapIndex& Map) 
@@ -172,21 +149,29 @@ namespace mxflib
 	//! A list of smart pointers to MDType objects
 	typedef std::list<MDTypePtr> MDTypeList;
 
-	//! A list of smart pointers to MDType objects with names
-//	typedef std::pair<MDTypePtr, std::string> MDNamedType;
-//	typedef std::list<MDNamedType> MDNamedTypeList;
-
+	//! A map of MDTypes indexed by name
 	typedef std::map<std::string, MDTypePtr> MDTypeMap;
+
+	//! A map of MDTypes by UL
+	typedef std::map<UL, MDTypePtr> MDTypeULMap;
 }
 
 
 namespace mxflib
 {
 	//! Holds the definition of a metadata type
-	class MDType : public RefCount<MDType> , public MDTypeMap
+	class MDType : public RefCount<MDType> , public MDTypeMap,
+				   public IMDTypeGetCommon, 
+				   public IMDTypeGet, 
+				   public IMDTypeFind,
+				   public IMDTypeSet, 
+				   public IMDEffectiveType<MDType, MDTypePtr>, 
+				   public IMDTypeChild<MDTypePtr, MDTypeList>,
+				   public IMDTraitsAccess
 	{
 	protected:
 		std::string TypeName;			//!< Name of this MDType
+		std::string	Detail;				//!< Meaningful description
 		MDTypeClass Class;				//!< Class of this MDType
 		MDArrayClass ArrayClass;		//!< Sub-class of array
 		MDTraitsPtr Traits;				//!< Traits for this MDType
@@ -194,35 +179,28 @@ namespace mxflib
 		bool Endian;					//!< Flag set to 'true' if this basic type should ever be byte-swapped
 		TypeRef RefType;				//!< Reference type of this type (if a reference source or target), if TypeRefUndefined then inherit
 		std::string RefTarget;			//!< Reference target of this type (if a reference source), if "" then inherit
-
-	public:
-		//! Name and value pair for enums
-		typedef std::pair<std::string, MDValuePtr> NamedValue;
-
-		//! List of name and value pairs for enums
-		typedef std::list<NamedValue> NamedValueList;
+		MDOTypePtr RefTargetType;		//!< The MDOType that is the target of this type (if known)
+		bool Baseline;					//!< True if this is a baseline type as defined in 377M or certain other specific standards (and so will not be added to the KXS metadictionary)
+		bool Character;					//!< True if this is a "character" type, this information is only required for the metadictionary
 
 	protected:
 		NamedValueList EnumValues;		//!< List of enumerated values, if this is an enum, each with its value name
+		MDTypeList ChildList;			//!< Child names in order for compound types
 
 	public:
-		MDTypeParent Base;					//!< Base class if this is a derived class, else NULL
-//		MDTypeList Children;			//!< Types contained in this if it is a compound
-////		StringList ChildrenNames;		//!< Corresponding child names if it is a compound
-		StringList ChildOrder;			//!< Child names in order for compound types
+		MDTypeParent Base;				//!< Base type if this is a derived type, else NULL
+		StringList ChildOrder;			//!< DEPRECATED: Child names in order for compound types
 		int Size;						//!< The size of the item in multiples of base class items, or 0 if it is variable
-
-		//! Access function for ContainerType
-//		const MDContainerType &GetContainerType(void) { return (const MDContainerType &)ContainerType; };
+		bool Signed;
 
 	protected:
 		//!	Construct a basic MDType
 		/*! This constructor is protected so the ONLY way to create
 		 *	new MDTypes from outside this class is via AddBasic() etc.
 		*/
-		MDType(std::string TypeName, MDTypeClass TypeClass, ULPtr &UL, MDTraitsPtr TypeTraits)
-			: TypeName(TypeName), Class(TypeClass), ArrayClass(ARRAYARRAY), Traits(TypeTraits), TypeUL(UL), Endian(false),
-			  RefType(TypeRefUndefined)
+		MDType(std::string TypeName, std::string Detail, MDTypeClass TypeClass, ULPtr &UL, MDTraitsPtr TypeTraits)
+			: TypeName(TypeName), Detail(Detail), Class(TypeClass), ArrayClass(ARRAYIMPLICIT), Traits(TypeTraits), TypeUL(UL), Endian(false),
+			  RefType(TypeRefUndefined), Baseline(false), Character(false)
 		{ };
  
 		//! Prevent auto construction by NOT having an implementation to this constructor
@@ -235,8 +213,127 @@ namespace mxflib
 		void AddSub(std::string SubName, MDTypePtr SubType);
 
 	public:
+
+		/* Interface IMDTypeGetCommon */
+		/******************************/
+
+		//! Get the name of this type
+		const std::string &Name(void) const { return TypeName; }
+
+		//! Get the full name of this type, including all parents
+		std::string FullName(void) const
+		{
+			if((Class == COMPOUND) && Base) return Base->TypeName + "/" + TypeName;
+			return TypeName;
+		}
+
+		//! Report the detailed description for this type
+		const std::string &GetDetail(void) const { return Detail; }
+		
+
+		/* Interface IMDTypeGet */
+		/************************/
+
+		//! Is this a "character" type
+		bool IsCharacter(void) const { return Character; }
+
+		//! Endian access function (get)
+		bool GetEndian(void) const { return Endian; }
+
+		//! Baseline access function (get)
+		bool IsBaseline(void) const { return Baseline; }
+
+		//! Get the size of this type, in bytes if basic, or items if a multiple
+		/*! DRAGONS: This gets the defined size for this type, not the size of the current value */
+		int GetSize(void) const { return Size; }
+
+		//! Get a const reference to the enum values
+		const NamedValueList &GetEnumValues(void) const 
+		{
+			if(Class == INTERPRETATION) return Base->GetEnumValues();
+			return EnumValues; 
+		};
+
+		//! Get the class of this type
+		MDTypeClass GetClass(void) const { return Class; }
+
+		//! ArrayClass access function (get)
+		MDArrayClass GetArrayClass(void) const { return ArrayClass; };
+
+		//! Get the reference type
+		TypeRef GetRefType(void) const { return RefType; }
+
+		//! Get the reference target
+		const MDOTypePtr &GetRefTarget(void) const
+		{
+			return RefTargetType;
+		}
+
+		//! Get the reference target
+		std::string GetRefTargetName(void) const
+		{
+			return RefTarget;
+		}
+
+
+		/* Interface IMDTypeFind */
+		/*************************/
+
+	public:
+		/* Static MDType finding methods */
+
+		//! Find a type in the default symbol space, optionally searching all others
+		static MDTypePtr Find(std::string BaseType, bool SearchAll = false) { return Find(BaseType, MXFLibSymbols, SearchAll); }
+
+		//! Find a type in a specified symbol space, optionally searching all others
+		static MDTypePtr Find(std::string BaseType, SymbolSpacePtr &SymSpace, bool SearchAll = false);
+
+		//! Find a type with a given UL
+		static MDTypePtr Find(const UL& BaseUL);
+
+		//! Find a type by ULPtr
+		static MDTypePtr Find(ULPtr &BaseUL) { return Find(*BaseUL); }
+
+
+		/* Interface IMDTypeSet */
+		/************************/
+
+		//! Set "character" type flag
+		void SetCharacter(bool Val) { Character = Val; }
+
+		//! Endian access function (set)
+		void SetEndian(bool Val) { Endian = Val; }
+
+		//! Baseline access function (set)
+		void SetBaseline(bool Val = true) { Baseline = Val; }
+
+		//! ArrayClass access function (set)
+		void SetArrayClass(MDArrayClass Val) { ArrayClass = Val; }
+
+		//! Set the reference type
+		void SetRefType(TypeRef Val) { RefType = Val; }
+
+		//! Set the reference target
+		void SetRefTarget(std::string Val) { RefTarget = Val; }
+
+		//! Insert a new child type
+		/*! DRAGONS: This overlaods the insert() methods of the base map */
+		std::pair<iterator, bool> insert(std::string Name, MDTypePtr NewType) 
+		{
+			// Add the child to the order lists
+			ChildOrder.push_back(Name);
+			ChildList.push_back(NewType);
+
+			// Add this child item
+			return MDTypeMap::insert(MDTypeMap::value_type(Name, NewType));
+		}
+
+
+		/* Interface IMDEffectiveType */
+		/******************************/
+
 		//! Report the effective type of this type
-		MDTypePtr EffectiveType(void);
+		const MDType *EffectiveType(void) const;
 
 		//! Report the effective class of this type
 		MDTypeClass EffectiveClass(void) const;
@@ -248,12 +345,66 @@ namespace mxflib
 		TypeRef EffectiveRefType(void) const;
 
 		//! Report the effective reference target of this type
-		std::string EffectiveRefTarget(void) const;
+		MDOTypePtr EffectiveRefTarget(void) const;
+
+		//! Report the name of the effective reference target of this type
+		/*! DRAGONS: To be used when loading dictionary only */
+		std::string EffectiveRefTargetName(void) const;
 
 		//! Report the effective size of this type
 		/*! \return The size in bytes of a single instance of this type, or 0 if variable size
 		 */
-		UInt32 EffectiveSize(void) const;
+		UInt32 EffectiveSize(void) const { return EffectiveSizeInternal(); }
+
+		//! Report the effective size of this type - internal recursive version
+		UInt32 EffectiveSizeInternal(bool OverrideSize = false, int UseSize = 0) const;
+
+
+
+		/* Interface IMDTypeChild */
+		/**************************/
+
+		//! Read-only access to ChildList
+		const MDTypeList &GetChildList(void) const
+		{
+			return ChildList;
+		}
+
+		//! Locate a named child
+		MDTypePtr Child(const std::string Name) const;
+
+		//! Locate a named child
+		MDTypePtr operator[](const std::string Name) const { return Child(Name); }
+
+		//! Locate a numerically indexed child
+		/*! DRAGONS: If the type is not numerically indexed then the index will be treated as a 0-based ChildList index */
+		MDTypePtr Child(int Index) const;
+
+		//! Locate a numerically indexed child
+		/*! DRAGONS: If the type is not numerically indexed then the index will be treated as a 0-based ChildList index */
+		MDTypePtr operator[](int Index) const { return Child(Index); }
+
+		//! Locate a child by UL
+		MDTypePtr Child(ULPtr &ChildType) const;
+
+		//! Locate a child by UL
+		MDTypePtr operator[](ULPtr &ChildType) const { return Child(ChildType); };
+
+		//! Locate a child by UL
+		MDTypePtr Child(const UL &ChildType) const;
+
+		//! Locate a child by UL
+		MDTypePtr operator[](const UL &ChildType) const { return Child(ChildType); };
+
+
+		/* Interface IMDTraits */
+		/***********************/
+
+		//! Set the traits for this type or object
+		void SetTraits(MDTraitsPtr Tr) { Traits = Tr; };
+
+		//! Access the traits for this type or object
+		const MDTraitsPtr &GetTraits(void) const { return Traits; }
 
 		//! Does this value's trait take control of all sub-data and build values in the our own DataChunk?
 		/*! Normally any contained sub-types (such as array items or compound members) hold their own data */
@@ -263,123 +414,10 @@ namespace mxflib
 			return false;
 		}
 
-		//! Endian access function (set)
-		void SetEndian(bool Val) { Endian = Val; };
-
-		//! Endian access function (get)
-		bool GetEndian(void) const { return Endian; };
-
-		//! ArrayClass access function (set)
-		void SetArrayClass(MDArrayClass Val) { ArrayClass = Val; };
-
-		//! ArrayClass access function (get)
-		MDArrayClass GetArrayClass(void) { return ArrayClass; };
-
-		//! Get the name of this type
-		const std::string &Name(void) const { return TypeName; }
-
-		//! Read-only access to the type UL
-		const ULPtr &GetTypeUL(void) const { return TypeUL; }
-
-		//! (not Read-only) access to the enumerated value list
-		NamedValueList &GetEnumValues(void) { return EnumValues; }
-
-		//! Set the reference type
-		void SetRefType(TypeRef Val) { RefType = Val; }
-
-		//! Get the reference type
-		TypeRef GetRefType(void) const { return RefType; }
-
-		//! Set the reference target
-		void SetRefTarget(std::string Val) { RefTarget = Val; }
-
-		//! Get the reference target
-		std::string GetRefTarget(void) const { return RefTarget; }
-
-
-	//** Static Dictionary Handling data and functions **
-	//***************************************************
-	protected:
-		static MDTypeList Types;		//!< All types managed by this object
-
-		//! Map for UL lookups
-		static std::map<UL, MDTypePtr> ULLookup;
-		
-		//! Map for UL lookups - ignoring the version number (all entries use version = 1)
-		static std::map<UL, MDTypePtr> ULLookupVer1;
-
-		//! Map for reverse lookups based on type name
-		static MDTypeMap NameLookup;
 
 	public:
-		//! Add a new basic type
-		static MDTypePtr AddBasic(std::string TypeName, ULPtr &UL, int TypeSize);
+		/* Static traits methods */
 
-		//! Add a new interpretation type
-		static MDTypePtr AddInterpretation(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int Size = 0);
-
-		//! Add a new array type
-		static MDTypePtr AddArray(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int ArraySize = 0);
-
-		//! Add a new compound type
-		static MDTypePtr AddCompound(std::string TypeName, ULPtr &UL);
-
-		//! Add a new enumerated value type
-		static MDTypePtr AddEnum(std::string TypeName, MDTypePtr BaseType, ULPtr &UL);
-
-		//! Add a new value to an enumerated value type
-		bool AddEnumValue(std::string Name, MDValuePtr &Value);
-
-		//! Add a new value to an enumerated value type
-		bool AddEnumValue(std::string Name, std::string Value);
-
-		//! Add a new UL value to an enumerated value type
-		bool AddEnumValue(std::string Name, ULPtr &Value);
-
-		//! Find a type in the default symbol space, optionally searching all others
-		static MDTypePtr Find(std::string TypeName, bool SearchAll = false) { return Find(TypeName, MXFLibSymbols, SearchAll); }
-		
-		//! Find a type in a specified symbol space, optionally searching all others
-		static MDTypePtr Find(std::string TypeName, SymbolSpacePtr &SymSpace, bool SearchAll = false);
-
-		//! Find a type by UL
-		static MDTypePtr Find(const UL &BaseUL);
-
-		//! Find a type by ULPtr
-		static MDTypePtr Find(ULPtr &BaseUL) { return Find(*BaseUL); }
-
-
-	/* Traits handling */
-	/*******************/
-
-	public:
-		//! Set the traits for this type
-		void SetTraits(MDTraitsPtr Tr) 
-		{ 
-			Traits = Tr; 
-		};
-
-		//! Access the traits for this type
-		MDTraitsPtr GetTraits(void) const { return Traits; };
-
-	protected:
-		//! Type to map type names to their handling traits
-		typedef std::map<std::string, MDTraitsPtr> TraitsMapType;
-
-		//! Map of type names to thair handling traits
-		static TraitsMapType TraitsMap;
-
-		//! Type to map type ULs to their handling traits
-		typedef std::map<UL, MDTraitsPtr> TraitsULMapType;
-
-		//! Map of type ULs to thair handling traits
-		static TraitsULMapType TraitsULMap;
-
-	protected:
-		//! Add a given type to the lookups
-		static void AddType(MDTypePtr &Type, ULPtr &TypeUL);
-
-	public:
 		//! Add a mapping to be applied to all types of a given type name
 		/*! \note This will act retrospectively
 		 */
@@ -424,8 +462,99 @@ namespace mxflib
 		*/
 		static MDTraitsPtr LookupTraitsMapping(const UL &TypeUL, std::string DefaultTraitsName = "");
 
-		/* Allow MDValue class to view internals of this class */
-		friend class MDValue;
+
+
+		/***********************************/
+
+
+		//! Get the base of this type
+		const MDTypeParent &GetBase(void) const { return Base; }
+
+		//! Read-only access to the type UL
+		const ULPtr &GetTypeUL(void) const { return TypeUL; }
+
+
+	//** Static Dictionary Handling data and functions **
+	//***************************************************
+	protected:
+		static MDTypeList Types;		//!< All types managed by this object
+
+		//! Map for UL lookups
+		static std::map<UL, MDTypePtr> ULLookup;
+		
+		//! Map for UL lookups - ignoring the version number (all entries use version = 1)
+		static std::map<UL, MDTypePtr> ULLookupVer1;
+
+		//! Map for reverse lookups based on type name
+		static MDTypeMap NameLookup;
+
+	public:
+		//! Add a new basic type
+		static MDTypePtr AddBasic(std::string TypeName, std::string Detail, ULPtr &UL, int TypeSize);
+
+		//! Add a new basic type without detailed description ** DEPRECATED **
+		static MDTypePtr AddBasic(std::string TypeName, ULPtr &UL, int TypeSize) { return MDType::AddBasic(TypeName, TypeName, UL, TypeSize); }
+
+		//! Add a new interpretation type
+		static MDTypePtr AddInterpretation(std::string TypeName, std::string Detail, MDTypePtr BaseType, ULPtr &UL, int Size = 0);
+
+		//! Add a new interpretation type without detailed description ** DEPRECATED **
+		static MDTypePtr AddInterpretation(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int Size = 0) { return MDType::AddInterpretation(TypeName, TypeName, BaseType, UL, Size); }
+
+		//! Add a new array type
+		static MDTypePtr AddArray(std::string TypeName, std::string Detail, MDTypePtr BaseType, ULPtr &UL, int ArraySize = 0);
+
+		//! Add a new array type without detailed description ** DEPRECATED **
+		static MDTypePtr AddArray(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int ArraySize = 0) { return MDType::AddArray(TypeName, TypeName, BaseType, UL, ArraySize); }
+
+		//! Add a new compound type
+		static MDTypePtr AddCompound(std::string TypeName, std::string Detail, ULPtr &UL);
+
+		//! Add a new compound type without detailed description ** DEPRECATED **
+		static MDTypePtr AddCompound(std::string TypeName, ULPtr &UL) { return MDType::AddCompound(TypeName, TypeName, UL); }
+
+		//! Add a new enumerated value type
+		static MDTypePtr AddEnum(std::string TypeName, std::string Detail, MDTypePtr BaseType, ULPtr &UL);
+
+		//! Add a new enumerated value type without detailed description ** DEPRECATED **
+		static MDTypePtr AddEnum(std::string TypeName, MDTypePtr BaseType, ULPtr &UL) { return MDType::AddEnum(TypeName, TypeName, BaseType, UL); }
+
+		//! Add a new value to an enumerated value type
+		bool AddEnumValue(std::string Name, MDObjectPtr &Value);
+
+		//! Add a new value to an enumerated value type
+		bool AddEnumValue(std::string Name, std::string Value);
+
+		//! Add a new UL value to an enumerated value type
+		bool AddEnumValue(std::string Name, ULPtr &Value);
+
+
+
+	/* Traits handling */
+	/*******************/
+
+	protected:
+		//! Type to map type names to their handling traits
+		typedef std::map<std::string, MDTraitsPtr> TraitsMapType;
+
+		//! Map of type names to thair handling traits
+		static TraitsMapType TraitsMap;
+
+		//! Type to map type ULs to their handling traits
+		typedef std::map<UL, MDTraitsPtr> TraitsULMapType;
+
+		//! Map of type ULs to thair handling traits
+		static TraitsULMapType TraitsULMap;
+
+	protected:
+		//! Add a given type to the lookups
+		static void AddType(MDTypePtr &Type, ULPtr &TypeUL);
+
+	public:
+
+
+		/* Allow MDObject class to view internals of this class */
+		friend class MDObject;
 	};
 }
 
@@ -499,183 +628,4 @@ namespace mxflib
 	}
 }
 
-
-namespace mxflib
-{
-	//! A map of smart pointers to MDValue objects indexed by MapIndex
-	typedef std::map<MapIndex, MDValuePtr> MDValueMap;
-}
-
-
-namespace mxflib
-{
-	//! Metadata Object class
-	class MDValue : public RefCount<MDValue>, public MDValueMap
-	{
-	private:
-		MDTypePtr Type;
-		DataChunk Data;
-//		int Size;
-//		UInt8 *Data;				// DRAGONS: This should be a DataChunk
-
-	public:
-//		MDValueList Children;
-
-	public:
-		MDValue(const std::string &BaseType);
-		MDValue(MDTypePtr BaseType);
-		void Init(void);
-		~MDValue() {};
-
-		void AddChild(MDValuePtr Child, int Index = -1);
-		void Resize(UInt32 Index);
-
-		MDValuePtr operator[](int Index);
-		MDValuePtr Child(int Index) { return operator[](Index); };
-
-		//! Access function for child values of compound items
-		MDValuePtr operator[](const std::string ChildName);
-		MDValuePtr Child(const std::string ChildName) { return operator[](ChildName); };
-
-		//! Access function for child values of compound items
-		MDValuePtr operator[](const UL &Child);
-		MDValuePtr Child(const UL &Child) { return operator[](Child); };
-
-		//! Value comparison
-		bool operator==(MDValuePtr &RHS) { return operator==(*RHS); }
-
-		//! Value comparison
-		bool operator==(MDValue &RHS)
-		{
-			if(Type->EffectiveType() != RHS.Type->EffectiveType()) return false;
-			if(Data.Size != RHS.Data.Size) return false;
-			return (memcmp(Data.Data, RHS.Data.Data, Data.Size) == 0);
-		}
-
-		//! Value copy
-		MDValue &operator=(MDValue &RHS)
-		{
-			// Do a bit-copy it the types are the same
-			if(Type->EffectiveType() == RHS.Type->EffectiveType())
-			{
-				Data.Set(RHS.Data);
-			}
-			// ... otherwise copy by string value!
-			else
-			{
-				SetString(RHS.GetString());
-			}
-
-			return *this;
-		}
-
-//		std::string ChildName(int Child);
-
-		void SetInt(Int32 Val) { Type->Traits->SetInt(this, Val); };
-		void SetInt64(Int64 Val) { Type->Traits->SetInt64(this, Val); };
-		void SetUInt(UInt32 Val) { Type->Traits->SetUInt(this, Val); };
-		void SetUInt64(UInt64 Val) { Type->Traits->SetUInt64(this, Val); };
-		void SetUint(UInt32 Val) { Type->Traits->SetUInt(this, Val); };
-		void SetUint64(UInt64 Val) { Type->Traits->SetUInt64(this, Val); };
-		void SetString(std::string Val)	{ Type->Traits->SetString(this, Val); };
-		Int32 GetInt(void) { return Type->Traits->GetInt(this); };
-		Int64 GetInt64(void) { return Type->Traits->GetInt64(this); };
-		UInt32 GetUInt(void) { return Type->Traits->GetUInt(this); };
-		UInt64 GetUInt64(void) { return Type->Traits->GetUInt64(this); };
-		UInt32 GetUint(void) { return Type->Traits->GetUInt(this); };
-		UInt64 GetUint64(void) { return Type->Traits->GetUInt64(this); };
-		std::string GetString(void)	{ return Type->Traits->GetString(this); };
-
-		// Child value access
-		// DRAGONS: May need to add code to check inside "optimised" compounds
-		Int32 GetInt(const char *ChildName, Int32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt(); else return Default; };
-		Int64 GetInt64(const char *ChildName, Int64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetInt64(); else return Default; };
-		UInt32 GetUInt(const char *ChildName, UInt32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt(); else return Default; };
-		UInt64 GetUInt64(const char *ChildName, UInt64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt64(); else return Default; };
-		UInt32 GetUint(const char *ChildName, UInt32 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt(); else return Default; };
-		UInt64 GetUint64(const char *ChildName, UInt64 Default = 0) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetUInt64(); else return Default; };
-		std::string GetString(const char *ChildName, std::string Default = "") { MDValuePtr Ptr = operator[](ChildName); if (Ptr) return Ptr->GetString(); else return Default; };
-		void SetInt(const char *ChildName, Int32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt(Val); };
-		void SetInt64(const char *ChildName, Int64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetInt64(Val); };
-		void SetUInt(const char *ChildName, UInt32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt(Val); };
-		void SetUInt64(const char *ChildName, UInt64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
-		void SetUint(const char *ChildName, UInt32 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt(Val); };
-		void SetUint64(const char *ChildName, UInt64 Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetUInt64(Val); };
-		void SetString(const char *ChildName, std::string Val) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->SetString(Val); };
-		
-		// Child value access
-		// DRAGONS: May need to add code to check inside "optimised" compounds
-		Int32 GetInt(const UL &Child, Int32 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetInt(); else return Default; };
-		Int64 GetInt64(const UL &Child, Int64 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetInt64(); else return Default; };
-		UInt32 GetUInt(const UL &Child, UInt32 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetUInt(); else return Default; };
-		UInt64 GetUInt64(const UL &Child, UInt64 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetUInt64(); else return Default; };
-		UInt32 GetUint(const UL &Child, UInt32 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetUInt(); else return Default; };
-		UInt64 GetUint64(const UL &Child, UInt64 Default = 0) { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetUInt64(); else return Default; };
-		std::string GetString(const UL &Child, std::string Default = "") { MDValuePtr Ptr = operator[](Child); if (Ptr) return Ptr->GetString(); else return Default; };
-		void SetInt(const UL &Child, Int32 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetInt(Val); };
-		void SetInt64(const UL &Child, Int64 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetInt64(Val); };
-		void SetUInt(const UL &Child, UInt32 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetUInt(Val); };
-		void SetUInt64(const UL &Child, UInt64 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetUInt64(Val); };
-		void SetUint(const UL &Child, UInt32 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetUInt(Val); };
-		void SetUint64(const UL &Child, UInt64 Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetUInt64(Val); };
-		void SetString(const UL &Child, std::string Val) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->SetString(Val); };
-
-		void ReadValue(const char *ChildName, const DataChunk &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
-		void ReadValue(const char *ChildName, DataChunkPtr &Source) { MDValuePtr Ptr = operator[](ChildName); if (Ptr) Ptr->ReadValue(Source); };
-
-		void ReadValue(const UL &Child, const DataChunk &Source) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->ReadValue(Source); };
-		void ReadValue(const UL &Child, DataChunkPtr &Source) { MDValuePtr Ptr = operator[](Child); if (Ptr) Ptr->ReadValue(Source); };
-
-		// DRAGONS: These should probably be private and give access via MDTraits
-		// to prevent users tinkering!
-		size_t MakeSize(size_t NewSize);
-
-		size_t ReadValue(const DataChunk &Chunk) { return ReadValue(Chunk.Data, Chunk.Size); };
-		size_t ReadValue(DataChunkPtr &Chunk) { return ReadValue(Chunk->Data, Chunk->Size); };
-		size_t ReadValue(const UInt8 *Buffer, size_t Size, int Count=0);
-
-		//! Get a reference to the data chunk (const to prevent setting!!)
-		const DataChunk& GetData(void) { return (const DataChunk&) Data; };
-
-		//! Build a data chunk with all this items data (including child data)
-		DataChunkPtr PutData(void);
-
-		//! Set data into the datachunk
-		// DRAGONS: This is dangerous!!
-		void SetData(size_t MemSize, const UInt8 *Buffer) 
-		{ 
-			Data.Resize(MemSize); 
-			Data.Set(MemSize, Buffer); 
-		};
-
-		// Report the name of this item (the name of its type)
-		const std::string &Name(void) const { ASSERT(Type); return Type->TypeName; };
-
-		// Type access function
-		MDTypePtr GetType(void) { return Type; };
-		MDTypePtr EffectiveType(void) { return Type->EffectiveType(); };
-		MDTypePtr EffectiveBase(void) { return Type->EffectiveBase(); };
-	};
-}
-
-
-// These simple inlines need to be defined after MDValue
-namespace mxflib
-{
-	inline MDValuePtr MDValuePtr::operator[](int Index) 
-	{ 
-		// TODO: We need to find a solution to this!
-		ASSERT(!(operator->()->GetType()->HandlesSubdata()));
-		return operator->()->operator[](Index); 
-	};
-	inline MDValuePtr MDValuePtr::operator[](const std::string ChildName) 
-	{ 
-		// TODO: We need to find a solution to this!
-		ASSERT(!(operator->()->GetType()->HandlesSubdata()));
-		return operator->()->operator[](ChildName); 
-	};
-}
-
-
 #endif // MXFLIB__MDTYPE_H
-

@@ -3,7 +3,8 @@
 	ProjectType="Visual C++"
 	Version="8.00"
 	Name="mxfwrap"
-	ProjectGUID="{A2A9F96A-3DA9-417D-BF9C-2C13A65662E6}"
+	ProjectGUID="{BD35E63C-745B-482D-846F-5F658ABED304}"
+	RootNamespace="mxfwrap"
 	>
 	<Platforms>
 		<Platform
@@ -15,10 +16,10 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -42,17 +43,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
-				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="../..;../../include;../../libjpeg;&quot;$(CODECS_ROOT)\VC3Codec\Source&quot;;&quot;$(CODECS_ROOT)\DNxHDCodecSDK\include&quot;"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;AVIDMXF;_CRT_SECURE_NO_DEPRECATE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Debug/mxfwrap.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				CompileAs="0"
 			/>
@@ -69,8 +68,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
+				OutputFile="$(OutDir)/mxfwrap.exe"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
+				AdditionalLibraryDirectories=""
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -98,16 +99,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -131,17 +132,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="2"
 				InlineFunctionExpansion="1"
-				AdditionalIncludeDirectories="..\.."
+				AdditionalIncludeDirectories="../..;../../include;../../libjpeg;&quot;$(CODECS_ROOT)\VC3Codec\Source&quot;;&quot;$(CODECS_ROOT)\DNxHDCodecSDK\include&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxfwrap.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				CompileAs="0"
@@ -159,6 +158,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/mxfwrap.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				SubSystem="1"
@@ -187,16 +187,194 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
+			/>
+		</Configuration>
+		<Configuration
+			Name="ReleaseSecure|Win32"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
+			ConfigurationType="1"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
+			UseOfMFC="0"
+			ATLMinimizesCRunTimeLibraryUsage="false"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+				TypeLibraryName=".\Release/mxfwrap.tlb"
+				HeaderFileName=""
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="2"
+				InlineFunctionExpansion="1"
+				AdditionalIncludeDirectories="../..;../../include;../../libjpeg;&quot;$(CODECS_ROOT)\VC3Codec\Source&quot;;&quot;$(CODECS_ROOT)\DNxHDCodecSDK\include&quot;"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
+				StringPooling="true"
+				RuntimeLibrary="2"
+				EnableFunctionLevelLinking="true"
+				RuntimeTypeInfo="true"
+				PrecompiledHeaderFile=""
+				WarningLevel="3"
+				SuppressStartupBanner="true"
+				CompileAs="0"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="NDEBUG"
+				Culture="2057"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/mxfwrap.exe"
+				LinkIncremental="1"
+				SuppressStartupBanner="true"
+				SubSystem="1"
+				TargetMachine="1"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
+			/>
+		</Configuration>
+		<Configuration
+			Name="ReleaseDemo|Win32"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
+			ConfigurationType="1"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
+			UseOfMFC="0"
+			ATLMinimizesCRunTimeLibraryUsage="false"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+				TypeLibraryName=".\Release/mxfwrap.tlb"
+				HeaderFileName=""
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="2"
+				InlineFunctionExpansion="1"
+				AdditionalIncludeDirectories="../..;../../include;../../libjpeg;&quot;$(CODECS_ROOT)\VC3Codec\Source&quot;;&quot;$(CODECS_ROOT)\DNxHDCodecSDK\include&quot;"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
+				StringPooling="true"
+				RuntimeLibrary="2"
+				EnableFunctionLevelLinking="true"
+				RuntimeTypeInfo="true"
+				PrecompiledHeaderFile=""
+				WarningLevel="3"
+				SuppressStartupBanner="true"
+				CompileAs="0"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="NDEBUG"
+				Culture="2057"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="$(OutDir)/libwrapmxf_demo.lib"
+				OutputFile="$(OutDir)/mxfwrap.exe"
+				LinkIncremental="1"
+				SuppressStartupBanner="true"
+				IgnoreDefaultLibraryNames=""
+				SubSystem="1"
+				TargetMachine="1"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="DebugStatic|Win32"
-			OutputDirectory="$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -220,17 +398,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
-				AdditionalIncludeDirectories="..\.."
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="../..;../../include;../../libjpeg;&quot;$(CODECS_ROOT)\VC3Codec\Source&quot;;&quot;$(CODECS_ROOT)\DNxHDCodecSDK\include&quot;"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;AVIDMXF;_CRT_SECURE_NO_DEPRECATE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Debug/mxfwrap.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				CompileAs="0"
 			/>
@@ -247,8 +423,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
+				OutputFile="$(OutDir)/mxfwrap.exe"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
+				AdditionalLibraryDirectories=""
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -276,16 +454,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="ReleaseStatic|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -309,17 +487,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="2"
 				InlineFunctionExpansion="1"
-				AdditionalIncludeDirectories="..\.."
+				AdditionalIncludeDirectories="../..;../../include;../../libjpeg;&quot;$(CODECS_ROOT)\VC3Codec\Source&quot;;&quot;$(CODECS_ROOT)\DNxHDCodecSDK\include&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/mxfwrap.pch"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				CompileAs="0"
@@ -337,6 +513,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/mxfwrap.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				SubSystem="1"
@@ -365,8 +542,8 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 	</Configurations>
@@ -389,10 +566,31 @@
 						AdditionalIncludeDirectories=""
 						PreprocessorDefinitions=""
 						BasicRuntimeChecks="3"
+						ShowIncludes="false"
 					/>
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						Optimization="2"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseSecure|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						Optimization="2"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="ReleaseDemo|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -410,6 +608,7 @@
 						AdditionalIncludeDirectories=""
 						PreprocessorDefinitions=""
 						BasicRuntimeChecks="3"
+						ShowIncludes="false"
 					/>
 				</FileConfiguration>
 				<FileConfiguration
@@ -423,16 +622,19 @@
 					/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath="..\..\mxfwrap\parseoptions.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl"
 			>
-		</Filter>
-		<Filter
-			Name="Resource Files"
-			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
-			>
+			<File
+				RelativePath="..\..\mxfwrap\parseoptions.h"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

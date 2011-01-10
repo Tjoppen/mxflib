@@ -1,7 +1,7 @@
 /*! \file	esp.cpp
  *	\brief	Initialisation of the essence sub-parser list
  *
- *	\version $Id: esp.cpp,v 1.2 2006/06/29 14:40:41 matt-beard Exp $
+ *	\version $Id: esp.cpp,v 1.3 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -40,7 +40,6 @@ using namespace mxflib;
 #include <mxflib/esp_wavepcm.h>
 #include <mxflib/esp_dvdif.h>
 #include <mxflib/esp_jp2k.h>
-
 
 
 //! List of pointers to known parsers

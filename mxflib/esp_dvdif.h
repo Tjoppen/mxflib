@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.h
  *	\brief	Definition of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.h,v 1.14 2007/03/31 14:29:42 matt-beard Exp $
+ *	\version $Id: esp_dvdif.h,v 1.15 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -51,9 +51,13 @@ namespace mxflib
 		Position DIFStart;									//!< Byte offset of first byte of first DIF
 		Position DIFEnd;									//!< Byte offset of last byte of last DIF + 1, or -1 if the file is an AVI file
 
-		int SeqCount;										//!< Number of DIF sequences in a frame
+		int SeqCount;										//!< Number of DIF sequences in an edit unit
+		int NativeSeqCount;									//!< Number of DIF sequences in a frame at native edit rate
 
+		bool is50Hz;										//!< True if this is 50Hz or 25Hz essence
+		bool is720P;										//!< True if this is 720P HD essence
 		bool isS314M;										//!< True if this is a SMPTE 314M DV stream ("DV-Based")
+		int DataRate;										//!< The nominal data rate, in mbps (i.e. 25, 50 or 100)
 
 		UInt32 AVIFrameCount;								//!< The number of frames, if the essence is AVI wrapped
 		int StreamNumber;									//!< AVI Stream number, if the essence is AVI wrapped
@@ -116,7 +120,7 @@ namespace mxflib
 
 					Started = true;
 				}
-*/
+			 */
 
 				return BaseGetEssenceData(Size, MaxSize);
 			}
@@ -187,7 +191,6 @@ namespace mxflib
 		//! Get BytesPerEditUnit, if Constant
 		virtual UInt32 GetBytesPerEditUnit(UInt32 KAGSize = 1)
 		{
-			// FIXME: Assumes 25Mbps
 			UInt32 Ret = (150 * 80 * SeqCount);
 
 			if(SelectedWrapping->ThisWrapType == WrappingOption::Frame) 

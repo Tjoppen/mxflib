@@ -1,7 +1,7 @@
 /*! \file	helper.cpp
  *	\brief	Verious helper functions
  *
- *	\version $Id: helper.cpp,v 1.20 2008/03/25 17:05:33 matt-beard Exp $
+ *	\version $Id: helper.cpp,v 1.21 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
@@ -128,7 +128,7 @@ UInt32 mxflib::MakeBER(UInt8 *Data, int MaxSize, UInt64 Length, UInt32 Size /*=0
  *  \return The length, or -1 if the data was not a valid BER length
  *  \note MaxSize is signed to allow calling code to end up with -ve available bytes!
  */
-Length mxflib::ReadBER(UInt8 **Data, int MaxSize)
+Length mxflib::ReadBER(UInt8 const **Data, int MaxSize)
 {
 	if(MaxSize <= 0) return -1;
 
@@ -202,6 +202,40 @@ int mxflib::EncodeOID( UInt8* presult, UInt64 subid, int length )
 }
 
 
+//! Build a new UMID from given values
+//!AssetID is 16 bytes with the desired UUID
+UMIDPtr mxflib::MakeUMIDFromUUID(  int Type, const UInt8* AssetID )
+{
+	static const UInt8 UMIDBase[10] = { 0x06, 0x0a, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
+	UInt8 Buffer[32];
+
+	// Set the non-varying base of the UMID
+	memcpy(Buffer, UMIDBase, 10);
+
+	// Correct to v5 dictionary for new (330M-2003) types
+	if( Type > 4 ) Buffer[7] = 5;
+
+	// Set the type
+	Buffer[10] = Type;
+
+	// We are using a GUID for material number, and no defined instance method
+	Buffer[11] = 0x20;
+
+	// Length of UMID "Value" is 19 bytes
+	Buffer[12] = 0x13;
+
+	// Set instance number to zero as this is the first instance of this material
+	Buffer[13] = 0;
+	Buffer[14] = 0;
+	Buffer[15] = 0;
+
+	memcpy( &Buffer[16], AssetID, 16 );
+
+	return new UMID(Buffer);
+
+}
+
+
 //! Build a new UMID
 UMIDPtr mxflib::MakeUMID(int Type, const UUIDPtr AssetID)
 {
@@ -229,7 +263,6 @@ UMIDPtr mxflib::MakeUMID(int Type, const UUIDPtr AssetID)
 	Buffer[15] = 0;
 
 	/* Fill the material number with a UUID (no swapping) */
-
 	// If no valid AssetID is provided, create a new one
 	if( ( !AssetID ) || ( AssetID->Size() != 16 ) )
 	{
@@ -714,6 +747,26 @@ int mxflib::ReadHexString(const char **Source, int Max, UInt8 *Dest, const char 
 }
 
 
+//! Read hex values separated by any of 'Sep', if it is a urn read any of the supported formats via StringToUL
+/*! \return number of values read 
+	*/
+int mxflib::ReadHexStringOrUL(const char *Source, int Max, UInt8 *Dest, const char *Sep)
+{
+	// Don't even attempt the UL version unless enough bytes
+	if(Max >= 16)
+	{
+		// Anything starting "urn:" goes via StringToUL
+		if((tolower(*Source) == 'u') && (tolower(Source[1]) == 'r') && (tolower(Source[2]) == 'n') && (tolower(Source[3]) == ':'))
+		{
+			// If StringToUL fails we drop through and read the raw hex bytes
+			if(StringToUL(Dest, std::string(Source))) return 16;
+		}
+	}
+
+	return ReadHexString(Source, Max, Dest, Sep);
+}
+
+	
 //! Build a UL from a character string, writing the bytes into a 16-byte buffer
 /*! \return true if a full 16 bytes were read into the buffer, else false
  */
@@ -771,6 +824,9 @@ bool mxflib::StringToUL(UInt8 *Data, std::string Val)
 				EndSwap = true;
 			}
 
+			// Reject strings with non-hex alpha characters
+			if(isalpha(*p)) return false;
+
 			if(Value == -1)
 			{
 				// Skip second or subsiquent non-digit
@@ -784,11 +840,13 @@ bool mxflib::StringToUL(UInt8 *Data, std::string Val)
 
 				Count--;
 
-				if(*p) p++;
-				
 				Value = -1;
 				DigitCount = 0;
 
+				// Exit as soon as we hit the terminating zero
+				if(!(*p)) break;
+				p++;
+				
 				continue;
 			}
 		}
@@ -839,6 +897,192 @@ bool mxflib::StringToUL(UInt8 *Data, std::string Val)
 	// Return true if we read 16-bytes worth of data
 	return (Count == 0);
 }
+
+namespace mxflib
+{
+	//! Split a StringArray that contains several zero terminated strings into a std::list of std::strings
+	/*! DRAGONS: We use the current UTF16String GetString trait to ensure that we always have the correct handling,
+	 *           even if the user wants these strings handled differently (i.e. we do it their way!)
+	 */
+	std::list<std::string> SplitStringArray(const MDObjectPtr &Array)
+	{
+		std::list<std::string> Ret;
+
+		// Quit early if an invalid parameter
+		if(!Array) return Ret;
+
+		// Build a working string
+		static MDTypePtr ValType = MDType::Find("UTF16String");
+		MDObjectPtr Value = ValType ? new MDObject(ValType) : NULL;
+		if(!Value)
+		{
+			error("Can't build UTF16String value required by SplitStringArray() - need this type to be defined in the dictionary file\n");
+			return Ret;
+		}
+
+		// Assemble the data value (which may be an array of sub-values)
+		DataChunkPtr Data = Array->PutData();
+
+		// Get a pointer to the start of the data
+		UInt8 *pData = Data->Data;
+
+		// The number of bytes of data to split
+		size_t BytesLeft = Data->Size;
+
+		while(BytesLeft > 1)
+		{
+			// Find the end of the current string
+			size_t Len = 0;
+			UInt8 *p = pData;
+			while(BytesLeft > 1)
+			{
+				BytesLeft -= 2;
+				Len += 2;
+				UInt16 Char = GetU16(p);
+				p += 2;
+
+				// End when we find a null
+				if(Char == 0) break;
+			}
+
+			// Copy this string to the working value
+			Value->SetValue(pData, Len);
+
+			// Read out the traits-formatted version of the string
+			Ret.push_back(Value->GetString());
+
+			// Move the pointer forward to the next value after the string terminator
+			pData = p;
+		}
+
+		return Ret;
+	}
+
+
+	//! Set a StringArray property that contains several zero terminated strings from a std::list of std::strings
+	/*! DRAGONS: We use the current UTF16String SetString trait to ensure that we always have the correct handling,
+	 *           even if the user wants these strings handled differently (i.e. we do it their way!)
+	 */
+	void SetStringArray(MDObjectPtr &Array, const std::list<std::string> &Strings)
+	{
+		// Abort if we are send a NULL pointer
+		if(!Array) return;
+
+		// Don't bother if we have nothing to do
+		if(Strings.empty()) return;
+
+		// Build a working string
+		static MDTypePtr ValType = MDType::Find("UTF16String");
+		MDObjectPtr Value = ValType ? new MDObject(ValType) : NULL;
+		if(!Value)
+		{
+			error("Can't build UTF16String value required by SetStringArray() - need this type to be defined in the dictionary file\n");
+			return;
+		}
+
+		// Get a buffer in which to build the final string array, make it quite granular as it will keep growing
+		DataChunkPtr Buffer = new DataChunk();
+		Buffer->SetGranularity(16 * 1024);
+
+		std::list<std::string>::const_iterator it = Strings.begin();
+		while(it != Strings.end())
+		{
+			Value->SetString(*it);
+			DataChunkPtr ThisString = Value->PutData();
+			Buffer->Append(ThisString);
+			
+			// Add terminator if required, i.e. if the sub-string we just added did not end in a zero
+			UInt8 *p = &ThisString->Data[ThisString->Size];
+
+			// Terminate if either of the last two bytes in the current buffer is non-zero - or if the string was too short to have a terminator
+			if((ThisString->Size) < 2 || ((*(--p) != 0) || (*(--p) != 0)))
+			{
+				const UInt8 Term[2] = { 0, 0};
+				Buffer->Set(2, Term, Buffer->Size);
+			}
+
+			it++;
+		}
+
+		// Set the value from this buffer
+		Array->SetValue(Buffer);
+	}
+
+
+	//! Read a complete line from a file and return it as a string, treats CR, LF, CRLF and LFCR as valid line ends
+	std::string FileGets(FileHandle File)
+	{
+		std::string Line;
+		if(!FileValid(File)) return Line;
+
+		while(!FileEof(File))
+		{
+			char c = static_cast<char>(FileGetc(File));
+			
+			// Enf of line?
+			if((c == '\n') || (c == '\r'))
+			{
+				// If not the last item byte in the file...
+				if(!FileEof(File))
+				{
+					// Check the next byte, and if it is something we should not have read, push it back by seeking back
+					UInt64 Pos = FileTell(File);
+					char c2 = static_cast<char>(FileGetc(File));
+
+					// We only discard a second character if it is also a \n or \r, but not a duplicate of the first
+					if(((c2 != '\n') && (c2 != '\r')) || (c2 == c)) FileSeek(File, Pos);
+				}
+				break;
+			}
+
+			Line += c;
+		}
+
+		return Line;
+	}
+}
+
+#ifndef _WIN32
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <sys/socket.h> /* for socket() and bind() */
+//#include <arpa/inet.h>  /* for sockaddr_in */
+#include <sys/file.h>
+
+static int  getRandomFD()
+{
+	int FileDesc=0;
+
+	FileDesc = open("/dev/urandom", O_RDONLY);  //try to open urandom
+	if (FileDesc == -1)
+		FileDesc = open("/dev/random", O_RDONLY | O_NONBLOCK);  //maybe random exists so open non-blocking
+	return FileDesc;
+}
+
+void mxflib::getRandnumbers( Uint8 * buff, int nbytes)
+{
+	UInt32 randoms[8];
+	int FileDesc=getRandomFD();
+	if(FileDesc)
+	{
+		read(FileDesc,buff, nbytes);
+	}
+	else
+	{
+		struct timeval timeVal;
+		gettimeofday(&timeVal, 0);
+
+		srand((unsigned int)((getpid() << 16) ^ (getppid() << 8) ^ getuid() ^ timeVal.tv_sec ^ timeVal.tv_usec));
+
+		int ntoThrowAway=((unsigned int)clock() & 0x0F) +5;
+		for( int i=0; i<ntoThrowAway;i++)
+			rand();
+		for( int i=0; i<nbytes;i++)
+			buff[i]=rand();
+	}
+	close(FileDesc);
+}
+#endif
 
 
 

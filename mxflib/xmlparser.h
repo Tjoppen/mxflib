@@ -1,7 +1,7 @@
 /*! \file	xmlparser.h
  *	\brief	Interface to available SAX style XML parser
  *
- *	\version $Id: xmlparser.h,v 1.1 2005/10/11 10:01:01 matt-beard Exp $
+ *	\version $Id: xmlparser.h,v 1.2 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -31,6 +31,8 @@
 #define MXFLIB__XMLPARSE_H
 
 #ifdef HAVE_EXPAT
+#include <expat.h>
+#include <string>
 
 namespace mxflib
 {
@@ -45,7 +47,18 @@ namespace mxflib
 	typedef sopSAXHandler XMLParserHandler;
 	typedef XMLParserHandler *XMLParserHandlerPtr;
 
-	bool XMLParserParseFile(XMLParserHandlerPtr Hand, void *UserData, const char *filename);
+	bool XMLParserParseFile(XML_Parser *pParser, XMLParserHandlerPtr Hand, void *UserData, const char *filename, bool ParseNamespaces = false);
+	bool XMLParserParseString(XML_Parser *pParser, XMLParserHandlerPtr Hand, void *UserData, std::string & strXML, bool ParseNamespaces = false);
+
+	inline bool XMLParserParseFile(XMLParserHandlerPtr Hand, void *UserData, const char *filename, bool ParseNamespaces = false)
+	{
+		return XMLParserParseFile(NULL, Hand, UserData, filename, ParseNamespaces);
+	}
+
+	inline bool XMLParserParseString(XMLParserHandlerPtr Hand, void *UserData, std::string & strXML, bool ParseNamespaces = false)
+	{
+		return XMLParserParseString(NULL, Hand, UserData, strXML, ParseNamespaces);
+	}
 }
 
 #else // HAVE_EXPAT
@@ -62,11 +75,30 @@ namespace mxflib
 	typedef sopSAXHandler XMLParserHandler;
 	typedef XMLParserHandler *XMLParserHandlerPtr;
 
+	// Don't currently support parser pointers
+	typedef void* XML_Parser;
+
 	//! Use the sopSAX parser to parse the file
-	inline bool XMLParserParseFile(XMLParserHandlerPtr Hand, void *UserData, const char *filename)
+	inline bool XMLParserParseFile(XML_Parser *pParser, XMLParserHandlerPtr Hand, void *UserData, const char *filename, bool ParseNamespaces = false)
 	{
+		if(pParser)
+		{
+			error("XMLParserParseFile() must have NULL as first parameter if Expat XML parser not used\n");
+			return false;
+		}
+		if(ParseNamespaces)
+		{
+			error("Unable to parse namespaces in XML file %s without Expat parser\n", filename);
+			return false;
+		}
 		return sopSAXParseFile(Hand, UserData, filename);
 	}
+
+	inline bool XMLParserParseFile(XMLParserHandlerPtr Hand, void *UserData, const char *filename, bool ParseNamespaces = false)
+	{
+		return XMLParserParseFile(NULL, Hand, UserData, filename, ParseNamespaces);
+	}
+
 }
 
 #endif // HAVE_EXPAT

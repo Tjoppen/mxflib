@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.h,v 1.6 2007/07/06 12:02:34 matt-beard Exp $
+ *	\version $Id: klvobject.h,v 1.7 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -376,7 +376,7 @@ namespace mxflib
 			Length BytesToWrite = Data.Size - Start;
 
 			// Write the requested size (if valid)
-			if((Size > 0) && (Size < BytesToWrite)) BytesToWrite = Size;
+			if((Size > 0) && ((Length)Size < BytesToWrite)) BytesToWrite = Size;
 
 			// Sanity check the size of this chunk
 			if((sizeof(size_t) < 8) && (BytesToWrite > 0xffffffff))

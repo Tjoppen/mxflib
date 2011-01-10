@@ -1,7 +1,7 @@
 /*! \file	mxfcrypt.cpp
  *	\brief	MXF en/decrypt utility for MXFLib
  *
- *	\version $Id: mxfcrypt.cpp,v 1.17 2007/04/01 21:53:39 matt-beard Exp $
+ *	\version $Id: mxfcrypt.cpp,v 1.18 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
@@ -37,6 +37,8 @@ using namespace mxflib;
 
 // Include the AS-DCP crypto header
 #include "crypto_asdcp.h"
+
+#include "mxflib/dict.h"
 
 
 using namespace std;
@@ -151,8 +153,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Load the dictionaries
-	LoadDictionary("dict.xml");
-	LoadDictionary("DMS_Crypto.xml");
+	LoadDictionary(DictData);
 
 	if (argc - num_options < 3)
 	{
@@ -404,7 +405,7 @@ int main(int argc, char *argv[])
 					MDObjectULList::iterator it = SrcECBatch->begin();
 					while(it != SrcECBatch->end())
 					{
-						DstECBatch->AddChild()->ReadValue((*it).second->Value->PutData());
+						DstECBatch->AddChild()->SetValue((*it).second->Value->PutData());
 						it++;
 					}
 				}
@@ -424,28 +425,28 @@ int main(int argc, char *argv[])
 
 	if(WriteMetadataInFooter)
 	{
-		if(MasterPartition->IsComplete()) 
-			MasterPartition->ChangeType(CompleteFooter_UL);
-		else
-			MasterPartition->ChangeType(Footer_UL);
+	if(MasterPartition->IsComplete()) 
+		MasterPartition->ChangeType(CompleteFooter_UL);
+	else
+		MasterPartition->ChangeType(Footer_UL);
 
-		// Ensure we maintain the same KAG as the previous footer
-		MasterPartition->SetKAG(Writer->GetKAG());
+	// Ensure we maintain the same KAG as the previous footer
+	MasterPartition->SetKAG(Writer->GetKAG());
 
-		if(PreserveIndex)
-		{
-			MasterPartition->SetUInt(IndexSID_UL, IndexSID);
-			OutFile->WritePartitionWithIndex(MasterPartition, OriginalIndexData);
-		}
-		else if(Index)
-		{
-			MasterPartition->SetUInt(IndexSID_UL, IndexSID);
-			DataChunkPtr IndexData = new DataChunk;
-			Index->WriteIndex(*IndexData);
-			OutFile->WritePartitionWithIndex(MasterPartition, IndexData);
-		}
-		else
-			OutFile->WritePartition(MasterPartition);
+	if(PreserveIndex)
+	{
+		MasterPartition->SetUInt(IndexSID_UL, IndexSID);
+		OutFile->WritePartitionWithIndex(MasterPartition, OriginalIndexData);
+	}
+	else if(Index)
+	{
+		MasterPartition->SetUInt(IndexSID_UL, IndexSID);
+		DataChunkPtr IndexData = new DataChunk;
+		Index->WriteIndex(*IndexData);
+		OutFile->WritePartitionWithIndex(MasterPartition, IndexData);
+	}
+	else
+		OutFile->WritePartition(MasterPartition);
 	}
 
 	// Add a RIP
@@ -470,7 +471,7 @@ int main(int argc, char *argv[])
 bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyParser, GCWriterPtr Writer, bool LoadInfo /*=false*/)
 {
 	// Locate the Content Storage set
-	MDObjectPtr ContentStorage = HMeta[ContentStorage_UL];
+	MDObjectPtr ContentStorage = HMeta[ContentStorageObject_UL];
 	if(ContentStorage) ContentStorage = ContentStorage->GetLink();
 
 	if(!ContentStorage)
@@ -480,7 +481,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 	}
 
 	// And locate the Essence Container Data batch in the Content Storage set
-	MDObjectPtr EssenceContainerData = ContentStorage[EssenceContainerDataBatch_UL];
+	MDObjectPtr EssenceContainerData = ContentStorage[EssenceDataObjects_UL];
 
 	if(!EssenceContainerData)
 	{
@@ -626,7 +627,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 		{
 			// Add the crypto scheme
 			MDObjectPtr Ptr = DMSchemes->AddChild();
-			if(Ptr) Ptr->ReadValue(CryptographicFrameworkLabel_UL.GetValue(), 16);
+			if(Ptr) Ptr->SetValue(CryptographicFrameworkLabel_UL.GetValue(), 16);
 		}
 	}
 
@@ -676,7 +677,7 @@ bool ProcessMetadata(bool DecryptMode, MetadataPtr HMeta, BodyReaderPtr BodyPars
 									ULPtr GCUL = new UL( mxflib::GCMulti_Data );
 									HMeta->AddEssenceType( GCUL );
 
-									MDObjectPtr SubPtr = Ptr[SubDescriptorUIDs_UL];
+									MDObjectPtr SubPtr = Ptr[FileDescriptors_UL];
 									if(SubPtr)
 									{
 										MDObject::iterator subit = SubPtr->begin();
@@ -766,7 +767,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	{
 		// Change the essence UL in the descriptor to claim to be encrypted
 		const UInt8 EncryptedEssenceUL[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x0b, 0x01, 0x00 };
-		ContainerUL->ReadValue(EncryptedEssenceUL, 16);
+		ContainerUL->SetValue(EncryptedEssenceUL, 16);
 	}
 
 	// Add a crypto track
@@ -815,16 +816,16 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	
 	// Set the context ID
 	MDObjectPtr Ptr = CryptoContext->AddChild(ContextID_UL);
-	if(Ptr) Ptr->ReadValue(ContextID->GetValue(), 16);
+	if(Ptr) Ptr->SetValue(ContextID->GetValue(), 16);
 
 	// Set the original essence UL
 	Ptr = CryptoContext->AddChild(SourceEssenceContainer_UL);
-	if(Ptr) Ptr->ReadValue(EssenceUL);
+	if(Ptr) Ptr->SetValue(EssenceUL);
 
 	// Set the encryption algorithm
 	const UInt8 CypherLabel[] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x07, 0x02, 0x09, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00 };
 	Ptr = CryptoContext->AddChild(CipherAlgorithm_UL);
-	if(Ptr) Ptr->ReadValue(CypherLabel, 16);
+	if(Ptr) Ptr->SetValue(CypherLabel, 16);
 
 	// Specify no MIC
 	const UInt8 MICLabel_NULL[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -833,9 +834,9 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	if(Ptr) 
 	{
 		if(Hashing)
-			Ptr->ReadValue(MICLabel_HMAC_SHA1, 16);
+			Ptr->SetValue(MICLabel_HMAC_SHA1, 16);
 		else
-			Ptr->ReadValue(MICLabel_NULL, 16);
+			Ptr->SetValue(MICLabel_NULL, 16);
 	}
 
 
@@ -877,7 +878,7 @@ bool ProcessPackageForEncrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	}
 
 	Ptr = CryptoContext->AddChild(CryptographicKeyID_UL);
-	if(Ptr) Ptr->ReadValue(KeyBuffU8, 16);
+	if(Ptr) Ptr->SetValue(KeyBuffU8, 16);
 
 	/* Now set up the crypto handlers */
 
@@ -976,7 +977,7 @@ bool ProcessPackageForDecrypt(BodyReaderPtr BodyParser, GCWriterPtr Writer, UInt
 	if(!PreserveECLabel)
 	{
 		// Change the essence UL in the descriptor back to the original version
-		ContainerUL->ReadValue(OriginalEssenceUL);
+		ContainerUL->SetValue(OriginalEssenceUL);
 	}
 
 	// Don't validate or set up crypto if not loading data

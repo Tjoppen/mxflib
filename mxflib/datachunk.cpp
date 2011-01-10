@@ -1,7 +1,7 @@
 /*! \file	datachunk.cpp
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.cpp,v 1.5 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: datachunk.cpp,v 1.6 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
@@ -94,7 +94,7 @@ void mxflib::DataChunk::ResizeBuffer(size_t NewSize, bool PreserveContents /*=tr
 
 
 //! Get a (hex) string representation of the data in the buffer
-std::string mxflib::DataChunk::GetString(void)
+std::string mxflib::DataChunk::GetString(void) const
 {
 	std::string Ret;
 	unsigned i;

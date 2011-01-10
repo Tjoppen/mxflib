@@ -1,7 +1,7 @@
 /*! \file	datachunk.h
  *	\brief	Simple re-sizable data chunk object
  *
- *	\version $Id: datachunk.h,v 1.6 2006/07/02 13:27:50 matt-beard Exp $
+ *	\version $Id: datachunk.h,v 1.7 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -60,6 +60,7 @@ namespace mxflib
 		DataChunk() : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) {};
 
 		//! Construct a data chunk with a pre-allocated buffer
+		/*! DRAGONS: "Size" will be the size of the full buffer when returned */
 		DataChunk(size_t BufferSize) : DataSize(0), AllocationGranularity(0), ExternalBuffer(false), Size(0), Data(NULL) { Resize(BufferSize); };
 
 		//! Construct a data chunk with contents
@@ -115,6 +116,12 @@ namespace mxflib
 			memcpy(&Data[Start], Buffer, MemSize);
 		}
 
+		//! Set all bytes to same value
+		void Set(Uint8 val)
+		{
+			memset( Data, val, Size);
+		}
+
 		//! Append some data to a data chunk
 		void Append(const DataChunk &Buffer)
 		{
@@ -152,7 +159,7 @@ namespace mxflib
 		bool operator!=(const DataChunk &Right) const { return !operator==(Right); };
 
 		//! Get a (hex) string representation of the data in the buffer
-		std::string GetString(void);
+		std::string GetString(void) const;
 
 		//! Allocation granularity access functions
 		void SetGranularity(size_t Gran) { AllocationGranularity = Gran; };

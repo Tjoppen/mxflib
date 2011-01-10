@@ -1,7 +1,7 @@
 /*! \file	esp_dvdif.cpp
  *	\brief	Implementation of class that handles parsing of DV-DIF streams
  *
- *	\version $Id: esp_dvdif.cpp,v 1.19 2007/03/31 14:29:42 matt-beard Exp $
+ *	\version $Id: esp_dvdif.cpp,v 1.20 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 #include <math.h>	// For "floor"
 
@@ -181,7 +181,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 						// Build a descriptor with a zero ID (we only support single stream files)
 						EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
 						Descriptor->ID = 0;
-						Descriptor->Description = "DV-DIF audio/video essence (AVI Wrapped)";
+						Descriptor->Description = "DV-DIF video essence (AVI Wrapped)";
 						Descriptor->SourceFormat.Set(DV_DIF_AVI_Format);
 						Descriptor->Descriptor = VideoDescObj;
 
@@ -214,7 +214,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 									// Copy up the video edit rate
 									MuxDescObj->SetString(SampleRate_UL, VideoDescObj->GetString(SampleRate_UL));
 
-									MDObjectPtr SubDescriptors = MuxDescObj->AddChild(SubDescriptorUIDs_UL);
+									MDObjectPtr SubDescriptors = MuxDescObj->AddChild(FileDescriptors_UL);
 									if(SubDescriptors)
 									{
 										MDObjectPtr Ptr = SubDescriptors->AddChild();
@@ -228,12 +228,12 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 											MDObjectPtr NewCopy = MonoDesc->MakeCopy();
 											if(Ptr) Ptr->MakeRef(NewCopy);
 										}
-									
+
 										// Build a descriptor with a zero ID (we only support single stream files)
 										EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
 										MuxDescriptor->ID = 0;
-										MuxDescriptor->Description = "DV-DIF audio/video essence (AVI Wrapped)";
-										MuxDescriptor->SourceFormat.Set(DV_DIF_RAW_Format);
+										MuxDescriptor->Description = "DV-DIF audio/video essence, multiple audio tracks (AVI Wrapped)";
+										MuxDescriptor->SourceFormat.Set(DV_DIF_AVI_Format);
 										MuxDescriptor->Descriptor = MuxDescObj;
 
 										// Add the multiple descriptor
@@ -248,7 +248,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 								// Copy up the video edit rate
 								MuxDescObj->SetString(SampleRate_UL, VideoDescObj->GetString(SampleRate_UL));
 
-								MDObjectPtr SubDescriptors = MuxDescObj->AddChild(SubDescriptorUIDs_UL);
+								MDObjectPtr SubDescriptors = MuxDescObj->AddChild(FileDescriptors_UL);
 								if(SubDescriptors)
 								{
 									MDObjectPtr Ptr = SubDescriptors->AddChild();
@@ -259,8 +259,8 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 									// Build a descriptor with a zero ID (we only support single stream files)
 									EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
 									MuxDescriptor->ID = 0;
-									MuxDescriptor->Description = "DV-DIF audio/video essence (AVI Wrapped)";
-									MuxDescriptor->SourceFormat.Set(DV_DIF_RAW_Format);
+									MuxDescriptor->Description = "DV-DIF audio/video essence, single audio track (AVI Wrapped)";
+									MuxDescriptor->SourceFormat.Set(DV_DIF_AVI_Format);
 									MuxDescriptor->Descriptor = MuxDescObj;
 
 									// Add the multiple descriptor
@@ -310,7 +310,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	// enough method (maybe 2^50:1 at worst!)
 
 	// The buffer must be big enough to hold an entire DIF sequence
-	ASSERT(DV_DIF_BUFFERSIZE >= (80 * 150));
+	mxflib_assert(DV_DIF_BUFFERSIZE >= (80 * 150));
 
 	// Read the first 80*150 bytes of the file, this should be the first DIF sequence
 	FileSeek(InFile, 0);
@@ -360,7 +360,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 	// Build a descriptor with a zero ID (we only support single stream files)
 	EssenceStreamDescriptorPtr Descriptor = new EssenceStreamDescriptor;
 	Descriptor->ID = 0;
-	Descriptor->Description = "DV-DIF audio/video essence";
+	Descriptor->Description = "DV-DIF video essence";
 	Descriptor->SourceFormat.Set(DV_DIF_RAW_Format);
 	Descriptor->Descriptor = VideoDescObj;
 
@@ -393,7 +393,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 				// Copy up the video edit rate
 				MuxDescObj->SetString(SampleRate_UL, VideoDescObj->GetString(SampleRate_UL));
 
-				MDObjectPtr SubDescriptors = MuxDescObj->AddChild(SubDescriptorUIDs_UL);
+				MDObjectPtr SubDescriptors = MuxDescObj->AddChild(FileDescriptors_UL);
 				if(SubDescriptors)
 				{
 					MDObjectPtr Ptr = SubDescriptors->AddChild();
@@ -412,7 +412,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 					// Build a descriptor with a zero ID (we only support single stream files)
 					EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
 					MuxDescriptor->ID = 0;
-					MuxDescriptor->Description = "DV-DIF audio/video essence";
+					MuxDescriptor->Description = "DV-DIF audio/video essence, multiple audio tracks";
 					MuxDescriptor->SourceFormat.Set(DV_DIF_RAW_Format);
 					MuxDescriptor->Descriptor = MuxDescObj;
 
@@ -428,7 +428,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 			// Copy up the video edit rate
 			MuxDescObj->SetString(SampleRate_UL, VideoDescObj->GetString(SampleRate_UL));
 
-			MDObjectPtr SubDescriptors = MuxDescObj->AddChild(SubDescriptorUIDs_UL);
+			MDObjectPtr SubDescriptors = MuxDescObj->AddChild(FileDescriptors_UL);
 			if(SubDescriptors)
 			{
 				MDObjectPtr Ptr = SubDescriptors->AddChild();
@@ -439,7 +439,7 @@ EssenceStreamDescriptorList DV_DIF_EssenceSubParser::IdentifyEssence(FileHandle 
 				// Build a descriptor with a zero ID (we only support single stream files)
 				EssenceStreamDescriptorPtr MuxDescriptor = new EssenceStreamDescriptor;
 				MuxDescriptor->ID = 0;
-				MuxDescriptor->Description = "DV-DIF audio/video essence";
+				MuxDescriptor->Description = "DV-DIF audio/video essence, single audio track";
 				MuxDescriptor->SourceFormat.Set(DV_DIF_RAW_Format);
 				MuxDescriptor->Descriptor = MuxDescObj;
 
@@ -470,8 +470,17 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 {
 	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x02, 0x7f, 0x01 };
 
-	// Correct for IEC or DV-BAsed
-	if(isS314M) BaseUL[14] = 0x3f;
+	std::string DescText = "IEC DV";
+	// Correct for IEC or DV-Based
+	if(!isS314M) 
+	{
+		if(is50Hz) BaseUL[14] = 0x02; else BaseUL[14] = 0x01; 
+	}
+	else
+	{
+		DescText = "DV-Based 25Mbps (S314M)";
+		if(is50Hz) BaseUL[14] = 0x41; else BaseUL[14] = 0x40; 
+	}
 
 	WrappingOptionList Ret;
 
@@ -488,7 +497,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	else if(Descriptor.Descriptor->IsA(MultipleDescriptor_UL))
 	{
 		// Check if the first sub of a multiple is our video descriptor
-		MDObjectPtr Ptr = Descriptor.Descriptor[SubDescriptorUIDs_UL];
+		MDObjectPtr Ptr = Descriptor.Descriptor[FileDescriptors_UL];
 		if(Ptr) AudioChannels = Ptr->size() - 1;
 		if(Ptr) Ptr = Ptr->front().second;
 		if(Ptr) Ptr = Ptr->GetLink();
@@ -511,18 +520,18 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	{
 		if(AudioChannels > 1)
 		{
-			ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video and audio data - multiple mono audio tracks";
+			ClipWrap->Description = "SMPTE 383M clip wrapping of " + DescText + " video and audio data - multiple mono audio tracks";
 			ClipWrap->Name = "clip-multi";				// Set the wrapping name
 		}
 		else
 		{
-			ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video and audio data";
-			ClipWrap->Name = "clip-av";					// Set the wrapping name
-		}
+		ClipWrap->Description = "SMPTE 383M clip wrapping of " + DescText + " video and audio data";
+		ClipWrap->Name = "clip-av";						// Set the wrapping name
+	}
 	}
 	else
 	{
-		ClipWrap->Description = "SMPTE 383M clip wrapping of DV-DIF video data";
+		ClipWrap->Description = "SMPTE 383M clip wrapping of " + DescText + " video data";
 		ClipWrap->Name = "clip";						// Set the wrapping name
 	}
 
@@ -545,18 +554,18 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	{
 		if(AudioChannels > 1)
 		{
-			FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video and audio data - multiple mono audio tracks";
+			FrameWrap->Description = "SMPTE 383M frame wrapping of " + DescText + " video and audio data - multiple mono audio tracks";
 			FrameWrap->Name = "frame-multi";			// Set the wrapping name
 		}
 		else
 		{
-			FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video and audio data";
-			FrameWrap->Name = "frame-av";				// Set the wrapping name
-		}
+		FrameWrap->Description = "SMPTE 383M frame wrapping of " + DescText + " video and audio data";
+		FrameWrap->Name = "frame-av";						// Set the wrapping name
+	}
 	}
 	else
 	{
-		FrameWrap->Description = "SMPTE 383M frame wrapping of DV-DIF video data";
+		FrameWrap->Description = "SMPTE 383M frame wrapping of " + DescText + " video data";
 		FrameWrap->Name = "frame";						// Set the wrapping name
 	}
 
@@ -566,6 +575,7 @@ WrappingOptionList DV_DIF_EssenceSubParser::IdentifyWrappingOptions(FileHandle I
 	FrameWrap->GCElementType = 0x01;					// Frame wrapped picture elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = false;						// Can only use the correct edit rate
+
 	FrameWrap->CanIndex = false;						// We can NOT currently index this essence in VBR mode
 	FrameWrap->CBRIndex = true;							// This essence uses CBR indexing
 	FrameWrap->BERSize = 0;								// No BER size forcing
@@ -585,7 +595,7 @@ void DV_DIF_EssenceSubParser::Use(UInt32 Stream, WrappingOptionPtr &UseWrapping)
 	SelectedEditRate = NativeEditRate;
 
 	// Select the DIF sequence size
-	if(NativeEditRate.Numerator == 25) SeqCount = 12; else SeqCount = 10;
+	SeqCount = NativeSeqCount;
 
 	EditRatio = 1;
 	PictureNumber = 0;
@@ -615,7 +625,7 @@ bool DV_DIF_EssenceSubParser::SetEditRate(Rational EditRate)
 	double FloatUse = double(EditRate.Numerator) / double(EditRate.Denominator);
 
 	// Select the DIF sequence size
-	if(FloatNative == 25) SeqCount = 12; else SeqCount = 10;
+	SeqCount = NativeSeqCount;
 
 	// Different representation for the same edit rate
 	// E.G. 25/1 and 50/2
@@ -739,7 +749,7 @@ DataChunkPtr DV_DIF_EssenceSubParser::AVIRead(FileHandle InFile, size_t Bytes)
 		while(!FileEof(InFile))
 		{
 			U32Pair Header = ReadRIFFHeader(InFile);
-			
+
 			// Ensure we exit gracefully if we run out of valid data
 			if((Header.first == 0) && (Header.second == 0)) break;
 
@@ -819,14 +829,14 @@ Length DV_DIF_EssenceSubParser::Write(FileHandle InFile, UInt32 Stream, MXFFileP
 MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFile, UInt64 Start /*=0*/)
 {
 	MDObjectPtr Ret;
-	UInt8 Buffer[80];
+	UInt8 Buffer[0x1e0];
 
-	// Read the header DIF block
+	// Read the DIF blocks up to the third VAUX block
 	FileSeek(InFile, Start);
-	if(FileRead(InFile, Buffer, 80) < 80) return Ret;
+	if(FileRead(InFile, Buffer, 0x1e0) < 0x1e0) return Ret;
 
-	// Set 625/50 flag from the header
-	bool is625 = ((Buffer[3] & 0x80) == 0x80);
+	// Set 50Hz flag from the header
+	is50Hz = ((Buffer[3] & 0x80) == 0x80);
 
 	// Set SMPTE-314M flag by assuming the APT value will only be 001 or 111 if we are in SMPTE-314M
 	isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
@@ -834,36 +844,88 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 	// Bug out if the video is flagged as invalid
 	if((Buffer[6] & 0x80) != 0) return Ret;
 
+	// Determine the data rate from the VAUX data
+	DataRate = 25;
+	bool isWide = false;
+	is720P = false;
+	if(Buffer[0x1c0] == 0x60)
+	{
+		/* Decode the VAUX Source Pack */
 
-	// Build the essence descriptor, filling in all known values
+		// Set the 50Hz flag from this value instead
+		if(Buffer[0x1c3] & 0x20) is50Hz = true; else is50Hz = false;
+
+		if((Buffer[0x1c3] & 0x1f) >= 0x14)
+		{
+			DataRate = 100;
+			if((Buffer[0x1c3] & 0x1f) == 0x18) is720P = true;
+
+		}
+		else if((Buffer[0x1c3] & 0x1f) >= 0x04) DataRate = 50;
+	}
+
+	if(Buffer[0x1c5] == 0x61)
+	{
+		/* Decode the VAUX Source Control Pack */
+		if((Buffer[0x1c7] & 0x07) == 2) isWide = true;
+	}
+
+#ifdef omit_PLUS
+	if(DataRate != 25)
+	{
+		error("Not currently supporting %dmbps DV essence\n", DataRate);
+		return Ret;
+	}
+#endif // omit_PLUS
+
+	/* Build the essence descriptor, filling in all known values */
 
 	Ret = new MDObject(CDCIEssenceDescriptor_UL);
 	if(!Ret) return Ret;
 
-	if(!is625)
+	if(!is50Hz)
 	{
-		Ret->SetString(SampleRate_UL, "30000/1001");
+		if(is720P)
+		{
+			Ret->SetString(SampleRate_UL, "60000/1001");
 
-		NativeEditRate.Numerator = 30000;
-		NativeEditRate.Denominator = 1001;
+			NativeEditRate.Numerator = 60000;
+			NativeEditRate.Denominator = 1001;
+		}
+		else
+		{
+			Ret->SetString(SampleRate_UL, "30000/1001");
 
-		SeqCount = 10;
+			NativeEditRate.Numerator = 30000;
+			NativeEditRate.Denominator = 1001;
+		}
+
+		SeqCount = NativeSeqCount = 10;
 	}
 	else
 	{
-		Ret->SetString(SampleRate_UL, "25/1");
+		if(is720P)
+		{
+			Ret->SetString(SampleRate_UL, "50/1");
 
-		NativeEditRate.Numerator = 25;
-		NativeEditRate.Denominator = 1;
+			NativeEditRate.Numerator = 50;
+			NativeEditRate.Denominator = 1;
+		}
+		else
+		{
+			Ret->SetString(SampleRate_UL, "25/1");
 
-		SeqCount = 12;
+			NativeEditRate.Numerator = 25;
+			NativeEditRate.Denominator = 1;
+		}
+
+		SeqCount = NativeSeqCount = 12;
 	}
 
-//DRAGONS: printf("Assumed interleaved...\n");
-//	if(Progressive) Ret->SetInt("FrameLayout", 0); else Ret->SetInt("FrameLayout", 1);
-	Ret->SetInt(FrameLayout_UL, 1);
+	// 720P is progressive - all others are interleaved
+	if(is720P) Ret->SetInt(FrameLayout_UL, 0); else Ret->SetInt(FrameLayout_UL, 1); 
 
-	if(is625)
+	if(is50Hz)
 	{
 		Ret->SetUInt(StoredWidth_UL, 720);
 		Ret->SetUInt(StoredHeight_UL, 288);
@@ -874,9 +936,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 		Ret->SetUInt(StoredHeight_UL, 240);
 	}
 
-//DRAGONS: printf("Assumed 4:3...\n");
-//	if(Aspect) Ret->SetString("AspectRatio", Aspect); else Ret->SetDValue("AspectRatio");
-	Ret->SetString(AspectRatio_UL, "4/3");
+	if(isWide) Ret->SetString(AspectRatio_UL, "16/9"); else Ret->SetString(AspectRatio_UL, "4/3");
 
 	MDObjectPtr Ptr = Ret->AddChild(VideoLineMap_UL);
 	if(Ptr)
@@ -884,17 +944,17 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 		int F1 = 0;
 		int F2 = 0;
 
-		if(is625) { F1 = 1; F2 = 313; }
-		else { F1 = 4; F2 = 266; }
+		if(is50Hz) { F1 = 23; F2 = 335; }
+		else { F1 = 23; F2 = 285; }
 
-		Ptr->AddChild()->SetUInt(F1);
-		Ptr->AddChild()->SetUInt(F2);
+		Ptr->Resize(F2 == 0 ? 1 : 2);
+		Ptr[0]->SetUInt(F1);
+		if(F2 != 0) Ptr[1]->SetUInt(F2);
 	}
 
 	Ret->SetUInt(ComponentDepth_UL, 8);
 
-	// FIXME: Currently only supports SD DV
-	if(!is625)
+	if(!is50Hz)
 	{
 		Ret->SetUInt(HorizontalSubsampling_UL, 4);
 		Ret->SetUInt(VerticalSubsampling_UL, 1);
@@ -912,6 +972,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildCDCIEssenceDescriptor(FileHandle InFil
 			Ret->SetUInt(VerticalSubsampling_UL, 2);
 		}
 	}
+
 
 	Ret->SetUInt(ColorSiting_UL, 0);				// Co-sited
 
@@ -931,7 +992,7 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptor(FileHandle InFi
 	if(FileRead(InFile, Buffer, 80) < 80) return Ret;
 
 	// Set 625/50 flag from the header
-	bool is625 = ((Buffer[3] & 0x80) == 0x80);
+	bool is50Hz = ((Buffer[3] & 0x80) == 0x80);
 
 	// Set SMPTE-314M flag by assuming the APT value will only be 001 or 111 if we are in SMPTE-314M
 	isS314M = ((Buffer[4] & 0x07) == 0x01) || ((Buffer[4] & 0x07) == 0x07);
@@ -945,23 +1006,39 @@ MDObjectPtr DV_DIF_EssenceSubParser::BuildSoundEssenceDescriptor(FileHandle InFi
 	Ret = new MDObject(GenericSoundEssenceDescriptor_UL);
 	if(!Ret) return Ret;
 
-	if(!is625)
+	if(!is50Hz)
 	{
-		Ret->SetString(SampleRate_UL, "30000/1001");
+		if(is720P)
+		{
+			Ret->SetString(SampleRate_UL, "60000/1001");
 
-		NativeEditRate.Numerator = 30000;
-		NativeEditRate.Denominator = 1001;
+			NativeEditRate.Numerator = 60000;
+			NativeEditRate.Denominator = 1001;
+		}
+		else
+		{
+			Ret->SetString(SampleRate_UL, "30000/1001");
 
-		SeqCount = 10;
+			NativeEditRate.Numerator = 30000;
+			NativeEditRate.Denominator = 1001;
+		}
 	}
 	else
 	{
-		Ret->SetString(SampleRate_UL, "25/1");
+		if(is720P)
+		{
+			Ret->SetString(SampleRate_UL, "50/1");
 
-		NativeEditRate.Numerator = 25;
-		NativeEditRate.Denominator = 1;
+			NativeEditRate.Numerator = 50;
+			NativeEditRate.Denominator = 1;
+		}
+		else
+		{
+			Ret->SetString(SampleRate_UL, "25/1");
 
-		SeqCount = 12;
+			NativeEditRate.Numerator = 25;
+			NativeEditRate.Denominator = 1;
+		}
 	}
 
 	// FIXME: We currently assume 2 channel, 16-bit, 48kHz audio
@@ -1297,6 +1374,7 @@ size_t DV_DIF_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, U
 			error("This edit unit > 4GBytes, but this platform can only handle <= 4GByte chunks\n");
 			Ret = 0;
 		}
+
 
 		// Store so we don't have to calculate if called again without reading
 		CachedDataSize =  static_cast<size_t>(Ret);

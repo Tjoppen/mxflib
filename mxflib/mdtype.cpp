@@ -9,7 +9,7 @@
  *<br><br>
  *			These classes are currently wrappers around KLVLib structures
  *
- *	\version $Id: mdtype.cpp,v 1.16 2008/05/02 16:26:22 matt-beard Exp $
+ *	\version $Id: mdtype.cpp,v 1.17 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -82,14 +82,14 @@ void MDType::AddType(MDTypePtr &Type, ULPtr &TypeUL)
 //! Add a definition for a basic type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddBasic(std::string TypeName, ULPtr &UL, int TypeSize)
+MDTypePtr MDType::AddBasic(std::string TypeName, std::string Detail, ULPtr &UL, int TypeSize)
 {
 	// Can't have a zero length basic type!
 	// But we can have a variable size (==0)
-	// ASSERT(TypeSize != 0);
+	// mxflib_assert(TypeSize != 0);
 
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, BASIC, UL, DefaultTraits);
+	MDTypePtr NewType = new MDType(TypeName, Detail, BASIC, UL, DefaultTraits);
 
 	// Set no base type
 	NewType->Base = NULL;
@@ -111,13 +111,13 @@ MDTypePtr MDType::AddBasic(std::string TypeName, ULPtr &UL, int TypeSize)
 //! Add a definition for an interpretation type (With optional fixed size)
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int Size /* = 0 */)
+MDTypePtr MDType::AddInterpretation(std::string TypeName, std::string Detail, MDTypePtr BaseType, ULPtr &UL, int Size /* = 0 */)
 {
 	// Can't base on nothing!
-	ASSERT(BaseType);
+	mxflib_assert(BaseType);
 
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, INTERPRETATION, UL, BaseType->Traits);
+	MDTypePtr NewType = new MDType(TypeName, Detail, INTERPRETATION, UL, BaseType->Traits);
 
 	// Set base type
 	NewType->Base = BaseType;
@@ -132,9 +132,15 @@ MDTypePtr MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType, UL
 	{
 		// Force a new fixed size
 		// Note: This is only valid if the base type is variable size!
-		ASSERT(BaseType->Size == 0);
+		mxflib_assert(BaseType->Size == 0);
 		NewType->Size = Size;
 	}
+
+	// Copy array type and reference details from base
+	NewType->ArrayClass = BaseType->ArrayClass;
+	NewType->RefType = BaseType->RefType;
+	NewType->RefTarget = BaseType->RefTarget;
+	NewType->RefTargetType = BaseType->RefTargetType;
 
 	// Add to the list of types
 	Types.push_back(NewType);
@@ -150,13 +156,13 @@ MDTypePtr MDType::AddInterpretation(std::string TypeName, MDTypePtr BaseType, UL
 //! Add a definition for an array type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddArray(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, int Size /* = 0 */)
+MDTypePtr MDType::AddArray(std::string TypeName, std::string Detail, MDTypePtr BaseType, ULPtr &UL, int Size /* = 0 */)
 {
 	// Can't base on nothing!
-	ASSERT(BaseType);
+	mxflib_assert(BaseType);
 
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, TYPEARRAY, UL, BaseType->Traits);
+	MDTypePtr NewType = new MDType(TypeName, Detail, TYPEARRAY, UL, DefaultTraits);
 
 	// Set base type
 	NewType->Base = BaseType;
@@ -178,10 +184,10 @@ MDTypePtr MDType::AddArray(std::string TypeName, MDTypePtr BaseType, ULPtr &UL, 
 //! Add a definition for a compound type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddCompound(std::string TypeName, ULPtr &UL)
+MDTypePtr MDType::AddCompound(std::string TypeName, std::string Detail, ULPtr &UL)
 {
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, COMPOUND, UL, DefaultTraits);
+	MDTypePtr NewType = new MDType(TypeName, Detail, COMPOUND, UL, DefaultTraits);
 
 	// Set no base type
 	NewType->Base = NULL;
@@ -203,10 +209,10 @@ MDTypePtr MDType::AddCompound(std::string TypeName, ULPtr &UL)
 //! Add a definition for an enumeration type
 /*! DRAGONS: Currently doesn't check for duplicates
  */
-MDTypePtr MDType::AddEnum(std::string TypeName, MDTypePtr BaseType, ULPtr &UL)
+MDTypePtr MDType::AddEnum(std::string TypeName, std::string Detail, MDTypePtr BaseType, ULPtr &UL)
 {
 	// Create a new MDType to manage
-	MDTypePtr NewType = new MDType(TypeName, ENUM, UL, DefaultTraits);
+	MDTypePtr NewType = new MDType(TypeName, Detail, ENUM, UL, DefaultTraits);
 
 	// Set the base type
 	NewType->Base = BaseType;
@@ -227,9 +233,9 @@ MDTypePtr MDType::AddEnum(std::string TypeName, MDTypePtr BaseType, ULPtr &UL)
 
 //! Add a value to a definition for an enumeration type
 /*! DRAGONS: This actual value object will be added to the enumeration class - don't change the value after adding it!
- *  \return true if all OK
+ *  \return true if all OK (including if this is an exact duplicate)
  */
-bool MDType::AddEnumValue(std::string Name, MDValuePtr &Value)
+bool MDType::AddEnumValue(std::string Name, MDObjectPtr &Value)
 {
 	// Can only add enumerated values to an enumeration
 	if(Class != ENUM) 
@@ -244,11 +250,14 @@ bool MDType::AddEnumValue(std::string Name, MDValuePtr &Value)
 	{
 		if((*it).first == Name)
 		{
-			error("Attempted to add enumerated value named %s to type %s, which already has a value of this name\n", Name.c_str(), TypeName.c_str());
+			// Exact duplicates are allowed
+			if(*((*it).second) == *Value) return true;
+
+			error("Attempted to add enumerated value named %s to type %s, which already has a value of this name with a different value\n", Name.c_str(), TypeName.c_str());
 			return false;
 		}
 
-		if(*((*it).second) == *Value)
+		if(((*it).second)->GetString() == Value->GetString())
 		{
 			error("Attempted to add enumerated value of %s to type %s, which already has this value\n", Value->GetString().c_str(), TypeName.c_str());
 			return false;
@@ -266,13 +275,11 @@ bool MDType::AddEnumValue(std::string Name, MDValuePtr &Value)
 
 
 //! Add a value to a definition for an enumeration type
-/*! DRAGONS: This actual value object will be added to the enumeration class - don't change the value after adding it!
- *  \return true if all OK
+/*! \return true if all OK
  */
 bool MDType::AddEnumValue(std::string Name, std::string Value)
 {
-	MDValuePtr NewValue = new MDValue(Base);
-
+	MDObjectPtr NewValue = new MDObject(Base);
 	if(!NewValue) return false;
 
 	NewValue->SetString(Value);
@@ -282,8 +289,7 @@ bool MDType::AddEnumValue(std::string Name, std::string Value)
 
 
 //! Add a value to a definition for an enumeration type
-/*! DRAGONS: This actual value object will be added to the enumeration class - don't change the value after adding it!
- *  \return true if all OK
+/*! \return true if all OK
  */
 bool MDType::AddEnumValue(std::string Name, ULPtr &Value)
 {
@@ -316,8 +322,7 @@ bool MDType::AddEnumValue(std::string Name, ULPtr &Value)
 		it++;
 	}
 
-	MDValuePtr NewValue = new MDValue(Base);
-
+	MDObjectPtr NewValue = new MDObject(Base);
 	if(!NewValue) return false;
 
 	NewValue->SetString(ValueString);
@@ -400,18 +405,76 @@ MDTypePtr MDType::Find(const UL& BaseUL)
 }
 
 
+//! Locate a named child
+MDTypePtr MDType::Child(std::string Name) const
+{
+	MDType::const_iterator it = find(Name);
+	if(it != end()) return (*it).second;
+
+	return NULL;
+}
+
+//! Locate a numerically indexed child
+/*! DRAGONS: If the type is not numerically indexed then the index will be treated as a 0-based ChildList index */
+MDTypePtr MDType::Child(int Index) const
+{
+	/* No numeric index for types - try by count */
+	if(size() > static_cast<size_t>(Index))
+	{
+		MDType::const_iterator it = begin();
+		while(--Index) it++;
+		return (*it).second;
+	}
+
+	return NULL;
+}
+
+//! Locate a child by UL
+MDTypePtr MDType::Child(ULPtr &ChildType) const
+{
+	MDType::const_iterator it = begin();
+	while(it != end())
+	{
+		if(((*it).second->TypeUL)->Matches(*ChildType)) return (*it).second;
+		it++;
+	}
+
+	return NULL;
+}
+
+
+//! Locate a child by UL
+MDTypePtr MDType::Child(const UL &ChildType) const
+{
+	MDType::const_iterator it = begin();
+	while(it != end())
+	{
+		if(((*it).second->TypeUL)->Matches(ChildType)) return (*it).second;
+		it++;
+	}
+
+	return NULL;
+}
+
+
 //! Report the effective type of this type
 /*! \note Care must be taken using this function because
  *        it is easy to end up confused and read properties
  *        from the "effective" type that should be read
  *        from the interpretation instead (such as traits)
+ *
+ *  DRAGONS: We return a const* here because we can't build a smart pointer from a const 'this'.
+ *		     We need this function to be const as it is used in other const methods.
+ *			 As what we return is a const* it is pretty safe for this to not be smart, the only risk
+ *			 is someone making a long-term copy of this pointer that will out-live the referenced
+ *			 object, and that is very unlikely due to the nature of this funtion.
  */
-MDTypePtr MDType::EffectiveType(void)
+const MDType *MDType::EffectiveType(void) const
 {
 	// If we are an interpretation then see what of
 	if(Class == INTERPRETATION || Class == ENUM)
 	{
-		ASSERT(Base);
+		mxflib_assert(Base);
 		return Base->EffectiveType();
 	}
 
@@ -425,7 +488,7 @@ MDTypeClass MDType::EffectiveClass(void) const
 	// If we are an interpretation then see what of
 	if(Class == INTERPRETATION || Class == ENUM)
 	{
-		ASSERT(Base);
+		mxflib_assert(Base);
 		return Base->EffectiveClass();
 	}
 
@@ -439,7 +502,7 @@ MDTypePtr MDType::EffectiveBase(void) const
 	// If we are an interpretation then see what of
 	if(Class == INTERPRETATION || Class == ENUM)
 	{
-		ASSERT(Base);
+		mxflib_assert(Base);
 		return Base->EffectiveBase();
 	}
 
@@ -453,9 +516,9 @@ TypeRef MDType::EffectiveRefType(void) const
 	if(RefType != TypeRefUndefined) return RefType;
 
 	// If we are an interpretation then see what of
-	if(Class == INTERPRETATION || Class == ENUM)
+	if(Class == INTERPRETATION || Class == ENUM || Class == TYPEARRAY)
 	{
-		ASSERT(Base);
+		mxflib_assert(Base);
 		return Base->EffectiveRefType();
 	}
 
@@ -464,31 +527,62 @@ TypeRef MDType::EffectiveRefType(void) const
 
 
 //! Report the effective reference target of this type
-std::string MDType::EffectiveRefTarget(void) const
+MDOTypePtr MDType::EffectiveRefTarget(void) const
 {
-	if(RefTarget.length() != 0) return RefTarget;
+	if(RefTargetType) return RefTargetType;
 
 	// If we are an interpretation then see what of
-	if(Class == INTERPRETATION || Class == ENUM)
+	if(Class == INTERPRETATION || Class == ENUM || Class == TYPEARRAY)
 	{
-		ASSERT(Base);
+		mxflib_assert(Base);
 		return Base->EffectiveRefTarget();
+	}
+
+	return NULL;
+}
+
+
+//! Report the name of the effective reference target of this type
+/*! DRAGONS: To be used when loading dictionary only */
+std::string MDType::EffectiveRefTargetName(void) const
+{
+	if(!RefTarget.empty()) return RefTarget;
+
+	// If we are an interpretation then see what of
+	if(Class == INTERPRETATION || Class == ENUM || Class == TYPEARRAY)
+	{
+		mxflib_assert(Base);
+		return Base->EffectiveRefTargetName();
 	}
 
 	return "";
 }
 
 
-//! Report the effective size of this type
+//! Report the effective size of this type - internal recursive version
 /*! \return The size in bytes of a single instance of this type, or 0 if variable size
+ *  This function is recursive and at any stage the "size" value may be overridden.
+ *  This means that an array defined as variable size may have its size "fixed" by an interpretation.
+ *	It is even possible for this to be re-interpreted with a new size.
+ *  For example, UTF16 is a 2-byte integer used to hold a Unicode character; UTF16String is a variable length
+ *  string of UTF16 characters (size = 0) and CharPair could be an interpretation of UTF16String with a fixed
+ *  size of 2. This could then be modified by making CharTriple an interpretation of CharPair with size = 3.
  */
-UInt32 MDType::EffectiveSize(void) const
+UInt32 MDType::EffectiveSizeInternal(bool OverrideSize /*=false*/, int UseSize /*=0*/) const
 {
+	// If we are an interpretation then see what of
+	if(Class == INTERPRETATION)
+	{
+		mxflib_assert(Base);
+		// DRAGONS: The outermost overriden size is the one we stick with
+		return Base->EffectiveSizeInternal(true, OverrideSize ? UseSize : Size);
+	}
+
 	// If we are an array calculate the total array size (will be zero if either is undefined)
 	if(Class == TYPEARRAY)
 	{
-		ASSERT(Base);
-		return Base->EffectiveSize() * Size;
+		mxflib_assert(Base);
+		return Base->EffectiveSize() * OverrideSize ? UseSize : Size;
 	}
 
 	// If we are a compound calculate the size of the compound
@@ -765,399 +859,6 @@ MDTraitsPtr MDType::LookupTraitsMapping(const UL &TypeUL, std::string DefaultTra
 }
 
 
-
-//! MDValue named constructor
-/*! Builds a "blank" variable of a named type
-*/
-MDValue::MDValue(const std::string &BaseType)
-{
-	Type = MDType::Find(BaseType);
-
-	if(!Type)
-	{
-		error("Metadata variable type \"%s\" doesn't exist\n", BaseType.c_str());
-
-		Type = MDType::Find("UnknownType");
-
-		ASSERT(Type);
-	}
-
-	// Initialise the new variable
-	Init();
-}
-
-
-//! MDValue typed constructor
-/*! Builds a "blank" variable of a specified type
-*/
-MDValue::MDValue(MDTypePtr BaseType)
-{
-	Type = BaseType;
-
-	// Initialise the new variable
-	Init();
-}
-
-
-//! Second part of MDValue constructors
-/*! Builds a "blank" variable
-*/
-void MDValue::Init(void)
-{
-	ASSERT(Type);
-	
-	// If it's a basic type (or handles its sub data) build an empty item
-	if(Type->HandlesSubdata() || (Type->EffectiveClass() == BASIC))
-	{
-		if(Type->Size)
-		{
-			MakeSize(Type->Size);
-			memset(Data.Data,0,Data.Size);
-		}
-	}
-
-	// If it's a fixed size array build all items
-	else if(Type->EffectiveClass() == TYPEARRAY)
-	{
-		if(Type->Size > 0)
-		{
-			// Build blank array
-			Resize(Type->Size);
-		}
-	}
-
-	// If it's a compound build all sub-items
-	else if(Type->EffectiveClass() == COMPOUND)
-	{
-		MDType::iterator it;
-		it = Type->begin();
-
-		while(it != Type->end())
-		{
-			// Insert a new item of the appropriate type
-			insert(MDValue::value_type((*it).first, new MDValue((*it).second)));
-			it++;
-		}
-	}
-}
-
-
-//! Set a variable to be a certain size in bytes
-/*!	The old data is NOT copied. 
- *  This function assumes that this is a viable thing to do!
- *  \return The size of the resized item
- */
-size_t MDValue::MakeSize(size_t NewSize)
-{
-	// Enforce fixed size if one exists for this type
-	if(Type->Size) NewSize = Type->Size;
-
-	Data.Resize(NewSize);
-	return NewSize;
-}
-
-
-/* //! Set the value of an object from a pre-formatted buffer
-void MDValue::SetValue(int ValSize, const UInt8 *Val)
-{
-	if(ValSize > Size)
-	{
-		error("Tried to use MDValue::SetValue() to set %d bytes into %d\n", ValSize, Size);
-		
-		// Copy in what will fit!
-		if(Size) memcpy(Data, Val, Size);
-		
-		return;
-	}
-	
-	if(ValSize < Size)
-	{
-		warning("Used MDValue::SetValue() when Size = %d bytes, but new value only = %d\n", Size, ValSize);
-	}
-
-	memcpy(Data, Val, ValSize);
-}
-*/
-
-//! Add a child to an MDValue continer
-/*! If the container is an array the index number of the new object can be
- *! specified. If the index number is specified and a child already exists
- *! with that number it is replaced. If the index number is specified and
- *! it is not the next index available, extra 'empty' objects are added to
- *! grow the array to the appropriate size.
- */
-void MDValue::AddChild(MDValuePtr Child, int Index /* = -1 */)
-{
-	MDTypeClass Class = Type->EffectiveClass();
-
-	ASSERT( Class == TYPEARRAY || Class == COMPOUND );
-
-	// Specific array index given
-	if(Index >= 0)
-	{
-		// Can only specify an index for arrays
-		ASSERT( Class == TYPEARRAY );
-
-		int Num = static_cast<int>(size());
-
-		// Replacing a current entry
-		if(Num >= Index)
-		{
-			MDValue::iterator it = find(Index);
-
-			if(it != end())
-			{
-				// Remove any old entry, automatically deleting the object if required
-				erase(it);
-			}
-
-			// Insert the new item at this point
-			insert(MDValue::value_type(Index, Child));
-
-			// All done for replace operation
-			return;
-		}
-		else
-		{
-			// Extra padding items required
-			if(Index > (Num+1))
-			{
-				while(Index > (Num+1))
-				{
-					// Insert a new item of the same type at the end
-					insert(MDValue::value_type(Num, new MDValue(Child->Type)));
-
-					Num++;
-				}
-			}
-		}
-	}
-
-	// Add to the list of children
-	insert(MDValue::value_type(static_cast<UInt32>(size()), Child));
-}
-
-
-//! Add or Remove children from an MDValue continer to make a fixed size
-/*! Probably only useful for resizing arrays.
- */
-void MDValue::Resize(UInt32 Count)
-{
-	MDTypeClass Class = Type->EffectiveClass();
-
-	ASSERT( Class == TYPEARRAY || Class == COMPOUND );
-	
-	// If this function is called for a fixed size array
-	// simply validate the size
-	if(Type->Size) Count = Type->Size;
-
-	if(Count == 0)
-	{
-		clear();
-		return;
-	}
-
-	unsigned int Current = static_cast<unsigned int>(size());
-
-	// Extra padding items required
-	if(Current < Count)
-	{
-		while(Current < Count)
-		{
-			// Insert a new item of the appropriate type
-			insert(MDValue::value_type(Current, new MDValue(Type->EffectiveBase())));
-			Current++;
-		}
-	}
-	else if (Current > Count)
-	{
-		MDValue::iterator it = lower_bound(Count);
-
-		// Remove the old entries, automatically deleting the objects if required
-		if(it != end()) erase(it, end());
-	}
-}
-
-
-//! Access array member within an MDValue array
-/*! DRAGONS: This doesn't work well with SmartPtrs
- *           so member function Child() is also available
-*/
-MDValuePtr MDValue::operator[](int Index)
-{
-	MDValuePtr Ret = NULL;
-
-	MDValue::iterator it = find(Index);
-
-	// Did we find this index?
-	if(it != end())
-	{
-		// Return a smart pointer to the object
-		Ret = (*it).second;
-	}
-	else
-	{
-		// If not a match, it may be a valid attempt to index the nth member of a compound
-		if(Type->EffectiveClass() == COMPOUND)
-		{
-			// Check the index bounds
-			if((Index >= 0) && (Index < static_cast<int>(size())))
-			{
-				// No need to validate the map iteration as we have just checked the bounds
-				it = begin();
-				while(Index--) it++;
-				Ret = (*it).second;
-			}
-		}
-	}
-
-	return Ret;
-}
-
-
-//! Access named sub-item within a compound MDValue
-/*! DRAGONS: This doesn't work well with SmartPtrs
- *           so member function Child() is also available
-*/
-MDValuePtr MDValue::operator[](const std::string ChildName)
-{
-	MDValuePtr Ret = NULL;
-
-	MDValue::iterator it = find(ChildName);
-
-	// Return a smart pointer to the object
-	if(it != end()) Ret = (*it).second;
-
-	return Ret;
-}
-
-
-//! Access UL indexed sub-item within a compound MDValue
-/*! DRAGONS: This doesn't work well with SmartPtrs
- *           so member function Child() is also available
-*/
-MDValuePtr MDValue::operator[](const UL &Child)
-{
-	// Scan all children for a matching UL
-	MDValue::iterator it = begin();
-	while(it != end())
-	{
-		if(*((*it).second->Type->GetTypeUL()) == Child) return (*it).second;
-		it++;
-	}
-
-	/* Before giving up and saying no match - check again without comparing the version byte */
-	it = begin();
-	while(it != end())
-	{
-		if((*it).second->Type->GetTypeUL()->Matches(Child)) return (*it).second;
-		it++;
-	}
-
-	return NULL;
-}
-
-
-/*std::string MDValue::ChildName(int Child)
-{
-	MDTypePtr EType = Type->EffectiveType();
-
-	ASSERT(EType->EffectiveClass() == COMPOUND);
-	
-	if(EType->EffectiveClass() != COMPOUND) return "";
-	
-	MDValue::iterator it;
-	it = begin();
-
-	while(Child--)
-	{
-		if(it != end()) it++;
-	}
-
-	if(it == end()) return "";
-	return (*it).second;
-}
-*/
-
-//! Read value from a buffer
-/*!
- *  \return Number of bytes read
- */
-size_t MDValue::ReadValue(const UInt8 *Buffer, size_t Size, int Count /*=0*/)
-{
-	return Type->Traits->ReadValue(this, Buffer, Size, Count);
-}
-
-
-//! Build a data chunk with all this items data (including child data)
-DataChunkPtr MDValue::PutData(void) 
-{
-	DataChunkPtr Ret = new DataChunk;
-	
-	// True if we are a batch, but the size is not currently known
-	bool BatchCorrection = false;
-	UInt32 Count = static_cast<UInt32>(size());
-
-	MDTypePtr EffType = EffectiveType();
-	if(EffType->GetArrayClass() == ARRAYBATCH)
-	{
-		// Write the item count
-		UInt8 Buffer[8];
-		PutU32(Count, Buffer);
-
-		// Write the item size - here we check to see if this is 'unknown' (flagged by zero), in which case we need to fix it at the end
-		UInt32 Size = Type->EffectiveSize();
-		if(Size == 0) BatchCorrection = true;
-		PutU32(Size, &Buffer[4]);
-
-		// Set the header
-		Ret->Set(8, Buffer);
-	}
-
-	// If the size is zero we don't have any sub items
-	// Otherwise we may not need to use them because the traits may build in our data
-	if(size() == 0 || (Type->HandlesSubdata())) 
-	{
-		// If we are part of a batch this appends the data, otherwise it simply sets it to be the same
-		Ret->Append(GetData());
-	}
-	else
-	{
-		// Compounds must be written in the correct order
-		if(Type->EffectiveClass() == COMPOUND)
-		{
-			StringList::iterator it = Type->ChildOrder.begin();
-			while(it != Type->ChildOrder.end())
-			{
-				DataChunkPtr SubItem = Child(*it)->PutData();
-				Ret->Append(SubItem->Size, SubItem->Data);
-				it++;
-			}
-		}
-		else
-		{
-			MDValue::iterator it = begin();
-			while(it != end())
-			{
-				DataChunkPtr SubItem = (*it).second->PutData();
-				Ret->Append(SubItem->Size, SubItem->Data);
-				it++;
-			}
-		}
-	}
-
-	// If this is a batch where we did not know the item size, set it now we have written all items
-	if(BatchCorrection && (Count > 0) && (Ret->Size > 8))
-	{
-		UInt32 Size = static_cast<UInt32>((Ret->Size - 8) / Count);
-		PutU32(Size, &Ret->Data[4]);
-	}
-
-	return Ret;
-};
-
-//std::string MDValue::GetString(void) { return std::string("Base"); };
-//std::string MDValue_Int8::GetString(void) { return std::string("Int8"); };
 
 
 

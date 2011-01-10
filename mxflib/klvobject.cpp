@@ -3,7 +3,7 @@
  *
  *			Class KLVObject holds info about a KLV object
  *
- *	\version $Id: klvobject.cpp,v 1.5 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: klvobject.cpp,v 1.6 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -30,7 +30,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 

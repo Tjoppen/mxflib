@@ -4,7 +4,7 @@
  *			The MXFFile class holds data about an MXF file, either loaded 
  *          from a physical file or built in memory
  *
- *	\version $Id: mxffile.h,v 1.12 2007/01/31 10:15:27 matt-beard Exp $
+ *	\version $Id: mxffile.h,v 1.13 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -52,7 +52,10 @@ namespace mxflib
 	protected:
 		bool isOpen;					//!< True when the file is open
 		bool isMemoryFile;				//!< True is the file is a "memory file"
-		FileHandle Handle;				//!< File hanlde
+		bool isHandleFile;				//!< True if the file handle is managed externally (we don't open or close it ourselves)
+		bool TruncatedKnown;			//!< True if the state of "Truncated" has been determined
+		bool Truncated;					//!< True if we have determined that this file has been truncated
+		FileHandle Handle;				//!< File handle
 		UInt32 RunInSize;				//!< Size of run-in in physical file
 
 		DataChunkPtr Buffer;			//!< Memory file buffer pointer
@@ -71,12 +74,13 @@ namespace mxflib
 		std::string Name;
 
 	public:
-		MXFFile() : isOpen(false), isMemoryFile(false), BlockAlign(0) {};
+		MXFFile() : isOpen(false), isMemoryFile(false), TruncatedKnown(false), Truncated(false), BlockAlign(0) {};
 		~MXFFile() { if(isOpen) Close(); };
 
 		virtual bool Open(std::string FileName, bool ReadOnly = false );
 		virtual bool OpenNew(std::string FileName);
 		virtual bool OpenMemory(DataChunkPtr Buff = NULL, Position Offset = 0);
+		virtual bool OpenFromHandle(FileHandle Handle);
 		virtual bool Close(void);
 
 		bool ReadRunIn(void);
@@ -90,8 +94,18 @@ namespace mxflib
 		
 		//! Locate and read a partition containing closed header metadata
 		/*! \ret NULL if none found
+		 *  DRAGONS: A significant number fo invalid files exist with a closed incomplete header and a closed complete footer. CheckForCompleteFooter=true will return the footer for these files.
 		 */
-		PartitionPtr ReadMasterPartition(Length MaxScan = 1024*1024);
+		PartitionPtr ReadMasterPartition(bool CheckForCompleteFooter = false)
+		{
+			return ReadMasterPartition(1024 * 1024, CheckForCompleteFooter);
+		}
+
+		//! Locate and read a partition containing closed header metadata
+		/*! \ret NULL if none found
+		 *  DRAGONS: A significant number fo invalid files exist with a closed incomplete header and a closed complete footer. CheckForCompleteFooter=true will return the footer for these files.
+		 */
+		PartitionPtr MXFFile::ReadMasterPartition(Length MaxScan, bool CheckForCompleteFooter = false);
 
 		//! Locate and read the footer partition
 		/*! \ret NULL if not found
@@ -158,6 +172,15 @@ namespace mxflib
 			return mxflib::FileEof(Handle) ? true : false; 
 		};
 
+
+		//! Return the size of the MXF file, or -1 if not known
+		Length Size(void)
+		{
+			if(!isOpen) return -1;
+			if(isMemoryFile) return -1;
+			return FileSize(Handle);
+		}
+
 		DataChunkPtr Read(size_t Size);
 		size_t Read(UInt8 *Buffer, size_t Size);
 
@@ -204,7 +227,7 @@ namespace mxflib
 		/*! \note Partition properties are updated from the linked metadata
 		 *	\return true if re-write was successful, else false
 		 */
-		bool ReWritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL) 
+		bool ReWritePartition(PartitionPtr ThisPartition, PrimerPtr UsePrimer = NULL)
 		{
 			return WritePartitionInternal(true, ThisPartition, true, NULL, UsePrimer, 0, 0);
 		}
@@ -213,10 +236,15 @@ namespace mxflib
 		/*! \note Partition properties are updated from the linked metadata
 		 *	\return true if re-write was successful, else false
 		 */
-		bool ReWritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer = NULL) 
+		bool ReWritePartitionWithIndex(PartitionPtr ThisPartition, DataChunkPtr IndexData, PrimerPtr UsePrimer = NULL)
 		{
 			return WritePartitionInternal(true, ThisPartition, true, IndexData, UsePrimer, 0, 0);
 		}
+
+		//! Is this file truncated?
+		/*! If Details != NULL, the file will be re-tested and a details written into the string for truncated files
+		 */
+		bool IsTruncated(std::string *Details = NULL);
 
 	protected:
 		//! Write or re-write a partition pack and associated metadata (and index table segments?)
@@ -224,35 +252,7 @@ namespace mxflib
 
 	public:
 		//! Write the RIP
-		void WriteRIP(void)
-		{
-			MDObjectPtr RIPObject = new MDObject(RandomIndexMetadata_UL);
-			ASSERT(RIPObject);
-
-			if(RIPObject)
-			{
-				MDObjectPtr PA = RIPObject->AddChild(PartitionArray_UL);
-
-				ASSERT(PA);
-				if(PA)
-				{
-					RIP::iterator it = FileRIP.begin();
-					while(it != FileRIP.end())
-					{
-						PA->AddChild(BodySID_UL, false)->SetUInt((*it).second->BodySID);
-						PA->AddChild(ByteOffset_UL, false)->SetUInt64((*it).second->ByteOffset);
-						it++;
-					}
-				}
-				
-				// Calculate the pack length
-				RIPObject->SetUInt(Length_UL, 16 + 4 + (static_cast<UInt32>(FileRIP.size()) * 12) + 4);
-
-				DataChunkPtr Buffer = RIPObject->WriteObject();
-
-				Write(Buffer->Data, Buffer->Size);
-			}
-		}
+		void WriteRIP(void);
 
 		//! Calculate the size of a filler to align to a specified KAG
 		UInt32 FillerSize(UInt64 FillPos, UInt32 KAGSize, UInt32 MinSize = 0) { return FillerSize(false, FillPos, KAGSize, MinSize); };
@@ -288,6 +288,11 @@ namespace mxflib
 
 			return FileWrite(Handle, Data.Data, Data.Size); 
 		};
+
+		void Flush()
+		{
+			FileFlush(Handle);
+		}
 
 		//! Write the contents of a DataChunk by SmartPtr
 		size_t Write(DataChunkPtr Data)
@@ -366,6 +371,42 @@ namespace mxflib
 		//! Determine if this file used block alignment
 		bool IsBlockAligned(void) { return (BlockAlign != 0); }
 
+		//! Determine the wrapping type for a given Essence Container in this file
+		/*! \param BodySID SID of the EssenceContainer to examine
+		 *  \param ThisPartition A Partition with metadata to use for determining wrapping type
+		 *  \retval ClipWrap - Wrapping is Clip Wrap or similar (Wrapping size > Edit Unit)
+		 *  \retval FrameWrap - Wrapping is Frame Wrap or similar (Wrapping size <= Edit Unit)
+		 *	\retval UnknownWrap - Unable to determine
+		 */
+		WrapType GetWrapType(UInt32 BodySID, PartitionPtr ThisPartition);
+
+		//! Determine the wrapping type for a given Essence Container in this file
+		WrapType GetWrapType(UInt32 BodySID)
+		{
+			// Default answer is 'unknown'
+			WrapType Ret = UnknownWrap;
+
+			// Record the current position so that this method does not move the pointer
+			Position Pos = Tell();
+
+			// Read the master partition
+			PartitionPtr Master = ReadMasterPartition();
+			if(!Master)
+			{
+				// If that fails, try the header
+				Seek(0);
+				Master = ReadPartition();
+			}
+
+			// If we have a partition, determine the wrapping type
+			if(Master) Ret = GetWrapType(BodySID, Master);
+
+			// Return to the original position
+			Seek(Pos);
+			
+			return Ret;
+		}
+
 	protected:
 		Position ScanRIP_FindFooter(Length MaxScan);
 
@@ -394,7 +435,7 @@ template<class TP, class T> /*inline*/ TP mxflib::MXFFile__ReadObjectBase(MXFFil
 	// Build the object (it may come back as an "unknown")
 	Ret = new T(Key);
 
-	ASSERT(Ret);
+	mxflib_assert(Ret);
 
 	Length Length = This->ReadBER();
 	if((sizeof(size_t) < 8) && Length > 0xffffffff)

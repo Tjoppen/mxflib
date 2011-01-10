@@ -2,7 +2,7 @@
  *	\brief	Definition of classes that handle index tables
  *  \note	This index table system is far from efficient
  *
- *	\version $Id: index.h,v 1.11 2008/10/21 11:07:39 matt-beard Exp $
+ *	\version $Id: index.h,v 1.12 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -45,16 +45,17 @@ namespace mxflib
 								 *         where to start looking for the un-indexed data.
 		                         */
 		Position Location;		//!< The location of the start of ThisPos edit unit in the essence container
-		Rational PosOffset;		//!< The temporal offset for this edit unit (if Offset = true, otherwise undefined)
+		Rational PosOffset;		//!< The pos offset for this edit unit (if Offset = true, otherwise undefined)
 		bool Exact;				//!< true if ThisPos is the requested edit unit and the location is for the requested sub-item.
 								/*!< false if it is a preceeding edit unit or the requested sub-item could not be identified */
 		bool OtherPos;			//!< true if ThisPos is not the requested edit unit
 								/*!< \note This should be tested if "Exact" is false as the value of "ThisPos" will 
 								 *         be the non-reordered position and may equal the requested location even though
 								 *         Location does not index the requested edit unit */
-		bool Offset;			//!< true if there is a temporal offset (stored in PosOffset, only set if Exact = true)
+		bool Offset;			//!< true if there is a pos offset (stored in PosOffset, only set if Exact = true)
 		Int8 KeyFrameOffset;	//!< The offset in edit units to the previous key frame
-		Int64 KeyLocation;		//!< The location of the start of the keyframe edit unit in the essence container
+		Int8 TemporalOffset;	//!< The offset in edit units from stored order, to display order
+		Int64 KeyLocation;		//!< The location of the start of the keyframe edit unit in the essence container, ~0 if not available
 		UInt8 Flags;			//!< The flags for this edit unit (zero if ThisPos is not the requested edit unit)
 	};
 
@@ -120,7 +121,7 @@ namespace mxflib
 			CompleteEntryCount = 0;
 			EntryCount = 0;
 
-			ASSERT(UseIndexEntrySize);
+			mxflib_assert(UseIndexEntrySize);
 			IndexEntrySize = UseIndexEntrySize;
 		}
 
@@ -148,6 +149,7 @@ namespace mxflib
 	class IndexTable : public RefCount<IndexTable>
 	{
 	public:
+		Int64 IndexDuration;
 		UInt32 IndexSID;
 		UInt32 BodySID;
 		Rational EditRate;
@@ -158,7 +160,7 @@ namespace mxflib
 		//! Number of entries in BaseDeltaArray
 		int BaseDeltaCount;
 
-		//! Deltas for CBR data and base delta array for VBR segments, zero if not allocated
+		//! Deltas for CBR data and base delta array for VBR segments
 		DeltaEntry *BaseDeltaArray;
 
 		//! Map of edit unit position to index entry for VBR
@@ -175,6 +177,7 @@ namespace mxflib
 
 		ReorderIndexPtr		Reorder;			//!< Pointer to our reorder index if we are using one (used for building reordered indexes)
 
+
 	public:
 		//! The lowest valid index position, used to flag omitted "start" parameters
 		/*! DRAGONS: Why isn't this initialized here in the header file? Because MSVC 6 won't allow that!!
@@ -183,8 +186,9 @@ namespace mxflib
 
 	public:
 		//! Construct an IndexTable with no CBRDeltaArray
-		IndexTable() : IndexSID(0), BodySID(0), EditUnitByteCount(0) , BaseDeltaCount(0), BaseDeltaArray(NULL)
+		IndexTable() : IndexSID(0), BodySID(0), EditUnitByteCount(0) , BaseDeltaCount(0)
 		{ 
+			IndexDuration=0;
 			EditRate.Numerator=0; 
 			EditUnitByteCount=0; 
 			NSL=0; 
@@ -195,17 +199,13 @@ namespace mxflib
 		//! Free any memory used by BaseDeltaArray when this IndexTable is destroyed
 		~IndexTable() 
 		{ 
-			if(BaseDeltaArray) delete[] BaseDeltaArray; 
+			if(BaseDeltaCount) delete[] BaseDeltaArray; 
 		};
 
 		//! Define the base delta entry array from another delta entry array
 		void DefineDeltaArray(int DeltaCount, DeltaEntry *DeltaArray)
 		{
-			if(BaseDeltaArray) 
-			{
-				delete[] BaseDeltaArray;
-				BaseDeltaArray = NULL;
-			}
+			if(BaseDeltaCount) delete[] BaseDeltaArray;
 
 			BaseDeltaCount = DeltaCount;
 			if(!DeltaCount) return;
@@ -235,11 +235,7 @@ namespace mxflib
 		 */
 		void DefineDeltaArray(int DeltaCount, UInt32 *ElementSizes)
 		{
-			if(BaseDeltaArray) 
-			{
-				delete[] BaseDeltaArray;
-				BaseDeltaArray = NULL;
-			}
+			if(BaseDeltaCount) delete[] BaseDeltaArray;
 
 			BaseDeltaCount = DeltaCount;
 			if(!DeltaCount) return;
@@ -275,6 +271,14 @@ namespace mxflib
 		//! Add an index table segment from an "IndexSegment" MDObject
 		IndexSegmentPtr AddSegment(MDObjectPtr Segment);
 
+		//! Add an index table segment from a raw DataChunk containing a section of un-parsed index table data
+		/*! DRAGONS: This is far more efficient for loading the index table than using the general metadata functions */
+		void AddSegments(DataChunkPtr &IndexChunk);
+
+		//! Add an index table segment from a raw DataChunk containing an un-parsed "IndexSegment"
+		/*! DRAGONS: This is far more efficient for loading the index table than using the general metadata functions */
+		IndexSegmentPtr AddSegment(UInt8 const *pSegment, Length Size, int LenSize = 2);
+
 		//! Create a new empty index table segment
 		IndexSegmentPtr AddSegment(Int64 StartPosition);
 
@@ -291,6 +295,10 @@ namespace mxflib
 //#####
 		//! Perform an index table look-up
 		IndexPosPtr Lookup(Position EditUnit, int SubItem = 0, bool Reorder = true);
+
+		//! Calculate the duration of this index table (the highest indexed position + 1)
+		/*! DRAGONS: Also updates public member IndexDuration */
+		Length GetDuration(void);
 
 		//! Update the Stream Offset of an index entry
 		void Update(Position EditUnit, UInt64 StreamOffset);
@@ -317,6 +325,7 @@ namespace mxflib
 
 			return Reorder;
 		}
+
 	};
 }
 
@@ -338,7 +347,7 @@ namespace mxflib
 		//! Number of entries in DeltaArray
 		int DeltaCount;
 
-		//! Deltas for this segment, or NULL if no memory allocated
+		//! Deltas for this segment
 		DeltaEntry *DeltaArray;
 
 		//! Number of entries in IndexEntryArray
@@ -350,11 +359,11 @@ namespace mxflib
 
 	private:
 		//! Private constructor to force construction via AddIndexSegmentToIndexTable()
-		IndexSegment() : DeltaArray(NULL), EntryCount(0) { };
+		IndexSegment() : EntryCount(0) { };
 
 	public:
 		//! Destructor cleans up the segment
-		~IndexSegment() { if(DeltaArray) delete[] DeltaArray; };
+		~IndexSegment() { if(DeltaCount) delete[] DeltaArray; };
 
 		//! Index segment pseudo-constructor
 		/*! \note <b>Only</b> call this from IndexTable::AddSegment() because it adds the segment to its SegmentMap */
@@ -366,7 +375,7 @@ namespace mxflib
 						   int PosCount = 0, Rational *PosTable = NULL);
 
 		//! Add multiple - pre-formed index entries
-		bool AddIndexEntries(int Count, int Size, UInt8 *Entries);
+		bool AddIndexEntries(int Count, int Size, UInt8 const *Entries);
 
 		//! Update the Stream Offset of an index entry
 		void Update(Position EditUnit, UInt64 StreamOffset);
@@ -387,6 +396,7 @@ namespace mxflib
 		int StreamListSize;					//!< Size of PosTableList and ElementSizeList arrays
 		int *PosTableList;					//!< PosTableIndex for each stream
 		UInt32 *ElementSizeList;			//!< ElementSize for each stream
+		int MasterStream;					//!< The Stream ID of the "master" stream that can set flags and key offset, normally the main stream "0"
 
 		struct IndexData
 		{
@@ -437,6 +447,10 @@ namespace mxflib
 											/*!< \note This is NOT implemented in the IndexManager, but must be handled by the caller */
 
 		Position SubRangeOffset;			//!< An offset to apply to correct position if sub-ranging (number of edit units discarded at the start of the essence)
+
+
+
+		Int64 IndexDuration;                //!Used to froce duration of CBR index if needed
 
 	public:
 		//! Construct with main stream details
@@ -490,6 +504,9 @@ namespace mxflib
 			if(StreamID < StreamCount) PosTableList[StreamID] = PosTableIndex;
 		}
 
+		//! Set the master stream ID, this stream can change flags and key offset for an entry
+		void SetMasterStream(int StreamID) { MasterStream = StreamID; }
+
 		//! Add an edit unit (of a stream) without a known offset
 		void AddEditUnit(int SubStream, Position EditUnit, int KeyOffset = 0, int Flags = -1);
 
@@ -531,7 +548,7 @@ namespace mxflib
 		}
 
 		//! Read the edit unit of the last entry added (or IndexLowest if none added)
-		Position GetLastNewEditUnit(void) { return 	LastNewEditUnit; }
+		Position GetLastNewEditUnit(void) { return LastNewEditUnit; }
 
 		//! Accept next edit unit offered
 		void AcceptNext(void)
@@ -601,6 +618,9 @@ namespace mxflib
 
 		//! Set the sub-range offset
 		void SetSubRangeOffset(Position Offset) { SubRangeOffset = Offset; }
+
+
+		void SetIndexDuration( Int64 newVal) {IndexDuration=newVal; };
 
 	protected:
 		//! Access an entry in the managed data array - creating or extending the array as required

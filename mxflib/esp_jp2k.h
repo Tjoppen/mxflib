@@ -1,7 +1,7 @@
 /*! \file	esp_jp2k.h
  *	\brief	Definition of class that handles parsing of JPEG 2000 files
  *
- *	\version $Id: esp_jp2k.h,v 1.7 2006/09/04 13:58:09 matt-beard Exp $
+ *	\version $Id: esp_jp2k.h,v 1.8 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*
@@ -144,7 +144,7 @@ namespace mxflib
 
 		//! Set a wrapping option for future Read and Write calls
 		/*! \return true if this EditRate is acceptable with this wrapping */
-		virtual void Use(UInt32 Stream, WrappingOptionPtr UseWrapping)
+		virtual void Use(UInt32 Stream, WrappingOptionPtr &UseWrapping)
 		{
 			SelectedWrapping = UseWrapping;
 

@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.cpp
  *	\brief	Implementation of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.cpp,v 1.14 2007/10/09 12:51:52 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.cpp,v 1.15 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -27,7 +27,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 #include <math.h>	// For "floor"
 
@@ -97,7 +97,7 @@ EssenceStreamDescriptorList mxflib::WAVE_PCM_EssenceSubParser::IdentifyEssence(F
  */
 WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(FileHandle InFile, EssenceStreamDescriptor &Descriptor)
 {
-	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x02, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x06, 0x01, 0x00 };
+	UInt8 BaseUL[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x03, 0x01, 0x02, 0x06, 0x01, 0x00 };
 	WrappingOptionList Ret;
 
 	// If the source format isn't RIFF-wrapped wave PCM then we can't wrap the essence
@@ -119,7 +119,7 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	ClipWrap->GCElementType = 0x02;						// Wave clip wrapped elemenet
 	ClipWrap->ThisWrapType = WrappingOption::Clip;		// Clip wrapping
 	ClipWrap->CanSlave = true;							// Can use non-native edit rate
-	ClipWrap->CanIndex = false;							// We CANNOT currently index this essence
+	ClipWrap->CanIndex = true;							// Safe to use default VBR indexing for this essence
 	ClipWrap->CBRIndex = true;							// This essence uses CBR indexing
 	ClipWrap->BERSize = 0;								// No BER size forcing
 
@@ -136,7 +136,7 @@ WrappingOptionList mxflib::WAVE_PCM_EssenceSubParser::IdentifyWrappingOptions(Fi
 	FrameWrap->GCElementType = 0x01;					// Wave frame wrapped elemenet
 	FrameWrap->ThisWrapType = WrappingOption::Frame;	// Frame wrapping
 	FrameWrap->CanSlave = true;							// Can use non-native edit rate
-	FrameWrap->CanIndex = false;						// We CANNOT currently index this essence
+	FrameWrap->CanIndex = true;							// Safe to use default VBR indexing for this essence
 	FrameWrap->CBRIndex = true;							// This essence uses CBR indexing
 	FrameWrap->BERSize = 0;								// No BER size forcing
 
@@ -182,6 +182,9 @@ DataChunkPtr WAVE_PCM_EssenceSubParser::ESP_EssenceSource::GetEssenceData(size_t
 		// Flag all done when no more to read
 		if(BytesRemaining == 0)
 		{
+			// Undo removing the size by calling SamplesThisEditUnit so that the padding sequence stays corrent
+			if(PaddingEnabled) pCaller->PushBackSize();
+
 			AtEndOfData = true;
 			return NULL;
 		}
@@ -217,13 +220,77 @@ DataChunkPtr WAVE_PCM_EssenceSubParser::ESP_EssenceSource::GetEssenceData(size_t
 	// Move the edit unit pointer forward by the number of edit units read (if the last part of a read)
 	if(!BytesRemaining)	
 	{
+		
 		// Only do a simple add if not reading the whole clip, and if the read succeeded
-		if((pCaller->SelectedWrapping->ThisWrapType != WrappingOption::Clip) && (Ret->Size == Bytes)) pCaller->CurrentPosition += RequestedCount;
+		if((pCaller->SelectedWrapping->ThisWrapType==WrappingOption::Frame) 
+			&& (Ret->Size == Bytes))
+				pCaller->CurrentPosition += RequestedCount;
 		// ... otherwise calculate the new position
-		else pCaller->CurrentPosition = pCaller->CalcCurrentPosition();
+		else pCaller->CurrentPosition=pCaller->CalcCurrentPosition();
+	}
+
+	// If we get too few bytes - and padding has been selected, padd this wrapping unit
+	if((Ret->Size < Bytes) && PaddingEnabled)
+	{
+		size_t OldSize = Ret->Size;
+		Ret->Resize(Bytes);
+		memset(&Ret->Data[OldSize], 0, Bytes - OldSize);
 	}
 
 	return Ret;
+}
+
+
+//! Get data to write as padding after all real essence data has been processed
+/*! If more than one stream is being wrapped, they may not all end at the same wrapping-unit.
+ *	When this happens each source that has ended will produce NULL is response to GetEssenceData().
+ *	The default action of the caller would be to write zero-length KLVs in each wrapping unit for each source that has ended.
+ *	If a source supplies an overload for this method, the supplied padding data will be written in wrapping units following the end of essence instead of a zero-length KLV
+ *	DRAGONS: Note that as the returned value is a non-smart pointer, ownership of the buffer stays with the EssenceSource object.
+ *			 The recommended method of operation is to have a member DataChunk (or DataChunkPtr) allocated the first time padding is required, and return the address each call.
+ *			 The destructor must then free the DataChunk, or allow the smart DataChunkPtr to do it automatically
+ */
+DataChunk *WAVE_PCM_EssenceSubParser::ESP_EssenceSource::GetPadding(void)
+{
+	WAVE_PCM_EssenceSubParser *pCaller = SmartPtr_Cast(Caller, WAVE_PCM_EssenceSubParser);
+
+	// Don't pad if not requested
+	if(!PaddingEnabled) return NULL;
+
+	size_t Size = pCaller->SamplesThisEditUnit() * pCaller->SampleSize;
+	if(!PaddingChunk)
+	{
+		PaddingChunk = new DataChunk(Size + 10);
+		memset(PaddingChunk->Data, 0, PaddingChunk->Size);
+	}
+
+	// Add more zero bytes if required (if this is an odd sequence!)
+	if(Size > PaddingChunk->Size)
+	{
+		size_t OldSize = PaddingChunk->Size;
+		PaddingChunk->Resize(Size);
+		memset(&PaddingChunk->Data[OldSize], 0, Size - OldSize);
+	}
+	else
+		PaddingChunk->Resize(Size);
+
+	return PaddingChunk;
+}
+
+
+//! Set a source type or parser specific option
+/*! \return true if the option was successfully set */
+bool WAVE_PCM_EssenceSubParser::ESP_EssenceSource::SetOption(std::string Option, Int64 Param /*=0*/)
+{
+	// Enable padding at the end of the essence stream
+	if(Option == "EndPadding")
+	{
+		if(Param) PaddingEnabled = true; else PaddingEnabled = false;
+
+		return true;
+	}
+
+	return false;
 }
 
 
@@ -560,6 +627,27 @@ MDObjectPtr mxflib::WAVE_PCM_EssenceSubParser::BuildWaveAudioDescriptor(FileHand
 }
 
 
+//! Get the number of sample this edit unit
+UInt32 mxflib::WAVE_PCM_EssenceSubParser::SamplesThisEditUnit(void)
+{
+
+	if(ConstSamples) return ConstSamples;
+
+	if((SampleSequenceSize == 0) || (SampleSequence == NULL))
+	{
+		// If no edit rate has been set read single samples
+		return 1;
+	}
+
+	// Otherwise take the next in the sequence
+	UInt32 Ret = SampleSequence[SequencePos];
+	SequencePos++;
+	if(SequencePos >= SampleSequenceSize) SequencePos = 0;
+
+	return Ret;
+}
+
+
 //! Scan the essence to calculate how many bytes to transfer for the given edit unit count
 /*! \note The file position pointer is left at the start of the chunk at the end of 
  *		  this function
@@ -567,7 +655,6 @@ MDObjectPtr mxflib::WAVE_PCM_EssenceSubParser::BuildWaveAudioDescriptor(FileHand
 size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32 Stream, UInt64 Count) 
 { 
 	Length Ret;
-	UInt32 SamplesPerEditUnit;
 	
 	// Return the cached value if we have not yet used it
 	if((CachedDataSize != static_cast<size_t>(-1)) && (CachedCount == Count)) return CachedDataSize;
@@ -585,25 +672,8 @@ size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	}
 	Max = DataSize - Max;							// How many bytes are left
 
-	if(ConstSamples) 
-	{
-		SamplesPerEditUnit = ConstSamples;
-	}
-	else
-	{
-		if((SampleSequenceSize == 0) || (SampleSequence == NULL))
-		{
-			// If no edit rate has been set read single samples
-			SamplesPerEditUnit = 1;
-		}
-		else
-		{
-			// Otherwise take the next in the sequence
-			SamplesPerEditUnit = SampleSequence[SequencePos];
-			SequencePos++;
-			if(SequencePos >= SampleSequenceSize) SequencePos = 0;
-		}
-	}
+	// How many sample are required?
+	UInt32 SamplesPerEditUnit = SamplesThisEditUnit();
 
 	// Return anything we can find if in clip wrapping
 	if(SelectedWrapping->ThisWrapType == WrappingOption::Clip) Ret = Max;
@@ -618,7 +688,7 @@ size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	{
 		// DRAGONS: Can force no "partial" edit units here if required
 		// while(Ret > Max) Ret -= (SamplesPerEditUnit * SampleSize)
-		Ret = Max;
+		Ret = 0;
 	}
 
 	// Validate the size
@@ -631,6 +701,79 @@ size_t mxflib::WAVE_PCM_EssenceSubParser::ReadInternal(FileHandle InFile, UInt32
 	// Store so we don't have to calculate if called again without reading
 	CachedDataSize =  static_cast<size_t>(Ret);
 	CachedCount = Count;
-	
+
 	return CachedDataSize;
+}
+
+
+//! Get BytesPerEditUnit, if Constant
+UInt32 mxflib::WAVE_PCM_EssenceSubParser::GetBytesPerEditUnit(UInt32 KAGSize /*=1*/)
+{
+
+	// If we haven't determined the sample sequence we do it now
+	if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
+
+	UInt32 Ret = SampleSize*ConstSamples;
+
+	if(SelectedWrapping->ThisWrapType == WrappingOption::Frame)
+	{
+		if(Ret)
+		{
+			// Fixed CBE: Adjust for KAG and K+L size
+			Ret = GetBPE_Internal(KAGSize, Ret);
+		}
+		else
+		{
+			// Try out sequence
+			if(SampleSequenceSize)
+			{
+				/* Work out min and max seqence sizes */
+				UInt32 MinSize = 0xffffffff;
+				UInt32 MaxSize = 0;
+				for(int i=0; i<SampleSequenceSize; i++)
+				{
+					if(SampleSequence[i] < MinSize) MinSize = SampleSequence[i];
+					if(SampleSequence[i] > MaxSize) MaxSize = SampleSequence[i];
+				}
+
+				// Get the actual minimum and maximum size with KAG etc.
+				MinSize = GetBPE_Internal(KAGSize, MinSize * SampleSize);
+				MaxSize = GetBPE_Internal(KAGSize, MaxSize * SampleSize);
+
+				// If they are the same, then this will work as CBR
+				if(MinSize == MaxSize) Ret = MinSize;
+			}
+		}
+	}
+
+	return Ret;
+}
+
+
+//! Get BytesPerEditUnit for a specified number of sample bytes (take into account KAG and K + L)
+UInt32 mxflib::WAVE_PCM_EssenceSubParser::GetBPE_Internal(UInt32 KAGSize, UInt32 SampleSize)
+{
+	// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
+	UInt32 Ret = SampleSize + 16 + 4;
+
+	// Adjust for whole KAGs if required
+	if(KAGSize > 1)
+	{
+		// Work out how much short of the next KAG boundary we would be
+		UInt32 Remainder = Ret % KAGSize;
+		if(Remainder) Remainder = KAGSize - Remainder;
+
+		// Round up to the start of the next KAG
+		Ret += Remainder;
+
+		// If there is not enough space to fit a filler in the remaining space an extra KAG will be required
+		// DRAGONS: For very small KAGSizes we may need to add several KAGs
+		while((Remainder > 0) && (Remainder < 17))
+		{
+			Ret += KAGSize;
+			Remainder += KAGSize;
+		}
+	}
+
+	return Ret;
 }

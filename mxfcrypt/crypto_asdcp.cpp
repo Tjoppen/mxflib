@@ -1,7 +1,7 @@
 /*! \file	crypto_asdcp.cpp
  *	\brief	AS-DCP compatible encryption and decryption
  *
- *	\version $Id: crypto_asdcp.cpp,v 1.8 2006/09/04 16:18:21 matt-beard Exp $
+ *	\version $Id: crypto_asdcp.cpp,v 1.9 2011/01/10 10:42:08 matt-beard Exp $
  *
  */
 /*

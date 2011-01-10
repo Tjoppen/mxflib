@@ -1,7 +1,7 @@
 /*! \file	xmlparser.cpp
  *	\brief	Interface to available SAX style XML parser
  *
- *	\version $Id: xmlparser.cpp,v 1.1 2005/10/11 10:01:01 matt-beard Exp $
+ *	\version $Id: xmlparser.cpp,v 1.2 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -29,14 +29,14 @@
 
 #ifdef HAVE_EXPAT
 
-#include "mxflib\mxflib.h"
+#include "mxflib/mxflib.h"
 
-#define XML_STATIC
 #include "expat.h"
 
 
+
 //! Use Expat parser to parse an XML file
-bool mxflib::XMLParserParseFile(mxflib::XMLParserHandlerPtr Hand, void *UserData, const char *filename)
+bool mxflib::XMLParserParseFile(XML_Parser *pParser, mxflib::XMLParserHandlerPtr Hand, void *UserData, const char *filename, bool ParseNamespaces /*=false*/)
 {
 	if(!Hand)
 	{
@@ -53,13 +53,16 @@ bool mxflib::XMLParserParseFile(mxflib::XMLParserHandlerPtr Hand, void *UserData
 	}
 
 	// Build a new parser
-	XML_Parser Parser = XML_ParserCreate(NULL);
+	XML_Parser Parser = ParseNamespaces ? XML_ParserCreateNS(NULL, '|') : XML_ParserCreate(NULL);
 	if(!Parser)
 	{
 		Hand->fatalError(UserData, "Could't create an expat XML parser\n");
 		FileClose(InFile);
 		return false;
 	}
+
+	// Set the caller's parser pointer if requested
+	if(pParser) *pParser = Parser;
 
 	// Set the element handlers
 	XML_SetElementHandler(Parser, Hand->startElement, Hand->endElement);
@@ -96,6 +99,55 @@ bool mxflib::XMLParserParseFile(mxflib::XMLParserHandlerPtr Hand, void *UserData
 	return true;
 }
 
+
+
+//! Use Expat parser to parse an XML file
+bool mxflib::XMLParserParseString(XML_Parser *pParser, mxflib::XMLParserHandlerPtr Hand, void *UserData, std::string & strXML, bool ParseNamespaces /*=false*/)
+{
+	if(!Hand)
+	{
+		error("No handler defined in call to XMLParserParseFile()\n");
+		return false;
+	}
+
+
+	// Build a new parser
+	XML_Parser Parser = XML_ParserCreate(NULL);
+	if(!Parser)
+	{
+		Hand->fatalError(UserData, "Could't create an expat XML parser\n");
+		return false;
+	}
+
+	// Set the caller's parser pointer if requested
+	if(pParser) *pParser = Parser;
+
+	// Set the element handlers
+	XML_SetElementHandler(Parser, Hand->startElement, Hand->endElement);
+
+	// Set the user data
+	XML_SetUserData(Parser, UserData);
+
+	int Done = 0;
+
+		const size_t BufferSize = strXML.size()+1;
+		char *Buffer = (char *)XML_GetBuffer(Parser, static_cast<int>(BufferSize));
+		strcpy(Buffer, strXML.c_str());
+
+		if (XML_ParseBuffer(Parser, static_cast<int>(BufferSize-1), Done) == XML_STATUS_ERROR) 
+		{
+			Hand->fatalError(UserData, "Parse error at line %d:\n%s\n",  XML_GetCurrentLineNumber(Parser),
+				XML_ErrorString(XML_GetErrorCode(Parser)));
+
+			XML_ParserFree(Parser);
+			return false;
+		}
+
+	// Free the parser
+	XML_ParserFree(Parser);
+
+	return true;
+}
 #endif // HAVE_EXPAT
 
 

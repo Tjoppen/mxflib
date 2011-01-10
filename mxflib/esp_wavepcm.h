@@ -1,7 +1,7 @@
 /*! \file	esp_wavepcm.h
  *	\brief	Definition of class that handles parsing of uncompressed pcm wave audio files
  *
- *	\version $Id: esp_wavepcm.h,v 1.13 2007/02/23 13:23:51 matt-beard Exp $
+ *	\version $Id: esp_wavepcm.h,v 1.14 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -70,12 +70,16 @@ namespace mxflib
 		protected:
 			size_t BytesRemaining;							//!< The number of bytes remaining in a multi-part GetEssenceData, or zero if not part read
 
+			bool PaddingEnabled;							//!< Is padding after the end of the essence stream enabled?
+			DataChunkPtr PaddingChunk;						//!< A chunk containing padding bytes (if required) for use in GetPadding()
+
 		public:
 			//! Construct and initialise for essence parsing/sourcing
 			ESP_EssenceSource(EssenceSubParserPtr TheCaller, FileHandle InFile, UInt32 UseStream, UInt64 Count = 1/*, IndexTablePtr UseIndex = NULL*/)
 				: EssenceSubParserBase::ESP_EssenceSource(TheCaller, InFile, UseStream, Count/*, UseIndex*/) 
 			{
 				BytesRemaining = 0;
+				PaddingEnabled = false;
 			};
 
 			//! Get the size of the essence data in bytes
@@ -108,6 +112,17 @@ namespace mxflib
 				return !BytesRemaining;
 			}
 
+			//! Get data to write as padding after all real essence data has been processed
+			/*! If more than one stream is being wrapped, they may not all end at the same wrapping-unit.
+			 *	When this happens each source that has ended will produce NULL is response to GetEssenceData().
+			 *	The default action of the caller would be to write zero-length KLVs in each wrapping unit for each source that has ended.
+			 *	If a source supplies an overload for this method, the supplied padding data will be written in wrapping units following the end of essence instead of a zero-length KLV
+			 *	DRAGONS: Note that as the returned value is a non-smart pointer, ownership of the buffer stays with the EssenceSource object.
+			 *			 The recommended method of operation is to have a member DataChunk (or DataChunkPtr) allocated the first time padding is required, and return the address each call.
+			 *			 The destructor must then free the DataChunk, or allow the smart DataChunkPtr to do it automatically
+			 */
+			virtual DataChunk *GetPadding(void);
+
 			//! Get the preferred BER length size for essence KLVs written from this source, 0 for auto
 			virtual int GetBERSize(void) 
 			{ 
@@ -116,6 +131,10 @@ namespace mxflib
 				if(pCaller->SelectedWrapping->ThisWrapType == WrappingOption::Clip) return 8;
 				return 4;
 			}
+
+			//! Set a source type or parser specific option
+			/*! \return true if the option was successfully set */
+			virtual bool SetOption(std::string Option, Int64 Param = 0);
 		};
 
 		// Give our essence source class privilaged access
@@ -143,6 +162,12 @@ namespace mxflib
 			CachedCount = 0;
 		}
 
+		//! Clean up and free memory
+		~WAVE_PCM_EssenceSubParser()
+		{
+			if(SampleSequence) delete [] SampleSequence;
+		}
+
 		//! Build a new parser of this type and return a pointer to it
 		virtual EssenceSubParserPtr NewParser(void) const { return new WAVE_PCM_EssenceSubParser; }
 
@@ -164,7 +189,7 @@ namespace mxflib
 
 		//! Set a wrapping option for future Read and Write calls
 		/*! \return true if this EditRate is acceptable with this wrapping */
-		virtual void Use(UInt32 Stream, WrappingOptionPtr UseWrapping)
+		virtual void Use(UInt32 Stream, WrappingOptionPtr &UseWrapping)
 		{
 			SelectedWrapping = UseWrapping;
 
@@ -200,41 +225,7 @@ namespace mxflib
 		virtual Rational GetPreferredEditRate(void);
 
 		//! Get BytesPerEditUnit, if Constant
-		virtual UInt32 GetBytesPerEditUnit(UInt32 KAGSize = 1)
-		{
-			// If we haven't determined the sample sequence we do it now
-			if((ConstSamples == 0) && (SampleSequenceSize == 0)) CalcWrappingSequence(UseEditRate);
-
-			UInt32 Ret = SampleSize*ConstSamples;
-
-			if(Ret && (SelectedWrapping->ThisWrapType == WrappingOption::Frame))
-			{
-				// FIXME: This assumes that 4-byte BER coding will be used - this needs to be adjusted or forced to be true!!
-				Ret += 16 + 4;
-
-				// Adjust for whole KAGs if required
-				if(KAGSize > 1)
-				{
-					// Work out how much short of the next KAG boundary we would be
-					UInt32 Remainder = Ret % KAGSize;
-					if(Remainder) Remainder = KAGSize - Remainder;
-
-					// Round up to the start of the next KAG
-					Ret += Remainder;
-
-					// If there is not enough space to fit a filler in the remaining space an extra KAG will be required
-					// DRAGONS: For very small KAGSizes we may need to add several KAGs
-					while((Remainder > 0) && (Remainder < 17))
-					{
-						Ret += KAGSize;
-						Remainder += KAGSize;
-					}
-				}
-			}
-
-			return Ret;
-		}
-
+		virtual UInt32 GetBytesPerEditUnit(UInt32 KAGSize = 1);
 
 		//! Get the current position in SetEditRate() sized edit units
 		virtual Position GetCurrentPosition(void) { return CurrentPosition; }
@@ -265,6 +256,26 @@ namespace mxflib
 
 		//! Calculate the current position in SetEditRate() sized edit units from "BytePosition" in bytes
 		Position CalcCurrentPosition(void);
+
+		//! Get the number of samples this edit unit
+		UInt32 SamplesThisEditUnit(void);
+
+		//! Undo the last step through the wrapping sequence done by SamplesThisEditUnit()
+		void PushBackSize(void)
+		{
+			// If no sequence, skip
+			if(ConstSamples) return;
+
+			// If no edit rate has been set, skip
+			if((SampleSequenceSize == 0) || (SampleSequence == NULL)) return;
+
+			// Otherwise step back
+			if(SequencePos == 0) SequencePos = SampleSequenceSize - 1;
+			else SequencePos--;
+		}
+
+		//! Get BytesPerEditUnit for a specified number of sample bytes (take into account KAG and K + L)
+		UInt32 GetBPE_Internal(UInt32 KAGSize, UInt32 SampleSize);
 
 		//! Read the sequence header at the specified position in an MPEG2 file to build an essence descriptor
 		MDObjectPtr BuildWaveAudioDescriptor(FileHandle InFile, UInt64 Start = 0);

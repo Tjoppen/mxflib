@@ -1,7 +1,7 @@
 /*! \file	esp_template.h
  *	\brief	Definition of class that handles parsing of <File Type>
  *
- *	\version $Id: esp_template.h,v 1.4 2007/02/23 13:23:51 matt-beard Exp $
+ *	\version $Id: esp_template.h,v 1.5 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*

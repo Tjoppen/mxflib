@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.cpp,v 1.8 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: primer.cpp,v 1.9 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -31,7 +31,7 @@
  *	     distribution.
  */
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
 
 using namespace mxflib;
 
@@ -52,32 +52,38 @@ UInt32 Primer::ReadValue(const UInt8 *Buffer, UInt32 Size)
 		return 0;
 	}
 
-	// Each entry in the primer is 18 bytes
-	UInt32 Items = (Size-8) / 18;
-
-	// Validate the size and only read whole items
-	if((Items * 18) != (Size-8))
-	{
-		error("Primer not an integer number of multiples of 18 bytes!\n");
-		Size = (Items * 18) + 8;
-	}
-
 	// Read the vector header
 	UInt32 ClaimedItems = GetU32(Buffer);
 	UInt32 ClaimedItemSize = GetU32(&Buffer[4]);
 	Buffer += 8;
 
-	if(ClaimedItemSize != 18)
+	if(ClaimedItemSize < 18)
 	{
 		error("Malformed vector header in Primer - each entry is 18 bytes, size in vector header is %d\n", ClaimedItemSize);
+		return 0;
 	}
-	else
+
+	// Each entry in the primer is ClaimedItemSize bytes
+	UInt32 Items = (Size-8) / ClaimedItemSize;
+
+	// Validate the size and only read whole items
+	if((Items * ClaimedItemSize) != (Size-8))
 	{
-		if(Items != ClaimedItems)
-		{
-			error("Malformed vector header in Primer - number of entries is %d, vector header claims %d\n", Items, ClaimedItems);
-		}
+		error("Primer not an integer number of items!\n");
+		Size = (Items * ClaimedItemSize) + 8;
 	}
+
+	if(Items != ClaimedItems)
+	{
+		error("Malformed vector header in Primer - number of entries is %d, vector header claims %d\n", Items, ClaimedItems);
+		
+		// Read the lesser of the two for safety
+		if(Items > ClaimedItems) Items = ClaimedItems;
+		Size = (Items * ClaimedItemSize) + 8;
+	}
+
+	// It is legal, but unlikely, to have some extra data in each primer entry - we treat this as padding and skip it
+	int Padding = static_cast<int>(ClaimedItemSize - 18);
 
 	// Read each item
 	while(Items--)
@@ -86,7 +92,7 @@ UInt32 Primer::ReadValue(const UInt8 *Buffer, UInt32 Size)
 		Buffer += 2;
 
 		UL ThisUL(Buffer);
-		Buffer += 16;
+		Buffer += (16 + Padding);
 
 		// Add this new entry to the primer
 		insert(Primer::value_type(ThisTag, ThisUL));
@@ -186,8 +192,8 @@ UInt32 Primer::WritePrimer(DataChunkPtr &Buffer)
 	Buffer->ResizeBuffer((UInt32)(Buffer->Size + 16 + 4 + PrimerLen));
 
 	// Lookup the type to get the key - Static so only need to lookup once
-	static MDOTypePtr PrimerType = MDOType::Find(Primer_UL);
-	ASSERT(PrimerType);
+	MDOTypePtr PrimerType = MDOType::Find(Primer_UL);
+	mxflib_assert(PrimerType);
 
 	Buffer->Append(PrimerType->GetKey());
 	Bytes = static_cast<UInt32>(PrimerType->GetKey().Size);

@@ -3,7 +3,8 @@
 	ProjectType="Visual C++"
 	Version="8.00"
 	Name="dictconvert"
-	ProjectGUID="{29C07432-6236-48EB-981C-F5823D597396}"
+	ProjectGUID="{C0B2CBD8-37A6-4E36-AD6F-14E8A45EB482}"
+	RootNamespace="dictconvert"
 	>
 	<Platforms>
 		<Platform
@@ -15,10 +16,10 @@
 	<Configurations>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -42,15 +43,14 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				StringPooling="true"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/dictconvert.pch"
+				RuntimeTypeInfo="true"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 			/>
@@ -67,8 +67,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/dictconvert.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
+				ProgramDatabaseFile=".\Release/dictconvert.pdb"
 				SubSystem="1"
 				TargetMachine="1"
 			/>
@@ -95,16 +97,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -128,15 +130,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
-				UsePrecompiledHeader="0"
+				RuntimeTypeInfo="true"
 				PrecompiledHeaderFile=".\Debug/dictconvert.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 			/>
 			<Tool
@@ -152,7 +154,8 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
+				AdditionalDependencies="odbc32.lib odbccp32.lib"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -181,16 +184,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="DebugStatic|Win32"
-			OutputDirectory="$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(SolutionDir)NoVS8Warnings.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -214,15 +217,15 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="0"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
-				UsePrecompiledHeader="0"
+				RuntimeTypeInfo="true"
 				PrecompiledHeaderFile=".\Debug/dictconvert.pch"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
+				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 			/>
 			<Tool
@@ -238,9 +241,11 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
+				AdditionalDependencies="odbc32.lib odbccp32.lib"
+				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				GenerateDebugInformation="true"
+				ProgramDatabaseFile=".\Debug/dictconvert.pdb"
 				SubSystem="1"
 				TargetMachine="1"
 			/>
@@ -267,16 +272,16 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy debug executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 		<Configuration
 			Name="ReleaseStatic|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory=".\$(ConfigurationName)"
+			IntermediateDirectory=".\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			InheritedPropertySheets=".\mxflibGeneric.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
@@ -300,15 +305,14 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/Zm200 "
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
-				UsePrecompiledHeader="0"
-				PrecompiledHeaderFile=".\Release/dictconvert.pch"
+				RuntimeTypeInfo="true"
+				PrecompiledHeaderFile=""
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 			/>
@@ -325,8 +329,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="$(OutDir)/dictconvert.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
+				ProgramDatabaseFile=".\Release/dictconvert.pdb"
 				SubSystem="1"
 				TargetMachine="1"
 			/>
@@ -353,8 +359,8 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				Description="Copy executable"
-				CommandLine="copy /y $(OutDir)\$(ProjectName).exe ..\.."
+				Description="Copy release executable"
+				CommandLine="copy $(TargetPath) $(SolutionDir)\..\.."
 			/>
 		</Configuration>
 	</Configurations>

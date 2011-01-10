@@ -1,7 +1,7 @@
 /*! \file	sopSAX.cpp
  *	\brief	'sopranino SAX' super-light SAX style XML Parsers
  *
- *	\version $Id: sopsax.cpp,v 1.8 2006/07/02 13:27:51 matt-beard Exp $
+ *	\version $Id: sopsax.cpp,v 1.9 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -31,8 +31,9 @@
 
 #include <string.h>		/* strcpy */
 
+
+#include "mxflib/mxflib.h"
 #include "sopsax.h"
-#include <mxflib/mxflib.h>
 
 using namespace mxflib;
 

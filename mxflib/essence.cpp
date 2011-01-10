@@ -1,7 +1,7 @@
 /*! \file	essence.cpp
  *	\brief	Implementation of classes that handle essence reading and writing
  *
- *	\version $Id: essence.cpp,v 1.37 2008/08/20 12:53:59 matt-beard Exp $
+ *	\version $Id: essence.cpp,v 1.38 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -28,7 +28,13 @@
  */
 
 
-#include <mxflib/mxflib.h>
+#include "mxflib/mxflib.h"
+
+
+//TRACE CODE
+#ifdef ES_TRACE
+#include "trace/JNbasic_Ctrace.h"
+#endif
 
 using namespace mxflib;
 
@@ -38,10 +44,20 @@ using namespace mxflib;
 namespace
 {
 	//! The standard Generic Container essence key root
-	const UInt8 GCEssenceKey[16] =	{ 0x06, 0x0e, 0x2B, 0x34,
+	const UInt8 GCEssenceKeyNorm[16] =	{ 0x06, 0x0e, 0x2B, 0x34,
 									  0x01, 0x02, 0x01, 0x00,
 									  0x0d, 0x01, 0x03, 0x01,
 									  0x00, 0x00, 0x00, 0x00  };
+
+	const UInt8 GCEssenceKeyAvid[16] =	{ 0x06, 0x0e, 0x2B, 0x34,
+									  0x01, 0x02, 0x01, 0x00,
+									  0x0e, 0x04, 0x03, 0x01,
+									  0x00, 0x00, 0x00, 0x00  };
+
+	const Uint8 *GetGCEssenceKey()
+	{
+			return GCEssenceKeyNorm;
+	}
 
 	//! A list of pointers to alternative essence key roots to treat as GC keys
 	/*! This allows private or experimental essence keys to be treated as standard GC keys when reading 
@@ -300,7 +316,7 @@ GCStreamID GCWriter::AddEssenceElement(DataChunkPtr &Key, int LenSize /*=0*/, bo
 	Stream->Type = Key->Data[12];
 
 	// Set the key items (which will probably never be used)
-	Stream->RegVer = 1;
+	Stream->RegVer = NonGC ? 1 : Key->Data[7];
 	Stream->RegDes = 0x02;		// All essence items are "essence items"
 
 	if(!NonGC)
@@ -447,7 +463,7 @@ void GCWriter::AddSystemData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 
 
 //! Add essence item data to the current CP
-void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
+void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data, BodyStreamPtr BStream /*=NULL*/)
 {
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -467,11 +483,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 	else
 	{
 		// Copy in the key template
-		memcpy(Buffer, GCEssenceKey, 12);
-
-		// Set up the rest of the key
-		Buffer[7] = Stream->RegVer;
-		Buffer[12] = Stream->Type;
+		memcpy(Buffer, GetGCEssenceKey(), 12);
 	}
 
 	// Update the last three GC track number bytes unless it's not a GC KLV
@@ -481,9 +493,9 @@ void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 		if(!Stream->CountFixed)
 		{
 			// Count the number of elements of this type
-			int Count = 1;		// Start by counting us
+			int Count = 0;		// Start at zero, we will count this stream as we pass
 			int i;
-			for(i=0; i<ID; i++)
+			for(i=0; i<StreamCount; i++)
 			{
 				// DRAGONS: Should we allow duplicates for same essence types of different element types?
 				if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
@@ -497,6 +509,9 @@ void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 			Stream->CountFixed = true;
 		}
 
+		// Set up the rest of the key
+		Buffer[7] = Stream->RegVer;
+		Buffer[12] = Stream->Type;
 		Buffer[13] = Stream->SchemeOrCount;
 		Buffer[14] = Stream->Element;
 		Buffer[15] = Stream->SubOrNumber;
@@ -515,6 +530,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 	WB.Size = Size + ValStart;
 	WB.Buffer = Buffer;
 	WB.KLVSource = NULL;
+	WB.Stream = BStream;
 	WB.FastClipWrap = false;
 	WB.LenSize = Stream->LenSize;
 
@@ -534,7 +550,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, UInt64 Size, const UInt8 *Data)
 
 
 //! Add an essence item to the current CP with the essence to be read from an EssenceSource object
-void GCWriter::AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastClipWrap /*=false*/)
+void GCWriter::AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastClipWrap /*=false*/, BodyStreamPtr BStream /*=NULL*/)
 {
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -554,11 +570,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastC
 	else
 	{
 		// Copy in the key template
-		memcpy(Buffer, GCEssenceKey, 12);
-
-		// Set up the rest of the key
-		Buffer[7] = Stream->RegVer;
-		Buffer[12] = Stream->Type;
+		memcpy(Buffer, GetGCEssenceKey(), 12);
 	}
 
 	// Update the last three GC track number bytes unless it's not a GC KLV
@@ -568,9 +580,9 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastC
 		if(!Stream->CountFixed)
 		{
 			// Count the number of elements of this type
-			int Count = 1;		// Start by counting us
+			int Count = 0;		// Start at zero, we will count this stream as we pass
 			int i;
-			for(i=0; i<ID; i++)
+			for(i=0; i<StreamCount; i++)
 			{
 				// DRAGONS: Should we allow duplicates for same essence types of different element types?
 				if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
@@ -584,6 +596,9 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastC
 			Stream->CountFixed = true;
 		}
 
+		// Set up the rest of the key
+		Buffer[7] = Stream->RegVer;
+		Buffer[12] = Stream->Type;
 		Buffer[13] = Stream->SchemeOrCount;
 		Buffer[14] = Stream->Element;
 		Buffer[15] = Stream->SubOrNumber;
@@ -595,6 +610,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastC
 	WB.Buffer = Buffer;
 	WB.Source = Source;
 	WB.KLVSource = NULL;
+	WB.Stream = BStream;
 	WB.FastClipWrap = FastClipWrap;
 	WB.LenSize = Stream->LenSize;
 
@@ -615,7 +631,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, EssenceSourcePtr Source, bool FastC
 
 
 //! Add an essence item to the current CP with the essence to be read from a KLVObject
-void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipWrap /*=false*/)
+void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipWrap /*=false*/, BodyStreamPtr BStream /*=NULL*/)
 {
 	// Index the data block for this stream
 	if((ID < 0) || (ID >= StreamCount))
@@ -635,11 +651,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipW
 	else
 	{
 		// Copy in the key template
-		memcpy(Buffer, GCEssenceKey, 12);
-
-		// Set up the rest of the key
-		Buffer[7] = Stream->RegVer;
-		Buffer[12] = Stream->Type;
+		memcpy(Buffer, GetGCEssenceKey(), 12);
 	}
 
 	// Update the last three GC track number bytes unless it's not a GC KLV
@@ -649,9 +661,9 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipW
 		if(!Stream->CountFixed)
 		{
 			// Count the number of elements of this type
-			int Count = 1;		// Start by counting us
+			int Count = 0;		// Start at zero, we will count this stream as we pass
 			int i;
-			for(i=0; i<ID; i++)
+			for(i=0; i<StreamCount; i++)
 			{
 				// DRAGONS: Should we allow duplicates for same essence types of different element types?
 				if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
@@ -665,6 +677,9 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipW
 			Stream->CountFixed = true;
 		}
 
+		// Set up the rest of the key
+		Buffer[7] = Stream->RegVer;
+		Buffer[12] = Stream->Type;
 		Buffer[13] = Stream->SchemeOrCount;
 		Buffer[14] = Stream->Element;
 		Buffer[15] = Stream->SubOrNumber;
@@ -675,6 +690,7 @@ void GCWriter::AddEssenceData(GCStreamID ID, KLVObjectPtr Source, bool FastClipW
 	WB.Size = 16;
 	WB.Buffer = Buffer;
 	WB.KLVSource = Source;
+	WB.Stream = BStream;
 	WB.FastClipWrap = FastClipWrap;
 	WB.LenSize = Stream->LenSize;
 
@@ -715,9 +731,9 @@ UInt32 GCWriter::GetTrackNumber(GCStreamID ID)
 	if(!Stream->CountFixed) 
 	{
 		// Count the number of elements of this type
-		int Count = 1;		// Start by counting us
+		int Count = 0;		// Start at zero, we will count this stream as we pass
 		int i;
-		for(i=0; i<ID; i++)
+		for(i=0; i<StreamCount; i++)
 		{
 			// DRAGONS: Should we allow duplicates for same essence types of different element types?
 			if((StreamTable[i].Type == StreamTable[ID].Type) /*&& (StreamTable[i].Element == StreamTable[ID].Element)*/)
@@ -887,6 +903,9 @@ void GCWriter::Flush(void)
 		{
 			UInt64 Size = (*it).second.KLVSource->GetLength();
 
+			// Increment the EssenceData count in the source stream
+			if((*it).second.Stream) (*it).second.Stream->IncrementOverallEssenceSize(static_cast<Length>(Size));
+
 			// Write out the length
 			DataChunkPtr BER = MakeBER(Size);
 			StreamOffset += LinkedFile->Write(*BER);
@@ -920,7 +939,13 @@ void GCWriter::Flush(void)
 
 				LenPosition = LinkedFile->Tell();
 			}
-			else Size = (*it).second.Source->GetEssenceDataSize();
+			else 
+			{
+				Size = (*it).second.Source->GetEssenceDataSize();
+				
+				// Increment the EssenceData count in the source stream
+				if((*it).second.Stream) (*it).second.Stream->IncrementOverallEssenceSize(static_cast<Length>(Size));
+			}
 
 			// Write out the length
 			int LenSize = LinkedFile->WriteBER(Size, (*it).second.LenSize);
@@ -931,6 +956,7 @@ void GCWriter::Flush(void)
 			Position LastEditUnit = -1;
 
 			// Record the KLSize if we are doing value-relative indexing
+
 			if(IndexClip && (*it).second.IndexMan->GetValueRelativeIndexing())
 			{
 				KLSize = StreamOffset - KLSize;
@@ -972,8 +998,42 @@ void GCWriter::Flush(void)
 				// Index this item if required (removing the KLSize if doing value-relative indexing)
 				if(IndexThisItem) (*it).second.IndexMan->OfferOffset((*it).second.IndexSubStream, LastEditUnit, StreamOffset - KLSize);
 
-				// Write the data
-				StreamOffset += LinkedFile->Write(*Data);
+//TRACE CODE
+#ifdef ES_TRACE
+#error "ES_TRACE is defined"
+				bool dowrite=true;
+				char * debug_behavior=getenv("ES_DEBUG");
+				if( debug_behavior && strlen(debug_behavior)>0)
+				{
+					char * pch=debug_behavior;
+					do
+					{
+						if(*pch=='W')
+						{
+							dowrite=false;
+						}
+					}while(*pch++);
+				}
+			
+							// Write the data
+				if(dowrite)
+							StreamOffset += LinkedFile->Write(*Data);
+				else
+					//puts("Aborting write to disc" );
+					JNU_TRACE_0i_0u_0t_0f( "Aborting write to ring buffer" );
+			
+				char msg[ 100];
+				
+				unsigned char * buff=Data->Data;
+				short * ps=(short * )&buff[0x10];
+				int FrameNo=* ps;
+				sprintf(msg, "MXFLIB: Frame Written Number %d Size 0x%08x", FrameNo,(int)Data->Size);
+				//puts(msg);
+				JNU_TRACE_0i_0u_0t_0f( msg );
+#else
+			StreamOffset += LinkedFile->Write(*Data);
+#endif
+
 			}
 
 			// Now correct the length if we are fast clip wrapping
@@ -991,6 +1051,10 @@ void GCWriter::Flush(void)
 					// DRAGONS: At this point the file is broken - but there is no graceful solution!
 					error("Clip wrapped essence item greater than will fit in the required %d-byte BER length\n", LenSize);
 				}
+
+				
+				// Increment the EssenceData count in the source stream
+				if((*it).second.Stream) (*it).second.Stream->IncrementOverallEssenceSize(static_cast<Length>(ValueSize));
 
 				// Return to the current write point
 				LinkedFile->Seek(ValueEnd);
@@ -1388,7 +1452,7 @@ GCReader::GCReader( MXFFilePtr File, GCReadHandlerPtr DefaultHandler /*=NULL*/, 
 bool GCReader::ReadFromFile(bool SingleKLV /*=false*/)
 {
 	// Seek to the offset of the "next" KLV
-	ASSERT(File);
+	mxflib_assert(File);
 	File->Seek(FileOffset);
 
 	// Force us to stop as soon as we have read a single KLV if requested
@@ -1411,7 +1475,7 @@ bool GCReader::ReadFromFile(bool SingleKLV /*=false*/)
 		bool Ret = HandleData(Object);
 		
 		// Perform a pushback (if requested) by seeking to the start of this KLV and not updating offsets
-		if(StopCalled && PushBackRequested)
+		if(StopNow && PushBackRequested)
 		{
 			File->Seek(FileOffset);
 		}
@@ -1561,53 +1625,119 @@ Position BodyReader::Seek(UInt32 BodySID, Position Pos)
 		return -1;
 	}
 
-	// Get the stream offset of the start of this partition
-	Position StreamOffset = PartInfo->GetStreamOffset();
-	
-	// If that was unknown we need to read the partition pack
-	if(StreamOffset == -1)
-	{
-		File->Seek(PartInfo->GetByteOffset());
-		PartInfo->ThePartition = File->ReadPartition();
+	// This will hold the position requested once determined
+	Position PredictedPos = 0;
+	Position LastPredictedPos = -1;
 
-		if(PartInfo->ThePartition)
-		{
-			StreamOffset = PartInfo->ThePartition->GetInt64("BodyOffset");
-		}
-	}
-
-	Position EssenceStart = PartInfo->GetEssenceStart();
-	if(EssenceStart == -1)
+	// We now need to check this partition - and possibly scan forwards one or two partitions (depending on how accurate the FindPartition() call was)
+	for(;;)
 	{
-		if(!PartInfo->ThePartition)
+		// Get the stream offset of the start of this partition
+		Position StreamOffset = PartInfo->GetStreamOffset();
+		
+		// If that was unknown we need to read the partition pack
+		if(StreamOffset == -1)
 		{
 			File->Seek(PartInfo->GetByteOffset());
 			PartInfo->ThePartition = File->ReadPartition();
+
+			if(PartInfo->ThePartition)
+			{
+				StreamOffset = PartInfo->ThePartition->GetInt64("BodyOffset");
+			}
 		}
 
-		if(!PartInfo->ThePartition)
+		Position EssenceStart = PartInfo->GetEssenceStart();
+		if(EssenceStart == -1)
 		{
-			error("BodyReader::Seek(%d, 0x%s) failed to read the partition\n", BodySID, Int64toHexString(Pos).c_str());
-			return -1;
-		}
-	
-		if(!(PartInfo->ThePartition->SeekEssence()))
-		{
-			error("BodyReader::Seek(%d, 0x%s) failed to locate essence in the predicted partition\n", BodySID, Int64toHexString(Pos).c_str());
-			return -1;
+			if(!PartInfo->ThePartition)
+			{
+				File->Seek(PartInfo->GetByteOffset());
+				PartInfo->ThePartition = File->ReadPartition();
+			}
+
+			if(!PartInfo->ThePartition)
+			{
+				error("BodyReader::Seek(%d, 0x%s) failed to read the partition\n", BodySID, Int64toHexString(Pos).c_str());
+				return -1;
+			}
+		
+			if(!(PartInfo->ThePartition->SeekEssence()))
+			{
+				error("BodyReader::Seek(%d, 0x%s) failed to locate essence in the predicted partition\n", BodySID, Int64toHexString(Pos).c_str());
+				return -1;
+			}
+
+			EssenceStart = File->Tell();
+			PartInfo->SetEssenceStart(EssenceStart);
 		}
 
-		EssenceStart = File->Tell();
-		PartInfo->SetEssenceStart(EssenceStart);
+		// Predict the requested stream position - this will be correct as long as it is not beyond the end of this partition
+		PredictedPos = EssenceStart + (Pos - StreamOffset);
+
+		//in some broken files this can hang by alwasy going round the same point
+		if(PredictedPos==LastPredictedPos)
+			return NULL;
+
+		LastPredictedPos=PredictedPos;
+
+		/* Check if this took us beyond the end of the partition */
+
+		// Locate the partition pack at or before this point (if all went well this will be the predicted partition pack)
+		// DRAGONS: We do this by looking for the next one, then subtracting one
+		// DRAGONS: Scan beyond end of file is a silent failure as this may be an incomplete file
+		
+		RIP::iterator it = File->FileRIP.lower_bound(PredictedPos+1);
+		if(it == File->FileRIP.end()) 
+			return NULL;
+		if(it != File->FileRIP.begin()) 
+			it--;
+
+		// So, is this the same partition? If se, exit the loop as we have found the essence
+		if((*it).second->GetByteOffset() == PartInfo->GetByteOffset()) break;
+
+		/* Beyond the end of the partition - scan for the next partition of this BodySID and try again */
+		
+		// DRAGONS: We have just ended up in the next partition pack already, so *it may be the desired 'next partition'
+		while ((*it).second->GetBodySID() != BodySID)
+		{
+			// Get the next partition pack
+			// DRAGONS: Scan beyond end of file is a silent failure as this may be an incomplete file
+			if(++it == File->FileRIP.end())
+			{
+				return -1;
+			}
+		}
+
+		// Set this as the new predicted partition, and try again
+		PartInfo = (*it).second;
 	}
 
-	// Seek beyond end of file is a silent failure as this may be an incomplete file
-	if(File->Seek(EssenceStart + (Pos - StreamOffset)) != 0)
+	// Seek to the requested location
+	// DRAGONS: Seek beyond end of file is a silent failure as this may be an incomplete file
+	if(File->Seek(PredictedPos) != 0)
 	{
 		return -1;
 	}
 
-	return File->Tell();
+	// Record the current file position
+	CurrentPos = File->Tell();
+
+	// As we managed to seek, we are now in the requested BodySID
+	CurrentBodySID = BodySID;
+
+	// If we have a reader for this BodySID we can continue reading at this point, otherwise setting NewPos will force a ReSync()
+	GCReaderPtr Reader = GetGCReader(CurrentBodySID);
+	if(Reader)
+	{
+		Reader->SetFileOffset(CurrentPos);
+		Reader->SetStreamOffset(Pos);
+		NewPos = false;
+	}
+	else
+		NewPos = true;
+	
+	return CurrentPos;
 }
 
 
@@ -1694,9 +1824,6 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 	// First check if we need to re-initialise
 	if(NewPos)
 	{
-		// Start at the new location
-		File->Seek(CurrentPos);
-
 		// Use resync to locate the next partition pack
 		// TODO: We could allow reinitializing within a partition if we can validate the offsets
 		//       This would involve knowledge of the partition pack for this partition which could
@@ -1756,6 +1883,8 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 	{
 		// Also reinitialize next time if we are at the end of this partition
 		File->Seek(CurrentPos);
+		if(File->Eof())
+			return false;
 		if(IsAtPartition()) NewPos = true;
 	}
 
@@ -1770,7 +1899,7 @@ bool BodyReader::ReadFromFile(bool SingleKLV /*=false*/)
 bool BodyReader::ReSync()
 {
 	// Do we actually need to resync?
-	if(IsAtPartition())
+	if( IsAtPartition())
 	{
 		File->Seek(CurrentPos);
 		return true;
@@ -1902,10 +2031,10 @@ GCElementKind mxflib::GetGCElementKind(const ULPtr TheUL)
 	// Note that we first test the 11th byte as this where "Application = MXF Generic Container Keys"
 	// is set and so is the same for all GC keys and different in the majority of non-CG keys
 	// also, avoid testing the 8th byte (version number)
-	if( ( TheUL->GetValue()[10] == GCEssenceKey[10] )
-	 && ( TheUL->GetValue()[9]  == GCEssenceKey[9]  )
-	 && ( TheUL->GetValue()[8]  == GCEssenceKey[8]  )
-	 && ( memcmp(TheUL->GetValue(), GCEssenceKey, 7 ) == 0) )
+	if( ( TheUL->GetValue()[10] == GetGCEssenceKey()[10] )
+	 && ( TheUL->GetValue()[9]  == GetGCEssenceKey()[9]  )
+	 && ( TheUL->GetValue()[8]  == GetGCEssenceKey()[8]  )
+	 && ( memcmp(TheUL->GetValue(), GetGCEssenceKey(), 7 ) == 0) )
 	{
 		ret.IsValid = true;
 	}
@@ -2163,11 +2292,16 @@ void EssenceParser::ExtractValidWrappingOptions(WrappingConfigList &Ret, FileHan
 			{
 				WrappingOptionList SubWO = Config->Parser->IdentifyWrappingOptions(InFile, *(*subit));
 
-				// Extract the valid options from those identified by the parser, and add them to Ret
+				// Extract the valid options from those identified by the parser, and add them to Config->SubStreams
 				ExtractValidWrappingOptions(Config->SubStreams, InFile, (*subit), SubWO, Config->EditRate, (*it)->ThisWrapType);
 
 				subit++;
 			}
+
+			// Make any edit rate adjustments to the timecode
+			Config->StartTimecode = ESDescriptor->StartTimecode;
+
+//			if(Config->EditRate != Config->P
 
 			// Add this option to the list
 			Ret.push_back(Config);
@@ -2307,7 +2441,7 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(bool AllowM
 						// Set the EssenceContainer Label for the multiple descriptor
 						Ret->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16, GCMulti_Data));
 
-						MDObjectPtr SubPtr = Ret->EssenceDescriptor[SubDescriptorUIDs_UL];
+						MDObjectPtr SubPtr = Ret->EssenceDescriptor[FileDescriptors_UL];
 						if(SubPtr)
 						{
 							MDObject::iterator it = SubPtr->begin();
@@ -2324,6 +2458,14 @@ EssenceParser::WrappingConfigPtr EssenceParser::SelectWrappingOption(bool AllowM
 						// Set the EssenceContainer Label in the single descriptor
 						Ret->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16,Ret->WrapOpt->WrappingUL->GetValue()));
 					}
+
+					// Make any edit rate adjustments to the timecode
+					Ret->StartTimecode = (*it)->StartTimecode;
+
+					// Inform the source of the descriptor
+					Ret->Parser->SetDescriptor(Ret->EssenceDescriptor);
+
+//			if(Config->EditRate != Config->P
 
 					return Ret;
 				}
@@ -2368,7 +2510,7 @@ void EssenceParser::SelectWrappingOption(EssenceParser::WrappingConfigPtr Config
 		// Set the EssenceContainer Label for the multiple descriptor
 		Config->EssenceDescriptor->SetValue(EssenceContainer_UL, DataChunk(16, GCMulti_Data));
 
-		MDObjectPtr SubPtr = Config->EssenceDescriptor[SubDescriptorUIDs_UL];
+		MDObjectPtr SubPtr = Config->EssenceDescriptor[FileDescriptors_UL];
 		if(SubPtr)
 		{
 			MDObject::iterator it = SubPtr->begin();
@@ -2394,7 +2536,7 @@ void EssenceParser::SelectWrappingOption(EssenceParser::WrappingConfigPtr Config
  *    Frame or "other" wrapping and the "StopAfter" reaches zero or "Duration" reaches zero
  *    Clip wrapping and the entire clip is wrapped
  */
-Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Length MaxPartitionSize /*=0*/)
+Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Length MaxPartitionSize /*=0*/, bool ClosePartition /*=true*/)
 {
 	// Number of edit units processed
 	Length Ret = 0;
@@ -2445,12 +2587,12 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 			GCStreamID EssenceID = (*it)->GetStreamID();
 
 			// Add the essence to write - using FastClipWrap if available
-			Writer->AddEssenceData(EssenceID, (*it), GetFastClipWrap());
+			Writer->AddEssenceData(EssenceID, (*it), GetFastClipWrap(), Stream);
 			it++;
 		}
 
 		// Write the current partition pack (there should be one pending if all is normal)
-		if(PartitionWritePending) EndPartition();
+		if(PartitionWritePending) WritePartitionPack();
 
 		// Write the essence
 		Writer->StartNewCP();
@@ -2517,6 +2659,7 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 
 				// Add this chunk of each essence sub-stream to the writer
 				BodyStream::iterator it = Stream->begin();
+
 				while(it != Stream->end())
 				{
 					// This data chunk
@@ -2535,33 +2678,55 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 
 							Stream->SparseList.push_back(EditUnit);
 			
-							// Sparce entry recorded for this partition
+							// Sparse entry recorded for this partition
 							SparseIndex = false;
 						}
 					}
 
-					// Skip anything that currently doesn't have any precharge data to write
-					if(PrechargeSize && (*it)->GetPrechargeSize() < PrechargeSize)
+					if((*it)->IsSystemItem())
 					{
-						// Write an empty item for all skipped items
-						Dat = NULL;
+						// FIXME: Precharge does not get applied to system items
+
+						int Count = (*it)->GetSystemItemCount();
+						int i;
+						for(i=0; i<Count; i++)
+						{
+							DataChunkPtr Value = (*it)->GetSystemItemValue(i);
+							if(Value) Writer->AddSystemData((*it)->GetSystemItemID(i), Value);
+						}
+
+						if(Count) DataWrittenThisCP = true;
 					}
 					else
 					{
-						// Read the next data for this sub-stream
-						Dat = (*it)->GetEssenceData();
+						// Skip anything that currently doesn't have any precharge data to write
+						if(PrechargeSize && (*it)->GetPrechargeSize() < PrechargeSize)
+						{
+							// Write an empty item for all skipped items
+							Dat = NULL;
+						}
+						else
+						{
+							// Read the next data for this sub-stream
+							Dat = (*it)->GetEssenceData();
+						}
+
+						// Get the stream ID for this sub-stream
+						GCStreamID EssenceID = (*it)->GetStreamID();
+
+						// Decide if we are actually writing anything this CP...
+						if(Dat) DataWrittenThisCP = true;
+						// ... if not, write an empty item 
+						else 
+						{
+							// If no data supplied, try using padding
+							Dat = (*it)->GetPadding();
+							if(!Dat) Dat = new DataChunk;
+						}
+
+						// Add this chunk of essence to the writer
+						Writer->AddEssenceData(EssenceID, Dat, Stream);
 					}
-
-					// Get the stream ID for this sub-stream
-					GCStreamID EssenceID = (*it)->GetStreamID();
-
-					// Decide if we are actually writing anything this CP...
-					if(Dat) DataWrittenThisCP = true;
-					// ... if not, write an empty item 
-					else Dat = new DataChunk;
-
-					// Add this chunk of essence to the writer
-					Writer->AddEssenceData(EssenceID, Dat);
 
 					// Move to the next stream
 					it++;
@@ -2608,7 +2773,7 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 			if(FirstIteration)
 			{
 				// If we have a pending write do it now
-				if(PartitionWritePending) EndPartition();
+				if(PartitionWritePending) WritePartitionPack();
 
 				// Even if we didn't just write a partition pack the "template" pack should contain the start of the current partition
 				PartitionStart = BasePartition->GetInt64("ThisPartition");
@@ -2704,11 +2869,15 @@ Length BodyWriter::WriteEssence(StreamInfoPtr &Info, Length Duration /*=0*/, Len
 						// Flag that we have "stored" some essence for next partition
 						Stream->SetPendingData();
 
-						// Prevent this partition being "continued"
-						PartitionDone = true;
+						// Close the partition if requested to do so on exit condition
+						if(ClosePartition)
+						{
+							// Prevent this partition being "continued"
+							PartitionDone = true;
 
-						// Move this stream to the next state
-						Stream->GetNextState();
+							// Move this stream to the next state
+							Stream->GetNextState();
+						}
 
 						// Return the number of edit units processed
 						return Ret;
@@ -2746,7 +2915,7 @@ BodyStream::StateType mxflib::BodyStream::GetNextState(void)
 	{
 	default:
 		// Reached an invalid state!!
-		ASSERT(0);
+		mxflib_assert(0);
 
 	case BodyStreamStart:
 		// It should now be safe to read the pre-charge size, so set it to the highest of any sub-streams
@@ -2982,7 +3151,7 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 			BodyStream::IndexType IndexFlags = Stream->GetIndexType();
 
 			// Build an index table if required in the header
-			if(IndexFlags & (BodyStream::StreamIndexCBRHeader | BodyStream::StreamIndexCBRHeaderIsolated))
+			if( !Feature(FeatureNoHeaderIndex) && (IndexFlags & (BodyStream::StreamIndexCBRHeader | BodyStream::StreamIndexCBRHeaderIsolated)))
 			{
 				// Get a pointer to the index manager
 				IndexManagerPtr &IndexMan = Stream->GetIndexManager();
@@ -3050,6 +3219,46 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
 }
 
 
+//! Write a partition pack for the current partition - but do not flag it as "ended"
+void mxflib::BodyWriter::WritePartitionPack(void)
+{
+	// By default we only write metadata in the header
+	bool WriteMetadata = PendingHeader || PendingMetadata;
+
+	if((!PendingHeader) && (!PendingFooter))
+	{
+		// If we have a body partition handler call it and allow it to ask us to write metadata
+		if(PartitionHandler) WriteMetadata = PartitionHandler->HandlePartition(BodyWriterPtr(this), CurrentBodySID, BasePartition->GetUInt(IndexSID_UL));
+	}
+
+	// FIXME: Need to force a separate partition pack if we are about to violate the metadata sharing rules
+
+	if(PendingIndexData)
+	{
+		File->WritePartitionWithIndex(BasePartition, PendingIndexData, WriteMetadata, NULL, MinPartitionFiller, MinPartitionSize);
+
+		// Clear the index data SID to prevent it being written again next time
+		BasePartition->SetUInt(IndexSID_UL,  0);
+		PendingIndexData = NULL;
+	}
+	else
+	{
+		File->WritePartition(BasePartition, WriteMetadata, NULL, MinPartitionFiller, MinPartitionSize);
+	}
+
+	// Clear the pending data
+	PartitionWritePending = false;
+	PendingHeader = false;
+	PendingFooter = false;
+	PendingMetadata = false;
+	PartitionDone = false;
+	PartitionBodySID = 0;
+
+	// Reset the partition size limits
+	MinPartitionFiller = 0;
+	MinPartitionSize = 0;
+}
+
 
 //! End the current partition
 /*! Once "ended" no more essence will be added, even if otherwise valid.
@@ -3058,46 +3267,24 @@ void mxflib::BodyWriter::WriteHeader(bool IsClosed, bool IsComplete)
  */
 void mxflib::BodyWriter::EndPartition(void)
 {
-	// If we have a pending write do it now
-	if(PartitionWritePending)
+	// Close the current partition
+	PartitionDone = true;
+
+	// Move to the next stream state if we have just closed an essence-holding partition
+	if(CurrentBodySID != 0)
 	{
-		// By default we only write metadata in the header
-		bool WriteMetadata = PendingHeader || PendingMetadata;
-
-		if((!PendingHeader) && (!PendingFooter))
+		BodyStream::StateType StreamState = (*CurrentStream)->Stream->GetState();
+		if((StreamState == BodyStream::BodyStreamBodyWithIndex) || (StreamState == BodyStream::BodyStreamBodyNoIndex))
 		{
-			// If we have a body partition handler call it and allow it to ask us to write metadata
-			if(PartitionHandler) WriteMetadata = PartitionHandler->HandlePartition(BodyWriterPtr(this), CurrentBodySID, BasePartition->GetUInt(IndexSID_UL));
+			StreamState = (*CurrentStream)->Stream->GetNextState();
+
+			// If this stream has done a cycle - move to the next stream
+			if(StreamState != BodyStream::BodyStreamPostBodyIndex) SetNextStream();
 		}
-
-		// FIXME: Need to force a separate partition pack if we are about to violate the metadata sharing rules
-
-		if(PendingIndexData)
-		{
-			File->WritePartitionWithIndex(BasePartition, PendingIndexData, WriteMetadata, NULL, MinPartitionFiller, MinPartitionSize);
-			
-			// Clear the index data SID to prevent it being written again next time
-			BasePartition->SetUInt(IndexSID_UL,  0);
-			PendingIndexData = NULL;
-		}
-		else
-		{
-			File->WritePartition(BasePartition, WriteMetadata, NULL, MinPartitionFiller, MinPartitionSize);
-		}
-
-		// Clear the pending data
-		PartitionWritePending = false;
-		PendingHeader = false;
-		PendingFooter = false;
-		PendingMetadata = false;
-		PartitionDone = false;
-		PartitionBodySID = 0;
-
-		// Reset the partition size limits
-		MinPartitionFiller = 0;
-		MinPartitionSize = 0;
 	}
 
+	// If we have a pending write do it now
+	if(PartitionWritePending) WritePartitionPack();
 }
 
 
@@ -3114,7 +3301,7 @@ void mxflib::BodyWriter::WriteBody(Length Duration /*=0*/, Length MaxPartitionSi
 		// If we are doing a limited duration then check if we have done it all
 		if(Duration)
 		{
-			if(ThisChunk >= Duration) return;
+			if(ThisChunk >= Duration) { State = BodyStateFooter; return; }
 			Duration -= ThisChunk;
 		}
 	}
@@ -3124,7 +3311,7 @@ void mxflib::BodyWriter::WriteBody(Length Duration /*=0*/, Length MaxPartitionSi
 //! Write the next partition or continue the current one (if not complete)
 /*! Will stop at the point where the next partition will start, or (if Duration > 0) at the earliest opportunity after (at least) Duration edit units have been written
  */
-Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPartitionSize /*=0*/)
+Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPartitionSize /*=0*/, bool ClosePartition /*=true*/)
 {
 	// Number of edit units processed
 	Length Ret = 0;
@@ -3152,7 +3339,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 	{
 	default:
 		// Got to an unknown or invalid state!
-		ASSERT(0);
+		mxflib_assert(0);
 
 	// Next action: Write an isolated index table before the next body partition
 	case BodyStream::BodyStreamPreBodyIndex:
@@ -3226,13 +3413,9 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			if((!IndexSharesWithMetadata) && (!PartitionDone))
 			{
 				if(PartitionWritePending)
-				{
 					if(PendingHeader || PendingMetadata) PartitionDone = true;
-				}
 				else
-				{
 					if(BasePartition->GetUInt64(HeaderByteCount_UL) > 0) PartitionDone = true;
-				}
 			}
 
 			// Fall through to no-index version
@@ -3244,13 +3427,9 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			if((!EssenceSharesWithMetadata) && (!PartitionDone))
 			{
 				if(PartitionWritePending)
-				{
 					if(PendingHeader || PendingMetadata) PartitionDone = true;
-				}
 				else
-				{
 					if(BasePartition->GetUInt64(HeaderByteCount_UL) > 0) PartitionDone = true;
-				}
 			}
 
 			// It's OK to continue with the current partition if:
@@ -3343,7 +3522,7 @@ Length mxflib::BodyWriter::WritePartition(Length Duration /*=0*/, Length MaxPart
 			}
 
 			// Write the Essence
-			Ret += WriteEssence((*CurrentStream), Duration, MaxPartitionSize);
+			Ret += WriteEssence((*CurrentStream), Duration, MaxPartitionSize, ClosePartition);
 
 			// Check the new state for this stream
 			StreamState = Stream->GetState();
@@ -3457,7 +3636,7 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		return;
 	}
 
-	// Turn the partition into a closed complete body or any pre-footer index only partitions
+	// Turn the partition into a closed complete body for any pre-footer index only partitions
 	BasePartition->ChangeType(ClosedCompleteBodyPartition_UL);
 
 	// There is no body data in a footer
@@ -3488,19 +3667,19 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 
 		// Read the index types and see what is requested
 		BodyStream::IndexType IndexFlags = Stream->GetIndexType();
-			
+		
 		// Clear any flags for types that have already been dealt with
 		// DRAGONS: Is this an MSVC funny or can we really not do bitmaths with enums without them becoming integers?
 		IndexFlags = (BodyStream::IndexType) (IndexFlags & ~(Stream->GetFooterIndex()));
-
+		
 		// Allow only those types that are of interest here
 		// Note that sprinkled index tables are of interest as we have to drop any remaining sprinkle data
 		// DRAGONS: Is this an MSVC funny or can we really not do bitmaths with enums without them becoming integers?
 		IndexFlags = (BodyStream::IndexType) (IndexFlags & 
-					  (  BodyStream::StreamIndexFullFooter  | BodyStream::StreamIndexSparseFooter
-					   | BodyStream::StreamIndexSprinkled   | BodyStream::StreamIndexSprinkledIsolated
-					   | BodyStream::StreamIndexCBRFooter ));
-
+			(  BodyStream::StreamIndexFullFooter  | BodyStream::StreamIndexSparseFooter
+			| BodyStream::StreamIndexSprinkled   | BodyStream::StreamIndexSprinkledIsolated
+			| BodyStream::StreamIndexCBRFooter ));
+	
 		/* Note: The index tables will be writen in such an order as to keep the footer
 		 *       as small as possible (to allow it to be located easily).
 		 *       The order is:
@@ -3552,7 +3731,7 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 			IndexFlags = (BodyStream::IndexType) (IndexFlags & BodyStream::StreamIndexCBRFooter);
 
 			// Check we are supposed to be writing a CBR index table
-			ASSERT(IndexFlags);
+			mxflib_assert(IndexFlags);
 		}
 		// If the index table is VBR we need to build it
 		else
@@ -3599,7 +3778,7 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 			else
 			{
 				// This shouldn't be possible!
-				ASSERT(0);
+				mxflib_assert(0);
 			}
 		}
 
@@ -3630,7 +3809,7 @@ void mxflib::BodyWriter::WriteFooter(bool WriteMetadata /*=false*/, bool IsCompl
 		if(Flags == Stream->GetFooterIndex())
 		{
 			error("Internal Error: Failed to clear footer index flag 0x%04x for BodySID 0x%04x\n", (int)IndexFlags, (int)CurrentBodySID);
-			
+
 			// Flag all indexing done
 			Stream->SetFooterIndex(Stream->GetIndexType());
 		}
@@ -3733,7 +3912,7 @@ void mxflib::BodyWriter::SetNextStream(void)
 					return;
 				}
 			}
-			// Se we must be in the body - find a body stream
+			// So we must be in the body - find a body stream
 			else
 			{
 				if((StreamState != BodyStream::BodyStreamHeadIndex) && (StreamState != BodyStream::BodyStreamFootIndex))
@@ -3810,8 +3989,19 @@ bool mxflib::BodyWriter::AddStream(BodyStreamPtr &Stream, Length StopAfter /*=0*
 	StreamList.push_back(NewStream);
 
 	// Ensure that this stream has a writer
-	GCWriterPtr NewWriter = new GCWriter(File, SID);
-	if(!Stream->GetWriter()) Stream->SetWriter(NewWriter);
+	if(!Stream->GetWriter())
+	{
+		GCWriterPtr NewWriter = new GCWriter(File, SID);
+		Stream->SetWriter(NewWriter);
+	}
+
+	// Ensure that any system items are initialized for this stream
+	BodyStream::iterator Stream_it = Stream->begin();
+	while(Stream_it != Stream->end())
+	{
+		if((*Stream_it)->IsSystemItem()) (*Stream_it)->InitSystem(Stream);
+		Stream_it++;
+	}
 
 	return true;
 }
@@ -3896,10 +4086,39 @@ void ListOfFiles::ParseFileName(std::string FileName)
 	RangeStart = -1;
 	RangeEnd = -1;
 	RangeDuration = -1;
+	
+	// Assume not a list unless we discover otherwise
 	FileList = false;
+	
+	// Set true if the filename contains multiple names separated by ~ chars
+	bool MultiFile = false;
+
+	// The section of the filename containing any sub-file names, such as XML metadata or subtitles
+	std::string SubSection;
+
+	// Locate the separator that starts sub-files, such as XML metadata or subtitles
+	size_t SubSepPos = FileName.find_first_of('&');
+	if(SubSepPos != std::string::npos)
+	{
+		SubSection = FileName.substr(SubSepPos + 1);
+		FileName = FileName.substr(0, SubSepPos);
+	}
+
+	// Check if this essence has been flagged as external
+	if((FileName.length() > 0) && (FileName.at(0) == '!'))
+	{
+		ExternalEssence = true;
+		FileName.erase(0,1);
+	}
+
+	// Clear the parser options
+	Options = "";
+	
+	// Make a copy for callers to pull back later if required
+	RawFileName = FileName;
 
 	// Length of input string including terminating zero
-	size_t InLength = FileName.size() + 1;
+	size_t InLength = FileName.length() + 1;
 
 	// Build a buffer long enough for the longest base name
 	char *NameBuffer = new char[InLength];
@@ -3913,17 +4132,42 @@ void ListOfFiles::ParseFileName(std::string FileName)
 	char *pIn = InBuffer;
 	char *pOut = NameBuffer;
 	bool InBrackets = false;
+	bool InOptions = false;
 	bool InCount = false;
 	bool InStep = false;
 	bool InEnd = false;
+	bool InRangeStart = false;
+	bool InRangeEnd = false;
+	bool InRangeDuration = false;
 
 	while(*pIn)
 	{
+		/* Pass all text within options as-is */
+		if(InOptions)
+		{
+			if(*pIn == '}') 
+			{
+				InOptions = false;
+				pIn++;
+			}
+			else Options += *pIn++;
+			continue;
+		}
+		
 		if(!InBrackets)
 		{
 			if(*pIn == '[')
 			{
 				InBrackets = true;
+				InCount = false;
+				InStep = false;
+				InEnd = false;
+				pIn++;
+				continue;
+			}
+			else if(*pIn == '{')
+			{
+				InOptions = true;
 				pIn++;
 				continue;
 			}
@@ -3932,9 +4176,93 @@ void ListOfFiles::ParseFileName(std::string FileName)
 				// Handle escapes
 				if(*pIn == '\\')
 				{
-					if(pIn[1] == '[') pIn++;
+					if((pIn[1] == '[') || (pIn[1] == '{') || (pIn[1] == '~') || (pIn[1] == '@') || (pIn[1] == ':')  || (pIn[1] == '#'))
+					{
+						pIn++;
+						*pOut++ = *pIn++;
+						continue;
+					}
 				}
-				
+
+				// Process range start
+				else if(*pIn == '@')
+				{
+					InRangeStart = true;
+					InRangeEnd = false;
+					InRangeDuration = false;
+					FileList = true;
+					RangeStart = 0;
+					pIn++;
+					continue;
+				}
+
+				// Process range end - note ranges always start with @ (to prevent the DOS ':' problem)
+				if((*pIn == ':') && (RangeStart != -1))
+				{
+					InRangeStart = false;
+					InRangeEnd = true;
+					InRangeDuration = false;
+					FileList = true;
+					RangeEnd = 0;
+					pIn++;
+					continue;
+				}
+
+				// Process range duration - note ranges always start with @ (to prevent the DOS ':' problem)
+				if((*pIn == '#') && (RangeStart != -1))
+				{
+					InRangeStart = false;
+					InRangeEnd = false;
+					InRangeDuration = true;
+					FileList = true;
+					RangeDuration = 0;
+					pIn++;
+					continue;
+				}
+
+				// Check for end of this string (start of the next);
+				if(*pIn == '~')
+				{
+					// If there is a trailing '~' just ignore it
+					if(pIn[1] == 0) { *pOut++ = *pIn++; continue; }
+
+					// accept 8.3 aliases which are ~digits
+					char *p83 = pIn;
+					while( isdigit(*++p83) );
+					if( *p83==0 || *p83=='\\' || *p83=='/' ) { *pOut++ = *pIn++; continue; }
+
+					// Otherwise add the next name to the FRONT of the list of following names
+					FollowingNames.push_front(&pIn[1]);
+					
+					// This must be treated as a list, and is a multi-name filename
+					FileList = true;
+					MultiFile = true;
+
+					// And exit now
+					break;
+				}
+
+				if(isdigit(*pIn))
+				{
+					if(InRangeStart)
+						RangeStart = RangeStart * 10 + (*pIn - '0');
+					else if(InRangeEnd)
+						RangeEnd = RangeEnd * 10 + (*pIn - '0');
+					else if(InRangeDuration)
+						RangeDuration = RangeDuration * 10 + (*pIn - '0');
+					else
+						*pOut++ = *pIn;
+
+					pIn++;
+					continue;
+				}
+				else
+				{
+					InRangeStart = false;
+					InRangeEnd = false;
+					InRangeDuration = false;
+				}
+
 				*pOut++ = *pIn++;
 				continue;
 			}
@@ -3943,6 +4271,9 @@ void ListOfFiles::ParseFileName(std::string FileName)
 		if(*pIn == ']')
 		{
 			InBrackets = false;
+			InRangeStart = false;
+			InRangeEnd = false;
+			InRangeDuration = false;
 			FileList = true;
 			pIn++;
 			continue;
@@ -3985,6 +4316,15 @@ void ListOfFiles::ParseFileName(std::string FileName)
 			else
 			{
 				error("Unknown pattern in multiple filename \"%s\"\n", InBuffer);
+
+				FilesRemaining = 0;
+				ListNumber=0;
+				ListEnd=0;
+				ListIncrement=1;
+				// Free the name buffers
+				delete[] NameBuffer;
+				delete[] InBuffer;
+				return;
 			}
 		}
 
@@ -4003,16 +4343,21 @@ void ListOfFiles::ParseFileName(std::string FileName)
 		if(ListIncrement) FilesRemaining = ((ListEnd - FileNumber) / ListIncrement) + 1;
 	}
 
+	// If this is not a file pattern, but is either a single filename, or a file range, or a ~ separated list of names, do exactly one file
+	if((FilesRemaining == 0) && ((!FileList) || (MultiFile) || (RangeStart != -1))) FilesRemaining = 1;
+
 	AtEOF = false;
 
 
-	// Use the processed filename if we have identified a file list, otherwise leave unchanged
-	if(FileList) BaseFileName = std::string(NameBuffer);
-	else BaseFileName = FileName;
+	// Use the processed filename in all cases
+	BaseFileName = std::string(NameBuffer);
 
 	// Free the name buffers
 	delete[] NameBuffer;
 	delete[] InBuffer;
+
+	// Process any sub-file names
+	if(!SubSection.empty()) ProcessSubNames(SubSection);
 }
 
 
@@ -4037,13 +4382,44 @@ ParserDescriptorListPtr FileParser::IdentifyEssence(void)
 //! Produce a list of available wrapping options
 EssenceParser::WrappingConfigList FileParser::ListWrappingOptions(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
 {
-	return EssenceParser::ListWrappingOptions(AllowMultiples, CurrentFile, PDList, ForceEditRate, ForceWrap);
+	WrappingConfigList Ret = EssenceParser::ListWrappingOptions(AllowMultiples, CurrentFile, PDList, ForceEditRate, ForceWrap);
+
+	// Add details for each attached sub-stream that is valid for each wrapping config
+	SubStreamList::iterator it = SubStreams.begin();
+	while(it != SubStreams.end())
+	{
+		if((*it).Attached)
+		{
+			WrappingConfigList::iterator WCL_it = Ret.begin();
+			while(WCL_it != Ret.end())
+			{
+				EssenceSubSource *SubSource = SmartPtr_Cast((*it).Source, EssenceSubSource);
+				if(SubSource)
+				{
+					EssenceParser::WrappingConfigPtr SubCfg = SubSource->MakeWrappingConfig(*WCL_it);
+
+					if(SubCfg) 
+					{
+						SubCfg->Stream = (*it).StreamID;
+						(*WCL_it)->SubStreams.push_back(SubCfg);
+					}
+				}
+
+				WCL_it++;
+			}
+		}
+		it++;
+	}
+
+	return Ret;
 }
 
 
 //! Select the best wrapping option with a forced edit rate
-EssenceParser::WrappingConfigPtr FileParser::SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
+EssenceParser::WrappingConfigPtr FileParser::SelectWrappingOption(bool AllowMultiples, ParserDescriptorListPtr PDList, Rational ForceEditRate, UInt32 KAGSize, WrappingOption::WrapType ForceWrap /*=WrappingOption::None*/)
 {
+/* OLD VERSION - Does not work with attached sub-streams 
+
 	EssenceParser::WrappingConfigPtr Ret = EssenceParser::SelectWrappingOption(AllowMultiples, CurrentFile, PDList, ForceEditRate, ForceWrap);
 
 	// Record the selected stream and sub-parser
@@ -4057,6 +4433,17 @@ EssenceParser::WrappingConfigPtr FileParser::SelectWrappingOption(bool AllowMult
 		SubParser = NULL;
 	
 	return Ret;
+*/
+	// Return the list of options for these parsers
+	// DRAGONS: This called function will cope with an empty or NULL PDList
+	EssenceParser::WrappingConfigList WCL = ListWrappingOptions(AllowMultiples, PDList, ForceEditRate, ForceWrap);
+	if(WCL.empty()) return NULL;
+
+	WCL.front()->KAGSize = KAGSize;
+
+	// Pick the first valid option
+	SelectWrappingOption(WCL.front());
+	return WCL.front();
 }
 
 
@@ -4088,7 +4475,106 @@ void FileParser::Use(UInt32 Stream, WrappingOptionPtr &UseWrapping)
 	// Record the wrapping options
 	CurrentWrapping = UseWrapping;
 
+	// Configure the main stream
 	SubParser->Use(Stream, UseWrapping);
+
+	// Send options to the new sub-parser
+	// TODO: We should allow SetOption() to be called on FileParser and record all details and re-send to the sub-parser for each file
+	SendParserOptions(SubParser, Options);
+
+	// FIXME: Do we need to allocate descriptors to sub-sources?
+	SubStreamList::iterator it = SubStreams.begin();
+	while(it != SubStreams.end())
+	{
+		if((*it).Attached)
+		{
+			if(!(*it).Source->Use(UseWrapping))
+			{
+				error("Attached sub-source 0x%04x rejected the selected wrapping\n", (*it).StreamID);
+			}
+			(*it).Source->SetEditRate(SubParser->GetEditRate());
+		}
+		it++;
+	}
+}
+
+
+//! Send options to a sub-parser based on a formatted string
+/*! Each option is a string with an optional equals and Int64 number. Options are semi-colon separated.
+ *  The option string may be within quotes, if not it will be left and right trimmed to remove spaces
+ */
+void FileParser::SendParserOptions(EssenceSubParserPtr &SubParser, const std::string Options)
+{
+	std::string::const_iterator it = Options.begin();
+	while(it != Options.end())
+	{
+		std::string ThisOption = "";
+		std::string Value = "";
+
+		bool InValue = false;
+		bool Quoted = false;
+		bool InQuotes = false;
+		while(it != Options.end())
+		{
+			if(!InValue)
+			{
+				// Skip leading spaces, unless the option is quoted
+				if((!Quoted) && (*it == ' ') && ThisOption.empty())
+				{
+					it++;
+					continue;
+				}
+
+				if(*it == '"')
+				{
+					Quoted = true;
+					InQuotes = !InQuotes;
+					it++;
+					continue;
+				}
+
+				// Value starting
+				if((!InQuotes) && (*it == '='))
+				{
+					InValue = true;
+
+					// Trim any trailing spaces, unless the option was quoted
+					if(!Quoted)
+					{
+						size_t Pos = ThisOption.find_last_not_of(" ");
+						if((Pos != std::string::npos) && ((Pos+1) < ThisOption.length())) ThisOption.resize(Pos+1);
+					}
+
+					it++;
+					continue;
+				}
+
+				if((!InQuotes) && (*it == ';'))
+				{
+					it++;
+					break;
+				}
+
+				ThisOption += *it;
+				it++;
+			}
+			else
+			{
+				if(*it == ';')
+				{
+					it++;
+					break;
+				}
+
+				Value += *it;
+				it++;
+			}
+		}
+
+		/* Set this option */
+		if(InValue) SubParser->SetOption(ThisOption, ato_Int64(Value));
+		else SubParser->SetOption(ThisOption);
+	}
 }
 
 
@@ -4169,6 +4655,9 @@ bool FileParser::GetFirstSource(void)
 	// Set the new EssenceSource
 	SequentialEssenceSource *Source = SmartPtr_Cast(SeqSource, SequentialEssenceSource);
 	Source->SetSource(SubParser->GetEssenceSource(CurrentFile, CurrentStream));
+	
+	// Ensure that the EssenceDescriptor is set in the actual source
+	Source->SetDescriptor(EssenceDescriptor);
 
 	return true;
 }
@@ -4199,11 +4688,19 @@ bool FileParser::GetNextSource(void)
 
 	/** Must restart parsing the hard way **/
 
-	// Sanity check that we don't have sub-streams
+	// Sanity check that we don't have any extracted sub-streams (attached are fine)
 	// If we do the ESP is incorrect and could well do nasty things when we close the file!
 	if(!SubStreams.empty())
 	{
-		error("EssenceSubParsers that extract sub-streams must support the ReValidate() method\n");
+		SubStreamList::iterator it = SubStreams.begin();
+		while(it != SubStreams.end())
+		{
+			if((*it).Attached == false)
+			{
+				error("EssenceSubParsers that extract sub-streams must support the ReValidate() method\n");
+			}
+			it++;
+		}
 	}
 
 	// Build a new parser of the same type as there is no guarantee that older parsers can be re-used
@@ -4230,9 +4727,10 @@ bool FileParser::GetNextSource(void)
 				{
 					NewParser->Use(CurrentStream, (*WO_it));
 					
-					FoundMatch = true;
+					// Finally, check that the same edit rate is acceptable
+					FoundMatch = NewParser->SetEditRate(SubParser->GetEditRate());
 
-					break;
+					if(FoundMatch) break;
 				}
 
 				WO_it++;
@@ -4253,9 +4751,16 @@ bool FileParser::GetNextSource(void)
 	// Switch to the new parser
 	SubParser = NewParser;
 
+	// Re-send options to the new sub-parser
+	// TODO: We should allow SetOption() to be called on FileParser and record all details and re-send to the sub-parser for each file
+	SendParserOptions(SubParser, Options);
+
 	// Set the new EssenceSource
 	SequentialEssenceSource *Source = SmartPtr_Cast(SeqSource, SequentialEssenceSource);
 	Source->SetSource(SubParser->GetEssenceSource(CurrentFile, CurrentStream));
+
+	// Ensure that the EssenceDescriptor is set in the actual source
+	Source->SetDescriptor(EssenceDescriptor);
 
 	return true;
 }
@@ -4284,7 +4789,7 @@ DataChunkPtr FileParser::SequentialEssenceSource::GetEssenceData(size_t Size /*=
 			// Add this length to the previous lengths
 			PreviousLength += CurrentSize;
 
-			return GetEssenceData(Size, MaxSize);
+			Ret = GetEssenceData(Size, MaxSize);
 		}
 	}
 
@@ -4326,13 +4831,346 @@ EssenceSourcePtr FileParser::GetSubSource(UInt32 Stream)
 	//! Build a new info block
 	SubStreamInfo Info;
 	Info.StreamID = Stream;
+	Info.Attached = false;			// This must be an extracted sub-stream
 	Info.Source = SubParser->GetEssenceSource(CurrentFile, Stream);
+
+	if(RangeStart != -1)
+	{
+		/* Insert a ranged source if required */
+		Info.Source = new RangedEssenceSubSource(Info.Source, RangeStart, RangeEnd, RangeDuration);
+	}
 
 	// Only add if successful
 	if(Info.Source) SubStreams.push_back(Info);
 
 	// Return the result of the sub-get
 	return Info.Source;
+}
+
+
+//! Add a sub-source that will be processed as if it contains data extracted from the primary source
+/*! \return the stream ID of the newly added sub-stream
+ */
+UInt32 FileParser::AddSubSource(EssenceSubSource *SubSource)
+{
+	// We count our sub-streams down from 0xffffffff
+	UInt32 Ret = 0xffffffff;
+
+	// Find a free ID
+	SubStreamList::iterator it = SubStreams.begin();
+	while(it != SubStreams.end())
+	{
+		// If this ID is in use, decrement and rescan
+		if((*it).StreamID == Ret) 
+		{
+			Ret--;
+			it = SubStreams.begin();
+			continue;
+		}
+		it++;
+	}
+
+	//! Build a new info block
+	SubStreamInfo Info;
+	Info.StreamID = Ret;
+	Info.Attached = true;				// This is an attached sub-stream
+
+	if(RangeStart == -1)
+	{
+		Info.Source = SubSource;
+	}
+	else
+	{
+		/* Insert a ranged source if required */
+		Info.Source = new RangedEssenceSubSource(SubSource, RangeStart, RangeEnd, RangeDuration);
+	}
+
+	// Set our seq source as the master for this sub-stream
+	SubSource->SetMaster(SeqSource);
+
+	// Add the sub-stream
+	SubStreams.push_back(Info);
+
+	return Ret;
+}
+
+
+//! Ensure that CurrentSource is valid and ready for reading - if not select the next source file
+/*! \return true if all OK, false if no EssenceSource available
+	*/
+bool FileParser::SequentialEssenceSource::ValidSource(void)
+{
+	if(CurrentSource) return true;
+
+	// If this is the first time through when we will have a file open but no source set to get current not text source
+	bool Ret;
+	if(Outer->CurrentFileOpen) Ret = Outer->GetFirstSource(); else Ret = Outer->GetNextSource();
+
+	// Set VBR Index Mode for the new source if this has been requested
+	if(Ret && VBRIndexMode)
+	{
+		if(!CurrentSource->EnableVBRIndexMode())
+		{
+			warning("Failed to maintain VBR Index Mode when moving to new file %s in SequentialEssenceSource - Index table for this essence may be incomplete\n", Outer->FileName().c_str());
+		}
+	}
+
+	return Ret;
+}
+
+
+//! Get the size of the essence data in bytes
+/*! \note There is intentionally no support for an "unknown" response */
+size_t RangedEssenceSource::GetEssenceDataSize(void) 
+{
+	// First time we are called we need to locate the start
+	if(!Started)
+	{
+		LocateStart();
+	}
+
+	// If we have some pre-charge left return the size of the next edit unit in the buffer
+	if(!PreCharge.empty()) return PreCharge.front()->Size;
+
+	// If the next data is the first requested edit unit, return its size
+	if(FirstData) return FirstData->Size;
+
+	// Quit now if all is already done
+	if(Ended) return 0;
+
+	// Record our position, and get the size from the base
+	Position Pos = Base->GetCurrentPosition();
+	size_t Ret = Base->GetEssenceDataSize();
+
+	// Is our source out of data?
+	if(Ret == 0) return Ret;
+
+	// If we are not yet ending, should we be?
+	if(!Ending)
+	{
+		// We are beyond the end of the requested range - start ending
+		if(Pos > RequestedEnd) 
+		{
+			Ending = true;
+
+			// Record where we started ending
+			CurrentPosition = Pos;
+		}
+	}
+
+	// Once we are searching for the end, stop at the next edit point
+	if(Ending && Base->IsEditPoint()) 
+	{
+		Ended = true;
+		Ret = 0;
+	}
+
+	// Update our position
+	if(!Ending) CurrentPosition = Base->GetCurrentPosition();
+
+	// Return the size
+	return Ret; 
+};
+
+
+//! Get the next "installment" of essence data
+/*! This will attempt to return an entire wrapping unit (e.g. a full frame for frame-wrapping) but will return it in
+	*  smaller chunks if this would break the MaxSize limit. If a Size is specified then the chunk returned will end at
+	*  the first wrapping unit end encountered before Size. On no account will portions of two or more different wrapping
+	*  units be returned together. The mechanism for selecting a type of wrapping (e.g. frame, line or clip) is not 
+	*  (currently) part of the common EssenceSource interface.
+	*  \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+	*	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
+	*	\note If Size = 0 the object will decide the size of the chunk to return
+	*	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
+	*/
+DataChunkPtr RangedEssenceSource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/)
+{
+	// Our current position (before the read)
+	Position Pos;
+
+	// First time we are called we need to locate the start
+	if(!Started)
+	{
+		LocateStart();
+		Pos = RequestedStart;
+	}
+	else
+	{
+		Pos = Base->GetCurrentPosition();
+	}
+
+	// If we have some pre-charge left return the next edit unit in the buffer (and remove it from the buffer)
+	if(!PreCharge.empty())
+	{
+		DataChunkPtr Ret = PreCharge.front();
+		PreCharge.pop_front();
+		return Ret;
+	}
+
+	// If we are reading the first requested data, return it
+	if(FirstData)
+	{
+		DataChunkPtr Ret = FirstData;
+		FirstData = NULL;
+		return Ret;
+	}
+
+	// Have we already done everything?
+	if(Ended) return NULL;
+
+	// Do the read
+	DataChunkPtr Ret = Base->GetEssenceData(Size, MaxSize);
+
+	// If we are not yet ending, should we be?
+	if(!Ending)
+	{
+		// We are beyond the end of the requested range - start ending
+		if(Pos > RequestedEnd) 
+		{
+			Ending = true;
+
+			// Record where we started ending
+			CurrentPosition = Pos;
+		}
+	}
+
+	// Once we are searching for the end, stop at the next edit point
+	if(Ending && Base->IsEditPoint()) 
+	{
+		Ended = true;
+		return NULL;
+	}
+
+	// Update our position
+	if(!Ending) CurrentPosition = Base->GetCurrentPosition();
+
+	return Ret;
+}
+
+		
+//! Locate the first usable edit unit, and if required set the end edit unit
+void RangedEssenceSource::LocateStart(void)
+{
+	// See if we were called already
+	if(Started) return;
+
+	// Calculate the end point if a duration has been requested
+	if(RequestedDuration >= 0) RequestedEnd = RequestedStart + RequestedDuration - 1;
+
+	// Start pre-charging from 0
+	PreChargeStart = 0;
+
+	// Skip forwards until we reach the requested start
+	Position Pos;
+	while((Pos = Base->GetCurrentPosition()) <= RequestedStart)
+	{
+		// You should always call GetEssenceDataSize first - even if you ignore the returned value
+		Base->GetEssenceDataSize();
+		DataChunkPtr ThisData = Base->GetEssenceData();
+
+		// If we have found an edit point, clear the pre-charge buffer
+		if(Base->IsEditPoint())
+		{
+			PreCharge.clear();
+
+			// Record from where we precharge starts
+			PreChargeStart = Pos;
+		}
+
+		// If we have just read the first requested edit unit, store it for later use
+		if(Pos == RequestedStart)
+		{
+			FirstData = ThisData;
+			break;
+		}
+		else
+		{
+			// Add this edit unit to the pre-charge buffer
+			PreCharge.push_back(ThisData);
+		}
+	}
+
+	// Record where we started
+	CurrentPosition = Pos;
+
+	// We have now started
+	Started = true;
+}
+
+
+//! Get the size of the essence data in bytes
+/*! \note There is intentionally no support for an "unknown" response */
+size_t RangedEssenceSubSource::GetEssenceDataSize(void) 
+{
+	// First time we are called we need to locate the start
+	if(!Started)
+	{
+		LocateStart();
+	}
+
+	// Record our position, and get the size from the base
+	Position Pos = Base->GetCurrentPosition();
+
+	// Don't return anything passed the end
+	if(Pos > RequestedEnd) return 0;
+
+	// Read the size of the data
+	size_t Ret = Base->GetEssenceDataSize();
+
+	// Return the size
+	return Ret; 
+};
+
+
+//! Get the next "installment" of essence data
+/*! This will attempt to return an entire wrapping unit (e.g. a full frame for frame-wrapping) but will return it in
+	*  smaller chunks if this would break the MaxSize limit. If a Size is specified then the chunk returned will end at
+	*  the first wrapping unit end encountered before Size. On no account will portions of two or more different wrapping
+	*  units be returned together. The mechanism for selecting a type of wrapping (e.g. frame, line or clip) is not 
+	*  (currently) part of the common EssenceSource interface.
+	*  \return Pointer to a data chunk holding the next data or a NULL pointer when no more remains
+	*	\note If there is more data to come but it is not currently available the return value will be a pointer to an empty data chunk
+	*	\note If Size = 0 the object will decide the size of the chunk to return
+	*	\note On no account will the returned chunk be larger than MaxSize (if MaxSize > 0)
+	*/
+DataChunkPtr RangedEssenceSubSource::GetEssenceData(size_t Size /*=0*/, size_t MaxSize /*=0*/)
+{
+	// Our current position (before the read)
+	Position Pos;
+
+	// First time we are called we need to locate the start
+	if(!Started)
+	{
+		LocateStart();
+		Pos = RequestedStart;
+	}
+	else
+	{
+		Pos = Base->GetCurrentPosition();
+	}
+
+	// Exit now is all is done
+	if(Pos > RequestedEnd) return NULL;
+
+	// Do the read
+	DataChunkPtr Ret = Base->GetEssenceData(Size, MaxSize);
+
+	return Ret;
+}
+
+
+//! Locate the first usable edit unit, and if required set the end edit unit
+void RangedEssenceSubSource::LocateStart(void)
+{
+	// See if we were called already
+	if(Started) return;
+
+	// Calculate the end point if a duration has been requested
+	if(RequestedDuration >= 0) RequestedEnd = RequestedStart + RequestedDuration - 1;
+
+	// We have now started
+	Started = true;
 }
 
 
@@ -4357,6 +5195,9 @@ void BodyStream::InitIndexManager(void)
 
 	/* Build a write-order list of streams to ensure the index is built in the write order */
 	
+	// An iterator that will point to the master stream (that's us) so it can be set as the index manager master stream
+	std::map<UInt32, EssenceSourcePtr>::iterator MasterStream;
+
 	std::map<UInt32, EssenceSourcePtr> IndexOrderMap;
 	BodyStream::iterator it = begin();
 	while(it != end())
@@ -4365,6 +5206,9 @@ void BodyStream::InitIndexManager(void)
 		IndexOrder.first = static_cast<UInt32>(StreamWriter->GetWriteOrder((*it)->GetStreamID()));
 		IndexOrder.second = (*it);
 		IndexOrderMap.insert(IndexOrder);
+
+		// When the first stream is added, record an iterator to it for use later
+		if(IndexOrderMap.size() == 1) MasterStream = IndexOrderMap.begin();
 
 		it++;
 	}
@@ -4385,9 +5229,13 @@ void BodyStream::InitIndexManager(void)
 			IndexMan->SetIndexSID(IndexSID);
 			IndexMan->SetEditRate((*MapIt).second->GetEditRate());
 			IndexMan->SetValueRelativeIndexing(ValueRelativeIndexing);
+			
 		}
 		else
 			StreamID = IndexMan->AddSubStream(0, (*MapIt).second->GetBytesPerEditUnit(KAG));
+
+		// If this is the master stream of this group, let the index manager know
+		if(MapIt == MasterStream) IndexMan->SetMasterStream(StreamID);
 
 		// Let the stream know about this index manager
 		(*MapIt).second->SetIndexManager(IndexMan, StreamID);
@@ -4399,7 +5247,8 @@ void BodyStream::InitIndexManager(void)
 	}
 
 	// Set the sub-range offset, if required
-	IndexMan->SetSubRangeOffset(front()->GetRangeStart());
+	Position RangeStart = front()->GetRangeStart();
+	if(RangeStart != -1) IndexMan->SetSubRangeOffset(RangeStart);
 
 	// Set the -ve indexing for pre-charge, if selected
 	if(Feature(FeatureNegPrechargeIndex))
@@ -4454,3 +5303,93 @@ Int32 GCWriter::GetWriteOrder(GCStreamID ID)
 	return -1;
 }
 
+
+//! Process an ampersand separated list of sub-file names
+void FileParser::ProcessSubNames(std::string SubNames)
+{
+}
+
+namespace mxflib
+{
+	//! Determine the wrapping type frame/clip from the Essence Container Label
+	/*! \retval ClipWrap - Wrapping is Clip Wrap or similar (Wrapping size > Edit Unit)
+	 *  \retval FrameWrap - Wrapping is Frame Wrap or similar (Wrapping size <= Edit Unit)
+	 *	\retval UnknownWrap - Unable to determine
+	 */
+	WrapType GetWrapType(UInt8 const *ECLabel)
+	{
+		/* DRAGONS: This code uses hard-coded label values for efficiency */
+		/******************************************************************/
+
+		/* DRAGONS: All ECLabels as of RP224v10 */
+		/****************************************/
+
+
+		// Common part of all supported GC Labels
+		const UInt8 GCStub[13] = { 0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0xff, 0x0d, 0x01, 0x03, 0x01, 0x02 };
+
+		// Test most variable part of stub first and reject if not supported
+		if(memcmp(&ECLabel[8], &GCStub[8], 5) != 0) return UnknownWrap;
+
+		// Test most start of stub and reject if not supported
+		if(memcmp(ECLabel, GCStub, 7) != 0) return UnknownWrap;
+
+		// Select by Mapping Kind
+		switch(ECLabel[13])
+		{
+			case 0x01: // D10 : always Frame-Wrapped
+			case 0x03: // D11 : always Frame-Wrapped
+				return FrameWrap;
+
+			case 0x02: // All DV : byte 16 --> 1=Frame, 2=Clip
+				if(ECLabel[15] == 1) return FrameWrap;
+				else if(ECLabel[15] == 2) return ClipWrap;
+				return UnknownWrap;
+
+			case 0x04: // All MPEG ES : byte 16 --> 1=Frame, 2=Clip, Other=Not Currently Supported Here
+			case 0x07: // All MPEG PES : byte 16 --> 1=Frame, 2=Clip, Other=Not Currently Supported Here
+			case 0x0f: // AVC NAL Unit : byte 16 --> 1=Frame, 2=Clip, Other=Not Currently Supported Here
+			case 0x10: // AVC Byte stream : byte 16 --> 1=Frame, 2=Clip, Other=Not Currently Supported Here
+				if(ECLabel[15] == 1) return FrameWrap;
+				else if(ECLabel[15] == 2) return ClipWrap;
+				return UnknownWrap;
+
+			case 0x05: // Uncompressed : Determined by 2-lsbs of byte 16 --> 1=Frame, 2=Clip, 3=Line (Frame-like)
+				if((ECLabel[15] == 1) || (ECLabel[15] == 3)) return FrameWrap;
+				else if(ECLabel[15] == 2) return ClipWrap;
+				return UnknownWrap;
+
+			case 0x06: // AES-BWF : byte 15 --> 1,3=Frame, 2,4=Clip, 8,9=Custom
+				if((ECLabel[14] == 1) || (ECLabel[14] == 3)) return FrameWrap;
+				else if((ECLabel[14] == 2) || (ECLabel[14] == 4)) return ClipWrap;
+				return UnknownWrap;
+
+			case 0x08: // MPEG PS : always Clip-Wrapped
+			case 0x09: // MPEG TS : always Clip-Wrapped
+				return FrameWrap;
+
+			case 0x0a: // A-law : byte 15 --> 1=Frame, 2=Clip, 3=Custom
+				if(ECLabel[14] == 1) return FrameWrap;
+				else if(ECLabel[14] == 2) return ClipWrap;
+				return UnknownWrap;
+
+			case 0x0b: // Encrypted : Should only ever be frame-wrapped
+				if((ECLabel[14] == 1) && (ECLabel[15] == 0)) return FrameWrap;
+				return UnknownWrap;
+
+			case 0x0c: // JPEG-2000 : byte 15 --> 1=Frame, 2=Clip
+			case 0x11: // VC-3 : byte 15 --> 1=Frame, 2=Clip
+			case 0x12: // VC-1 : byte 15 --> 1=Frame, 2=Clip
+				if(ECLabel[14] == 1) return FrameWrap;
+				else if(ECLabel[14] == 2) return ClipWrap;
+				return UnknownWrap;
+
+			case 0x0d: // VBI : Undefined
+			case 0x0e: // ANC : Undefined
+			case 0x13: // Generic Data : Undefined
+			default:
+				return UnknownWrap;
+		}
+	}
+
+}

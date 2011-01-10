@@ -5,7 +5,7 @@
  *          tags in a partition and the UL that gives access to the full
  *			definition
  *
- *	\version $Id: primer.h,v 1.4 2005/09/26 08:35:59 matt-beard Exp $
+ *	\version $Id: primer.h,v 1.5 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -32,8 +32,6 @@
  */
 #ifndef MXFLIB__PRIMER_H
 #define MXFLIB__PRIMER_H
-
-#include <mxflib/mdtype.h>
 
 
 #include <map>

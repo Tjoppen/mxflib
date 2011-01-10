@@ -4,7 +4,7 @@
  *			The Partition class holds data about a partition, either loaded 
  *          from a partition in the file or built in memory
  *
- *	\version $Id: partition.h,v 1.7 2006/08/25 16:12:55 matt-beard Exp $
+ *	\version $Id: partition.h,v 1.8 2011/01/10 10:42:09 matt-beard Exp $
  *
  */
 /*
@@ -33,49 +33,10 @@
 #ifndef MXFLIB__PARTITION_H
 #define MXFLIB__PARTITION_H
 
-#include <mxflib/primer.h>
+#include "mxflib/primer.h"
 
 #include <list>
 
-namespace mxflib
-{
-	// Forward declare so the class can include pointers to itself
-	class Partition;
-	class PartitionPtr;
-
-	//! A smart pointer to an Partition object (with operator[] overload)
-	class PartitionPtr : public SmartPtr<Partition>
-	{
-	public:
-		PartitionPtr() : SmartPtr<Partition>() {};
-//		PartitionPtr(Partition * ptr) : SmartPtr<Partition>(ptr) {};
-//		PartitionPtr(MDObjectPtr ptr) : SmartPtr<Partition>((Partition *)ptr.GetPtr()) {};
-		PartitionPtr(IRefCount<Partition> * ptr) : SmartPtr<Partition>(ptr) {};
-
-		//! Child access operators that overcome dereferencing problems with SmartPtrs
-		MDObjectPtr operator[](const char *ChildName);
-		MDObjectPtr operator[](MDOTypePtr ChildType);
-		MDObjectPtr operator[](const UL &ChildType);
-		MDObjectPtr operator[](ULPtr &ChildType);
-	};
-
-	//! A parent pointer to an Partition object (with operator[] overload)
-	class PartitionParent : public ParentPtr<Partition>
-	{
-	public:
-		PartitionParent() : ParentPtr<Partition>() {};
-		PartitionParent(IRefCount<Partition> * ptr) : ParentPtr<Partition>(ptr) {};
-		
-		//! Child access operators that overcome dereferencing problems with SmartPtrs
-		MDObjectPtr operator[](const char *ChildName);
-		MDObjectPtr operator[](MDOTypePtr ChildType);
-		MDObjectPtr operator[](const UL &ChildType);
-		MDObjectPtr operator[](ULPtr &ChildType);
-	};
-
-	//! A list of smart pointers to Partition objects
-	typedef std::list<PartitionPtr> PartitionList;
-}
 
 namespace mxflib
 {
@@ -83,6 +44,11 @@ namespace mxflib
 	class Partition : public ObjectInterface, public RefCount<Partition>
 	{
 	public:
+		/* DRAGONS: The Metadata class holds a smart pointer to this class.
+		 *          This means that once the Metadata has been parsed it 'owns' the partition.
+		 *          This is required to ensure that all metadata objects in the AllMetadata list live at least as long as the 'Metadata' object.
+		 *          This means that this class can never include a smart pointer to the parsed Metadata object as this would be a loop!
+		 */
 		PrimerPtr PartitionPrimer;		//!< The Primer for this partition
 										/*!< Or NULL if no primer pack active (only valid
 										 *   if there is no header metadata in this partition
@@ -90,7 +56,7 @@ namespace mxflib
 										 */
 
 		MDObjectList AllMetadata;		//!< List of all header metadata sets in the partition
-		MDObjectList TopLevelMetadata;	//!< List of all metadata items int the partition not linked from another
+		MDObjectList TopLevelMetadata;	//!< List of all metadata items in the partition not linked from another
 
 	private:
 		std::map<UUID, MDObjectPtr> RefTargets;				//!< Map of UUID of all reference targets to objects
@@ -111,7 +77,7 @@ namespace mxflib
 		//! Add a metadata object to the header metadata belonging to a partition
 		/*! Note that any strongly linked objects are also added */
 		void AddMetadata(ObjectInterface *NewObject) { AddMetadata(NewObject->Object); };
-		void AddMetadata(MDObjectPtr NewObject);
+		void AddMetadata(MDObjectPtr NewObject, bool ForceFirst = false);
 
 		//! Clear all header metadata for this partition (including the primer)
 		void ClearMetadata(void)
@@ -150,7 +116,7 @@ namespace mxflib
 		void SetKAG(UInt64 KAG)
 		{
 			MDObjectPtr Ptr = Object[KAGSize_UL];
-			ASSERT(Ptr);
+			mxflib_assert(Ptr);
 			Ptr->SetUInt64(KAG);
 		}
 
@@ -204,12 +170,18 @@ namespace mxflib
 		// DRAGONS: does not iterate - only copes with single KLVFill
 		UInt64 SkipFill( UInt64 start );
 
+		//! Load any metadictionaties that are in the list of currently loaded objects
+		bool LoadMetadict(void);
+
+		//! Satisfy, or record as un-matched, all outgoing references
+		void ProcessChildRefs(MDObjectPtr ThisObject);
+
+		//! Scan a metadata object for strong references in sub-objects and add those to this partition
+		void AddMetadataSubs(MDObjectPtr &NewObject, bool ForceFirst);
+
 	private:
 		UInt64 _BodyLocation;				// file position for current Element
 		UInt64 _NextBodyLocation;		// file position for Element after this
-
-	private:
-		void ProcessChildRefs(MDObjectPtr ThisObject);
 	};
 }
 
