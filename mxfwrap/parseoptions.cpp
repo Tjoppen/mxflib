@@ -1,7 +1,7 @@
 /*! \file	parsoptions.cpp
  *	\brief	Parse MXFWrap commandline options
  *
- *	\version $Id: parseoptions.cpp,v 1.1 2011/01/10 10:42:27 matt-beard Exp $
+ *	\version $Id: parseoptions.cpp,v 1.2 2011/01/10 11:00:50 matt-beard Exp $
  *
  */
 /*
@@ -37,11 +37,6 @@ using namespace std;
 
 
 #include "libprocesswrap/process.h"
-#include "libprocesswrap/dminst.h"
-
-// Definitions of the MXFixer API tokens
-#include "apiMXFixer.h"
-#include "libprocesswrap/restranslate.h"
 
 
 #include <stdio.h>

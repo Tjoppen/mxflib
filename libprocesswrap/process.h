@@ -1,7 +1,7 @@
 /*! \file	process.h
  *	\brief	Declarations for MXF wrapping functions
  *
- *	\version $Id: process.h,v 1.1 2011/01/10 10:50:54 matt-beard Exp $
+ *	\version $Id: process.h,v 1.2 2011/01/10 10:59:12 matt-beard Exp $
  *
  */
 /*
@@ -33,7 +33,6 @@
 #include <list>
 #include "mxflib/mxflib.h"
 #include "opmap.h"
-#include "mxflib/bufferlayout.h"
 
 using namespace mxflib;
 

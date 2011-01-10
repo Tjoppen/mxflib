@@ -1,7 +1,7 @@
 /*! \file	mxfwrap.cpp
  *	\brief	Basic MXF essence wrapping utility
  *
- *	\version $Id: mxfwrap.cpp,v 1.44 2011/01/10 10:42:27 matt-beard Exp $
+ *	\version $Id: mxfwrap.cpp,v 1.45 2011/01/10 11:00:50 matt-beard Exp $
  *
  */
 /*
@@ -32,8 +32,6 @@
 using namespace mxflib;
 
 #include "parseoptions.h"
-
-#include "libprocesswrap/dminst.h"
 
 #include <stdio.h>
 #include <iostream>

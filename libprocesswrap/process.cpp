@@ -1,7 +1,7 @@
 /*! \file	process.h
  *	\brief	MXF wrapping functions
  *
- *	\version $Id: process.cpp,v 1.1 2011/01/10 10:50:54 matt-beard Exp $
+ *	\version $Id: process.cpp,v 1.2 2011/01/10 10:59:12 matt-beard Exp $
  *
  */
 /*
@@ -61,8 +61,6 @@ using namespace mxflib;
 #endif
 
 #include "libprocesswrap/process.h"
-
-#include "libprocesswrap/dminst.h"
 
 
 #include "productIDs.h"
