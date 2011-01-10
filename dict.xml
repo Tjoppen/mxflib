@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- $Id: dict.xml,v 1.18 2011/01/10 10:42:08 matt-beard Exp $ -->
+<!-- $Id: dict.xml,v 1.19 2011/01/10 14:42:58 matt-beard Exp $ -->
 <!-- 																			 -->
 <!-- Copyright (c) 2002 BBC R&D and (c) 2005 Matt Beard							 -->
 <!-- Portions Copyright (c) 2003-2008 Metaglue Corporation                       -->
@@ -157,13 +157,11 @@
       <StrongReferenceCodecDefinition detail="StrongReference to CodecDefinition Set" base="StrongRef" ul="urn:x-ul:060e2b34.0104.0101.05020a00.00000000" target="CodecDefinition"/>
       <StrongReferencePluginDefinition detail="StrongReference to PluginDefinition Set" base="StrongRef" ul="urn:x-ul:060e2b34.0104.0101.05021800.00000000" target="PluginDefinition"/>
       <StrongReferenceParameterDefinition detail="StrongReference to ParameterDefinition Set" base="StrongRef" ul="urn:x-ul:060e2b34.0104.0101.05021700.00000000" target="ParameterDefinition"/>
-      <StrongReferenceOperationDefinition detail="StrongReference to OperationDefinition Set" base="StrongRef" ul="urn:x-ul:060e2b34.0104.0101.05021500.00000000" target="OperationDefinition"/>
       <StrongReferenceInterpolationDefinition detail="StrongReference to InterpolationDefinition Set" base="StrongRef" ul="urn:x-ul:060e2b34.0104.0101.05021100.00000000" target="InterpolationDefinition"/>
       <StrongReferenceTaggedValueDefinition detail="StrongReference to TaggedValueDefinition Set" base="StrongRef" ul="urn:x-ul:060e2b34.0104.0101.05022100.00000000" target="TaggedValueDefinition"/>
     </Interpretation>
     <Interpretation>
       <DictReferenceDataDefinition detail="WeakReference to DataDefinition Set" ref="dict" base="DictRef" ul="urn:x-ul:060E2B34.0104.0101.05010300.00000000" target="DataDefinition"/>
-      <WeakReferenceOperationDefinition detail="WeakReference to OperationDefinition Set" base="WeakRef" ul="urn:x-ul:060E2B34.0104.0101.05010700.00000000" target="OperationDefinition"/>
       <DictReferenceContainerDefinition detail="WeakReference to ContainerDefinition Set" base="DictRef" ul="urn:x-ul:060e2b34.0104.0101.05010200.00000000" target="ContainerDefinition"/>
       <StrongReferenceContainerDefinition detail="StrongReference to ContainerDefinition Set" base="StrongRef" ul="urn:x-ul:060e2b34.0104.0101.05020c00.00000000" target="ContainerDefinition"/>
       <DictReferenceCodecDefinition detail="WeakReference to CodecDefinition Set" base="DictRef" ul="urn:x-ul:060e2b34.0104.0101.05010b00.00000000" target="CodecDefinition"/>
@@ -188,10 +186,8 @@
       <StrongReferenceSetParameterDefinition detail="Set of StrongReferences to ParameterDefinition sets" type="Explicit" base="StrongReferenceParameterDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050900.00000000"/>
       <StrongReferenceSetInterpolationDefinition detail="Set of StrongReferences to InterpolationDefinition sets" type="Explicit" base="StrongReferenceInterpolationDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050600.00000000"/>
       <StrongReferenceSetContainerDefinition detail="Set of StrongReferences to ContainerDefinition sets" type="Explicit" base="StrongReferenceContainerDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050300.00000000"/>
-      <StrongReferenceSetOperationDefinition detail="Set of StrongReferences to OperationDefinition sets" type="Explicit" base="StrongReferenceOperationDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050800.00000000"/>
       <StrongReferenceSetTaggedValueDefinition detail="Set of StrongReferences to TaggedValueDefinition sets" type="Explicit" base="StrongReferenceTaggedValueDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050e00.00000000"/>
       <StrongReferenceVectorSegment detail="Vector of StrongReferences to Segment sets" type="Explicit" base="StrongReferenceSegment" ul="urn:x-ul:060e2b34.0104.0101.05060600.00000000"/>
-      <WeakReferenceVectorOperationDefinition detail="Vector of WeakReferences to OperationDefinition sets" type="Explicit" base="WeakReferenceOperationDefinition" ul="urn:x-ul:060e2b34.0104.0101.05040100.00000000"/>
       <DictReferenceVectorDataDefinition detail="Vector of DictReferences to DataDefinition sets" type="Explicit" base="DictReferenceDataDefinition" ul="urn:x-ul:060e2b34.0104.0101.05040300.00000000"/>
       <WeakReferenceSetParameterDefinition detail="Set of WeakReferences to ParameterDefinition sets" type="Explicit" base="WeakReferenceParameterDefinition" ul="urn:x-ul:060E2B34.0104.0101.05030e00.00000000"/>
     </Multiple>
@@ -760,14 +756,19 @@
 		<DMS1SceneExtended detail="MXF DMS-1 Scene Framework constrained to the extended version" ul="06.0E.2B.34.04.01.01.04.0D.01.04.01.01.02.03.02"/>
 		<ATSCA52 detail="ATSC A/52 Compressed Audio" ul="06.0E.2B.34.04.01.01.01.04.02.02.02.03.02.01.00"/>
   </MXFLabels>
-
+  
 
   <MXFClasses>
     <Preface>
-      <Dictionaries detail="Link to KXS 377-2 Dictionary" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 04 02 02 00 00" key="3B 04" use="optional" type="StrongReferenceDictionary"/>
+        <Dictionaries detail="Link to KXS 377-2 Dictionary" globalKey="06 0E 2B 34 01 01 01 02 06 01 01 04 02 02 00 00" key="3B 04" use="optional" type="StrongReferenceDictionary"/>
     </Preface>
   </MXFClasses>
 
+  <MXFTypes>
+    <Interpretation>
+      <StringArray detail="Unicode UTF-16 coded strings, each zero terminated in a single outer string" base="UTF16String" ul="urn:x-ul:060E2B34.0104.0101.04010500.00000000"/>
+    </Interpretation>
+  </MXFTypes>
 
   <MXFClasses>
 		<Dictionary detail="Dictionary" type="localSet" key="06 0e 2b 34 02 53 01 01 0d 01 01 01 01 01 22 00" base="InterchangeObject">
@@ -785,10 +786,6 @@
 		<ContainerDefinition detail="ContainerDefinition" type="localSet" key="06 0e 2b 34 02 53 01 01 0d 01 01 01 01 01 20 00" base="DefinitionObject">
 			<EssenceIsIdentified detail="EssenceIsIdentified" use="optional" key="24 01" globalKey="06 0E 2B 34 01 01 01 01 03 01 02 01 03 00 00 00" type="Boolean"/>
 		</ContainerDefinition>
-		<OperationGroup detail="OperationGroup" base="Segment" type="localSet" key="060e2b34.0253.0101.0d010101.01010a00">
-			<InputSegments type="StrongReferenceVectorSegment" use="optional" key="0b02" globalKey="060e2b34.0101.0102.06010104.06020000"/>
-      		<Operation type="WeakReferenceOperationDefinition" use="required" key="0b01" globalKey="060e2b34.0101.0102.05300506.00000000"/>
-		</OperationGroup>
 	</MXFClasses>
 	
 	
@@ -836,8 +833,10 @@
       <StrongReferenceSetExtensionScheme detail="Set of StrongReferences to ExtensionScheme" type="Explicit" base="StrongReferenceExtensionScheme"/>
       <MetaReferenceArrayTypeDefinition detail="Array of MetaReferences to TypeDefinitions" type="Explicit" base="MetaReferenceTypeDefinition"/>
       <MetaReferenceSetTypeDefinitionExtendibleEnumeration detail="Set of MetaReferences to TypeDefinitionExtendibleEnumerations" type="Explicit" base="MetaReferenceTypeDefinitionExtendibleEnumeration"/>
+      <StrongReferenceSetPropertyDefinition detail="Set of StrongReferences to PropertyDefinitions" type="Explicit" base="StrongReferencePropertyDefinition" ul="urn:x-ul:060E2B34.01040101.05050B00.00000000"/>
+      <StrongReferenceSetClassDefinition detail="Set of StrongReferences to ClassDefinition sets" type="Explicit" base="StrongReferenceClassDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050100.00000000"/>
+      <StrongReferenceSetTypeDefinition detail="Set of StrongReferences to TypeDefinition sets" type="Explicit" base="StrongReferenceTypeDefinition" ul="urn:x-ul:060E2B34.0104.0101.05050c00.00000000"/>
     </Multiple>
-
   </MXFTypes>
 
 	<!-- Classes used only by KLV Extension Syntax -->

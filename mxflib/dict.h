@@ -108,11 +108,9 @@
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceCodecDefinition", "StrongReference to CodecDefinition Set", "StrongRef", "urn:x-ul:060e2b34.0104.0101.05020a00.00000000", 0, false, ClassRefUndefined, "CodecDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferencePluginDefinition", "StrongReference to PluginDefinition Set", "StrongRef", "urn:x-ul:060e2b34.0104.0101.05021800.00000000", 0, false, ClassRefUndefined, "PluginDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceParameterDefinition", "StrongReference to ParameterDefinition Set", "StrongRef", "urn:x-ul:060e2b34.0104.0101.05021700.00000000", 0, false, ClassRefUndefined, "ParameterDefinition")
-		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceOperationDefinition", "StrongReference to OperationDefinition Set", "StrongRef", "urn:x-ul:060e2b34.0104.0101.05021500.00000000", 0, false, ClassRefUndefined, "OperationDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceInterpolationDefinition", "StrongReference to InterpolationDefinition Set", "StrongRef", "urn:x-ul:060e2b34.0104.0101.05021100.00000000", 0, false, ClassRefUndefined, "InterpolationDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceTaggedValueDefinition", "StrongReference to TaggedValueDefinition Set", "StrongRef", "urn:x-ul:060e2b34.0104.0101.05022100.00000000", 0, false, ClassRefUndefined, "TaggedValueDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("DictReferenceDataDefinition", "WeakReference to DataDefinition Set", "DictRef", "urn:x-ul:060E2B34.0104.0101.05010300.00000000", 0, false, ClassRefDict, "DataDefinition")
-		MXFLIB_TYPE_INTERPRETATION_REF("WeakReferenceOperationDefinition", "WeakReference to OperationDefinition Set", "WeakRef", "urn:x-ul:060E2B34.0104.0101.05010700.00000000", 0, false, ClassRefUndefined, "OperationDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("DictReferenceContainerDefinition", "WeakReference to ContainerDefinition Set", "DictRef", "urn:x-ul:060e2b34.0104.0101.05010200.00000000", 0, false, ClassRefUndefined, "ContainerDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceContainerDefinition", "StrongReference to ContainerDefinition Set", "StrongRef", "urn:x-ul:060e2b34.0104.0101.05020c00.00000000", 0, false, ClassRefUndefined, "ContainerDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("DictReferenceCodecDefinition", "WeakReference to CodecDefinition Set", "DictRef", "urn:x-ul:060e2b34.0104.0101.05010b00.00000000", 0, false, ClassRefUndefined, "CodecDefinition")
@@ -133,10 +131,8 @@
 		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetParameterDefinition", "Set of StrongReferences to ParameterDefinition sets", "StrongReferenceParameterDefinition", "urn:x-ul:060E2B34.0104.0101.05050900.00000000", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetInterpolationDefinition", "Set of StrongReferences to InterpolationDefinition sets", "StrongReferenceInterpolationDefinition", "urn:x-ul:060E2B34.0104.0101.05050600.00000000", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetContainerDefinition", "Set of StrongReferences to ContainerDefinition sets", "StrongReferenceContainerDefinition", "urn:x-ul:060E2B34.0104.0101.05050300.00000000", ARRAYEXPLICIT, 0)
-		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetOperationDefinition", "Set of StrongReferences to OperationDefinition sets", "StrongReferenceOperationDefinition", "urn:x-ul:060E2B34.0104.0101.05050800.00000000", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetTaggedValueDefinition", "Set of StrongReferences to TaggedValueDefinition sets", "StrongReferenceTaggedValueDefinition", "urn:x-ul:060E2B34.0104.0101.05050e00.00000000", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_MULTIPLE("StrongReferenceVectorSegment", "Vector of StrongReferences to Segment sets", "StrongReferenceSegment", "urn:x-ul:060e2b34.0104.0101.05060600.00000000", ARRAYEXPLICIT, 0)
-		MXFLIB_TYPE_MULTIPLE("WeakReferenceVectorOperationDefinition", "Vector of WeakReferences to OperationDefinition sets", "WeakReferenceOperationDefinition", "urn:x-ul:060e2b34.0104.0101.05040100.00000000", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_MULTIPLE("DictReferenceVectorDataDefinition", "Vector of DictReferences to DataDefinition sets", "DictReferenceDataDefinition", "urn:x-ul:060e2b34.0104.0101.05040300.00000000", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_MULTIPLE("WeakReferenceSetParameterDefinition", "Set of WeakReferences to ParameterDefinition sets", "WeakReferenceParameterDefinition", "urn:x-ul:060E2B34.0104.0101.05030e00.00000000", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_COMPOUND_EX("Rational", "Rational", "urn:x-ul:060E2B34.0104.0101.03010100.00000000", NULL, TypeFlags_Baseline)
@@ -719,6 +715,11 @@
 		MXFLIB_CLASS_EXTEND_END
 	MXFLIB_CLASS_END
 
+	// Types definitions converted from file dict.xml
+	MXFLIB_TYPE_START(DictData_Types_7)
+		MXFLIB_TYPE_INTERPRETATION("StringArray", "Unicode UTF-16 coded strings, each zero terminated in a single outer string", "UTF16String", "urn:x-ul:060E2B34.0104.0101.04010500.00000000", 0, false)
+	MXFLIB_TYPE_END
+
 	// Class definitions converted from file dict.xml
 	MXFLIB_CLASS_START(DictData_Classes_9)
 		MXFLIB_CLASS_SET("Dictionary", "Dictionary", "InterchangeObject", "06 0e 2b 34 02 53 01 01 0d 01 01 01 01 01 22 00")
@@ -738,20 +739,16 @@
 		MXFLIB_CLASS_SET("ContainerDefinition", "ContainerDefinition", "DefinitionObject", "06 0e 2b 34 02 53 01 01 0d 01 01 01 01 01 20 00")
 			MXFLIB_CLASS_ITEM("EssenceIsIdentified", "EssenceIsIdentified", ClassUsageOptional, "Boolean", 0, 0, 0x2401, "06 0E 2B 34 01 01 01 01 03 01 02 01 03 00 00 00", NULL, NULL)
 		MXFLIB_CLASS_SET_END
-		MXFLIB_CLASS_SET("OperationGroup", "OperationGroup", "Segment", "060e2b34.0253.0101.0d010101.01010a00")
-			MXFLIB_CLASS_ITEM("InputSegments", "", ClassUsageOptional, "StrongReferenceVectorSegment", 0, 0, 0x0b02, "060e2b34.0101.0102.06010104.06020000", NULL, NULL)
-			MXFLIB_CLASS_ITEM("Operation", "", ClassUsageRequired, "WeakReferenceOperationDefinition", 0, 0, 0x0b01, "060e2b34.0101.0102.05300506.00000000", NULL, NULL)
-		MXFLIB_CLASS_SET_END
 	MXFLIB_CLASS_END
 
 	// Types definitions converted from file dict.xml
-	MXFLIB_TYPE_START(DictData_Types_7)
+	MXFLIB_TYPE_START(DictData_Types_8)
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceMetaDictionary", "StrongReference to the MetaDictionary", "StrongRef", "", 0, false, ClassRefUndefined, "MetaDictionary")
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferencePreface", "StrongReference to the Preface", "StrongRef", "", 0, false, ClassRefUndefined, "Preface")
 	MXFLIB_TYPE_END
 
 	// Types definitions converted from file dict.xml
-	MXFLIB_TYPE_START(DictData_Types_8)
+	MXFLIB_TYPE_START(DictData_Types_9)
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceMetaDefinition", "StrongReference to a MetaDefinition", "StrongRef", "", 0, false, ClassRefUndefined, "MetaDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferencePropertyDefinition", "StrongReference to a PropertyDefinition", "StrongRef", "urn:x-ul:060E2B34.01040101.05021900.00000000", 0, false, ClassRefUndefined, "PropertyDefinition")
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceClassDefinition", "StrongReference to a ClassDefinition", "StrongRef", "", 0, false, ClassRefUndefined, "ClassDefinition")
@@ -762,7 +759,7 @@
 	MXFLIB_TYPE_END
 
 	// Types definitions converted from file dict.xml
-	MXFLIB_TYPE_START(DictData_Types_9)
+	MXFLIB_TYPE_START(DictData_Types_10)
 		MXFLIB_TYPE_INTERPRETATION_REF("MetaReference", "Generic MetaReference", "MetaRef", "", 0, false, ClassRefUndefined, "MetaDefinition")
 		MXFLIB_TYPE_INTERPRETATION("URI", "Uniform Resource Identifier", "UTF16String", "", 0, false)
 		MXFLIB_TYPE_INTERPRETATION_REF("StrongReferenceExtensionScheme", "StrongReference to an ExtensionScheme", "StrongRef", "", 0, false, ClassRefUndefined, "ExtensionScheme")
@@ -775,6 +772,9 @@
 		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetExtensionScheme", "Set of StrongReferences to ExtensionScheme", "StrongReferenceExtensionScheme", "", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_MULTIPLE("MetaReferenceArrayTypeDefinition", "Array of MetaReferences to TypeDefinitions", "MetaReferenceTypeDefinition", "", ARRAYEXPLICIT, 0)
 		MXFLIB_TYPE_MULTIPLE("MetaReferenceSetTypeDefinitionExtendibleEnumeration", "Set of MetaReferences to TypeDefinitionExtendibleEnumerations", "MetaReferenceTypeDefinitionExtendibleEnumeration", "", ARRAYEXPLICIT, 0)
+		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetPropertyDefinition", "Set of StrongReferences to PropertyDefinitions", "StrongReferencePropertyDefinition", "urn:x-ul:060E2B34.01040101.05050B00.00000000", ARRAYEXPLICIT, 0)
+		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetClassDefinition", "Set of StrongReferences to ClassDefinition sets", "StrongReferenceClassDefinition", "urn:x-ul:060E2B34.0104.0101.05050100.00000000", ARRAYEXPLICIT, 0)
+		MXFLIB_TYPE_MULTIPLE("StrongReferenceSetTypeDefinition", "Set of StrongReferences to TypeDefinition sets", "StrongReferenceTypeDefinition", "urn:x-ul:060E2B34.0104.0101.05050c00.00000000", ARRAYEXPLICIT, 0)
 	MXFLIB_TYPE_END
 
 	// Class definitions converted from file dict.xml
@@ -883,6 +883,7 @@
 		MXFLIB_DICTIONARY_TYPES(DictData_Types_7)
 		MXFLIB_DICTIONARY_TYPES(DictData_Types_8)
 		MXFLIB_DICTIONARY_TYPES(DictData_Types_9)
+		MXFLIB_DICTIONARY_TYPES(DictData_Types_10)
 		MXFLIB_DICTIONARY_CLASSES(DictData_Classes)
 		MXFLIB_DICTIONARY_CLASSES(DictData_Classes_2)
 		MXFLIB_DICTIONARY_CLASSES(DictData_Classes_3)
